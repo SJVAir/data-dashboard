@@ -191,6 +191,23 @@ describe("typeBlock for the calendars", () => {
 		).toBe("dataset");
 	});
 
+	it("the Map's span counts stops at its resolution: 30 months fit at Monthly, not at Daily", () => {
+		const offering = (levels: EntryTypeMeta["resolutions"]): CatalogEntry[] => [
+			dataset("air-quality", [entryType("pm25", { resolutions: levels })])
+		];
+		const map = (resolution?: "day" | "month") => ({
+			layers: [
+				{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor" as const, id: "m" } }
+			],
+			dateRange: { kind: "custom" as const, start: "2024-01-01", end: "2026-06-30" },
+			...(resolution ? { resolution } : {})
+		});
+		// Automatic: a range over a year is Monthly, so 30 stops.
+		expect(typeBlock(mapType, map(), offering(["day", "month"]), NOW)).toBeNull();
+		expect(typeBlock(mapType, map("month"), offering(["day", "month"]), NOW)).toBeNull();
+		expect(typeBlock(mapType, map("day"), offering(["day", "month"]), NOW)).toBe("span");
+	});
+
 	it("a 400-day range blocks the month calendar but not the contribution calendar", () => {
 		const long = data([pm25], { kind: "trailing", amount: 400, unit: "day" });
 		expect(typeBlock(monthCalendarType, long, CATALOG, NOW)).toBe("span");

@@ -875,6 +875,33 @@ test.describe("a Map's days", () => {
 		await expect(page.getByRole("button", { name: "Next day" })).toBeDisabled();
 	});
 
+	test("a Monthly Map steps by month with the keys, the current month last and so far", async ({
+		page
+	}) => {
+		const doc = wideDoc([], { kind: "custom", start: "2026-09-01", end: "2026-11-30" });
+		Object.assign(doc.body.widgets[0].data, { resolution: "month" });
+		await openSharedDoc(page, doc);
+		const slider = page.getByRole("slider", { name: "Month" });
+		// The current month is the last stop (no Now at Monthly), so far.
+		await expect(slider).toHaveAttribute("aria-valuetext", "November 2026 so far");
+		await expect(page.locator("[data-day-label]")).toHaveText("November 2026 so far");
+		await expect(page.getByRole("button", { name: "Next month" })).toBeDisabled();
+		// No monthly figures are drawn yet: the month says so.
+		await expect(page.getByRole("status").getByText("No figures for this month")).toBeVisible();
+
+		await slider.focus();
+		await page.keyboard.press("ArrowLeft");
+		await expect(slider).toHaveAttribute("aria-valuetext", "October 2026");
+		await expect(slider).toBeFocused();
+		await page.keyboard.press("Home");
+		await expect(slider).toHaveAttribute("aria-valuetext", "September 2026");
+		await expect(slider).toBeFocused();
+		await expect(page.getByRole("button", { name: "Previous month" })).toBeDisabled();
+		await page.keyboard.press("End");
+		await expect(slider).toHaveAttribute("aria-valuetext", "November 2026 so far");
+		await expect(slider).toBeFocused();
+	});
+
 	test("a range with today opens on Now, and the days before it step back", async ({ page }) => {
 		await openSharedDoc(
 			page,

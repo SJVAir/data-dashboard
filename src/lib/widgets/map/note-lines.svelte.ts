@@ -3,6 +3,7 @@ import type { MapFeatureProperties } from "@sjvair/map-sdk/data";
 import type { MetadataSource, MonitorTypeInfo } from "$lib/data/metadata";
 import { formatNumber } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";
+import type { MapLevel } from "./days";
 import { hiddenMarks, hiddenReasonLines, hiddenReasons } from "./marks";
 import { monitorIds } from "./sources";
 
@@ -20,7 +21,16 @@ export interface NoteLinesInput {
 	readonly dayDrawn: ReadonlySet<string> | undefined;
 	readonly dayUnrated: boolean;
 	readonly dayNoFigures: boolean;
+	/** What the stops step by (the "no figures" note names it); missing: days. */
+	readonly level?: MapLevel;
 }
+
+/** The note for a stop with no figures, at each level. */
+const NO_FIGURES: Record<MapLevel, () => string> = {
+	day: () => m.map_day_no_figures(),
+	month: () => m.map_month_no_figures(),
+	year: () => m.map_year_no_figures()
+};
 
 /** The map's notes: the day's, then why marks are hidden. No effects. */
 export class MapNoteLines {
@@ -76,8 +86,8 @@ export class MapNoteLines {
 		const entryLabel = input.entryLabel;
 		return hiddenReasonLines(reasons, entryLabel).map(({ reason, count }) => {
 			const counted = { count: formatNumber(count), countValue: count };
-			return reason === "day"
-				? m.map_marks_hidden_day(counted)
+			return reason === "period"
+				? m.map_marks_hidden_period(counted)
 				: m.map_marks_hidden({ reason, pollutant: entryLabel ?? "", ...counted });
 		});
 	});
@@ -87,9 +97,9 @@ export class MapNoteLines {
 		const entryLabel = this.#input.entryLabel;
 		return this.#input.dayUnrated && entryLabel ? m.map_day_unrated({ pollutant: entryLabel }) : "";
 	});
-	/** On a day stop that has loaded: no monitor in the places has a figure that day. */
+	/** On a stop that has loaded: no monitor in the places has a figure for its period. */
 	readonly #noFiguresLine = $derived.by(() =>
-		this.#input.dayNoFigures ? m.map_day_no_figures() : ""
+		this.#input.dayNoFigures ? NO_FIGURES[this.#input.level ?? "day"]() : ""
 	);
 
 	/** The map's notes: the day's, then why marks are hidden. */

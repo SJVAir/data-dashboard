@@ -19,8 +19,11 @@ export const PESTICIDE_USE = "pesticide-use";
  * one 5b uses).
  */
 export const MAP_POLLUTANTS_MAX = LIMITS.LAYERS_MAX - 4;
-/** The most days a Map's date range covers (a year, with its leap day). */
-export const MAP_MAX_DAYS = 366;
+/**
+ * The most stops a Map's date range has at its resolution (366 days at Daily, 366 months at
+ * Monthly, and so on), counted on the range widened to whole periods.
+ */
+export const MAP_MAX_STOPS = 366;
 
 export const MapOptionsSchema = z.strictObject({
 	/** The entry type drawn now (one of the pollutant layers'). */
@@ -33,8 +36,11 @@ export const MapOptionsSchema = z.strictObject({
 		.optional(),
 	/** The basemap's id (missing: the preset's default). */
 	basemap: SafeIdSchema.optional(),
-	/** The day shown, as a Pacific date key (missing: the last stop). */
-	day: z
+	/**
+	 * The stop shown: the Pacific date key of its period's start (a day, a month's first day, a
+	 * year's first day; missing: the last stop).
+	 */
+	at: z
 		.string()
 		.regex(/^\d{4}-\d{2}-\d{2}$/)
 		.optional(),

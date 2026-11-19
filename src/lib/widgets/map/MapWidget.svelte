@@ -21,11 +21,11 @@
 	import { pesticideMeta } from "$lib/data/pesticide-meta";
 	import type { QueryState, UnavailableReason } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
-	import { formatNumber, parseDateKey } from "$lib/format";
+	import { formatNumber, pacificDay, parseDateKey } from "$lib/format";
 	import { HMS_FIRE, HMS_SMOKE } from "$lib/get-data/map";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
-	import { entryMeta, placesLayer } from "../shared/input";
+	import { entryMeta, placesLayer, widgetEffective, widgetPlaceKind } from "../shared/input";
 	import { useTileOptions } from "../shared/tile-options.svelte";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 	import WidgetSkeleton from "../shared/WidgetSkeleton.svelte";
@@ -41,6 +41,7 @@
 	import { MapDailyFigure } from "./daily-figure.svelte";
 	import { MapFillTypes } from "./data/fill-types.svelte";
 	import { MapDays } from "./day-mode.svelte";
+	import { mapLevel, type MapLevel } from "./days";
 	import DayStepper from "./DayStepper.svelte";
 	import { MapFrame } from "./frame.svelte";
 	import { focusGeometry } from "./focus";
@@ -193,8 +194,19 @@
 	});
 	/** The options the tile shows (a viewer's held keys over the saved ones). */
 	const shown = $derived(wiring.options);
-	// The days of the tile's range: the stop showing, and the stepper's steps (saved, or a
-	// viewer's held). Without a range the tile shows now.
+	/**
+	 * The Map's resolution over its range (Automatic included: the finest level from Daily up that
+	 * every layer offers), as of today: what the stops step by. Daily without a range.
+	 */
+	const resolution = $derived.by<MapLevel>(() => {
+		const range = widget.data.dateRange;
+		if (!range) return "day";
+		const place = widgetPlaceKind(widget.data, known);
+		const now = pacificDay(days.today, 12);
+		return mapLevel(widgetEffective(widget, known, place, range, now).resolution);
+	});
+	// The periods of the tile's range at its resolution: the stop showing, and the stepper's steps
+	// (saved, or a viewer's held). Without a range the tile shows now.
 	const days: MapDays = new MapDays({
 		get widget() {
 			return widget;
@@ -205,6 +217,9 @@
 		},
 		get saved() {
 			return wiring.saved;
+		},
+		get resolution() {
+			return resolution;
 		}
 	});
 	onDestroy(() => days.destroy());
@@ -444,7 +459,7 @@
 	/** The day the notices layer shows when that is a past day: the card's "Notices here" link. */
 	const noticesPastDay = $derived.by<NoticesDay | null>(() => {
 		const at = days.at;
-		if (!noticesDrawn || !at || at === "now") return null;
+		if (!noticesDrawn || !at || at === "now" || !("day" in at)) return null;
 		const day = parseDateKey(at.day);
 		return { year: day.y, month: day.m };
 	});
@@ -740,6 +755,9 @@
 			},
 			get dayNoFigures() {
 				return data.dayNoFigures;
+			},
+			get level() {
+				return days.resolution;
 			}
 		},
 		metadata
@@ -1013,6 +1031,7 @@
 				<div class="border-border border-t" data-map-days>
 					<DayStepper
 						stops={days.stops}
+						resolution={days.resolution}
 						at={days.index}
 						notFinal={data.dayNotFinal}
 						narrow={stepperNarrow}

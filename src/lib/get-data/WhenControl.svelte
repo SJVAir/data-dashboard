@@ -3,6 +3,7 @@
 	import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
 	import { Select } from "bits-ui";
 	import { Input } from "$lib/components/ui/input";
+	import type { Level } from "$lib/data/dataset-rules";
 	import { DateRangeSpecSchema, type DateRangeSpec, type Resolution } from "$lib/data/schema";
 	import { formatDateRange, formatMonthName, todayPacific } from "$lib/format";
 	import { resolveRange } from "$lib/format/range";
@@ -24,6 +25,7 @@
 		value,
 		now,
 		resolution,
+		resolutionFor,
 		onchange
 	}: {
 		/**
@@ -39,6 +41,11 @@
 		 * dates are whole periods.
 		 */
 		resolution?: Resolution;
+		/**
+		 * The dataset's effective resolution over another range (Automatic follows the range): a
+		 * type whose span counts stops (the Map) checks each choice at its own. Missing: `resolution`.
+		 */
+		resolutionFor?: (spec: DateRangeSpec) => Level;
 		/** A range was chosen, or Now (`undefined`). */
 		onchange: (spec: DateRangeSpec | undefined) => void;
 	} = $props();
@@ -84,7 +91,8 @@
 	}
 
 	function blockText(spec: DateRangeSpec): string | null {
-		const block = blockedBySpan(spec, type.span, now);
+		const level = resolutionFor?.(spec) ?? (resolution as Level | undefined);
+		const block = blockedBySpan(spec, type.span, now, level);
 		if (block === "too-short") return m.get_data_span_too_short();
 		if (block === "too-long") return m.get_data_span_too_long();
 		return null;

@@ -1,11 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { pacificDay } from "$lib/format";
 import { resolveRange } from "$lib/format/range";
-import { dayOption, dayStops, openStop, stepKey, type Stop } from "./days";
+import {
+	openStop,
+	periodStops,
+	stepKey,
+	stopLabel,
+	stopOption,
+	stopsOverCap,
+	type Stop
+} from "./days";
 
-const day = (d: string): Stop => ({ day: d });
+const day = (d: string): Stop => ({ at: d });
+const dayStops = (range: Parameters<typeof periodStops>[0], today: string) =>
+	periodStops(range, "day", today);
 
-describe("dayStops", () => {
+describe("periodStops at Daily", () => {
 	it("gives one stop per day of a past custom range, no now", () => {
 		expect(
 			dayStops({ kind: "custom", start: "2026-09-07", end: "2026-09-09" }, "2026-11-15")
@@ -54,6 +64,79 @@ describe("dayStops", () => {
 	});
 });
 
+describe("periodStops at Monthly and Yearly", () => {
+	it("gives each month's first day for Mar-Jun 2026", () => {
+		expect(
+			periodStops({ kind: "custom", start: "2026-03-10", end: "2026-06-20" }, "month", "2026-11-18")
+		).toEqual([
+			{ at: "2026-03-01" },
+			{ at: "2026-04-01" },
+			{ at: "2026-05-01" },
+			{ at: "2026-06-01" }
+		]);
+	});
+
+	it("gives each year's first day for 2024-2026, the current year last and so far", () => {
+		expect(
+			periodStops({ kind: "custom", start: "2024-02-01", end: "2026-12-31" }, "year", "2026-11-18")
+		).toEqual([{ at: "2024-01-01" }, { at: "2025-01-01" }, { at: "2026-01-01", soFar: true }]);
+	});
+
+	it("ends a range reaching today with the current month, so far, and no now", () => {
+		expect(periodStops({ kind: "to-date", unit: "year" }, "month", "2026-03-05")).toEqual([
+			{ at: "2026-01-01" },
+			{ at: "2026-02-01" },
+			{ at: "2026-03-01", soFar: true }
+		]);
+	});
+
+	it("never includes months after today", () => {
+		expect(
+			periodStops({ kind: "custom", start: "2026-10-01", end: "2027-02-01" }, "month", "2026-11-18")
+		).toEqual([{ at: "2026-10-01" }, { at: "2026-11-01", soFar: true }]);
+	});
+
+	it("steps by day below Daily", () => {
+		const range = { kind: "custom", start: "2026-09-07", end: "2026-09-08" } as const;
+		expect(periodStops(range, "hour", "2026-11-15")).toEqual(
+			periodStops(range, "day", "2026-11-15")
+		);
+	});
+});
+
+describe("stopsOverCap", () => {
+	it("counts stops, not days: 30 months at Monthly is allowed, 30 months at Daily is not", () => {
+		const range = { kind: "custom", start: "2024-01-01", end: "2026-06-30" } as const;
+		const now = pacificDay("2026-11-18", 12);
+		expect(stopsOverCap(range, "month", now)).toBe(false);
+		expect(stopsOverCap(range, "day", now)).toBe(true);
+	});
+
+	it("checks the widened range: 366 days at Daily, more is over", () => {
+		const now = pacificDay("2026-11-18", 12);
+		expect(
+			stopsOverCap({ kind: "custom", start: "2024-01-01", end: "2024-12-31" }, "day", now)
+		).toBe(false);
+		expect(
+			stopsOverCap({ kind: "custom", start: "2024-01-01", end: "2025-01-01" }, "day", now)
+		).toBe(true);
+	});
+});
+
+describe("stopLabel", () => {
+	it("labels a day, a month, a year and now through format", () => {
+		expect(stopLabel({ at: "2026-11-10" }, "day")).toBe("Tuesday, November 10, 2026");
+		expect(stopLabel({ at: "2026-03-01" }, "month")).toBe("March 2026");
+		expect(stopLabel({ at: "2025-01-01" }, "year")).toBe("2025");
+		expect(stopLabel("now", "day")).toBe("Now");
+	});
+
+	it("labels the current period so far", () => {
+		expect(stopLabel({ at: "2026-11-01", soFar: true }, "month")).toBe("November 2026 so far");
+		expect(stopLabel({ at: "2026-01-01", soFar: true }, "year")).toBe("2026 so far");
+	});
+});
+
 describe("openStop", () => {
 	const stops = dayStops({ kind: "custom", start: "2026-09-07", end: "2026-09-09" }, "2026-11-15");
 	it("opens the saved day when it is a stop", () => {
@@ -76,18 +159,18 @@ describe("openStop", () => {
 	});
 });
 
-describe("dayOption", () => {
+describe("stopOption", () => {
 	const stops = dayStops({ kind: "custom", start: "2026-09-07", end: "2026-09-09" }, "2026-11-15");
 	it("stores the last stop as missing", () => {
-		expect(dayOption(stops[2], stops)).toBeUndefined();
+		expect(stopOption(stops[2], stops)).toBeUndefined();
 	});
 	it("stores another stop as its date", () => {
-		expect(dayOption(stops[0], stops)).toBe("2026-09-07");
+		expect(stopOption(stops[0], stops)).toBe("2026-09-07");
 	});
 	it("stores now as missing when it is the last stop", () => {
 		const rolling = dayStops({ kind: "trailing", amount: 2, unit: "day" }, "2026-11-15");
-		expect(dayOption("now", rolling)).toBeUndefined();
-		expect(dayOption(rolling[0], rolling)).toBe("2026-11-14");
+		expect(stopOption("now", rolling)).toBeUndefined();
+		expect(stopOption(rolling[0], rolling)).toBe("2026-11-14");
 	});
 });
 
@@ -105,6 +188,10 @@ describe("stepKey", () => {
 	it("moves by seven", () => {
 		expect(stepKey("PageDown", 9, 20)).toBe(2);
 		expect(stepKey("PageUp", 9, 20)).toBe(16);
+	});
+	it("moves a page of the given size", () => {
+		expect(stepKey("PageDown", 20, 40, 12)).toBe(8);
+		expect(stepKey("PageUp", 20, 40, 12)).toBe(32);
 	});
 	it("jumps to the ends", () => {
 		expect(stepKey("Home", 5, 10)).toBe(0);

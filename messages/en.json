@@ -1096,6 +1096,26 @@
 			}
 		}
 	],
+	"get_data_range_cut_left_out_months": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "This widget shows up to {count} month, so the earlier months were left out.",
+				"countPlural=other": "This widget shows up to {count} months, so the earlier months were left out."
+			}
+		}
+	],
+	"get_data_range_cut_left_out_years": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "This widget shows up to {count} year, so the earlier years were left out.",
+				"countPlural=other": "This widget shows up to {count} years, so the earlier years were left out."
+			}
+		}
+	],
 	"get_data_map_pollutant_instead": "The map shows {pollutants} only, so it uses {pollutant} instead of {previous}.",
 	"get_data_level_left_out": "This widget can't show a level, so the one you chose was left out.",
 	"get_data_alert_level_from_low_line": "The chart's line was at {level}, so the alert level starts there. At that level you'd be told even when the air is fine for most people. You can change it under Alert level.",
@@ -1275,8 +1295,19 @@
 	"map_day_not_final": "Not final yet",
 	"map_day_value_not_final": "{day}, not final yet",
 	"map_day_none_yet": "No days to show yet",
+	"map_month_previous": "Previous month",
+	"map_month_next": "Next month",
+	"map_month_slider": "Month",
+	"map_month_none_yet": "No months to show yet",
+	"map_year_previous": "Previous year",
+	"map_year_next": "Next year",
+	"map_year_slider": "Year",
+	"map_year_none_yet": "No years to show yet",
+	"map_stop_so_far": "{period} so far",
 	"map_day_unrated": "{pollutant}'s days can't be rated",
 	"map_day_no_figures": "No figures for this day",
+	"map_month_no_figures": "No figures for this month",
+	"map_year_no_figures": "No figures for this year",
 	"map_fill_today_so_far": "{regionType}, today so far",
 	"map_fill_failed": "The region fill couldn't be loaded.",
 	"map_notices_failed": "Spray notices couldn't be loaded.",
@@ -1418,13 +1449,13 @@
 	"map_use_card_top_chemicals": "Top chemicals by pounds",
 	"map_use_card_detail_failed": "This square mile's months and chemicals couldn't be loaded.",
 	"map_use_card_loading": "Loading this square mile's months and chemicals",
-	"map_marks_hidden_day": [
+	"map_marks_hidden_period": [
 		{
 			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
 			"selectors": ["countPlural"],
 			"match": {
-				"countPlural=one": "{count} marked monitor has no figure for this day",
-				"countPlural=other": "{count} marked monitors have no figure for this day"
+				"countPlural=one": "{count} marked monitor has no figure for this period",
+				"countPlural=other": "{count} marked monitors have no figure for this period"
 			}
 		}
 	],

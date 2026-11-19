@@ -27,7 +27,7 @@
 	import {
 		HMS_FIRE,
 		HMS_SMOKE,
-		MAP_MAX_DAYS,
+		MAP_MAX_STOPS,
 		PESTICIDE_NOTICES,
 		PESTICIDE_USE,
 		mapOptions
@@ -277,6 +277,9 @@
 			: undefined
 	);
 	const resolution = $derived(effective?.resolution ?? plain.data.resolution);
+	/** The dataset's resolution over another range (the Map's span counts stops at it). */
+	const resolutionFor = (spec: DateRangeSpec): DataLevel =>
+		widgetEffective({ type: plain.type, data: plain.data }, known, placeKind, spec, now).resolution;
 	/** Data resolution's choices: none for a pinned type, Now, or a widget with no main entry type. */
 	const choices = $derived.by(() => {
 		if (!known || !hasRange || (isNow && !isMap)) return null;
@@ -583,8 +586,15 @@
 			);
 		}
 		if (what.includes("range-cut")) {
-			const count = formatNumber(MAP_MAX_DAYS);
-			out.push(m.get_data_range_cut_left_out({ count, countValue: MAP_MAX_DAYS }));
+			const counted = { count: formatNumber(MAP_MAX_STOPS), countValue: MAP_MAX_STOPS };
+			const cutAt = dropped.conversion.cutAt;
+			out.push(
+				cutAt === "month"
+					? m.get_data_range_cut_left_out_months(counted)
+					: cutAt === "year"
+						? m.get_data_range_cut_left_out_years(counted)
+						: m.get_data_range_cut_left_out(counted)
+			);
 		}
 		if (what.includes("marks")) out.push(m.get_data_marks_left_out());
 		if (what.includes("fill")) out.push(m.getdata_note_fill_dropped());
@@ -638,7 +648,7 @@
 
 	/** Whether `d` already has now type `t`'s shape (the Map's own, for the Map). */
 	function shaped(d: Draft, t: WidgetType): boolean {
-		return t.type === MAP_TYPE ? isMapShaped(d, now) : isNowShaped(d, t);
+		return t.type === MAP_TYPE ? isMapShaped(d, now, known) : isNowShaped(d, t);
 	}
 
 	/** The type `snapshot` converts from: none for a range draft already marked as a now type. */
@@ -871,6 +881,7 @@
 							value={type.now ? plain.data.dateRange : range}
 							{now}
 							{resolution}
+							{resolutionFor}
 							onchange={setRange}
 						/>
 					{/if}

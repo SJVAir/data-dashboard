@@ -51,7 +51,7 @@ vi.mock("./notices", async (original) => {
 				if (fakes.noticesUnavailable.value) return { unavailable: "filter-gone" };
 				const filters = data.layers.find((l) => l.dataset === "pesticide-notices")?.filters;
 				const named = fakes.noticesKeyFilters.value ? `|${JSON.stringify(filters ?? {})}` : "";
-				const key = `notices:${at === "now" ? "now" : at.day}${named}`;
+				const key = `notices:${at === "now" ? "now" : "day" in at ? at.day : `${at.resolution}:${at.start}`}${named}`;
 				return { key, cadence: "hour", fetch: () => fakes.noticesFetch(key) };
 			}
 		},
@@ -66,7 +66,7 @@ vi.mock("./hms", async (original) => {
 		hmsEntry: {
 			...real.hmsEntry,
 			source: async ({ at }: { at: SnapshotAt }) => {
-				const key = `hms:${at === "now" ? "now" : at.day}`;
+				const key = `hms:${at === "now" ? "now" : "day" in at ? at.day : `${at.resolution}:${at.start}`}`;
 				return { key, cadence: "hour", fetch: () => fakes.hmsFetch(key) };
 			}
 		}
@@ -79,7 +79,7 @@ vi.mock("./fill", async (original) => {
 		...real,
 		fillEntry: {
 			source: ({ at }: { at: SnapshotAt }) => {
-				const key = `fill:${at === "now" ? "now" : at.day}`;
+				const key = `fill:${at === "now" ? "now" : "day" in at ? at.day : `${at.resolution}:${at.start}`}`;
 				return {
 					key,
 					cadence: "hour",

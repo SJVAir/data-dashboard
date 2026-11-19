@@ -6,6 +6,7 @@ import type { WidgetDataConfig } from "$lib/data/schema";
 import type { Target } from "$lib/data/types";
 import { fromLayer } from "$lib/places/selection";
 import { MAP_TYPE } from "$lib/widgets/map/options";
+import { widgetEffective, widgetPlaceKind } from "$lib/widgets/shared/input";
 import type { WidgetType } from "$lib/widgets/registry";
 import { blockedBySpan } from "./date-presets";
 
@@ -92,7 +93,19 @@ export function typeBlock(
 		const places = Math.max(0, ...data.layers.map((l) => fromLayer(l).length));
 		if (places > accepts.maxPlaces) return "places";
 	}
-	if (data.dateRange && blockedBySpan(data.dateRange, type.span, now)) return "span";
+	if (data.dateRange) {
+		// A span that counts stops (the Map's) counts them at the dataset's resolution.
+		const level = type.span?.maxStops
+			? widgetEffective(
+					{ type: type.type, data },
+					catalog,
+					widgetPlaceKind(data, catalog),
+					data.dateRange,
+					now
+				).resolution
+			: undefined;
+		if (blockedBySpan(data.dateRange, type.span, now, level)) return "span";
+	}
 	if (accepts.maxPollutantLayers !== undefined) {
 		const kindOf = (dataset: string, id: string | undefined) =>
 			catalog.find((c) => c.id === dataset)?.entryTypes.find((e) => e.id === id)?.kind;

@@ -1,8 +1,11 @@
 import type { DayKind } from "../day-state";
 import type { Level } from "../metadata";
 
-/** `now`, or one Pacific date key (`YYYY-MM-DD`). */
-export type SnapshotAt = "now" | { day: string };
+/**
+ * `now`, one Pacific date key (`YYYY-MM-DD`), or a month or year by its start key (a Map's
+ * Monthly or Yearly stop).
+ */
+export type SnapshotAt = "now" | { day: string } | { start: string; resolution: "month" | "year" };
 
 export type SnapshotFigure = { value: number | null; level: Level | null; kind: DayKind };
 

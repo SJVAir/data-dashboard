@@ -145,6 +145,18 @@ describe("the fill entry", () => {
 		expect(source.poll(await source.fetch(signal))).toBe(true);
 	});
 
+	it("draws every region with no figure on a month stop, asks for no day, and never polls", async () => {
+		const entry = createFillEntry(ctx);
+		const at = { start: "2026-10-01", resolution: "month" } as const;
+		const source = entry.source({ regionType: "zipcode", entryType: "pm25", at });
+		expect(source.key).toBe("map-fill:pm25:zipcode:month:2026-10-01");
+		const value = await source.fetch(signal);
+		expect(daily).not.toHaveBeenCalled();
+		expect(open).not.toHaveBeenCalled();
+		expect(value.features.features.map((f) => f.properties.value)).toEqual([null, null]);
+		expect(source.poll(value)).toBe(false);
+	});
+
 	it("draws every region with no figure when the days can't be rated", async () => {
 		ctx.rating = { dailyFigure: async () => null, levels: async () => levels };
 		const value = await createFillEntry(ctx)

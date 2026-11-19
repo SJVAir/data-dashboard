@@ -9,7 +9,10 @@ import type { Feature, FeatureCollection, Geometry } from "geojson";
 import { getMetadata, getResolvers } from "$lib/data";
 import type { NowSource, NowState } from "$lib/data/now/client";
 import {
+	atKey,
 	fillableTypes,
+	isPeriodAt,
+	periodSnapshotSource,
 	regionDaySource,
 	regionTodaySource,
 	type Snapshot,
@@ -128,9 +131,10 @@ export function createFillEntry(ctx: FillContext): FillEntry {
 			const now = at === "now";
 			return {
 				// Now is keyed by today's Pacific date, so it is a new source after midnight.
-				key: `map-fill:${entryType}:${regionType}:${now ? `today:${ctx.today()}` : at.day}`,
+				key: `map-fill:${entryType}:${regionType}:${now ? `today:${ctx.today()}` : atKey(at)}`,
 				cadence: "hour",
-				// Now: today so far, hourly. A day: hourly until every figure is final.
+				// Now: today so far, hourly. A day: hourly until every figure is final. A month or
+				// year: no figures yet, so final at once.
 				poll: (value) => now || !value?.final,
 				async fetch(signal) {
 					const [shapes, name, figure, levels] = await Promise.all([
@@ -155,7 +159,9 @@ export function createFillEntry(ctx: FillContext): FillEntry {
 					};
 					const snapshot = now
 						? await regionTodaySource(args).fetch(signal)
-						: await regionDaySource({ ...args, day: at.day }).fetch(signal);
+						: isPeriodAt(at)
+							? await periodSnapshotSource(atKey(at)).fetch(signal)
+							: await regionDaySource({ ...args, day: at.day }).fetch(signal);
 					return {
 						features: toFillFeatures(shapes, snapshot, regionType, name),
 						final: snapshot.final

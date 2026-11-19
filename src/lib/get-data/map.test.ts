@@ -231,7 +231,7 @@ describe("converting to and from the Map", () => {
 	};
 
 	it("converting a Map with a fill to a Chart drops the fill and day with a note; back never invents one", () => {
-		const withFill = mapDraft(["pm25"], { fill: "zipcode", day: "2026-11-10" }, false);
+		const withFill = mapDraft(["pm25"], { fill: "zipcode", at: "2026-11-10" }, false);
 		const c = fromMapDraft(withFill, chartType, CATALOG);
 		expect(c.dropped).toEqual(["fill"]);
 		expect(c.draft.options).toBeUndefined();
@@ -296,24 +296,59 @@ describe("converting to and from the Map", () => {
 		expect(toMapDraft(draft, CATALOG, ALLOWED, NOW).draft.data.dateRange).toBeUndefined();
 	});
 
-	it("a range over 366 days is cut to its last 366 days, with a note", () => {
+	/** The catalog with every pollutant offering `levels` only. */
+	const offering = (levels: string[]) =>
+		[
+			{
+				id: "air-quality",
+				entryTypes: IDS.map((id) => ({ id, kind: "pollutant", resolutions: levels }))
+			}
+		] as unknown as typeof CATALOG;
+
+	it("a range over 366 days is cut to its last 366 days at Daily, with a note", () => {
+		const DAILY = offering(["day"]);
 		const fixed = chartOf([{ dataset: "air-quality", entryType: "pm25", place: FRESNO }]);
 		fixed.data.dateRange = { kind: "custom", start: "2025-01-01", end: "2026-02-04" };
-		const c = toMapDraft(fixed, CATALOG, ALLOWED, NOW);
+		const c = toMapDraft(fixed, DAILY, ALLOWED, NOW);
 		expect(c.draft.data.dateRange).toEqual({
 			kind: "custom",
 			start: "2025-02-04",
 			end: "2026-02-04"
 		});
 		expect(c.dropped).toEqual(["range-cut"]);
-		expect(isMapShaped(fixed, NOW)).toBe(false);
-		expect(isMapShaped(c.draft, NOW)).toBe(true);
+		expect(c.cutAt).toBe("day");
+		expect(isMapShaped(fixed, NOW, DAILY)).toBe(false);
+		expect(isMapShaped(c.draft, NOW, DAILY)).toBe(true);
 		// A rolling range keeps rolling: its last 366 days, up to today.
 		const rolling = chartOf([{ dataset: "air-quality", entryType: "pm25", place: FRESNO }]);
 		rolling.data.dateRange = { kind: "trailing", amount: 400, unit: "day" };
-		const r = toMapDraft(rolling, CATALOG, ALLOWED, NOW);
+		const r = toMapDraft(rolling, DAILY, ALLOWED, NOW);
 		expect(r.draft.data.dateRange).toEqual({ kind: "trailing", amount: 366, unit: "day" });
 		expect(r.dropped).toEqual(["range-cut"]);
+	});
+
+	it("counts stops, not days: a 30-month range at Monthly is kept whole", () => {
+		const MONTHLY = offering(["day", "month", "year"]);
+		const chart = chartOf([{ dataset: "air-quality", entryType: "pm25", place: FRESNO }]);
+		chart.data.dateRange = { kind: "custom", start: "2024-01-01", end: "2026-06-30" };
+		const c = toMapDraft(chart, MONTHLY, ALLOWED, NOW);
+		expect(c.draft.data.dateRange).toEqual(chart.data.dateRange);
+		expect(c.dropped).not.toContain("range-cut");
+		expect(isMapShaped(c.draft, NOW, MONTHLY)).toBe(true);
+	});
+
+	it("cuts a range over 366 months to its last 366 months at Monthly", () => {
+		const MONTHLY = offering(["month"]);
+		const chart = chartOf([{ dataset: "air-quality", entryType: "pm25", place: FRESNO }]);
+		chart.data.dateRange = { kind: "custom", start: "1990-01-01", end: "2026-06-30" };
+		const c = toMapDraft(chart, MONTHLY, ALLOWED, NOW);
+		expect(c.draft.data.dateRange).toEqual({
+			kind: "custom",
+			start: "1996-01-01",
+			end: "2026-06-30"
+		});
+		expect(c.dropped).toEqual(["range-cut"]);
+		expect(c.cutAt).toBe("month");
 	});
 
 	it("a ranged Map converts to a Chart with its range; a Map on Now takes the Chart's default", () => {

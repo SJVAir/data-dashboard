@@ -4,7 +4,7 @@
  */
 import type { CatalogEntry, Level } from "$lib/data/metadata";
 import type { DateRangeSpec, Layer, PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
-import { addDays } from "$lib/format";
+import { addDays, parseDateKey } from "$lib/format";
 import { daysInMonth } from "$lib/format/calendar";
 import { resolveRange } from "$lib/format/range";
 import { fromLayer } from "$lib/places/selection";
@@ -12,7 +12,7 @@ import { mapType } from "$lib/widgets/map";
 import {
 	HMS_FIRE,
 	HMS_SMOKE,
-	MAP_MAX_DAYS,
+	MAP_MAX_STOPS,
 	MAP_POLLUTANTS_MAX,
 	MAP_TYPE,
 	PESTICIDE_NOTICES,
@@ -26,7 +26,8 @@ import {
 import { parsePeriod, periodKey, periodListed, type UsePeriod } from "$lib/widgets/map/use-period";
 import { CHART_TYPE } from "$lib/widgets/chart";
 import { getWidgetType, type WidgetType } from "$lib/widgets/registry";
-import { mainLayer } from "$lib/widgets/shared/input";
+import { mapLevel, type MapLevel } from "$lib/widgets/map/days";
+import { mainLayer, widgetEffective, widgetPlaceKind } from "$lib/widgets/shared/input";
 import { blockedBySpan } from "./date-presets";
 import type { Draft } from "./draft.svelte";
 import { keepingPlaces } from "./layers";
@@ -213,16 +214,24 @@ export function setMapPesticideFilters(
 
 /**
  * Whether `draft` already has the Map's shape, so opening it as a Map converts nothing: no day
- * selection and no date range the Map's span rules out (none is Now); one to
+ * selection and no date range the Map's span rules out at its resolution (`mapLevelOf`, with
+ * `catalog`; none is Now); one to
  * `MAP_POLLUTANTS_MAX` air-quality layers first, the first holding at most `maxPlaces` places and
  * the others none; then only place-less smoke and fire layers, then at most one spray notices
  * layer and, last, at most one use layer (each place-less, with no entry type, and optional
  * filters).
  */
-export function isMapShaped(draft: Draft, now: Date = new Date()): boolean {
+export function isMapShaped(
+	draft: Draft,
+	now: Date = new Date(),
+	catalog: CatalogEntry[] = []
+): boolean {
 	const { data } = draft;
 	if (data.timeSubRange) return false;
-	if (data.dateRange && blockedBySpan(data.dateRange, mapType.span, now)) return false;
+	const range = data.dateRange;
+	if (range && blockedBySpan(range, mapType.span, now, mapLevelOf(data, catalog, range, now))) {
+		return false;
+	}
 	const count = data.layers.findIndex((l) => l.dataset !== AIR_QUALITY);
 	const pollutants = count < 0 ? data.layers : data.layers.slice(0, count);
 	const rest = count < 0 ? [] : data.layers.slice(count);
@@ -299,22 +308,51 @@ function chosenRange(draft: Draft): DateRangeSpec | undefined {
 	return isDefaultRange(range, getWidgetType(draft.type)) ? undefined : range;
 }
 
+/** The level a Map of `data` steps by over `range`: its effective resolution (Automatic too). */
+export function mapLevelOf(
+	data: WidgetDataConfig,
+	catalog: CatalogEntry[],
+	range: DateRangeSpec,
+	now: Date
+): MapLevel {
+	const place = widgetPlaceKind(data, catalog);
+	return mapLevel(widgetEffective({ type: MAP_TYPE, data }, catalog, place, range, now).resolution);
+}
+
+/** The first day of the period `back` periods before the one holding `date`. */
+function periodsBack(date: string, level: MapLevel, back: number): string {
+	if (level === "day") return addDays(date, -back);
+	const { y, m } = parseDateKey(date);
+	if (level === "year") return `${String(y - back).padStart(4, "0")}-01-01`;
+	const months = y * 12 + (m - 1) - back;
+	const year = Math.floor(months / 12);
+	return `${String(year).padStart(4, "0")}-${String((months % 12) + 1).padStart(2, "0")}-01`;
+}
+
 /**
- * `range` as the Map takes it: as it is within the Map's span; a longer one cut to its last
- * `MAP_MAX_DAYS` days (`cut`: a rolling one as the trailing days up to today, so it keeps
- * rolling); none for one shorter than a day (a few trailing hours), which the Map can't step
- * through.
+ * `range` as the Map takes it at `level`: as it is within the Map's span; a longer one cut to its
+ * last `MAP_MAX_STOPS` stops at the level (`cut`: a rolling one as the trailing days or months up
+ * to today, so it keeps rolling); none for one shorter than a day (a few trailing hours), which
+ * the Map can't step through.
  */
-function mapRange(range: DateRangeSpec, now: Date): { range?: DateRangeSpec; cut?: true } {
-	const block = blockedBySpan(range, mapType.span, now);
+function mapRange(
+	range: DateRangeSpec,
+	now: Date,
+	level: MapLevel
+): { range?: DateRangeSpec; cut?: true } {
+	const block = blockedBySpan(range, mapType.span, now, level);
 	if (!block) return { range: structuredClone(range) };
 	if (block === "too-short") return {};
-	if (range.kind === "trailing") {
-		return { range: { kind: "trailing", amount: MAP_MAX_DAYS, unit: "day" }, cut: true };
+	if (range.kind === "trailing" && level !== "year") {
+		return { range: { kind: "trailing", amount: MAP_MAX_STOPS, unit: level }, cut: true };
 	}
-	const { lastDate } = resolveRange(range, now);
+	const { lastDate } = resolveRange(range, now, level);
 	return {
-		range: { kind: "custom", start: addDays(lastDate, -(MAP_MAX_DAYS - 1)), end: lastDate },
+		range: {
+			kind: "custom",
+			start: periodsBack(lastDate, level, MAP_MAX_STOPS - 1),
+			end: lastDate
+		},
 		cut: true
 	};
 }
@@ -322,7 +360,8 @@ function mapRange(range: DateRangeSpec, now: Date): { range?: DateRangeSpec; cut
 /**
  * `draft` (any type) as a Map: the source's pollutant (or the first offered), its places (≤ 25),
  * smoke and fire on when the source had a smoke layer, and the range the person chose
- * (`chosenRange`, then `mapRange`: cut to the Map's 366 days with a `"range-cut"` note; none,
+ * (`chosenRange`, then `mapRange`: cut to the Map's 366 stops at its resolution with a
+ * `"range-cut"` note and `cutAt`, the level; none,
  * or a default range, is Now). A day selection is dropped with
  * a `"selection"` note. A Map draft (one opened over its place cap, say) keeps its other offered
  * pollutants, its smoke and fire, its notices and use, and its options.
@@ -344,7 +383,8 @@ export function toMapDraft(
 	const converted = toNowDraft(draft, mapType, catalog, [], undefined, allowed);
 	const data = converted.draft.data;
 	const shown = chosenRange(draft);
-	const range = shown ? mapRange(shown, now) : {};
+	const level = shown ? mapLevelOf(data, catalog, shown, now) : "day";
+	const range = shown ? mapRange(shown, now, level) : {};
 	if (range.range) data.dateRange = range.range;
 	const selection = draft.data.timeSubRange;
 	const first = data.layers[0];
@@ -406,7 +446,8 @@ export function toMapDraft(
 		...(pollutant && replaced ? { pollutant } : {}),
 		draft: { ...converted.draft, ...(Object.keys(options).length ? { options } : {}) },
 		dropped,
-		...(selection ? { selection: structuredClone(selection) } : {})
+		...(selection ? { selection: structuredClone(selection) } : {}),
+		...(range.cut ? { cutAt: level } : {})
 	};
 }
 

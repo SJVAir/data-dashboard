@@ -182,8 +182,8 @@ describe("withoutToolbar", () => {
 
 	it("clears fillShown and keeps day and fill", () => {
 		expect(
-			withoutToolbar({ day: "2026-11-14", fill: "city", fillShown: false, showing: "o3" })
-		).toEqual({ day: "2026-11-14", fill: "city" });
+			withoutToolbar({ at: "2026-11-14", fill: "city", fillShown: false, showing: "o3" })
+		).toEqual({ at: "2026-11-14", fill: "city" });
 	});
 });
 
@@ -284,8 +284,8 @@ describe("notices", () => {
 		expect(groupsShown({ ...offer, notices: true }, 3).layers).toBe(true);
 	});
 	it("Reset removes noticesShown", () => {
-		expect(withoutToolbar({ noticesShown: false, day: "2026-11-14" })).toEqual({
-			day: "2026-11-14"
+		expect(withoutToolbar({ noticesShown: false, at: "2026-11-14" })).toEqual({
+			at: "2026-11-14"
 		});
 	});
 });

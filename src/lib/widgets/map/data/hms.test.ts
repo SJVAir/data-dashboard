@@ -39,6 +39,13 @@ describe("hmsEntry", () => {
 		expect(vi.mocked(getHMSFire).mock.calls[0][0]).toBeUndefined();
 	});
 
+	it("has nothing on a month or year stop (smoke and fire are daily)", async () => {
+		for (const resolution of ["month", "year"] as const) {
+			const at = { start: "2026-01-01", resolution };
+			expect(await hmsEntry.source({ data: { layers: [] }, entryType: "pm25", at })).toBeNull();
+		}
+	});
+
 	it("on a day, asks for that day's, keyed by the day", async () => {
 		vi.mocked(getHMSSmoke)
 			.mockClear()
