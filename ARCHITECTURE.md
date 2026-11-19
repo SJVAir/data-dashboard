@@ -133,8 +133,9 @@ now inside the dataset sections.
 
 - **Left column, top to bottom:** **When** (the date control), **Where** (the places, with
   "Change", which opens the shared place picker in `multiple` mode up to the widget type's
-  `maxPlaces`), **What** (one collapsible section per dataset; Air Quality starts open), and
-  **More options** → **Show values** (the resolution override, with a "?" toggletip).
+  `maxPlaces`), **What** (one collapsible section per dataset; Air Quality starts open),
+  **Data resolution** (its own section since step 5 spec 6a, with a "?" toggletip), and **More
+  options** (the threshold line).
 - **Right:** a large live preview with a **Show as** switch (Chart | Data table today) and a
   **"Dashboard size"** switch that shows it at the size it will land (the type's `defaultSize`).
   It's the real widget component in a view-only frame, so its states (loading, "No data",
@@ -208,18 +209,18 @@ offers **Air Quality** and **Air Quality Forecasts** (`forecasts`); spec 3b (202
   nothing is drawn on a second axis inside the main plot. Bars or a line follow the catalog's
   `display.chart`, from `y_min`. Each strip takes a fixed share of the height and the main chart
   keeps at least half. The legend names each layer and its source ("Temperature · CIMIS #80 -
-  Fresno State", "Pounds applied · Sulfur"), with no correlation wording. A strip can be
-  coarser than the chart: pesticide use is monthly or yearly, so under a daily chart it is one
-  bar per month spanning that month's days ("Monthly total"; a month only partly in the range
-  shows its whole-month total, marked). An empty pesticide strip says "No pesticide use
-  reported for these dates."
+  Fresno State", "Pounds applied · Sulfur"), with no correlation wording. Every strip is at the
+  dataset's one resolution (step 5 spec 6a, see "Datasets line up"): pesticide use is offered
+  only at Monthly and Yearly, so it is plain monthly or yearly bars, and a daily chart can't hold
+  it (spec 3b's whole-month bars under a daily chart are gone). Smoke's day bands appear only on
+  daily charts. An empty pesticide strip says "No pesticide use reported for these dates."
 - **Overlays borrow the main layer's places.** Only the main layer stores places (the shared
   place picker's `place` or `selection`), so "Change" re-targets every layer at once. An overlay
   is fetched for each of the main layer's places; the **Data table** shows a column per place
   per layer, and the **CSV** has every place's overlay rows (categorical values get
-  `level_key` and `level_label` columns). An overlay the Table can't show (it failed, or the
-  periods are longer than a day) gets a note under the table, so the Table never silently
-  disagrees with the Chart.
+  `level_key` and `level_label` columns). The Table has one row per period for every layer (no
+  coarser value repeated down finer rows). An overlay the Table can't show (it failed) gets a
+  note under the table, so the Table never silently disagrees with the Chart.
 - **The adapter decides which entry types can be overlays** (`DatasetAdapter.overlays`): the
   forecasts adapter offers all of its own; air quality offers none (its temperature and
   humidity are raw-only). One already in a widget stays listed, checked, so it can be removed.
@@ -258,17 +259,24 @@ offers **Air Quality** and **Air Quality Forecasts** (`forecasts`); spec 3b (202
   unavailable ("filter-gone").
 - **Table and CSV:** the CSV gains `source_id` and `source_name` (the weather station) and
   `filters` (the pesticide filters) after `level_label`, then `aggregate` (the catalog's `sum`,
-  `mean`, or empty) last, so a total reads as one. The legend, strip tags, Table caption and
+  `mean`, or empty), so a total reads as one. Since step 5 spec 6a every widget's CSV (the
+  calendars too) ends with `figure` (the value the widget shows; blank when null),
+  `figure_label` (the server's name for it) and `rated` (the calendar's values: "Yes", "Not
+  enough data", "Not final yet") on every row; `mean` stays the plain mean. The legend, strip tags,
+  Table caption and
   cells say "Daily total" for a summed layer at every resolution, "Daily average" for a mean,
-  and the entry type's label for a layer that never rolls up. Weather offers no "Every
+  and the entry type's label for a layer that never rolls up. A pollutant with a scale figure
+  carries the figure's name instead (since spec 6a; see "Datasets line up"). Weather offers no
+  "Every
   measurement" (see `DEFERRED.md`).
 - A saved pesticide category, cancer group, method or narrowing that `pesticides/meta/` no
   longer lists is "filter-gone" too.
 - One chart row per place is in `DEFERRED.md`.
 
 **Show as.** The data types (those with `accepts.datasets`) are offered; one that can't show
-the current data (too many places, a dataset it doesn't accept, a span outside its `span`) is
-greyed out with a short reason, never hidden. Switching keeps the data. Spec 5's calendars
+the current data (too many places, a dataset it doesn't accept, a span outside its `span`, or
+the dataset's resolution, since step 5 spec 6a) is greyed out with a short reason, never hidden.
+Switching keeps the data. Spec 5's calendars
 appear by registering descriptors (see "Widget-type contract"), with no change here.
 
 **Add to dashboard.** The button names its target: the dashboard Get data was opened from, else
@@ -290,15 +298,20 @@ directly. Leaving with unsaved changes (Cancel, Back, a nav link) asks **"Discar
 (an alert dialog). Cancel goes Back only from an entry the app pushed; on a page opened from
 its link it goes to the dashboard (or `/` from `/data`), never off the app.
 
-**Show values ("More options"; was "Detail" until spec 3b).** **Automatic** (spec 1's
-resolution rule, the default), or **Every measurement**, **Hourly**, **Daily**, **Monthly**,
-**Yearly**, stored on the main layer as `resolution` (Automatic stores nothing). A "?"
-toggletip beside it (a button on the bits-ui popover: opens on click, tap or Enter, also on
-hover, closes on Escape or a click outside, announced) explains it. Only levels the entry type's catalog `resolutions` offer are listed; one the point
-budget (places × periods) can't serve for the current range is greyed with the reason. No
-level has a range cap of its own: the server's 31-day cap on raw and hourly is per request,
-and the adapters ask a calendar month (or 31 raw days) at a time (and a stored one that becomes blocked goes back to Automatic). A type with a pinned
-`resolution` hides it. Collapsed by default.
+**Data resolution (its own section after What since step 5 spec 6a; was "Show values" under
+"More options", and "Detail" until spec 3b).** **Automatic** (the default), or **Every
+measurement**, **Hourly**, **Daily**, **Monthly**, **Yearly** (`LEVELS`; no Quarterly or
+Seasonal), stored once for the whole dataset as `WidgetDataConfig.resolution` (Automatic stores
+nothing; see "Datasets line up"). A "?" toggletip beside it (a button on the bits-ui popover:
+opens on click, tap or Enter, also on hover, closes on Escape or a click outside, announced)
+explains it. A level a chosen dataset doesn't offer is greyed with the reason naming the dataset
+("Weather has no individual measurements"); one the point budget (places × periods) can't serve
+for the current range is greyed with that reason. A chosen level never changes by itself: one
+that becomes blocked stays chosen, with its reason, and the action bar waits until it's changed.
+Automatic says when the datasets moved it ("Automatic data resolution is now Monthly: …"). No
+level has a range cap of its own: the server's 31-day cap on raw and hourly is per request, and
+the adapters ask a calendar month (or 31 raw days) at a time. A type with a pinned `resolution`
+hides it. A Map offers Daily, Monthly and Yearly.
 
 **Routes** (see "Routing, URL state & undo"): `/data` (from the top nav),
 `/dashboards/:id/widgets/new` (from "Add widget"; `?type=` picks the starting Show as), and
@@ -1199,10 +1212,11 @@ days" is 30), except a trailing-hours range, which is its elapsed hours / 24.
     data".
   - **Pesticide use** is monthly and yearly (the server's `months` and `years`; spec 3b).
   - Weather now has server summaries (CIMIS stations, sjvair.com #313, used by spec 3b); PM10's are deferred (see `DEFERRED.md`).
-- **Number overlays and coarser strips (spec 3b).** A number overlay's strip is pinned to the
-  main data's resolution (`pin`): `chooseResolution` falls back to the nearest coarser level the
-  overlay's entry type offers (a daily chart gets monthly pesticide bars). An overlay's own saved
-  `resolution` is ignored. Level overlays keep spec 3's behavior (no pin).
+- **One resolution per dataset (step 5 spec 6a; replaces spec 3b's coarser strips).** Every
+  layer is fetched at the dataset's resolution (the rules module's `effectiveResolution`; see
+  "Datasets line up"), with no per-layer pin and no fallback to a coarser level. A layer that
+  can't serve it isn't fetched (only possible from an untrusted document, which then shows a
+  note).
 - **Totals follow the catalog's `aggregate` (the user, 2026-11-07, `@sjvair/sdk` 5.0.0-beta.6;
   decision 2 of spec 3b's plan).** Each catalog entry type has a top-level `aggregate`: `"sum"`
   (weather precipitation, ETo, ETr; pounds applied, acres treated, applications) reads the
@@ -1211,10 +1225,15 @@ days" is 30), except a trailing-hours range, which is its elapsed hours / 24.
   forecasts, smoke density, and others) never rolls up. `display.chart` picks bars or a line
   and nothing else. Pesticide Yearly still reads the server's `years[]`, since summing months can
   fall short of a year; summing is only for an open month.
-- **Incomplete periods are stitched from finer data** — e.g. the current month (no
-  monthly rollup until it ends) is computed from daily summaries so far, today from
-  hourly. Fixes the "current month shows nothing" problem for every widget.
-- **The last completed period is backfilled too** (2026-10-22, Foundations spec 2). Server
+- **Incomplete periods are stitched from finer data, at hour and day only** — the open
+  hour and day are computed from finer levels so far (the day figure's requests read today from
+  `daily/open/`). **Since step 5 spec 6a, months and years come from the
+  server's stored rows alone** (sjvair.com #342): the server writes, each night, the current
+  month's and year's row through yesterday with `is_final: false`, so the dashboard no longer
+  fills them from daily data. A period that starts today has no row until the next night, and
+  draws as no data.
+- **The last completed hour or day is backfilled too** (2026-10-22, Foundations spec 2; months
+  and years no longer, since spec 6a). Server
   rollups lag the period's end: hour H is summarized at about H+1:45 for monitors and H+1:50
   for regions, daily rollups run at about 01:10 Pacific, monthly ones on the 1st at about
   01:25, and yearly ones at about 02:05 (all on Pacific time since 2026-11-04). So the query
@@ -1225,14 +1244,15 @@ days" is 30), except a trailing-hours range, which is its elapsed hours / 24.
   stays empty until the server task runs. Since step 4 spec 1 the backfill's own last
   sub-period is filled one level finer again, and the backfill is skipped for places whose
   coarse value has arrived.
-- Advanced **resolution override** in Widget Creation (Release 1 step 4); data table and
-  exports show the resolution used.
-- **Where resolution lives** (decided 2026-09-28): each layer (and so each
-  `QueryDescriptor`) carries `resolution` (`"auto"` by default), so Collections and exports
-  keep it. A `WidgetType` may **pin** a resolution: calendars `"day"` (the hour × weekday
-  heatmap's `"hour"` pin went with the widget, dropped 2026-11-09). **Priority:
-  widget-type pin → user override → automatic ladder.** Pinned widgets don't show the
-  override.
+- The **Data resolution** control in Get data (Release 1 step 4; renamed from "Show values" in
+  step 5 spec 6a); data table and exports show the resolution used.
+- **Where resolution lives** (decided 2026-09-28; revised 2026-11-18, step 5 spec 6a): the
+  widget's data carries one `resolution` for every layer (`WidgetDataConfig.resolution`,
+  missing for Automatic), so Collections and exports keep it. A `WidgetType` may **pin** a
+  resolution: calendars `"day"` (the hour × weekday heatmap's `"hour"` pin went
+  with the widget, dropped 2026-11-09). **Priority: widget-type pin → the stored resolution →
+  Automatic** (the ladder, moved up to a level every layer offers). Pinned widgets don't show the
+  control.
 - Long raw exports (notebook bundles, CSV) use the monthly **CSV archive** endpoint.
 
 **Live refresh:**
@@ -1368,6 +1388,70 @@ The stack is per document and per session (not persisted).
   with a different `to`. Two deletes also agree: two `setField deletedAt` changes that both set
   a time don't overlap.
 
+## Datasets line up (dashboard only)
+
+Decided 2026-11-18 (the user, step 5 spec 6a; spec
+`docs/superpowers/specs/2026-11-18-step-5-spec-6a-dataset-rules-design.md`). The user: "People
+should be limited to only creating valid datasets which can be used for data analysis. You can't
+analyze data that doesn't line up."
+
+> **Datasets line up (dashboard only).** A dataset is the set of layers in one widget. Every
+> layer in it covers the same date or date range and uses the same data resolution. The
+> dashboard never mixes times (for example 2026 monitors with 2023 pesticide use) or resolutions
+> (for example daily PM2.5 with monthly pesticide totals) in one dataset. A dataset not offered at
+> the chosen resolution can't be selected. Comparing two time windows is two datasets, each
+> following this rule (a later feature).
+
+It covers the dashboard only, not monitor-map or mobile.
+
+- **One stored resolution per dataset.** `WidgetDataConfig.resolution` (missing means
+  **Automatic**, which is never stored) is used for every layer. There is no per-layer
+  resolution: an earlier document's `Layer.resolution` is dropped by the schema and opens as
+  Automatic. Types that pin a resolution keep it (the calendars' `day`).
+- **The rules module** (`src/lib/data/dataset-rules.ts`) answers every question the rule raises,
+  for Get data, the query client, the Chart, the Table and the Map. `LEVELS` (`raw`, `hour`,
+  `day`, `month`, `year`; no quarter or season) and `MAP_LEVELS` (`day`, `month`, `year`).
+  `layerOffers` is what one layer offers: its catalog `resolutions` that its adapter can fetch for
+  the places (`offered.ts`; region air quality has no raw). An air-quality entry type listing only
+  `raw` offers every level, downsampled. `datasetOffers` is what every layer offers. Smoke, fire
+  and spray notices offer `day` only, pesticide use `month` and `year`, forecasts `day`.
+- **Automatic** (`effectiveResolution`) starts from the range ladder (see "Data resolution &
+  live refresh") and takes the finest level at or above it that every layer offers. When the
+  datasets moved it, Get data says so: "Automatic data resolution is now Monthly: Pesticide Use is
+  reported by month." A widget left open follows a growing range.
+- **Whole periods.** At Monthly or Yearly the range is whole months or years. The stored range
+  keeps its kind; `resolveRange(range, now, resolution)` widens it, so "last 12 months" at
+  Monthly is the last 12 calendar months, the current one so far. When the range widens, Get data
+  shows the resolved dates, ending at today with "(so far)" when the range holds the current
+  period. A custom range at a coarse resolution is picked in whole periods (month or year
+  pickers).
+- **Get data greys out, never hides**: datasets the chosen resolution doesn't offer, resolutions a
+  chosen dataset doesn't offer (the reason names the dataset), and Show as types that can't show
+  the dataset at its resolution. The action bar stays blocked while a dataset doesn't line up.
+- **Untrusted documents** (a share link, `/import#…`) that don't line up open without errors and
+  are drawn, never rewritten: the main layer (a Map's first pollutant) decides the resolution,
+  the layers that don't offer it aren't drawn, and a note says why and to change it in Edit data.
+- **One figure per pollutant, everywhere.** "Monthly" is one value per Pacific calendar month in
+  every widget, and each pollutant's value is the figure its scale is built on, named by the
+  metadata (`MetadataSource.figure(entryType, resolution)`, through `figureFromScale`):
+  - hourly and finer: the period's mean;
+  - daily: `scale.daily_statistic` (PM2.5's 24-hour average, ozone's highest 1-hour average);
+    null is "Not enough data";
+  - monthly and yearly: `scale.period_statistic` (the row's `daily_statistic_mean`, the average
+    of the daily figures); null when too few of the days had one;
+  - an entry type with no `daily_statistic` (weather): the mean at every level.
+
+  So daily Charts and Tables of O3, NO2, SO2 and CO show the day's peak figure, not its mean, and
+  their level bands match the figure the scale is defined for. The series name, the table
+  header, the legend and the CSV name the figure (`daily_statistic_label` or
+  `period_statistic_label`). Choosing the plain mean instead is in `DEFERRED.md`.
+
+- **Coarse series come from the server's stored rows only**, the current period's nightly row
+  (`is_final: false`) included. The dashboard no longer fills months or years from daily data.
+  Daily and finer still fill today from `daily/open/` (see "Data resolution & live refresh").
+- **Later:** a weekly resolution, Quarterly and Seasonal, comparing two datasets, an hourly Map,
+  smoke and notices by month, and the plain-mean option are all in `DEFERRED.md`.
+
 ## Widget data selection (partial datasets)
 
 Decided 2026-09-23 (IDEA.md Open Question #2).
@@ -1385,7 +1469,7 @@ type QueryDescriptor = {
 	timeSubRange?: { start: string; end: string }; // e.g. calendar day-range selection
 	place?: PlaceRef; // one place (any kind), the common case; or…
 	selection?: SpatialSelection; // …several monitors or regions. Never both; neither = whole layer
-	resolution?: "auto" | Resolution; // default "auto"
+	resolution: Resolution; // the dataset's (WidgetDataConfig.resolution, or Automatic's pick)
 };
 
 type Resolution = "raw" | "hour" | "day" | "month" | "quarter" | "season" | "year";
@@ -1393,7 +1477,8 @@ type Resolution = "raw" | "hour" | "day" | "month" | "quarter" | "season" | "yea
 type WidgetDataConfig = {
 	dateRange?: DateRangeSpec; // absent for time: "now" | "none" widget types
 	timeSubRange?: { start: string; end: string }; // per widget, not per layer
-	layers: Array<Omit<QueryDescriptor, "dateRange" | "timeSubRange">>; // ≤ 1 pollutant layer
+	resolution?: Resolution; // one for every layer; missing = Automatic (step 5 spec 6a)
+	layers: Array<Omit<QueryDescriptor, "dateRange" | "timeSubRange" | "resolution">>; // ≤ 1 pollutant layer
 };
 
 type PlaceRef =
@@ -1997,43 +2082,64 @@ settings), plus its own EV charger and Wind groups, with the host's values in on
 **The Map's days and region fills (step 5 spec 4, built 2026-11-15; spec
 `docs/superpowers/specs/2026-11-15-step-5-spec-4-map-days-and-fills-design.md`).**
 
-- **Days.** A Map with a date range steps through it one Pacific day at a time. Its **stops** are
-  each day of the range before today, then **Now** if the range includes today (`days.ts`, the
-  day rules shared with the calendars; future days are cut). A range without today opens on
-  its last day; one with today opens on Now. A past day loads from the **snapshot query**
-  (below), Now from the live readings as before. A Map with no range is Now only and shows no
-  stepper.
-- **The day stepper** (`DayStepper.svelte`, below the map): Previous and Next buttons and the
-  standard slider pattern (arrows one day, Page Up and Down a week, Home and End the ends;
-  `aria-valuetext` the long date or "Now"); on a narrow tile only the buttons and the date.
-  Every drag has the buttons and keys as its alternative. **"Not final yet"** shows once, in the
-  strip beside the day's name, when the day's figures aren't final (the user, 2026-11-15); a
-  monitor's tooltip, list row and accessible name give the figure name, value, unit and level
-  only.
-- **The saved day** is the Map option `day` (a Pacific date key). Missing means the last stop and
-  the last stop is never written; a saved day outside the range falls back to the last stop,
-  drawn and not saved. **A run of steps is one undo step** (steps within a second of the last
-  fold into it; `step-run.ts`). **A viewer's step is held in the page**, never written, so a
-  read-only or live-shared dashboard steps with no write; "Make a copy" keeps it. `day` isn't a
-  toolbar key, so Reset leaves it.
-- **What a day shows.** The monitors draw each monitor's daily figure for the day (the
+- **Stops: days, months or years** (step 5 spec 4; months and years since step 5 spec 6a). A Map
+  with a date range steps through it at its data resolution (Daily, Monthly or Yearly,
+  `MAP_LEVELS`; chosen in Get data, with Automatic; see "Datasets line up"). At Daily its
+  **stops** are each Pacific day of the range before today, then **Now** if the range includes
+  today. At Monthly and Yearly they are each month or year of the range widened to whole periods,
+  the current one last as "so far" (`days.ts` `periodStops`; future periods are cut). A range
+  without today opens on its last stop; one with today opens on Now (Daily) or the current period
+  (Monthly, Yearly). A past stop loads from the **snapshot query** (below), Now from the live
+  readings as before. A Map with no range is Now only, has no resolution and shows no stepper.
+- **The span counts stops** (spec 6a): at most `MAP_MAX_STOPS` (366) at the resolution, checked
+  on the widened range (366 days, months or years). A longer range from another type is cut to
+  its last 366 stops, with a note. A trailing range keeps rolling at Daily and Monthly; at Yearly
+  it becomes a fixed custom range, since trailing ranges have no `year` unit (see `DEFERRED.md`).
+- **The stepper** (`DayStepper.svelte`, below the map): Previous and Next buttons and the
+  standard slider pattern (arrows one stop, Page Up and Down a week, a year of months or ten
+  years, Home and End the ends; `aria-valuetext` the long date, the month, the year, or "Now");
+  on a narrow tile only the buttons and the stop's name. Every drag has the buttons and keys as
+  its alternative. **"Not final yet"** shows once, in the strip beside the stop's name, when its
+  figures aren't final (the user, 2026-11-15); a monitor's tooltip, list row and accessible name
+  give the figure name, value, unit and level only.
+- **The saved stop** is the Map option `at` (spec 6a; was `day`): the Pacific date key of the
+  shown period's start (a day, a month's first day, a year's first day). In the code a stop is
+  `SnapshotAt`: `"now"`, `{ day }` or `{ start, resolution: "month" | "year" }`. Missing means
+  the last stop and the last stop is never written; a saved stop that isn't one of the range's
+  falls back to the last stop, drawn and not saved. **A run of steps is one undo step** (steps
+  within a second of the last fold into it; `step-run.ts`). **A viewer's step is held in the
+  page**, never written, so a read-only or live-shared dashboard steps with no write; "Make a
+  copy" keeps it. `at` isn't a toolbar key, so Reset leaves it.
+- **What a stop shows.** At Daily the monitors draw each monitor's daily figure for the day (the
   scale's `daily_statistic`, named by `figureLabel`); a monitor with too thin a day reads "Not
-  enough data". The toolbar offers no Inactive row on a day stop (a monitor with a figure that
-  day was reporting), and smoke and fire are the day's (`hms/*?date=`). **A day stop where no
-  monitor in the places has a figure says "No figures for this day"** (a ruling where the spec
-  is silent: once the day has loaded, never while it loads; it joins the map's notes and its
-  accessible name).
-- **Fetching ahead.** The neighbouring day stops (one each side) are fetched ahead, so a step
+  enough data". At Monthly and Yearly they draw the period's figure (`scale.period_statistic`,
+  the row's `daily_statistic_mean`), coloured on **the same daily scale** (the user: it "provides
+  a general idea of what people were exposed to each day in the month"); a monitor with no
+  figure reads "Only {days} of {expected} days had a figure" (else "Too few days had a figure").
+  The figure is named in the tooltips and the feature list's note, not the legend (map-sdk has
+  no legend slot for it; see `DEFERRED.md`). The toolbar offers no Inactive row on a past stop (a
+  monitor with a figure then was reporting). **Smoke, fire and spray notices draw only at
+  Daily** (the day's: `hms/*?date=`); **pesticide use only at Monthly and Yearly**, for the
+  stop's month or year. A layer the resolution doesn't offer isn't drawn and has no toolbar row;
+  from an untrusted document, a note says so ("‹dataset› isn't shown at this data resolution.
+  Change it in Edit data."). **A stop where no monitor in the places has a figure says "No
+  figures for this day"** (or "this month", "this year"; once the stop has loaded, never while
+  it loads; it joins the map's notes and its accessible name). The hidden-marks note's reason is
+  "no figure for this period".
+- **Fetching ahead.** The neighbouring stops (one each side) are fetched ahead, so a step
   draws at once; from Now, the day before it. That holds for the monitors' figures, smoke and
   fire, the fill, and the spray notices (spec 5a). Sources that are still wanted are kept while
   the queries swap, so a day fetched ahead is never aborted and fetched again.
-- **Refresh.** Now polls as before; a day polls hourly only until every figure is final; a range
-  without today never polls once its days are final. **Smoke and fire on a day poll only while
+- **Refresh.** Now polls as before; a past stop polls hourly only until every figure is final
+  (the current month or year is never final, since the server writes it nightly through
+  yesterday); a range without today never polls once its stops are final. **Smoke and fire on a day
+  poll only while
   that day's monitor figures aren't final** (HMS has no final flag, so the monitors' stand in
   for it; a late plume for a settled day isn't picked up; see `DEFERRED.md`). "Today" turns over
   at Pacific midnight (the Map checks once a minute); Now's smoke and fill are keyed by today's
   Pacific date, so they are fetched afresh after midnight.
-- **Spray notices follow the day** (step 5 spec 5a). Now shows the notices active now; a day stop
+- **Spray notices follow the day** (step 5 spec 5a; Daily only since spec 6a). Now shows the notices
+  active now; a day stop
   shows those active on that Pacific day (`?date=`: scheduled from Pacific 00:00 of D-4 to before
   Pacific 00:00 of D+1). **Now polls hourly** (`"hour"`): the server imports SprayDays once a
   day, at 14:00 UTC, and an hourly poll picks the import up within an hour without the dashboard
@@ -2043,18 +2149,21 @@ settings), plus its own EV charger and Wind groups, with the host's values in on
   apart from a day stop's (`map-notices:<day>`), so after midnight yesterday's stop never takes
   over Now's undated data; it still carries today's Pacific date, so Now is fetched afresh after
   midnight.
-- **Pesticide use has its own period** (step 5 spec 5b). It doesn't follow the day stop or the
-  date range: it draws `usePeriod` (a year or a month) on Now and on every day stop alike, and it
-  never polls. Converting to a chart keeps the use only when its period overlaps the chart's
-  range; a chart's pesticide layer converts to a Map's use with the chart range's last full listed
-  year, else the latest.
+- **Pesticide use follows the stop** (step 5 spec 6a; spec 5b's separate use period, `usePeriod`,
+  is gone). It is offered only at Monthly and Yearly, so it isn't offered on Now, and it draws
+  the stop's month or year (`use-period.ts` `periodOfStop`). A period whose year the meta doesn't
+  list says "No pesticide use reported for ‹period› yet." It never polls. A Chart with pesticide
+  use converted to a Map keeps its range (so the use stays drawable); a Map with use converted
+  to a Chart keeps the use, even from Now, and the Chart's Automatic then counts it (Monthly).
 - **Region fills.** The region type is the Map option `fill` (a region type id), written by Get
   data's "Fill regions by", not a layer: a fill has no pollutant of its own (it follows
   `showing`). It is validated against the region metadata when drawn: an unknown type draws no
   fill and the toolbar offers no row, and nothing is written. map-sdk's `regionsPlugin` draws every
   current region of the type over the whole valley, under the monitors and the focus area, with
-  `selectable: false`; each figure is the day's, or on Now today's so far, and the layer label
-  says so ("ZIP Codes, today so far"; the type's plural label otherwise). A region with no figure is drawn
+  `selectable: false`; each figure is the stop's (the day's, or the month's or year's period
+  figure), or on Now today's so far, and the layer label says so ("ZIP Codes, today so far",
+  "this month so far", "this year so far"; the type's plural label otherwise). A region with no
+  figure is drawn
   **outlined with no fill and reads "No data"** (in the list, the tooltip and the legend's
   no-figure row). The legend has **one section** for the pollutant, shared by monitors and
   fill, because both use the same `ScaleRef` (and the source's `scale` must be the same object
@@ -2062,7 +2171,9 @@ settings), plus its own EV charger and Wind groups, with the host's values in on
   checkbox, the type's plural label) hides the fill without unloading it, saved as `fillShown`
   (only `false` is stored; a toolbar key that Reset clears).
 - **The snapshot query** (`src/lib/data/snapshot/`, imported only by lazy chunks): one figure per
-  place for one day, from the bulk summaries. `monitorDaySource` asks
+  place for one stop, from the bulk summaries. `monitorPeriodSource` and `regionPeriodSource`
+  (spec 6a) ask the bulk monthly or yearly summaries and read `scale.period_statistic`'s field
+  (`periodFigure`; a null figure keeps the row's day counts for its reason). `monitorDaySource` asks
   `monitors/<type>/summaries/daily/` scoped by region; `regionDaySource` and `regionTodaySource`
   ask `regions/<entry_type>/summaries/daily/` and `…/daily/open/` with `type=<Region.Type>`
   (the server's whole-type scope, current regions only, so tracts match the GeoJSON's 978).
@@ -2088,17 +2199,14 @@ for the data that tile holds.
   as `useShown` the same way. The places' outline (focus area) is always drawn, with no row.
 - **The Pesticide use group** (step 5 spec 5b, built 2026-11-17) shows while the tile has a
   drawable use layer: a Figure select (the catalog's `pesticide-use` entry types, saved as
-  `useFigure`, missing when it is the first), and the period as a Year select (the meta's
-  `years`, plus a saved year it no longer lists, which draws "No data") and a Month select
-  ("Whole year" or a month), together saved as `usePeriod`. `useFigure` and `useShown` are
-  toolbar keys, so Reset clears them; **`usePeriod` isn't a Reset key**, since Reset never
-  changes the data (the period is also chosen in Get data, and is always present while use is
-  on).
+  `useFigure`, missing when it is the first). `useFigure` and `useShown` are toolbar keys, so
+  Reset clears them. Spec 5b's Year and Month selects (`usePeriod`) went in spec 6a: the use
+  follows the stepper's month or year.
 - **Monitors' "Inactive" and "Inside" options** show only when the loaded monitors include
   inactive or indoor ones, and both are **off by default** (the user, 2026-11-13: a Map no longer
   draws inactive or indoor monitors until someone turns them on). A monitor type with no monitor
-  among the loaded ones for the pollutant showing isn't offered. On a day stop (spec 4) the
-  Inactive row isn't offered, and `day` isn't a toolbar key, so Reset leaves it (see "The Map's
+  among the loaded ones for the pollutant showing isn't offered. On a past stop (spec 4) the
+  Inactive row isn't offered, and `at` isn't a toolbar key, so Reset leaves it (see "The Map's
   days and region fills").
 - **Left out on purpose:** a search slot (the place picker does that job), a "None" pollutant (a
   Map tile always draws one), and Collocation Sites (the dashboard loads none).
@@ -2151,8 +2259,8 @@ for the data that tile holds.
 **The dashboard's Map widget (step 5 spec 1, built 2026-11-11).** How the dashboard hosts map-sdk
 (code in `src/lib/widgets/map/`, the host pieces in `host/`):
 
-- **Pinned exactly:** `@sjvair/map-sdk` `0.1.0-beta.20` and `@sjvair/sdk` `5.0.0-beta.14`
-  (`npm:@jsr/sjvair__sdk@5.0.0-beta.14`), never a range or a dist-tag. The moves:
+- **Pinned exactly:** `@sjvair/map-sdk` `0.1.0-beta.21` and `@sjvair/sdk` `5.0.0-beta.15`
+  (`npm:@jsr/sjvair__sdk@5.0.0-beta.15`), never a range or a dist-tag. The moves:
   - map-sdk `0.1.0-beta.16` (step 5 spec 4, 2026-11-15): region fills.
   - map-sdk `0.1.0-beta.17` (step 5 spec 5a, 2026-11-16): shapes `zoomRange`, the lens, count
     markers, and the legend's units line and note slot.
@@ -2163,6 +2271,8 @@ for the data that tile holds.
     feature in place, with no camera move; a hover lens held by the card stays held),
     `legendDisplay` on shapes plugins and the lens, and the unavailable status's `message` in the
     legend.
+  - map-sdk `0.1.0-beta.21` (step 5 spec 6a): the lens no longer flashes its townships clear on a
+    recentre (`GlMapLike.isSourceLoaded`, unused here).
   - SDK `5.0.0-beta.11` (spec 4): the whole-type region scope.
   - SDK `5.0.0-beta.12` (spec 5a): `getActivePesticideNotices`, and the pesticides meta's notes,
     badges, links and `notice_filters`.
@@ -2171,6 +2281,8 @@ for the data that tile holds.
   - SDK `5.0.0-beta.14` (spec 5b): the meta's section and chemical link templates
     (`links`, `link_params`) with `pesticideLinkUrl`, and `getPesticideSectionDetails` taking the
     value filters and the month.
+  - SDK `5.0.0-beta.15` (spec 6a): the period figure (`daily_statistic_mean` and its day counts on
+    coarse summary rows; `period_statistic` and `period_statistic_label` on scales).
 
   The dashboard no longer depends on `@maptiler/sdk` directly: the pin's label comes from
   map-sdk's focus area.
@@ -2211,13 +2323,17 @@ for the data that tile holds.
   5b; a chart's place-held pesticide layers are another thing). Saved options (`options.ts`,
   `MapOptionsSchema`): `showing` (the entry type drawn now; the first pollutant until the toolbar
   switches it, which spec 3 added) and `marks` (monitor ids, at most 25, unique); spec 4 added
-  `day`, `fill` and `fillShown` (see "The Map's days and region fills"), spec 5a added
-  `noticesShown`, and spec 5b added `useFigure`, `usePeriod` and `useShown` (removed with the use
-  layer). Invalid or missing options read as none.
+  `day` (renamed `at` in spec 6a), `fill` and `fillShown` (see "The Map's days and region
+  fills"), spec 5a added `noticesShown`, and spec 5b added `useFigure` and `useShown` (removed
+  with the use layer; its `usePeriod` went in spec 6a). `MapOptionsSchema` is strict and the
+  document schema checks it, so a dashboard still holding `day` or `usePeriod` is refused as
+  invalid (no compatibility code: only test documents had them, the user, 2026-11-18). Missing
+  options read as their defaults.
 - **Spray notices** (step 5 spec 5a, built 2026-11-16; spec
   `docs/superpowers/specs/2026-11-16-step-5-spec-5-pesticides-and-notices-design.md`). The
   catalog's `pesticide-notices` (entry type `spray-notice`), loaded by `notices.ts` from
-  `pesticides/notices/active/` (Now) or `?date=` (a day stop; see "The Map's days and region
+  `pesticides/notices/active/` (Now) or `?date=` (a day stop, Daily only; see "The Map's days and
+  region
   fills"), **valley-wide**: no bbox or region is sent, and the cache keys hold only the date and
   the filter ids. The server caps a request at 2,000 matches; production's busiest 5-day window
   since 2026-05-30 is 224 (see `DEFERRED.md` for early spring).
@@ -2254,11 +2370,11 @@ for the data that tile holds.
   `pesticide-use`, drawn by township when zoomed out and by square-mile section when zoomed in.
   - **The figure and the period.** `useFigure` is one of the catalog's `pesticide-use` entry
     types (pounds applied, acres treated, applications); missing means the catalog's first, an
-    unknown one draws the first, and neither is written. `usePeriod` is `"YYYY"` or `"YYYY-MM"`,
-    written as the meta's latest year when Get data turns use on, and checked against the meta's
-    `years` before any request (the server answers an unlisted year with its latest). A missing
-    period draws the latest listed year, never written; a saved period the meta no longer lists
-    asks for nothing and reads "No data for ‹period›". `use-period.ts` parses and labels it.
+    unknown one draws the first, and neither is written. The period is the stop's month or year
+    (spec 6a; it was the saved `usePeriod`), from `use-period.ts` `periodOfStop`, and is checked
+    against the meta's `years` before any request (the server answers an unlisted year with its
+    latest): an unlisted one asks for nothing and reads "No pesticide use reported for ‹period›
+    yet." `use-period.ts` also keys and labels it.
   - **Loading** (`UseBlock`, with `use.ts`). The valley's townships come in one `townships/`
     request per period and filters, with outlines only the first time (later requests ask
     values only and join the remembered outlines). From the **section zoom**, the sections in the
@@ -2518,7 +2634,9 @@ a date range outside their span.
   is "Not enough data" (EPA's completeness rule, applied by the server). Until the metadata
   carries `daily_statistic`, every past day is unrated and the widget says so once. It never falls
   back to the mean. Today is colored "so far" from the server's running figure, and a day whose
-  rollup hasn't finished shows "Not final yet" (`is_final`).
+  rollup hasn't finished shows "Not final yet" (`is_final`). Since step 5 spec 6a every widget
+  shows this same figure at Daily, and the average of these figures at Monthly and Yearly (see
+  "Datasets line up"), so one place and day never shows two numbers.
 - **Selecting days uses a two-click range for every pointer:** click a day, then click another to
   extend the range; a third click starts anew; clicking the only selected day clears it. Mouse
   drag and Shift-click also work, and the keyboard follows the date-grid pattern (one Tab stop,
@@ -3570,10 +3688,22 @@ external_id } }`). Lookups by code: `regions/?type=&external_id=a,b` (returns sq
    day can still change). **Open-day rows** (`…/summaries/daily/open/`, single monitor, bulk
    monitors and bulk regions) are today so far, plus yesterday until its nightly row exists
    (about 03:00 Pacific); `mergeOpenDays` / `mergeBulkOpenDays` add them to the stored rows
-   (the stored row wins on a shared day). The dashboard asks for them only for calendar
-   requests whose range reaches yesterday or today, never reads their `expected_count` or
+   (the stored row wins on a shared day). The dashboard asks for them only for daily-figure
+   requests (calendars, and since step 5 spec 6a every daily Chart and Table of a pollutant)
+   whose range reaches yesterday or today, never reads their `expected_count` or
    `is_complete`, and never computes a daily figure itself. A scale with levels but no
    `daily_statistic` leaves every day unrated, with one note.
+
+   **Period figure** (`@sjvair/sdk` `5.0.0-beta.15`, sjvair.com #342; step 5 spec 6a): a
+   `monitors/meta/` scale also carries `period_statistic` (`"daily_statistic_mean"` when
+   `daily_statistic` is set, else `null`) and `period_statistic_label` (its words). Monitor and
+   region summary rows coarser than a day carry `daily_statistic_mean` (the average of the
+   period's daily figures; `null` when fewer than 75%, rounded up, of the expected days have
+   one), `daily_statistic_days` and `daily_statistic_expected_days` (null on hourly and daily
+   rows and on types without a `daily_statistic`). Every widget reads a month's or year's value
+   from it (see "Datasets line up"), and a null one says "Only {days} of {expected} days had a
+   figure" from the day counts. Each night (monitors 02:15, regions 02:20 Pacific) the server
+   writes the current period's coarse rows through yesterday with `is_final: false`.
 
 4. **Alert metadata** — alertable entry types per monitor type, alert levels,
    evaluation windows (today only in server `ENTRY_CONFIG`).

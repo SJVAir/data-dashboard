@@ -191,8 +191,11 @@ A is the only one where every dataset everywhere follows the rule.
     Monthly and coarser (the period's `daily_statistic_mean`, named by `scale.period_statistic`),
     coloured with **the same daily scale** (the user: a monthly figure "provides a general idea
     of what people were exposed to each day in the month. The daily scale still fits."). The
-    legend names the figure from `period_statistic_label`. A row whose figure is null draws as
-    no data with a reason (fewer than 75% of the days had a figure), the same as a missing day.
+    legend names the figure from `period_statistic_label` (_changed after approval:_ the
+    tooltips and the feature list name it instead; see "Calls made after approval"). A row whose
+    figure is null draws as no data with a reason, the same as a missing day (_changed after
+    approval:_ "Only {days} of {expected} days had a figure", from the row's day counts, else
+    "Too few days had a figure"; was "fewer than 75% of the days had a figure").
   - Smoke and fire, spray notices: Daily only.
   - Pesticide use: Monthly and Yearly. It follows the Map's range and the stepper's period; it
     shows only for whole periods (always true at those resolutions), and a period the server
@@ -308,3 +311,41 @@ period), and the null-figure reason. Old `show_values` keys go.
   them (today's hits include `e2e/map.spec.ts` and the Map's browser tests).
 - The new widget type checklist doesn't fire (no new place kind), but the share swap,
   `PlacePickerDialog` `regionOf` and Get data's type switch keep passing with `data.resolution`.
+
+## Calls made after approval
+
+Made during the build (2026-11-18 and 2026-11-19), each told to the user where it changes what
+people see.
+
+- **2026-11-18, the widened note and the When summary never show a future end.** When the range
+  holds the current period, they end at today with "(so far)". Why: the spec's "current period
+  so far".
+- **2026-11-18, raw has its own not-offered copy:** "{dataset} has no individual measurements".
+  Why: "isn't reported every measurement" reads wrong.
+- **2026-11-18, the Map's stop is `SnapshotAt`:** `"now"`, `{ day }`, or
+  `{ start, resolution: "month" | "year" }`. Why: one stop shape for the monitors, the fill and
+  pesticide use.
+- **2026-11-18, a trailing range cut at Yearly becomes a fixed custom range** (the last 366
+  years), so it stops rolling. Why: trailing ranges have no `year` unit. In `DEFERRED.md`.
+- **2026-11-18, a Map on Now with pesticide use, converted to a Chart, keeps the use.** The
+  Chart's Automatic then counts it (Monthly). Why: no silent drop; the conversion keeps what the
+  person chose.
+- **2026-11-18, a Chart with pesticide use, converted to a Map, keeps its range** (not Now, which
+  would block the use).
+- **2026-11-19, every widget's CSV (the calendars too) ends with `figure`, `figure_label` and
+  `rated`** on every row. `mean` stays the plain mean, and a null figure is blank. `rated` keeps
+  the calendar's values ("Yes", "Not enough data", "Not final yet"). Why: each row names its own
+  figure, so an overlay's figure is never blanked under another label.
+- **2026-11-19, a month or year with no figure says how many days had one:** "Only {days} of
+  {expected} days had a figure", from the row's `daily_statistic_days` and
+  `daily_statistic_expected_days`, else "Too few days had a figure". This replaces "fewer than
+  75% of the days had a figure" (the Map section above). Why: the data is the source of truth,
+  so the copy can't go stale if the server's rule changes.
+- **2026-11-19, the Map names the month or year figure in the tooltips (`figureLabel`) and the
+  feature list's note, not in the legend.** Why: map-sdk's `monitorsPlugin` has no legend slot
+  for it (the same as at Daily). In `DEFERRED.md`. Region fills with no figure read "No data"
+  with no reason, since the regions plugin has no detail slot either.
+- **2026-11-19, coarse series come only from the server's stored rows**, the current period's
+  nightly row (`is_final: false`) included. Daily and finer still fill today from `daily/open/`,
+  and the last completed hour or day is still backfilled from a finer level until its rollup
+  runs.

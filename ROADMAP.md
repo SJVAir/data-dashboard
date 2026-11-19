@@ -198,7 +198,8 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
    - MIT licenses: `map-sdk` from creation, and `monitor-map` in its rebuild
    - the dashboard's Map widget on `map-sdk`: map feature clicking (method A), synced both
      ways with step 4's shared place picker (method B). **Seven specs** (the user, 2026-11-11;
-     spec 2 split into 2 and 3 on 2026-11-12; schools added 2026-11-17),
+     spec 2 split into 2 and 3 on 2026-11-12; schools added 2026-11-17; spec 6 split into 6a and
+     6b on 2026-11-18),
      each a PR into a `step-5` branch, which merges into `main` once at the end:
      1. **The widget core:** live PM2.5 monitors around the widget's places, the places outlined
         and framed, picker sync, "Change place", the location-privacy rules, lazy-loaded and
@@ -214,9 +215,15 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
         `5.0.0-beta.10`).
      4. A date-range mode and region fills.
      5. Pesticide use by section and township, and spray notices.
-     6. "Show in a chart" / "Show in a table" from a map's selection.
-     7. Schools and child care as a Map data set (added by the user 2026-11-17, after spec 6,
-        since spec 6 decides how a Map's layers reach charts and tables).
+     6. In two parts (the user, 2026-11-18):
+        - **6a, dataset rules:** every layer of a widget covers the same dates at the same data
+          resolution (`ARCHITECTURE.md` → "Datasets line up"); the Map steps by day, month or
+          year; one figure per pollutant everywhere. **Built on `step-5-spec-6a`** (PR into
+          `step-5` pending), on `@sjvair/map-sdk` `0.1.0-beta.21` and `@sjvair/sdk`
+          `5.0.0-beta.15`.
+        - **6b:** "Show in a chart" / "Show in a table" from a map's selection. Next.
+     7. Schools and child care as a Map data set (added by the user 2026-11-17, after spec 6b,
+        since spec 6b decides how a Map's layers reach charts and tables).
    - **Critical path (decided 2026-09-28): only `map-sdk` → the dashboard's Map widget.**
      There is no interim single-map build on monitor-map 4.x.
    - **Parallel, not blocking:** monitor-map rebuilt on `map-sdk` on a branch. **The Map
