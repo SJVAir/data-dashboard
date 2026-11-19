@@ -1,6 +1,6 @@
 # TODO / Current Status
 
-Last updated: 2026-11-18
+Last updated: 2026-11-19
 
 ## Start here
 
@@ -32,9 +32,9 @@ two parts: **5a (spray notices) is merged** (#59, 77198a6, 2026-11-16), on `@sjv
 the lens) **is merged** (#60, bb3e882, 2026-11-17), on `@sjvair/map-sdk` `0.1.0-beta.20` and
 `@sjvair/sdk` `5.0.0-beta.14` (bundle 213.3 KB). Spec 6 is split in two (the user,
 2026-11-18): **6a, dataset rules** (one date range and one data resolution per widget; spec
-`docs/superpowers/specs/2026-11-18-step-5-spec-6a-dataset-rules-design.md`) is built on
-`step-5-spec-6a`, on `@sjvair/map-sdk` `0.1.0-beta.21` and `@sjvair/sdk` `5.0.0-beta.15`, PR
-into `step-5` pending; then **6b**, "Show in a chart" / "Show in a table"; then the schools data
+`docs/superpowers/specs/2026-11-18-step-5-spec-6a-dataset-rules-design.md`) **is merged**
+(#61, 30292e5, 2026-11-19), on `@sjvair/map-sdk` `0.1.0-beta.21` and `@sjvair/sdk`
+`5.0.0-beta.15` (bundle 213.2 KB); then **6b**, "Show in a chart" / "Show in a table"; then the schools data
 set (spec 7; the user, 2026-11-17), in order in the same track, since they change the same Map
 code (the user, 2026-11-12).
 
@@ -1517,8 +1517,8 @@ The checklist below is the whole step's scope.
   - **Spec 6 is split in two** (the user, 2026-11-18):
     - **6a, dataset rules:** spec
       `docs/superpowers/specs/2026-11-18-step-5-spec-6a-dataset-rules-design.md`, plan
-      `docs/superpowers/plans/2026-11-18-step-5-spec-6a-dataset-rules.md`. **Built 2026-11-18 to
-      2026-11-19** on `step-5-spec-6a` (PR into `step-5` pending): one data resolution per
+      `docs/superpowers/plans/2026-11-18-step-5-spec-6a-dataset-rules.md`. **Merged 2026-11-19**
+      (#61, 30292e5; built 2026-11-18 to 2026-11-19 on `step-5-spec-6a`): one data resolution per
       widget, Get data's "Data resolution" (renamed from "Show values") with Automatic and
       greyed-out choices, whole-period ranges at Monthly and Yearly, the Map stepping by day,
       month or year with pesticide use following the stop (5b's separate use period gone), one
