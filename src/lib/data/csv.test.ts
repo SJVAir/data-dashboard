@@ -341,7 +341,7 @@ describe("toCsv overlay rows", () => {
 		expect([get(first, "figure"), get(first, "figure_label"), get(first, "rated")]).toEqual([
 			"9.5",
 			"24-hour average",
-			"yes"
+			"Yes"
 		]);
 		const o = rows.at(-1)!;
 		expect([get(o, "figure"), get(o, "figure_label"), get(o, "rated")]).toEqual(["", "", ""]);
@@ -371,7 +371,7 @@ describe("toCsv overlay rows", () => {
 		expect([get(row, "figure"), get(row, "figure_label"), get(row, "rated")]).toEqual([
 			"41",
 			"Highest 1-hour average",
-			"yes"
+			"Yes"
 		]);
 	});
 
@@ -741,9 +741,9 @@ describe("a calendar's CSV", () => {
 		const rows = parse(toCsv(d, { ...META, figureLabel: "24-hour average" }));
 		expect(rows[0]).toEqual([...CSV_COLUMNS]);
 		expect(rows.slice(1).map(tail)).toEqual([
-			["31.9", "24-hour average", "yes"],
-			["", "24-hour average", "not_enough_data"],
-			["19.9", "24-hour average", "not_final"]
+			["31.9", "24-hour average", "Yes"],
+			["", "24-hour average", "Not enough data"],
+			["19.9", "24-hour average", "Not final yet"]
 		]);
 	});
 
@@ -787,7 +787,7 @@ describe("a calendar's CSV", () => {
 		expect(seen[0]).toMatchObject({ resolution: "day", figure: "max_1h" });
 		const rows = parse(saved[0]);
 		expect(rows[0]).toEqual([...CSV_COLUMNS]);
-		expect(rows[1].slice(-3)).toEqual(["12.5", "Highest 1-hour average", "yes"]);
+		expect(rows[1].slice(-3)).toEqual(["12.5", "Highest 1-hour average", "Yes"]);
 	});
 
 	async function download(figure: MetadataSource["figure"]): Promise<string[][]> {
@@ -816,12 +816,12 @@ describe("a calendar's CSV", () => {
 		return parse(out);
 	}
 
-	it("downloads a plain daily CSV when the figure lookup fails", async () => {
-		const rows = await download(async () => {
-			throw new Error("down");
-		});
-		expect(rows[0]).toEqual([...CSV_COLUMNS]);
-		expect(rows[1].slice(-3)).toEqual(["", "", ""]);
+	it("fails the download when the figure lookup fails, never writing rows without it", async () => {
+		await expect(
+			download(async () => {
+				throw new Error("down");
+			})
+		).rejects.toThrow("down");
 	});
 
 	it("leaves the label blank when the entry type has no daily figure", async () => {
@@ -869,8 +869,8 @@ describe("a calendar's CSV", () => {
 		const rows = parse(out);
 		expect(rows[0]).toEqual([...CSV_COLUMNS]);
 		expect(rows.slice(1).map((r) => r.slice(-3))).toEqual([
-			["13.2", "Average of 24-hour averages", "yes"],
-			["", "Average of 24-hour averages", "not_enough_data"]
+			["13.2", "Average of 24-hour averages", "Yes"],
+			["", "Average of 24-hour averages", "Not enough data"]
 		]);
 	});
 
@@ -909,13 +909,13 @@ describe("a calendar's CSV", () => {
 		const rows = parse(out).slice(1);
 		const label = (type: string) =>
 			rows.find((r) => r[CSV_COLUMNS.indexOf("entry_type")] === type)!.slice(-2);
-		expect(label("pm25")).toEqual(["24-hour average", "yes"]);
-		expect(label("o3")).toEqual(["Highest 1-hour average", "yes"]);
+		expect(label("pm25")).toEqual(["24-hour average", "Yes"]);
+		expect(label("o3")).toEqual(["Highest 1-hour average", "Yes"]);
 	});
 
 	it("quotes a figure label with a comma", () => {
 		const text = toCsv(days([{ figure: 1, final: true }]), { ...META, figureLabel: "Max, 1-hour" });
-		expect(parse(text)[1].slice(-2)).toEqual(["Max, 1-hour", "yes"]);
+		expect(parse(text)[1].slice(-2)).toEqual(["Max, 1-hour", "Yes"]);
 		expect(text).toContain('"Max, 1-hour"');
 	});
 });

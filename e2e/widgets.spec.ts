@@ -65,7 +65,7 @@ test("a Chart and a Data table: data, readout, CSV, duplicate, reload", async ({
 	expect(lines[0]).toBe(CSV_HEADER);
 	expect(lines[1]).toMatch(/^\d{4}-\d{2}-\d{2}T00:00:00-0[78]:00,/);
 	// Daily PM2.5 is read as its figure: each row names it with the server's label.
-	expect(lines[1]).toMatch(/,24-hour average,(yes|not_final|not_enough_data)$/);
+	expect(lines[1]).toMatch(/,24-hour average,(Yes|Not final yet|Not enough data)$/);
 	expect(lines.filter(Boolean)).toHaveLength(31);
 
 	// The Chart's frame menu downloads the same way.

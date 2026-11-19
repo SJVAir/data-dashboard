@@ -106,13 +106,13 @@ function placeParts(key: string): { kind: string; id: string } {
 }
 
 /**
- * The `rated` cell: whether a row's figure counts on its scale (`yes`), had too little data
- * (`not_enough_data`), or is still changing (`not_final`); empty for a row read without a figure.
+ * The `rated` cell: whether a row's figure was counted, left out (too little data), or is still
+ * changing, as the calendar CSV has always written it; empty for a row read without a figure.
  */
 function rated(p: SeriesPoint): string {
 	if (p.figure === undefined) return "";
-	if (p.final === false) return "not_final";
-	return p.figure === null ? "not_enough_data" : "yes";
+	if (p.final === false) return m.csv_rated_not_final();
+	return p.figure === null ? m.csv_rated_not_enough() : m.csv_rated_yes();
 }
 
 /** An overlay's data, its entry type, and the labels of its scale levels. */
@@ -270,12 +270,9 @@ async function loadOverlay(
 	}
 }
 
-/** An entry type's figure at `resolution`; `null` (plain rows) when it has none or the lookup fails. */
+/** An entry type's figure at `resolution`; `null` (plain rows) when it has none. Rejects on failure. */
 function figureOf(entryType: string, resolution: Resolution): Promise<Figure | null> {
-	const level = resolution as DatasetLevel;
-	return getMetadata()
-		.figure(entryType, level)
-		.catch(() => null);
+	return getMetadata().figure(entryType, resolution as DatasetLevel);
 }
 
 /** What a download left out: the entry labels of overlays that couldn't be loaded. */
@@ -305,8 +302,9 @@ export async function downloadDataCsv(
 	);
 	const { layer } = chart;
 	let input = chart.main;
-	// The figure the widget shows (a calendar's is always the day's). A failed lookup, or an
-	// entry type with no figure, gives plain rows: their figure columns stay empty.
+	// The figure the widget shows (a calendar's is always the day's); an entry type with none
+	// gives plain rows (their figure cells empty). A failed lookup fails the download, as the
+	// widget shows an error: never rows that silently lack their figure.
 	const need = calendar
 		? layer?.entryType
 			? { entryType: layer.entryType, resolution: "day" as const }
