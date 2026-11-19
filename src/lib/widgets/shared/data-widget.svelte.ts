@@ -28,22 +28,22 @@ export type WidgetPicked = {
 };
 
 /**
- * Builds a widget's queries (default: `widgetInputs` at the widget's places). `now` is the
- * widget's clock, so Automatic is chosen again as a growing range (`to-date`) crosses the range
+ * Builds a widget's queries (default: `widgetInputs` at the widget's places). `now` (epoch ms)
+ * is the widget's clock, so Automatic is chosen again as a growing range (`to-date`) crosses the range
  * ladder.
  */
 export type WidgetInputBuilder = (
 	widget: WidgetInstance,
 	catalog: CatalogEntry[] | undefined,
 	maxPlaces: number,
-	now: Date
+	now: number
 ) => WidgetPicked;
 
 function defaultInputs(
 	widget: WidgetInstance,
 	catalog: CatalogEntry[] | undefined,
 	maxPlaces: number,
-	now: Date
+	now: number
 ): WidgetPicked {
 	const place = widgetPlaceKind(widget.data, catalog);
 	const got = widgetInputs(widget, catalog, place, maxPlaces, now);
@@ -123,7 +123,7 @@ export class DataWidget {
 			return () => clearInterval(timer);
 		});
 		const hour = $derived(Math.floor(clock / HOUR_MS));
-		this.picked = $derived(build(widget(), this.catalog, maxPlaces, new Date(hour * HOUR_MS)));
+		this.picked = $derived(build(widget(), this.catalog, maxPlaces, hour * HOUR_MS));
 		this.meta = $derived(entryMeta(this.catalog, this.picked.layer));
 		const entryTypeId = $derived(this.picked.layer?.entryType);
 

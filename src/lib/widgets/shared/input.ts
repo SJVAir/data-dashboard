@@ -199,9 +199,9 @@ export function widgetInputs(
 	catalog: CatalogEntry[] | undefined,
 	place: PlaceKind,
 	maxPlaces: number = LIMITS.SELECTION_MAX,
-	now: Date = new Date()
+	now: Date | number = new Date()
 ): WidgetInputs {
-	const effective = widgetEffective(widget, catalog, place, undefined, now);
+	const effective = widgetEffective(widget, catalog, place, undefined, new Date(now));
 	const { layer, input, hidden } = chartInput(
 		widget.data,
 		catalog,
