@@ -10,7 +10,7 @@ import type { Resolution } from "../schema";
  * - Weather has no "Every measurement": CIMIS readings are hourly, so Hourly shows the same
  *   values (and raw rows carry no `value`).
  * - Pesticide use is reported by month: Monthly and Yearly only.
- * - Forecasts and smoke are one value a day.
+ * - Forecasts, smoke, fire and pesticide notices are one value a day.
  */
 export function offeredLevels(dataset: string, base: readonly Resolution[]): Resolution[] {
 	switch (dataset) {
@@ -20,6 +20,8 @@ export function offeredLevels(dataset: string, base: readonly Resolution[]): Res
 			return base.filter((r) => r === "month" || r === "year");
 		case "forecasts":
 		case "hms-smoke":
+		case "hms-fire":
+		case "pesticide-notices":
 			return ["day"];
 		default:
 			return [...base];
