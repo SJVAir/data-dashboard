@@ -528,14 +528,19 @@
 
 	/** The fill is on the map: the tile has one the metadata lists, and its row hasn't hidden it. */
 	const fillDrawn = $derived(!!fillInfo && wiring.fillShown);
-	/** The fill's layer label: on now it says the figure is today's so far. */
-	const fillLabel = $derived(
-		!fillInfo
-			? undefined
-			: days.onDay
-				? fillInfo.plural
-				: m.map_fill_today_so_far({ regionType: fillInfo.plural })
-	);
+	/**
+	 * The fill's layer label: on now it says the figure is today's so far, and on the current month
+	 * or year that it's the period's so far.
+	 */
+	const fillLabel = $derived.by(() => {
+		if (!fillInfo) return undefined;
+		const regionType = fillInfo.plural;
+		if (!days.onDay) return m.map_fill_today_so_far({ regionType });
+		if (!days.soFar) return regionType;
+		return days.resolution === "year"
+			? m.map_fill_year_so_far({ regionType })
+			: m.map_fill_month_so_far({ regionType });
+	});
 	/**
 	 * The fill failed to load, while it's shown; or the region types it's checked against
 	 * couldn't be looked up (with a saved fill, so it can't be drawn).
@@ -583,6 +588,8 @@
 		const state = data.noticesState;
 		const loaded = state.status === "ready" || state.status === "loading" ? state.data : undefined;
 		if (noticesGone || loaded === undefined || loaded.notices.length > 0) return null;
+		// Spray notices are daily: a month or year stop has none to say "none" about.
+		if (days.onDay && days.resolution !== "day") return null;
 		return days.onDay ? "day" : "now";
 	});
 
@@ -942,6 +949,7 @@
 		place={note}
 		{noMonitors}
 		onDay={days.onDay}
+		level={days.resolution}
 		onretry={retry}
 		notes={mapNotes}
 	/>

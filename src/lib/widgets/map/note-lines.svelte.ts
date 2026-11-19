@@ -25,6 +25,13 @@ export interface NoteLinesInput {
 	readonly level?: MapLevel;
 }
 
+/** The note for a pollutant whose stops can't be rated, at each level. */
+const UNRATED: Record<MapLevel, (pollutant: string) => string> = {
+	day: (pollutant) => m.map_day_unrated({ pollutant }),
+	month: (pollutant) => m.map_month_unrated({ pollutant }),
+	year: (pollutant) => m.map_year_unrated({ pollutant })
+};
+
 /** The note for a stop with no figures, at each level. */
 const NO_FIGURES: Record<MapLevel, () => string> = {
 	day: () => m.map_day_no_figures(),
@@ -95,7 +102,9 @@ export class MapNoteLines {
 	/** On a day stop, once: the pollutant's days can't be rated (its scale has no daily figure). */
 	readonly #unratedLine = $derived.by(() => {
 		const entryLabel = this.#input.entryLabel;
-		return this.#input.dayUnrated && entryLabel ? m.map_day_unrated({ pollutant: entryLabel }) : "";
+		return this.#input.dayUnrated && entryLabel
+			? UNRATED[this.#input.level ?? "day"](entryLabel)
+			: "";
 	});
 	/** On a stop that has loaded: no monitor in the places has a figure for its period. */
 	readonly #noFiguresLine = $derived.by(() =>

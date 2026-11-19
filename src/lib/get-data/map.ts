@@ -331,9 +331,10 @@ function periodsBack(date: string, level: MapLevel, back: number): string {
 
 /**
  * `range` as the Map takes it at `level`: as it is within the Map's span; a longer one cut to its
- * last `MAP_MAX_STOPS` stops at the level (`cut`: a rolling one as the trailing days or months up
- * to today, so it keeps rolling); none for one shorter than a day (a few trailing hours), which
- * the Map can't step through.
+ * last `MAP_MAX_STOPS` stops at the level (`cut`). At Daily and Monthly a rolling one becomes the
+ * trailing days or months up to today, so it keeps rolling; at Yearly (trailing ranges have no
+ * `year` unit) it becomes a fixed custom range of the last 366 years, which doesn't roll. None
+ * for one shorter than a day (a few trailing hours), which the Map can't step through.
  */
 function mapRange(
 	range: DateRangeSpec,

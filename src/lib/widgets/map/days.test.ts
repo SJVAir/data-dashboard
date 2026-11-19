@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { pacificDay } from "$lib/format";
 import { resolveRange } from "$lib/format/range";
 import {
+	mapLevel,
 	openStop,
 	periodStops,
 	stepKey,
@@ -101,6 +102,19 @@ describe("periodStops at Monthly and Yearly", () => {
 		expect(periodStops(range, "hour", "2026-11-15")).toEqual(
 			periodStops(range, "day", "2026-11-15")
 		);
+	});
+});
+
+describe("mapLevel", () => {
+	it("keeps the Map's levels and steps a finer stored one by day", () => {
+		expect(mapLevel("day")).toBe("day");
+		expect(mapLevel("month")).toBe("month");
+		expect(mapLevel("year")).toBe("year");
+		expect(mapLevel("hour")).toBe("day");
+		expect(mapLevel("raw")).toBe("day");
+	});
+	it("refuses what isn't a level", () => {
+		expect(() => mapLevel("quarter" as never)).toThrow();
 	});
 });
 

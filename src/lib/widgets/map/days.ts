@@ -19,9 +19,24 @@ export type MapLevel = "day" | "month" | "year";
  */
 export type Stop = { at: string; soFar?: true } | "now";
 
-/** The level a Map steps by at `resolution`: a day below Daily (the Map offers nothing finer). */
+/**
+ * The level a Map steps by at `resolution`. The Map offers Daily, Monthly and Yearly; a finer one
+ * (stored from untrusted input, which Get data greys out as a misfit) steps by day, its nearest.
+ */
 export function mapLevel(resolution: Level): MapLevel {
-	return resolution === "month" || resolution === "year" ? resolution : "day";
+	switch (resolution) {
+		case "day":
+		case "month":
+		case "year":
+			return resolution;
+		case "raw":
+		case "hour":
+			return "day";
+		default: {
+			const unknown: never = resolution;
+			throw new Error(`Not a level: ${String(unknown)}`);
+		}
+	}
 }
 
 /** A stop as a primitive: its start key, or "now". */

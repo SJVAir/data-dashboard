@@ -3,7 +3,7 @@
 	import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
 	import { Select } from "bits-ui";
 	import { Input } from "$lib/components/ui/input";
-	import type { Level } from "$lib/data/dataset-rules";
+	import { isLevel, type Level } from "$lib/data/dataset-rules";
 	import { DateRangeSpecSchema, type DateRangeSpec, type Resolution } from "$lib/data/schema";
 	import { formatDateRange, formatMonthName, todayPacific } from "$lib/format";
 	import { resolveRange } from "$lib/format/range";
@@ -91,7 +91,7 @@
 	}
 
 	function blockText(spec: DateRangeSpec): string | null {
-		const level = resolutionFor?.(spec) ?? (resolution as Level | undefined);
+		const level = resolutionFor?.(spec) ?? (isLevel(resolution) ? resolution : undefined);
 		const block = blockedBySpan(spec, type.span, now, level);
 		if (block === "too-short") return m.get_data_span_too_short();
 		if (block === "too-long") return m.get_data_span_too_long();

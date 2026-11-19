@@ -11,7 +11,8 @@ export const MAP_LEVELS: readonly Level[] = ["day", "month", "year"];
 /** Where a layer is fetched for: monitors, regions, or none (place-less). */
 export type PlaceKind = "monitors" | "regions" | "none";
 
-const isLevel = (value: unknown): value is Level => LEVELS.includes(value as Level);
+/** Whether `value` is one of the dataset rules' levels. */
+export const isLevel = (value: unknown): value is Level => LEVELS.includes(value as Level);
 const rank = (level: Level): number => LEVELS.indexOf(level);
 
 /**

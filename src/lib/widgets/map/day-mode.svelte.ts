@@ -91,6 +91,11 @@ export class MapDays {
 	});
 	/** A stop of the range shows (a day, month or year; not Now). */
 	readonly onDay = $derived(this.#atKey !== "" && this.#atKey !== "now");
+	/** The stop showing is the current month or year (its figures are so far). */
+	readonly soFar = $derived.by(() => {
+		const stop = this.stops[this.index];
+		return !!stop && stop !== "now" && stop.soFar === true;
+	});
 	/**
 	 * The neighbouring day stops (one each side), fetched ahead so a step draws at once; from the
 	 * Now stop, the day before it. None at Monthly or Yearly.

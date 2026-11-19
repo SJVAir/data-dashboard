@@ -2302,6 +2302,67 @@ test("a Monthly Map steps by month, asks for no day's figures, and has no figure
 	await expect.poll(dayLabel).toBe("August 2026");
 });
 
+/** A Map of `region` at `resolution` over `range`, with `options`. */
+function periodMap(
+	resolution: "month" | "year",
+	range: DateRangeSpec,
+	options?: Record<string, unknown>,
+	more: Partial<Layer>[] = []
+): WidgetInstance {
+	const widget = rangedMap(region("019"), options, range);
+	return {
+		...widget,
+		data: { ...layers(region("019"), more), dateRange: range, resolution }
+	};
+}
+
+test("on a month stop, the no-monitors note speaks of the month; on a year stop, of the year", async () => {
+	rated();
+	vi.mocked(getMonitors).mockResolvedValue([] as never);
+	const range = { kind: "custom", start: "2026-07-01", end: "2026-09-30" } as const;
+	const screen = await show(periodMap("month", range));
+	await madeMap();
+	await expect.element(screen.getByText(m.map_no_monitors_here_month())).toBeVisible();
+	expect(screen.getByText(m.map_no_monitors_here_day()).query()).toBeNull();
+	expect(screen.getByText(m.map_no_monitors_here()).query()).toBeNull();
+	await screen.rerender({ widget: periodMap("year", range) });
+	await expect.element(screen.getByText(m.map_no_monitors_here_year())).toBeVisible();
+});
+
+test("a fill on the current month says this month so far; a past month just names the regions", async () => {
+	rated();
+	zipFill();
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	const thisYear = { kind: "to-date", unit: "year" } as const;
+	const screen = await show(periodMap("month", thisYear, { fill: "zipcode" }));
+	const map = await madeMap();
+	await expect.poll(() => fillOf(map)?.options.layerLabel).toBe("ZIP Codes, this month so far");
+	expect(fillOf(map)!.options.layerLabel).toBe(
+		m.map_fill_month_so_far({ regionType: "ZIP Codes" })
+	);
+	// No summary is asked for at a month stop: its figures aren't drawn yet.
+	expect(getRegionSummariesBulkDailyOpen).not.toHaveBeenCalled();
+	await screen.rerender({ widget: periodMap("year", thisYear, { fill: "zipcode" }) });
+	await expect.poll(() => fillOf(map)?.options.layerLabel).toBe("ZIP Codes, this year so far");
+	const past = { kind: "custom", start: "2025-01-01", end: "2025-03-31" } as const;
+	await screen.rerender({ widget: periodMap("month", past, { fill: "zipcode" }) });
+	await expect.poll(() => fillOf(map)?.options.layerLabel).toBe("ZIP Codes");
+});
+
+test("a month stop never says there are no spray notices for the day", async () => {
+	rated();
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	const range = { kind: "custom", start: "2026-07-01", end: "2026-09-30" } as const;
+	await show(periodMap("month", range, undefined, [{ dataset: "pesticide-notices" }]));
+	const map = await madeMap();
+	await expect.poll(dayLabel).toBe("September 2026");
+	// Notices are daily: none are asked for, and the legend claims nothing about the month.
+	expect(getActivePesticideNotices).not.toHaveBeenCalled();
+	const note = await noticesNote(map);
+	expect(note.container.textContent).not.toContain(m.map_notices_none_day());
+	expect(note.container.textContent).not.toContain(m.map_notices_none_now());
+});
+
 test("refresh: a final past day isn't asked for again; one not final is, hourly", async () => {
 	rated();
 	vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"], shouldAdvanceTime: true });
