@@ -280,7 +280,7 @@ test("an overlay adds a column per place with each day's level label", async () 
 	expect((await axe.run(frame)).violations).toEqual([]);
 });
 
-test("an overlay that fails, or that the periods are too long for, says so under the table", async () => {
+test("an overlay that fails says so under the table; one not offered at the resolution isn't fetched", async () => {
 	fake.metadata = fixtureMetadata({ catalog: async () => [...FIXTURE_CATALOG, FORECASTS_ENTRY] });
 	const forecasts = fakeForecastsAdapter(requests);
 	fake.client = createQueryClient({
@@ -298,7 +298,7 @@ test("an overlay that fails, or that the periods are too long for, says so under
 	});
 	const failing = tableWidget(["m1"]);
 	failing.data.layers.push({ dataset: "forecasts", entryType: "burn-status" });
-	let screen = await show(failing);
+	const screen = await show(failing);
 	await expect.poll(() => frame.querySelectorAll("tbody tr").length).toBe(3);
 	await expect
 		.element(screen.getByText(m.chart_overlay_failed({ layer: "Burn status" })))
@@ -311,12 +311,13 @@ test("an overlay that fails, or that the periods are too long for, says so under
 		regions: { resolve: async () => "unsupported" }
 	});
 	const monthly = tableWidget(["m1"]);
-	monthly.data.layers[0].resolution = "month";
+	monthly.data.resolution = "month";
 	monthly.data.layers.push({ dataset: "forecasts", entryType: "burn-status" });
-	screen = await show(monthly);
-	await expect
-		.element(screen.getByText(m.table_overlay_by_day({ layer: "Burn status" })))
-		.toBeVisible();
+	const before = requests.length;
+	await show(monthly);
+	await expect.poll(() => frame.querySelectorAll("tbody tr").length).toBe(3);
+	// Burn status offers days only: at Monthly it isn't fetched or shown (its note is a later step's).
+	expect(requests.slice(before).map((r) => r.entryType)).toEqual(["pm25"]);
 	expect(frame.querySelector("thead")!.textContent).not.toContain("Burn status");
 	expect((await axe.run(frame)).violations).toEqual([]);
 });
@@ -365,14 +366,13 @@ test("the header names the station and filters", async () => {
 		)
 		.toBeVisible();
 	await expect.poll(() => frame.querySelectorAll("tbody tr").length).toBe(3);
-	// Numbers use the catalog's precision (rain: 2 places, pounds: none), a whole month's total
-	// says so, and a mean would never be called one.
+	// The dataset is monthly (Automatic: pesticide use offers month and year), one row per month
+	// for every layer. Numbers use the catalog's precision (rain: 2 places, pounds: none).
 	const rows = [...frame.querySelectorAll("tbody tr")].map((r) =>
 		[...r.querySelectorAll("td")].slice(1).map((td) => td.textContent?.trim())
 	);
 	expect(rows.map((r) => r[0])).toEqual(["0.40", "0.00", "0.12"]);
-	expect(rows.every((r) => r[1]?.startsWith("1,200"))).toBe(true);
-	expect(rows.every((r) => r[1]?.includes(m.chart_series_month_total()))).toBe(true);
+	expect(rows.map((r) => r[1])).toEqual(["", "340", "1,200"]);
 	expect((await axe.run(frame)).violations).toEqual([]);
 });
 

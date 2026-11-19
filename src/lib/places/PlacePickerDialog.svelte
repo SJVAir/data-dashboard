@@ -26,11 +26,12 @@
 	import { getWidgetType } from "$lib/widgets/registry";
 	import { offersNow } from "$lib/widgets/time";
 	import {
-		chartInput,
 		nowInput,
 		placesEntryType,
 		placesLayer,
-		placesQueryLayer
+		placesQueryLayer,
+		widgetInputs,
+		widgetPlaceKind
 	} from "$lib/widgets/shared/input";
 	import { pickedData } from "./apply";
 	import type { PlaceDirectory } from "./directory";
@@ -297,7 +298,12 @@
 			? calendarInput(lookup, ctx.catalog, widgetType)
 			: type && offersNow(type)
 				? nowInput(placesLayer(lookup, ctx.catalog))
-				: chartInput(lookup, ctx.catalog, ctx.max).input;
+				: widgetInputs(
+						{ type: widgetType, data: lookup },
+						ctx.catalog,
+						widgetPlaceKind(lookup, ctx.catalog),
+						ctx.max
+					).main;
 		if (!input) return null;
 		const timed = new AbortController();
 		const stop = () => timed.abort();

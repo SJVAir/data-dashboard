@@ -253,7 +253,7 @@ describe("converting to and from the Map", () => {
 	it("converts a Chart with PM2.5 and smoke, on the default 30 days, to a Map on Now with PM2.5 and smoke and fire", () => {
 		const c = toMapDraft(
 			chartOf([
-				{ dataset: "air-quality", entryType: "pm25", resolution: "day", place: FRESNO },
+				{ dataset: "air-quality", entryType: "pm25", place: FRESNO },
 				{ dataset: HMS_SMOKE, entryType: "smoke-density", place: FRESNO }
 			]),
 			CATALOG,

@@ -1,4 +1,4 @@
-import type { Layer, Resolution } from "./schema";
+import type { Layer, Resolution, WidgetDataConfig } from "./schema";
 import type { CatalogEntry } from "./metadata";
 import { offeredLevels } from "./adapters/offered";
 import { entryMeta, mainLayer } from "$lib/widgets/shared/input";
@@ -76,7 +76,7 @@ export type Effective = {
  * pollutant) decides and the others are misfits.
  */
 export function effectiveResolution(args: {
-	data: { layers: readonly Layer[]; resolution?: string };
+	data: WidgetDataConfig;
 	catalog: CatalogEntry[];
 	place: PlaceKind;
 	spanDays: number;
@@ -114,7 +114,7 @@ export function effectiveResolution(args: {
 	}
 
 	// No shared level at or above the ideal: the main layer decides.
-	const main = mainLayer({ layers: [...layers] }, catalog) ?? layers[0];
+	const main = mainLayer(data, catalog) ?? layers[0];
 	const own = main ? layerOffers(main, catalog, place).filter((l) => within.includes(l)) : [];
 	const resolution =
 		own.find((level) => rank(level) >= rank(ideal)) ?? own[own.length - 1] ?? ideal;

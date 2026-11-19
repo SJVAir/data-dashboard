@@ -1,13 +1,20 @@
 import type { Change } from "$lib/changes/types";
 import { calendarInput } from "$lib/calendars/input";
 import { isCalendarType } from "$lib/calendars/types";
+import type { CatalogEntry } from "$lib/data/metadata";
 import type { Layer } from "$lib/data/schema";
 import type { QueryInput } from "$lib/data/types";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
 import { getWidgetType } from "$lib/widgets/registry";
 import { offersNow } from "$lib/widgets/time";
-import { chartInput, nowInput, placesLayer, placesQueryLayer } from "$lib/widgets/shared/input";
+import {
+	nowInput,
+	placesLayer,
+	placesQueryLayer,
+	widgetInputs,
+	widgetPlaceKind
+} from "$lib/widgets/shared/input";
 import { barHasPoint, hasPoints, pointLayers } from "./point-layers";
 
 export { hasPoints };
@@ -76,9 +83,14 @@ export function pointsCovered(doc: Dashboard, swaps: PointSwap[]): boolean {
  * The query a point layer's region is looked up with: the widget's own, for this layer alone (a
  * point is a single place). A Forecast strip's layer (no entry type) is looked up as a PM2.5 one at
  * the same place, as the place picker does; a "now" widget over the trailing hours its tile reads,
- * so the region matches what it shows. Null when the layer isn't the widget's places layer.
+ * so the region matches what it shows. Its resolution is the widget's dataset's (from `catalog`),
+ * so a lookup reads what the widget does. Null when the layer isn't the widget's places layer.
  */
-function lookupInput(widget: WidgetInstance, layer: Layer): QueryInput | null {
+function lookupInput(
+	widget: WidgetInstance,
+	layer: Layer,
+	catalog: CatalogEntry[] | undefined
+): QueryInput | null {
 	const data = { ...widget.data, layers: [layer] };
 	const places = placesLayer(data, undefined);
 	if (!places) return null;
@@ -88,7 +100,13 @@ function lookupInput(widget: WidgetInstance, layer: Layer): QueryInput | null {
 	// A Map is looked up as it frames its places now, whether or not it has a range.
 	const type = getWidgetType(widget.type);
 	if (type && offersNow(type)) return nowInput(query);
-	return chartInput({ ...data, layers: [query] }, undefined, 1).input;
+	const lookup = { ...data, layers: [query] };
+	return widgetInputs(
+		{ type: widget.type, data: lookup },
+		catalog,
+		widgetPlaceKind(lookup, catalog),
+		1
+	).main;
 }
 
 /**
@@ -99,13 +117,16 @@ function lookupInput(widget: WidgetInstance, layer: Layer): QueryInput | null {
 export async function pointSwaps(doc: Dashboard, signal?: AbortSignal): Promise<PointSwap[]> {
 	const found = pointLayers(doc);
 	if (found.length === 0) return [];
-	const { placeRegion } = await import("$lib/data");
+	const { getMetadata, placeRegion } = await import("$lib/data");
+	const { untilAborted } = await import("$lib/data/metadata");
 	const timed = bounded(signal);
 	try {
 		timed.signal.throwIfAborted();
+		const listed = await untilAborted(getMetadata().catalog(), timed.signal);
+		const catalog = listed === "unavailable" ? undefined : listed;
 		return await Promise.all(
 			found.map(async ({ widget, layer, layerIndex }): Promise<PointSwap> => {
-				const input = lookupInput(widget, layer);
+				const input = lookupInput(widget, layer, catalog);
 				const region = input ? await placeRegion(input, timed.signal) : null;
 				const { lat, lon } = layer.place as Extract<Layer["place"], { kind: "point" }>;
 				return { widgetId: widget.id, layerIndex, point: { lat, lon }, region };

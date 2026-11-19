@@ -58,19 +58,18 @@ const smoke = { dataset: "hms-smoke", entryType: "smoke-density" };
 describe("draft layers", () => {
 	it("removing the pollutant moves places to the next number layer", () => {
 		const data = pm25With({ ...smoke }, { ...temperature });
-		data.layers[0].resolution = "day";
+		data.resolution = "day";
 		setPollutant(data, CATALOG, null);
-		expect(data.layers).toEqual([
-			{ ...smoke },
-			{ ...temperature, place: FRESNO, resolution: "day" }
-		]);
+		expect(data.layers).toEqual([{ ...smoke }, { ...temperature, place: FRESNO }]);
+		expect(data.resolution).toBe("day");
 	});
 
-	it("a raw level isn't carried onto a weather main (weather has no Every measurement)", () => {
+	it("a raw level goes back to Automatic on a weather main (weather has no Every measurement)", () => {
 		const data = pm25With({ ...temperature });
-		data.layers[0].resolution = "raw";
+		data.resolution = "raw";
 		setPollutant(data, CATALOG, null);
 		expect(data.layers).toEqual([{ ...temperature, place: FRESNO }]);
+		expect(data.resolution).toBeUndefined();
 	});
 
 	it("the last number layer can't be removed", () => {

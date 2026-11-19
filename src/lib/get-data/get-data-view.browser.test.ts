@@ -571,15 +571,15 @@ test("the pollutant can't be cleared without a number layer; overlays can't stan
 	expect(layers[1]).toEqual({ dataset: "forecasts", entryType: "burn-status" });
 });
 
-test("choosing Hourly stores resolution: 'hour' on the main layer; Automatic stores none", async () => {
+test("choosing Hourly stores the data's resolution: 'hour'; Automatic stores none", async () => {
 	const draft = monitorsDraft(["m1"]);
 	draft.data.dateRange = { kind: "trailing", amount: 7, unit: "day" };
 	const { current } = await show(draft);
 	await page.getByRole("button", { name: "More options" }).click();
 	await page.getByRole("radio", { name: "Hourly" }).click();
-	expect((await current()).data.layers[0].resolution).toBe("hour");
+	expect((await current()).data.resolution).toBe("hour");
 	await page.getByRole("radio", { name: "Automatic" }).click();
-	expect((await current()).data.layers[0]).not.toHaveProperty("resolution");
+	expect((await current()).data).not.toHaveProperty("resolution");
 });
 
 test("Download CSV saves the draft's data", async () => {
@@ -615,14 +615,14 @@ test("a detail level the new range can't serve goes back to Automatic", async ()
 	const { current } = await show(draft);
 	await page.getByRole("button", { name: "More options" }).click();
 	await page.getByRole("radio", { name: m.get_data_show_values_raw() }).click();
-	expect((await current()).data.layers[0].resolution).toBe("raw");
+	expect((await current()).data.resolution).toBe("raw");
 	// 90 days of raw readings is more than the point budget.
 	await chooseDates("Last 90 days");
 	await expect.element(page.getByRole("radio", { name: "Automatic" })).toBeChecked();
 	await expect
 		.element(page.getByRole("radio", { name: m.get_data_show_values_raw() }))
 		.toBeDisabled();
-	expect((await current()).data.layers[0]).not.toHaveProperty("resolution");
+	expect((await current()).data).not.toHaveProperty("resolution");
 });
 
 function withLayers(ids: string[], ...rest: Draft["data"]["layers"]): Draft {

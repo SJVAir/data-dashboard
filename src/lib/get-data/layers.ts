@@ -53,9 +53,9 @@ function offeredFor(catalog: CatalogEntry[] | undefined, layer: Layer): Resoluti
 }
 
 /**
- * Runs `change`, then moves the places and the "Show values" level from the old main layer to
- * the new one when the main changed. A level the new main doesn't offer (`offeredFor`: weather
- * has no "Every measurement") is dropped.
+ * Runs `change`, then moves the places from the old main layer to the new one when the main
+ * changed. The dataset's resolution (`data.resolution`) stays, unless the new main doesn't offer
+ * it (`offeredFor`: weather has no "Every measurement"): then it goes back to Automatic.
  */
 export function keepingPlaces(
 	data: WidgetDataConfig,
@@ -63,25 +63,19 @@ export function keepingPlaces(
 	change: () => void
 ): void {
 	const before = mainLayer(data, catalog);
-	const carried = before && {
-		place: before.place,
-		selection: before.selection,
-		resolution: before.resolution
-	};
+	const carried = before && { place: before.place, selection: before.selection };
 	change();
 	const after = mainLayer(data, catalog);
 	if (!before || !after || after === before || !carried) return;
 	delete before.place;
 	delete before.selection;
-	delete before.resolution;
 	delete after.place;
 	delete after.selection;
 	if (carried.place) after.place = carried.place;
 	if (carried.selection) after.selection = carried.selection;
-	const level = carried.resolution;
-	const offered = offeredFor(catalog, after);
-	if (level && (level === "auto" || offered.includes(level))) after.resolution = level;
-	else delete after.resolution;
+	if (data.resolution && !offeredFor(catalog, after).includes(data.resolution)) {
+		delete data.resolution;
+	}
 }
 
 /**
@@ -106,9 +100,7 @@ export function setPollutant(
 		layer.entryType = pick.entryType;
 		// A level the new entry type doesn't offer goes back to Automatic.
 		const offered = offeredFor(catalog, layer);
-		if (layer.resolution && layer.resolution !== "auto" && !offered.includes(layer.resolution)) {
-			delete layer.resolution;
-		}
+		if (data.resolution && !offered.includes(data.resolution)) delete data.resolution;
 		return;
 	}
 	if (!canAddLayer(data, catalog)) return;

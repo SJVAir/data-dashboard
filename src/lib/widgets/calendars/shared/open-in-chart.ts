@@ -22,10 +22,8 @@ export function openDaysInChart(app: AppContext, widgetId: string): void {
 		...copyPlacement(widgets, source),
 		data: {
 			dateRange: { kind: "custom", start: sub.start, end: sub.end },
-			layers: structuredClone(source.data.layers).map((layer) => {
-				delete layer.resolution;
-				return layer;
-			})
+			// The calendar's pinned `day` isn't stored, so the Chart starts at Automatic.
+			layers: structuredClone(source.data.layers)
 		},
 		...(source.thresholds ? { thresholds: structuredClone(source.thresholds) } : {})
 	};

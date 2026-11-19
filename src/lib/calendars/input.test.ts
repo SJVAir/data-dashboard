@@ -21,7 +21,7 @@ const data: WidgetDataConfig = {
 describe("calendarInput", () => {
 	it("pins days, drops the sub-range and never asks for worst hours", () => {
 		const input = calendarInput(data, undefined)!;
-		expect(input.pin).toBe("day");
+		expect(input.resolution).toBe("day");
 		expect(input.timeSubRange).toBeUndefined();
 		expect(input.worstHour).toBeUndefined();
 		expect(input.layer.entryType).toBe("pm25");

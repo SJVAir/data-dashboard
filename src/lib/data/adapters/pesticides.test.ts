@@ -453,7 +453,7 @@ describe("meta and labels", () => {
 });
 
 describe("through the query client", () => {
-	it("a daily request is served monthly", async () => {
+	it("a monthly request is served monthly; a daily one is no-resolution (no fallback)", async () => {
 		vi.mocked(getPesticidesForPlace).mockResolvedValue(response([month(2023, 11, 5)], []));
 		const client = createQueryClient({
 			adapters: [pesticidesAdapter],
@@ -461,24 +461,33 @@ describe("through the query client", () => {
 			metadata: createWebMetadata(),
 			now: () => NOW
 		});
-		const states: QueryState[] = [];
-		client.subscribe(
-			{
-				layer: {
-					dataset: "pesticide-use",
-					entryType: "pounds-applied",
-					place: { kind: "region", type: "county", code: "06019" }
+		const at = (resolution: "day" | "month") => {
+			const states: QueryState[] = [];
+			client.subscribe(
+				{
+					layer: {
+						dataset: "pesticide-use",
+						entryType: "pounds-applied",
+						place: { kind: "region", type: "county", code: "06019" }
+					},
+					dateRange: { kind: "custom", start: "2023-11-01", end: "2023-11-30" },
+					resolution
 				},
-				dateRange: { kind: "custom", start: "2023-11-01", end: "2023-11-30" },
-				pin: "day"
-			},
-			(s) => states.push(s)
-		);
-		await vi.waitFor(() => expect(states.at(-1)?.status).toBe("ready"));
-		const ready = states.at(-1);
+				(s) => states.push(s)
+			);
+			return states;
+		};
+		const monthly = at("month");
+		await vi.waitFor(() => expect(monthly.at(-1)?.status).toBe("ready"));
+		const ready = monthly.at(-1);
 		if (ready?.status !== "ready") throw new Error("not ready");
 		expect(ready.data.resolution).toBe("month");
 		expect(ready.data.series[0].points.map((p) => p.mean)).toEqual([5]);
+
+		const daily = at("day");
+		await vi.waitFor(() =>
+			expect(daily.at(-1)).toEqual({ status: "unavailable", reason: "no-resolution" })
+		);
 	});
 });
 

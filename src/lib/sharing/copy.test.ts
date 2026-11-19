@@ -12,7 +12,11 @@ import { parseIncoming } from "./incoming";
 const mocked = vi.hoisted(() => ({
 	placeRegion: vi.fn(async () => ({ type: "zipcode", code: "93721" }))
 }));
-vi.mock("$lib/data", () => ({ placeRegion: mocked.placeRegion }));
+vi.mock("$lib/data", () => ({
+	placeRegion: mocked.placeRegion,
+	// Point lookups read the catalog for the widget's resolution; without one, Automatic's range level.
+	getMetadata: () => ({ catalog: async () => "unavailable" as const })
+}));
 
 const now = new Date("2026-10-25T12:00:00Z");
 

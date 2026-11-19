@@ -377,8 +377,9 @@ test("an empty pesticide strip says no use reported", async () => {
 	await expect.element(chart).toBeVisible();
 	await expect.poll(() => frame.querySelector("canvas")).not.toBeNull();
 	expect(screen.getByText(m.widget_state_error()).query()).toBeNull();
-	// The strip is pinned to the main's days, so it comes back monthly.
+	// Pesticide use offers month and year only, so Automatic makes the whole dataset monthly.
 	expect(requests.find((r) => r.entryType === "pounds-applied")?.resolution).toBe("month");
+	expect(requests.find((r) => r.entryType === "pm25")?.resolution).toBe("month");
 });
 
 test("a pesticide-only widget with no use says so, not an error", async () => {
@@ -417,7 +418,9 @@ test("the legend names the active filters", async () => {
 	await expect
 		.element(screen.getByText("Pounds Applied · Chlorpyrifos · Grapes · Monitor m1"))
 		.toBeVisible();
-	await expect.element(screen.getByText(m.chart_series_month_total())).toBeVisible();
+	// The dataset is monthly (Automatic): the main is a monthly average, the strip lines up with it.
+	await expect.element(screen.getByText(m.chart_series_month(), { exact: true })).toBeVisible();
+	expect(requests.filter((r) => r.resolution !== "month")).toEqual([]);
 });
 
 test("a gone filter shows in its strip and the chart still draws", async () => {
@@ -456,7 +459,7 @@ test("an averaged main stays an average, with no source to name", async () => {
 	await expect.element(key.getByText(m.chart_series_day(), { exact: true })).toBeVisible();
 });
 
-test("a number overlay isn't fetched while the main layer is unavailable", async () => {
+test("an overlay is fetched alongside the main, at the dataset's resolution", async () => {
 	fake.metadata = fixtureMetadata({
 		catalog: async () => [...FIXTURE_CATALOG, FORECASTS_ENTRY, ...NUMBER_DATASETS]
 	});
@@ -482,8 +485,10 @@ test("a number overlay isn't fetched while the main layer is unavailable", async
 	await expect
 		.element(screen.getByText(m.widget_state_unavailable_place_unsupported()))
 		.toBeVisible();
-	await new Promise((r) => setTimeout(r, 100));
-	expect(requests.filter((r) => r.entryType === "precipitation")).toEqual([]);
+	// It doesn't wait for the main: both are asked for at the dataset's (daily) resolution.
+	await expect
+		.poll(() => requests.filter((r) => r.entryType === "precipitation").map((r) => r.resolution))
+		.toEqual(["day"]);
 });
 
 test("a saved threshold draws a labeled line and names its level in the key", async () => {

@@ -119,7 +119,11 @@ export type Target =
 export type QueryInput = {
 	layer: Layer;
 	dateRange: DateRangeSpec;
-	pin?: Resolution;
+	/**
+	 * The dataset's resolution (`effectiveResolution`), fetched exactly: the level itself, raw
+	 * downsampled to it when only raw is offered, else `no-resolution`. No coarser fallback.
+	 */
+	resolution: Resolution;
 	/**
 	 * Asks for each day's worst hourly average; honored only for one place on a daily view of at
 	 * most `WORST_HOUR_MAX_DAYS` days, and ignored otherwise (it doesn't change the cache key then).

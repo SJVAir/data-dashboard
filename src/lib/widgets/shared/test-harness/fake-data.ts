@@ -8,8 +8,9 @@ import type { Rect, WidgetInstance } from "$lib/documents/schema";
 const DAY = 86_400_000;
 
 /**
- * A fake air-quality adapter for monitors: three daily points per requested monitor, named
- * "Monitor <id>". Each request is pushed onto `requests`.
+ * A fake air-quality adapter for monitors: three points per requested monitor, named
+ * "Monitor <id>", a day apart (a month or a year apart at those resolutions, so a monthly
+ * dataset's layers line up). Each request is pushed onto `requests`.
  */
 export function fakeAdapter(requests: AdapterRequest[]): DatasetAdapter {
 	return {
@@ -24,11 +25,20 @@ export function fakeAdapter(requests: AdapterRequest[]): DatasetAdapter {
 			requests.push(req);
 			const ids = req.target.kind === "monitors" ? req.target.ids : [];
 			const start = req.range.start.getTime();
+			const coarse = req.resolution === "month" || req.resolution === "year";
+			const times = [0, 1, 2].map((i) => start + i * DAY);
+			if (coarse) {
+				let t = periodStart(req.range.start, req.resolution as "month" | "year");
+				for (let i = 0; i < times.length; i++) {
+					times[i] = t.getTime();
+					t = nextPeriodStart(t, req.resolution as "month" | "year");
+				}
+			}
 			return {
 				series: ids.map((id, n) => ({
 					place: `monitor:${id}`,
 					points: [0, 1, 2].map((i) => ({
-						t: start + i * DAY,
+						t: times[i],
 						mean: 5 + i + n,
 						min: 5 + i + n,
 						max: 5 + i + n,

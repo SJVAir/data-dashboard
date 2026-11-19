@@ -50,16 +50,16 @@ export class CalendarData {
 	constructor(widget: () => WidgetInstance) {
 		const metadata = getMetadata();
 		this.#w = new DataWidget(() => widget(), 1, {
-			input: (data, catalog) => {
+			input: ({ data }, catalog) => {
 				const layer = mainLayer(data, catalog);
 				const input = calendarInput(data, catalog, widget().type);
 				const lookup = this.#lookup;
 				// The query waits for the figure, so it runs once with the right key.
 				if (!input || !layer?.entryType || lookup?.entryType !== layer.entryType) {
-					return { layer, input: null, hidden: 0 };
+					return { layer, input: null, hidden: 0, overlays: [] };
 				}
 				const full = lookup.figure ? { ...input, dailyFigure: lookup.figure.field } : input;
-				return { layer, input: full, hidden: 0 };
+				return { layer, input: full, hidden: 0, overlays: [] };
 			}
 		});
 		const w = this.#w;

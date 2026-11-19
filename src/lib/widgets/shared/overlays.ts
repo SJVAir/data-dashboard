@@ -1,11 +1,5 @@
 import type { CatalogEntry } from "$lib/data/metadata";
-import { layerKind } from "$lib/data/layer-kind";
-import {
-	PlaceRefSchema,
-	type Layer,
-	type Resolution,
-	type WidgetDataConfig
-} from "$lib/data/schema";
+import { PlaceRefSchema, type Layer, type WidgetDataConfig } from "$lib/data/schema";
 import type { PlaceInfo, QueryInput, Series } from "$lib/data/types";
 import type { Picks } from "$lib/places/selection";
 import { sameRef } from "$lib/places/types";
@@ -26,25 +20,18 @@ export function overlayLayers(
 
 /**
  * What an overlay asks for: its own dataset, entry type, station and filters at the main layer's
- * places (overlays store none), over the main's date range and sub-range. No worst hour: that is
- * about the main layer's values. A number overlay is pinned to `mainResolution` (the resolution
- * the main data came back at), so the two line up; the overlay's own `resolution` is dropped. A
- * level overlay is not pinned.
+ * places (overlays store none), over the main's date range and sub-range, at the main's
+ * resolution (the dataset's: every layer is fetched at it). No worst hour: that is about the main
+ * layer's values.
  */
-export function overlayInput(
-	main: QueryInput,
-	overlay: Layer,
-	mainResolution: Resolution | undefined,
-	catalog: CatalogEntry[] | undefined
-): QueryInput {
+export function overlayInput(main: QueryInput, overlay: Layer): QueryInput {
 	const layer: Layer = { dataset: overlay.dataset, entryType: overlay.entryType };
 	if (overlay.station) layer.station = overlay.station;
 	if (overlay.filters) layer.filters = overlay.filters;
 	if (main.layer.place) layer.place = main.layer.place;
 	if (main.layer.selection) layer.selection = main.layer.selection;
-	const input: QueryInput = { layer, dateRange: main.dateRange };
+	const input: QueryInput = { layer, dateRange: main.dateRange, resolution: main.resolution };
 	if (main.timeSubRange) input.timeSubRange = main.timeSubRange;
-	if (mainResolution && layerKind(overlay, catalog) === "number") input.pin = mainResolution;
 	return input;
 }
 

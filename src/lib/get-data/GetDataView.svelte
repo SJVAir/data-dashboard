@@ -256,8 +256,8 @@
 
 	// A detail level the range or places can no longer serve goes back to Automatic.
 	$effect(() => {
-		const level = main?.resolution;
-		if (!choices || !level || level === "auto") return;
+		const level = plain.data.resolution;
+		if (!choices || !level) return;
 		const choice = choices.find((c) => c.level === level);
 		if (!choice || choice.blocked) untrack(() => setDetail("auto"));
 	});
@@ -407,11 +407,10 @@
 		layers.setStation(draft.data, station);
 	}
 
+	/** Sets the dataset's resolution; Automatic is never stored (it deletes it). */
 	function setDetail(level: "auto" | Resolution): void {
-		const layer = mainDraftLayer();
-		if (!layer) return;
-		if (level === "auto") delete layer.resolution;
-		else layer.resolution = level;
+		if (level === "auto") delete draft.data.resolution;
+		else draft.data.resolution = level;
 	}
 
 	/** Saves the Map's use period (`YYYY` or `YYYY-MM`), keeping its other options. */
@@ -845,7 +844,7 @@
 
 			{#if choices}
 				<section>
-					<ShowValuesControl {choices} value={main?.resolution ?? "auto"} onchange={setDetail}>
+					<ShowValuesControl {choices} value={plain.data.resolution ?? "auto"} onchange={setDetail}>
 						{#if shownLevels}
 							<ThresholdLineControl
 								levels={shownLevels}

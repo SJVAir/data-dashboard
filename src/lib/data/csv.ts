@@ -5,7 +5,7 @@ import { formatList, TIME_ZONE } from "$lib/format";
 import { nextPeriodStart, resolveRange } from "$lib/format/range";
 import type { WidgetInstance } from "$lib/documents/schema";
 import type { CatalogEntry, Level } from "./metadata";
-import type { Resolution, WidgetDataConfig } from "./schema";
+import type { WidgetDataConfig } from "./schema";
 import { m } from "$lib/paraglide/messages.js";
 import type { FileAccess } from "$lib/platform/types";
 import { dataFileName } from "$lib/sharing/file-names";
@@ -15,8 +15,8 @@ import { placeLabel } from "$lib/widgets/title";
 import { calendarInput } from "$lib/calendars/input";
 import { figureName } from "$lib/calendars/figure";
 import { isCalendarType } from "$lib/calendars/types";
-import { chartInput, entryMeta } from "$lib/widgets/shared/input";
-import { overlayInput, overlayLayers } from "$lib/widgets/shared/overlays";
+import { entryMeta, widgetInputs, widgetPlaceKind } from "$lib/widgets/shared/input";
+import { overlayLayers } from "$lib/widgets/shared/overlays";
 import { getMetadata, getQueryClient } from "./index";
 import { LIMITS } from "./schema";
 import type { Subscription } from "./query/client";
@@ -226,19 +226,19 @@ function firstSettled(input: QueryInput): Promise<QueryState> {
 }
 
 /**
- * One overlay's data, or `null` when it couldn't be loaded (an error, or unavailable). A ready
+ * One overlay's data (`input`: its query, `null` when it doesn't offer the dataset's
+ * resolution), or `null` when it couldn't be loaded (an error, unavailable, or no query). A ready
  * overlay with no points is not a failure: it just adds no rows.
  */
 async function loadOverlay(
-	main: QueryInput,
+	input: QueryInput | null,
 	layer: WidgetDataConfig["layers"][number],
-	catalog: CatalogEntry[],
-	mainResolution: Resolution
+	catalog: CatalogEntry[]
 ): Promise<OverlayCsv | null> {
 	try {
 		const info = entryMeta(catalog, layer);
-		if (!info) return null;
-		const state = await firstSettled(overlayInput(main, layer, mainResolution, catalog));
+		if (!info || !input) return null;
+		const state = await firstSettled(input);
 		if (state.status === "error") throw state.error;
 		if (state.status !== "ready") return null;
 		const levels = await getMetadata().datasetLevels(layer.dataset, info.entryType.id);
@@ -277,9 +277,14 @@ export async function downloadDataCsv(
 	const catalog = await getMetadata().catalog();
 	if (catalog === "unavailable") throw new Error("The catalog is unavailable");
 	const calendar = type !== undefined && isCalendarType(type);
-	const chart = chartInput(config, catalog, LIMITS.SELECTION_MAX);
+	const chart = widgetInputs(
+		{ type: type ?? "", data: config },
+		catalog,
+		widgetPlaceKind(config, catalog),
+		LIMITS.SELECTION_MAX
+	);
 	const { layer } = chart;
-	let { input } = chart;
+	let input = chart.main;
 	let figureLabel: string | undefined;
 	if (calendar) {
 		// A calendar's own query: one row per day, with the figure the server names.
@@ -309,7 +314,7 @@ export async function downloadDataCsv(
 	const { data } = state;
 	const layers = overlayLayers(config, catalog);
 	const loaded = await Promise.all(
-		layers.map((l) => loadOverlay(input, l, catalog, data.resolution))
+		layers.map((l, i) => loadOverlay(chart.overlays[i] ?? null, l, catalog))
 	);
 	const overlays = loaded.filter((o): o is OverlayCsv => o !== null);
 	const skipped = layers.flatMap((l, i) =>

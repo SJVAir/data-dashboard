@@ -728,7 +728,7 @@ describe("a calendar's CSV", () => {
 			saved.push(contents);
 		});
 		seen.push(spy.mock.calls[0][0]);
-		expect(seen[0]).toMatchObject({ pin: "day", dailyFigure: "max_1h" });
+		expect(seen[0]).toMatchObject({ resolution: "day", dailyFigure: "max_1h" });
 		const rows = parse(saved[0]);
 		expect(rows[0].slice(-2)).toEqual(["Highest 1-hour average", "Rated"]);
 		expect(rows[1].slice(-2)).toEqual(["12.5", "Yes"]);

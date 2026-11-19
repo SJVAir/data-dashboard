@@ -1213,16 +1213,18 @@ describe("placeRegion", () => {
 
 	it("is the region a school's widget shows", async () => {
 		withData(["sqc"]);
-		expect(await placeRegion()({ layer: school, dateRange: SEPTEMBER })).toEqual({
-			type: "city",
-			code: "0627000"
-		});
+		expect(await placeRegion()({ layer: school, dateRange: SEPTEMBER, resolution: "day" })).toEqual(
+			{
+				type: "city",
+				code: "0627000"
+			}
+		);
 	});
 
 	it("is a point's last candidate when none has data", async () => {
 		withData([]);
 		const layer: Layer = { ...base, place: { kind: "point", lat: 36.737, lon: -119.787 } };
-		expect(await placeRegion()({ layer, dateRange: SEPTEMBER })).toEqual({
+		expect(await placeRegion()({ layer, dateRange: SEPTEMBER, resolution: "day" })).toEqual({
 			type: "county",
 			code: "06019"
 		});
@@ -1231,20 +1233,29 @@ describe("placeRegion", () => {
 	it("is null for a school that doesn't resolve and for other places", async () => {
 		const gone: Layer = { ...base, place: { kind: "location", source: "cde-public", code: "9" } };
 		const region: Layer = { ...base, place: { kind: "region", type: "county", code: "06019" } };
-		expect(await placeRegion()({ layer: gone, dateRange: SEPTEMBER })).toBeNull();
-		expect(await placeRegion()({ layer: region, dateRange: SEPTEMBER })).toBeNull();
+		expect(
+			await placeRegion()({ layer: gone, dateRange: SEPTEMBER, resolution: "day" })
+		).toBeNull();
+		expect(
+			await placeRegion()({ layer: region, dateRange: SEPTEMBER, resolution: "day" })
+		).toBeNull();
 		expect(getRegionSummariesBulkDaily).not.toHaveBeenCalled();
 	});
 
 	it("rejects when the data can't be fetched", async () => {
 		vi.mocked(getRegionSummariesBulkDaily).mockRejectedValue(new Error("offline"));
-		await expect(placeRegion()({ layer: school, dateRange: SEPTEMBER })).rejects.toThrow("offline");
+		await expect(
+			placeRegion()({ layer: school, dateRange: SEPTEMBER, resolution: "day" })
+		).rejects.toThrow("offline");
 	});
 
 	it("rejects with an AbortError when its signal aborts", async () => {
 		vi.mocked(getRegionSummariesBulkDaily).mockReturnValue(new Promise(() => {}) as never);
 		const controller = new AbortController();
-		const pending = placeRegion()({ layer: school, dateRange: SEPTEMBER }, controller.signal);
+		const pending = placeRegion()(
+			{ layer: school, dateRange: SEPTEMBER, resolution: "day" },
+			controller.signal
+		);
 		controller.abort();
 		await expect(pending).rejects.toMatchObject({ name: "AbortError" });
 	});

@@ -153,9 +153,11 @@ describe("effectiveResolution for a Map's place-less layers", () => {
 		});
 		expect(e.misfits).toEqual([notices]);
 	});
-	it("treats auto as Automatic", () => {
-		const e = effectiveResolution({ ...map, data: { layers: [pm25], resolution: "auto" } });
-		expect(e).toMatchObject({ resolution: "day", automatic: true });
+	it("treats a stored quarter or season (no level offers them) as Automatic", () => {
+		for (const resolution of ["quarter", "season"] as const) {
+			const e = effectiveResolution({ ...map, data: { layers: [pm25], resolution } });
+			expect(e).toMatchObject({ resolution: "day", automatic: true });
+		}
 	});
 });
 

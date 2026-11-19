@@ -30,11 +30,11 @@ const chart: Draft = {
 	type: CHART_TYPE,
 	data: {
 		dateRange: { kind: "trailing", amount: 30, unit: "day" },
+		resolution: "day",
 		layers: [
 			{
 				dataset: "air-quality",
 				entryType: "pm25",
-				resolution: "day",
 				selection: { kind: "regions", ids: ["county:06019", "county:06039", "county:06047"] }
 			},
 			{ dataset: "forecasts", entryType: "burn-status" }
@@ -412,11 +412,11 @@ describe("a Map: several places, the map's pollutants", () => {
 		type: CHART_TYPE,
 		data: {
 			dateRange: { kind: "trailing", amount: 30, unit: "day" },
+			resolution: "day",
 			layers: [
 				{
 					dataset: "air-quality",
 					entryType: "pm25",
-					resolution: "day",
 					selection: { kind: "monitors", ids }
 				}
 			]

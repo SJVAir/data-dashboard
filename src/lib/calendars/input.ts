@@ -3,7 +3,11 @@ import type { DateRangeSpec, WidgetDataConfig } from "$lib/data/schema";
 import type { QueryInput } from "$lib/data/types";
 import { DEFAULT_RANGE } from "$lib/widgets/defaults";
 import { CONTRIBUTION_CALENDAR_TYPE, isCalendarType, MONTH_CALENDAR_TYPE } from "./types";
+import type { Level } from "$lib/data/dataset-rules";
 import { mainLayer } from "$lib/widgets/shared/input";
+
+/** A calendar shows one value a day: its types' pinned resolution (their registry `resolution`). */
+const CALENDAR_RESOLUTION: Level = "day";
 
 export { CONTRIBUTION_CALENDAR_TYPE, isCalendarType, MONTH_CALENDAR_TYPE };
 
@@ -15,7 +19,8 @@ export const CALENDAR_DEFAULT_RANGES: Record<string, DateRangeSpec> = {
 
 /**
  * What a calendar asks the query client for: its main layer over the widget's range (or the
- * type's default), one row per day. A layer with no place asks for nothing (null).
+ * type's default), one row per day (calendars pin `day` through the dataset rules). A layer with
+ * no place asks for nothing (null).
  */
 export function calendarInput(
 	data: WidgetDataConfig,
@@ -24,9 +29,6 @@ export function calendarInput(
 ): QueryInput | null {
 	const layer = mainLayer(data, catalog);
 	if (!layer || (!layer.place && !layer.selection)) return null;
-	return {
-		layer,
-		dateRange: data.dateRange ?? CALENDAR_DEFAULT_RANGES[type] ?? DEFAULT_RANGE,
-		pin: "day"
-	};
+	const dateRange = data.dateRange ?? CALENDAR_DEFAULT_RANGES[type] ?? DEFAULT_RANGE;
+	return { layer, dateRange, resolution: CALENDAR_RESOLUTION };
 }

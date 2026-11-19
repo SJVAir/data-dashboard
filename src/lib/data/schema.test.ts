@@ -13,7 +13,7 @@ import {
 const mapConfig = {
 	dateRange: { kind: "set", unit: "month", start: "2026-09-01" },
 	layers: [
-		{ dataset: "monitors", entryType: "pm25", resolution: "auto" },
+		{ dataset: "monitors", entryType: "pm25" },
 		{
 			dataset: "regions",
 			entryType: "pm25",
@@ -30,9 +30,23 @@ describe("WidgetDataConfigSchema", () => {
 	it("accepts a chart config with a trailing range and a monitor place", () => {
 		const r = WidgetDataConfigSchema.safeParse({
 			dateRange: { kind: "trailing", amount: 30, unit: "day" },
-			layers: [{ dataset: "monitors", place: { kind: "monitor", id: "abc" }, resolution: "day" }]
+			layers: [{ dataset: "monitors", place: { kind: "monitor", id: "abc" } }]
 		});
 		expect(r.success).toBe(true);
+	});
+
+	it("drops a layer's earlier per-layer resolution (it opens as Automatic)", () => {
+		const r = WidgetDataConfigSchema.parse({
+			layers: [{ dataset: "air-quality", entryType: "pm25", resolution: "day" }]
+		});
+		expect(r.layers[0]).toEqual({ dataset: "air-quality", entryType: "pm25" });
+		expect(r.resolution).toBeUndefined();
+	});
+
+	it("round-trips one data resolution and rejects an unknown one", () => {
+		const config = { resolution: "month", layers: [{ dataset: "air-quality", entryType: "pm25" }] };
+		expect(WidgetDataConfigSchema.parse(config)).toEqual(config);
+		expect(WidgetDataConfigSchema.safeParse({ ...config, resolution: "auto" }).success).toBe(false);
 	});
 
 	it("accepts the other place kinds", () => {

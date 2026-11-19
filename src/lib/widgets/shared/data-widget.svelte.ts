@@ -2,26 +2,46 @@ import { getContext, onDestroy, untrack } from "svelte";
 import { getMetadata, getQueryClient } from "$lib/data";
 import { LiveQuery } from "$lib/data/live-query.svelte";
 import type { CatalogEntry, Level } from "$lib/data/metadata";
-import type { Layer, WidgetDataConfig } from "$lib/data/schema";
-import type { QueryState } from "$lib/data/types";
+import type { Layer } from "$lib/data/schema";
+import type { QueryInput, QueryState } from "$lib/data/types";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { DEFAULT_RANGE } from "../defaults";
 import { dataTitle } from "../title";
 import { setGeneratedTitle } from "../titles.svelte";
-import { chartInput, entryMeta } from "./input";
-import { layerKind } from "$lib/data/layer-kind";
-import { MAX_OVERLAYS, overlayInput, overlayLayers } from "./overlays";
+import { entryMeta, widgetInputs, widgetPlaceKind, type WidgetInputs } from "./input";
+import { MAX_OVERLAYS, overlayLayers } from "./overlays";
 import { PLACE_VIEWER_KEY, type PlaceViewer } from "./viewer";
 
 /** An overlay's levels: `undefined` until loaded, an error if they couldn't be. */
 type Levels = Level[] | { error: unknown } | undefined;
 
-/** What a widget asks the query client for: the shape `chartInput` returns. */
+/**
+ * What a widget asks the query client for: its main layer, the main query (`input`), the places
+ * cut, and one query per overlay (`null`: not fetched), all at the dataset's resolution.
+ */
+export type WidgetPicked = {
+	layer: Layer | undefined;
+	input: QueryInput | null;
+	hidden: number;
+	overlays: (QueryInput | null)[];
+	effective?: WidgetInputs["effective"];
+};
+
+/** Builds a widget's queries (default: `widgetInputs` at the widget's places). */
 export type WidgetInputBuilder = (
-	data: WidgetDataConfig,
+	widget: WidgetInstance,
 	catalog: CatalogEntry[] | undefined,
 	maxPlaces: number
-) => ReturnType<typeof chartInput>;
+) => WidgetPicked;
+
+function defaultInputs(
+	widget: WidgetInstance,
+	catalog: CatalogEntry[] | undefined,
+	maxPlaces: number
+): WidgetPicked {
+	const got = widgetInputs(widget, catalog, widgetPlaceKind(widget.data, catalog), maxPlaces);
+	return { ...got, input: got.main };
+}
 
 /** One overlay layer: its catalog entry, its scale, and its own query at the main's places. */
 export type WidgetOverlay = {
@@ -70,13 +90,13 @@ export class DataWidget {
 	 */
 	readonly overlays: WidgetOverlay[];
 
-	/** `opts.input` builds the main query (default `chartInput`). */
+	/** `opts.input` builds the queries (default `widgetInputs`). */
 	constructor(
 		widget: () => WidgetInstance,
 		maxPlaces: number,
 		opts: { input?: WidgetInputBuilder } = {}
 	) {
-		const build = opts.input ?? chartInput;
+		const build = opts.input ?? defaultInputs;
 		const viewer = getContext<PlaceViewer | undefined>(PLACE_VIEWER_KEY) ?? "owner";
 		this.viewer = viewer;
 		const metadata = getMetadata();
@@ -85,7 +105,7 @@ export class DataWidget {
 			if (c !== "unavailable") this.catalog = c;
 		});
 
-		this.picked = $derived(build(widget().data, this.catalog, maxPlaces));
+		this.picked = $derived(build(widget(), this.catalog, maxPlaces));
 		this.meta = $derived(entryMeta(this.catalog, this.picked.layer));
 		const entryTypeId = $derived(this.picked.layer?.entryType);
 
@@ -116,22 +136,8 @@ export class DataWidget {
 		this.shown = $derived(withLevels(query.state, this.levels));
 
 		const layers = $derived(overlayLayers(widget().data, this.catalog));
-		const inputs = $derived.by(() => {
-			const main = this.picked.input;
-			if (!main) return [];
-			const state = query.state;
-			// A number overlay is pinned to the main data's resolution, so it waits for it: while
-			// the main loads, and when it failed or is unavailable (nothing is drawn, so nothing is
-			// fetched).
-			const data = "data" in state ? state.data : undefined;
-			const waiting = !data;
-			const resolution = data?.resolution;
-			return layers.map((l) =>
-				waiting && layerKind(l, this.catalog) === "number"
-					? null
-					: overlayInput(main, l, resolution, this.catalog)
-			);
-		});
+		// Every overlay is fetched at the dataset's resolution alongside the main, not after it.
+		const inputs = $derived(this.picked.overlays);
 		const client = getQueryClient();
 		for (let i = 0; i < MAX_OVERLAYS; i++) {
 			const q = new LiveQuery(
