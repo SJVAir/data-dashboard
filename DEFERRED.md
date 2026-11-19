@@ -589,7 +589,7 @@ string`) now get the union return type. The mobile app passes a string token, so
     the old meta (without the links) for up to a day after the deploy. `@sjvair/sdk`
     `5.0.0-beta.14` needs it deployed.
   - **Period daily statistic and nightly current-period rows (sjvair.com
-    [#342](https://github.com/SJVAir/sjvair.com/pull/342), open into `develop` 2026-11-18,
+    [#342](https://github.com/SJVAir/sjvair.com/pull/342), merged into `develop` 2026-11-18, fd3f0080,
     session `sjvair-com-93`; exact commands in its "Production at deploy"), in order:**
     1. **Deploy** with the other summaries migrations: the release phase runs `summaries.0008`
        and `0009` together (each with a 10 s `lock_timeout`, metadata-only columns), away from
