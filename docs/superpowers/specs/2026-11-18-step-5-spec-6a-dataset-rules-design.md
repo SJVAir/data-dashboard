@@ -301,5 +301,10 @@ period), and the null-figure reason. Old `show_values` keys go.
 - Browser tests for Get data's greyed-out choices and notes, and the Map stepping by month.
 - E2E: pin noon Pacific and also run under `TZ=America/New_York`.
 - Read a real local response for the new fields before relying on them.
+- Every document the app or the tests open (the starter, sample documents, E2E and browser-test
+  fixtures, the stack suites' seeds) must parse under the new strict `MapOptionsSchema`: grep
+  them for `usePeriod`, `day`, `resolution` on layers, and quarter or season levels, and update
+  them (today's hits include `e2e/map.spec.ts` and the Map's browser tests). The user deletes
+  only their own dashboards.
 - The new widget type checklist doesn't fire (no new place kind), but the share swap,
   `PlacePickerDialog` `regionOf` and Get data's type switch keep passing with `data.resolution`.
