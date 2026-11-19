@@ -288,6 +288,7 @@ async function show(initial: Draft = defaultDraft()) {
 	document.body.appendChild(host);
 	const added: Draft[] = [];
 	const targets: string[] = [];
+	const changes: Draft[] = [];
 	const screen = await render(GetDataView, {
 		target: host,
 		props: {
@@ -302,7 +303,8 @@ async function show(initial: Draft = defaultDraft()) {
 					added.push(draft);
 				}
 			},
-			onCancel: () => {}
+			onCancel: () => {},
+			onchange: (draft: Draft) => changes.push(draft)
 		},
 		context: new Map([[APP_CONTEXT_KEY, app]])
 	});
@@ -311,7 +313,9 @@ async function show(initial: Draft = defaultDraft()) {
 		await page.getByRole("button", { name: "Add to Home" }).click();
 		return added.at(-1)!;
 	};
-	return { screen, host, platform, current, targets };
+	/** The draft as it stands, without adding it (for a draft that can't be added). */
+	const latest = () => changes.at(-1)!;
+	return { screen, host, platform, current, latest, targets };
 }
 
 /** The preview's canvas appears. The first test pays for loading the chart code, so it waits longer. */
@@ -694,19 +698,180 @@ test("a chosen level the new range can't serve stays, blocked, and Add waits", a
 	expect((await current()).data).not.toHaveProperty("resolution");
 });
 
-test("a chosen level a new dataset isn't reported at stays, blocked with the dataset's reason", async () => {
+test("a draft carrying a dataset that doesn't line up (untrusted) blocks Add, naming it, until it's fixed", async () => {
 	const draft = monitorsDraft(["m1"]);
 	draft.data.resolution = "day";
+	draft.data.layers.push({ dataset: "pesticide-use", entryType: "pounds-applied" });
 	const { current } = await show(draft);
-	await openSection(/^Pesticide Use/);
-	await page.getByRole("button", { name: m.get_data_pesticide_add_first() }).click();
-	await page.getByRole("menuitem", { name: "Pounds Applied" }).click();
 	const daily = page.getByRole("radio", { name: "Daily" });
 	await expect.element(daily).toBeChecked();
 	await expect.element(daily).toHaveAccessibleDescription("Pesticide Use isn't reported daily");
-	await expect.element(page.getByRole("button", { name: "Add to Home" })).toBeDisabled();
+	const add = page.getByRole("button", { name: "Add to Home" });
+	await expect.element(add).toBeDisabled();
+	await expect
+		.element(add)
+		.toHaveAccessibleDescription(
+			"Pesticide Use doesn't line up with the data resolution. Remove it or choose another data resolution."
+		);
 	await page.getByRole("radio", { name: "Monthly" }).click();
+	await expect.element(add).toBeEnabled();
 	expect((await current()).data.resolution).toBe("month");
+});
+
+test("a mixed draft on Automatic blocks Add, naming the dataset the main layer can't line up with", async () => {
+	const draft = monitorsDraft(["m1"]);
+	draft.data.layers.push(
+		{ dataset: "hms-smoke", entryType: "smoke-density" },
+		{ dataset: "pesticide-use", entryType: "pounds-applied" }
+	);
+	await show(draft);
+	const add = page.getByRole("button", { name: "Add to Home" });
+	await expect.element(add).toBeDisabled();
+	await expect
+		.element(add)
+		.toHaveAccessibleDescription(
+			"Pesticide Use doesn't line up with the data resolution. Remove it or choose another data resolution."
+		);
+	await openSection(/^Pesticide Use/);
+	await page.getByRole("button", { name: /^Remove/ }).click();
+	await expect.element(add).toBeEnabled();
+});
+
+test("at Daily, pesticide use is greyed: it's reported by month", async () => {
+	const draft = monitorsDraft(["m1"]);
+	draft.data.resolution = "day";
+	await show(draft);
+	await openSection(/^Pesticide Use/);
+	const addUse = page.getByRole("button", { name: m.get_data_pesticide_add_first() });
+	await expect.element(addUse).toBeDisabled();
+	await expect
+		.element(addUse)
+		.toHaveAccessibleDescription(
+			"Reported by month. Set the data resolution to Monthly to add it."
+		);
+	await page.getByRole("radio", { name: "Monthly" }).click();
+	await expect.element(addUse).toBeEnabled();
+});
+
+test("at Hourly, smoke and forecasts are greyed (reported by day); weather is not", async () => {
+	const draft = monitorsDraft(["m1"]);
+	draft.data.resolution = "hour";
+	await show(draft);
+	await openSection(/^Wildfire Smoke/);
+	const smoke = page.getByRole("checkbox", { name: "Smoke density" });
+	await expect.element(smoke).toBeDisabled();
+	await expect
+		.element(smoke)
+		.toHaveAccessibleDescription("Reported by day. Set the data resolution to Daily to add it.");
+	await openSection(/^Weather/);
+	await expect
+		.element(page.getByRole("checkbox", { name: "Temperature", exact: true }))
+		.toBeEnabled();
+});
+
+test("at Every measurement, weather is greyed: it has no individual measurements", async () => {
+	const draft = monitorsDraft(["m1"]);
+	draft.data.dateRange = { kind: "trailing", amount: 2, unit: "day" };
+	draft.data.resolution = "raw";
+	await show(draft);
+	await openSection(/^Weather/);
+	const temperature = page.getByRole("checkbox", { name: "Temperature", exact: true });
+	await expect.element(temperature).toBeDisabled();
+	await expect
+		.element(temperature)
+		.toHaveAccessibleDescription(
+			"Has no individual measurements. Set the data resolution to Hourly to add it."
+		);
+});
+
+test("with weather chosen, Every measurement says weather has no individual measurements", async () => {
+	const draft = withLayers(["m1"], TEMPERATURE);
+	draft.data.dateRange = { kind: "trailing", amount: 2, unit: "day" };
+	await show(draft);
+	const raw = page.getByRole("radio", { name: m.get_data_resolution_raw() });
+	await expect.element(raw).toBeDisabled();
+	await expect.element(raw).toHaveAccessibleDescription("Weather has no individual measurements");
+});
+
+test("on Automatic, only a dataset sharing no level with those chosen is greyed", async () => {
+	await show(monitorsDraft(["m1"]));
+	await openSection(/^Wildfire Smoke/);
+	const smoke = page.getByRole("checkbox", { name: "Smoke density" });
+	await expect.element(smoke).toBeEnabled();
+	await openSection(/^Pesticide Use/);
+	const addUse = page.getByRole("button", { name: m.get_data_pesticide_add_first() });
+	await expect.element(addUse).toBeEnabled();
+	// Smoke is reported by day and pesticide use by month: once smoke is on, use can't line up.
+	await smoke.click();
+	await expect.element(addUse).toBeDisabled();
+	await expect
+		.element(addUse)
+		.toHaveAccessibleDescription(
+			"Can't line up with the datasets you chose: it's reported by month."
+		);
+	await expect.element(page.getByText(/line up with the datasets you chose/)).toBeVisible();
+	await smoke.click();
+	await expect.element(addUse).toBeEnabled();
+});
+
+test("Show as greys the Map at Hourly, and a calendar at Monthly", async () => {
+	const draft = monitorsDraft(["m1"]);
+	draft.data.resolution = "hour";
+	await show(draft);
+	const map = page.getByRole("radio", { name: "Map" });
+	await expect.element(map).toBeDisabled();
+	await expect.element(map).toHaveAccessibleDescription(m.get_data_map_resolution());
+	await page.getByRole("radio", { name: "Monthly" }).click();
+	await expect.element(map).toBeEnabled();
+	const calendar = page.getByRole("radio", { name: "Month calendar" });
+	await expect.element(calendar).toBeDisabled();
+	await expect
+		.element(calendar)
+		.toHaveAccessibleDescription("Month calendar can't show monthly data.");
+});
+
+test("at Monthly, a custom range is picked in whole months: the first and last days are stored", async () => {
+	const draft = monitorsDraft(["m1"]);
+	draft.data.dateRange = { kind: "custom", start: "2026-03-10", end: "2026-04-20" };
+	draft.data.resolution = "month";
+	const { current } = await show(draft);
+	const start = page.getByRole("group", { name: m.get_data_custom_start_month() });
+	const end = page.getByRole("group", { name: m.get_data_custom_end_month() });
+	await expect.element(start.getByRole("combobox", { name: "Month" })).toHaveValue("03");
+	await expect.element(start.getByRole("spinbutton", { name: "Year" })).toHaveValue(2026);
+	await expect.element(end.getByRole("combobox", { name: "Month" })).toHaveValue("04");
+	expect(page.getByRole("textbox", { name: m.get_data_custom_start() }).query()).toBeNull();
+	await start.getByRole("combobox", { name: "Month" }).selectOptions("01");
+	await expect
+		.poll(async () => (await current()).data.dateRange)
+		.toEqual({ kind: "custom", start: "2026-01-01", end: "2026-04-30" });
+	await end.getByRole("combobox", { name: "Month" }).selectOptions("02");
+	await expect
+		.poll(async () => (await current()).data.dateRange)
+		.toEqual({ kind: "custom", start: "2026-01-01", end: "2026-02-28" });
+	// An end before the start says so, and stores nothing.
+	await start.getByRole("spinbutton", { name: "Year" }).fill("2027");
+	await userEvent.keyboard("{Tab}");
+	await expect.element(page.getByText(m.get_data_custom_order())).toBeVisible();
+	expect((await current()).data.dateRange).toEqual({
+		kind: "custom",
+		start: "2026-01-01",
+		end: "2026-02-28"
+	});
+});
+
+test("at Yearly, a custom range is picked in whole years", async () => {
+	const draft = monitorsDraft(["m1"]);
+	draft.data.dateRange = { kind: "custom", start: "2022-03-10", end: "2024-04-20" };
+	draft.data.resolution = "year";
+	const { current } = await show(draft);
+	const start = page.getByRole("spinbutton", { name: m.get_data_custom_start_year() });
+	await expect.element(start).toHaveValue(2022);
+	await start.fill("2021");
+	await userEvent.keyboard("{Tab}");
+	await expect
+		.poll(async () => (await current()).data.dateRange)
+		.toEqual({ kind: "custom", start: "2021-01-01", end: "2024-12-31" });
 });
 
 function withLayers(ids: string[], ...rest: Draft["data"]["layers"]): Draft {
@@ -1066,6 +1231,58 @@ describe("now widgets", () => {
 		expect("dateRange" in (await current()).data).toBe(false);
 	});
 
+	test("a Map greys pesticide use on Now, and smoke, fire and notices at Monthly", async () => {
+		const { current } = await show({
+			type: "map",
+			data: {
+				layers: [
+					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }
+				]
+			}
+		});
+		const use = page.getByRole("switch", { name: m.getdata_map_use_switch() });
+		await expect.element(use).toBeDisabled();
+		await expect
+			.element(use)
+			.toHaveAccessibleDescription(
+				"Reported by month, so it isn't shown on Now. Choose dates to add it."
+			);
+		const smoke = page.getByRole("checkbox", { name: m.get_data_smoke_and_fire() });
+		await expect.element(smoke).toBeEnabled();
+		await chooseDates("Last 7 days");
+		await expect.element(use).toBeEnabled();
+		await page.getByRole("radio", { name: "Monthly" }).click();
+		await expect.element(smoke).toBeDisabled();
+		await expect
+			.element(smoke)
+			.toHaveAccessibleDescription("Reported by day. Set the data resolution to Daily to add it.");
+		const notices = page.getByRole("switch", { name: m.getdata_map_notices_switch() });
+		await expect.element(notices).toBeDisabled();
+		await use.click();
+		expect((await current()).data.layers.slice(1)).toEqual([{ dataset: "pesticide-use" }]);
+	});
+
+	test("a Map on Now carrying pesticide use (untrusted) blocks Add until dates are chosen", async () => {
+		await show({
+			type: "map",
+			data: {
+				layers: [
+					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
+					{ dataset: "pesticide-use" }
+				]
+			}
+		});
+		const add = page.getByRole("button", { name: "Add to Home" });
+		await expect.element(add).toBeDisabled();
+		await expect
+			.element(add)
+			.toHaveAccessibleDescription(
+				"Pesticide Use isn't shown on Now. Choose dates, or turn it off."
+			);
+		await chooseDates("Last 7 days");
+		await expect.element(add).toBeEnabled();
+	});
+
 	test("shows the Map pollutant checkboxes, and the last one can't be unchecked", async () => {
 		const { current } = await show(monitorsDraft(["m1"]));
 		await page.getByRole("radio", { name: "Map" }).click();
@@ -1234,7 +1451,7 @@ describe("now widgets", () => {
 	});
 
 	test("one filter set shows once for both pesticide layers", async () => {
-		const { current } = await show({
+		const { latest } = await show({
 			type: "map",
 			options: { usePeriod: "2023" },
 			data: {
@@ -1245,6 +1462,9 @@ describe("now widgets", () => {
 				]
 			}
 		});
+		// Notices (by day) and use (by month) never line up, and use isn't shown on Now: only a link
+		// can carry both, and it can't be added as it is.
+		await expect.element(page.getByRole("button", { name: "Add to Home" })).toBeDisabled();
 		const group = page.getByRole("group", { name: m.getdata_map_pesticide_filters() });
 		await expect.element(group).toBeVisible();
 		expect(group.all()).toHaveLength(1);
@@ -1257,7 +1477,11 @@ describe("now widgets", () => {
 		// A change reaches both layers.
 		await group.getByRole("checkbox", { name: /^Insecticides/ }).click();
 		await expect
-			.poll(async () => (await current()).data.layers.slice(1).map((l) => l.filters))
+			.poll(async () =>
+				latest()
+					.data.layers.slice(1)
+					.map((l) => l.filters)
+			)
 			.toEqual([
 				{ chemical: "c1", commodity: "k1", category: ["insecticide"] },
 				{ chemical: "c1", commodity: "k1", category: ["insecticide"] }
@@ -1272,7 +1496,7 @@ describe("now widgets", () => {
 			.not.toBeInTheDocument();
 		// Back on, the notices take the kept filters.
 		await page.getByRole("switch", { name: m.getdata_map_notices_switch() }).click();
-		expect((await current()).data.layers.slice(1)).toEqual([
+		expect(latest().data.layers.slice(1)).toEqual([
 			{
 				dataset: "pesticide-notices",
 				filters: { chemical: "c1", commodity: "k1", category: ["insecticide"] }

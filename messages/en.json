@@ -1146,6 +1146,36 @@
 	"get_data_resolution_by_day": "by day",
 	"get_data_resolution_by_month": "by month",
 	"get_data_resolution_by_year": "by year",
+	"get_data_resolution_by_raw": "as individual measurements",
+	"get_data_resolution_not_offered_raw": "{dataset} has no individual measurements",
+	"get_data_dataset_not_offered": "Reported {by}. Set the data resolution to {level} to add it.",
+	"get_data_dataset_not_offered_raw": "Has no individual measurements. Set the data resolution to {level} to add it.",
+	"get_data_dataset_no_common": "Can't line up with the datasets you chose: it's reported {by}.",
+	"get_data_dataset_not_on_now": "Reported {by}, so it isn't shown on Now. Choose dates to add it.",
+	"get_data_type_resolution": "{type} can't show {level} data.",
+	"get_data_type_resolution_raw": "{type} can't show individual measurements.",
+	"get_data_map_resolution": "Maps show daily, monthly or yearly data.",
+	"get_data_misfits_blocked": [
+		{
+			"declarations": [
+				"input datasets",
+				"input countValue",
+				"local countPlural = countValue: plural"
+			],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{datasets} doesn't line up with the data resolution. Remove it or choose another data resolution.",
+				"countPlural=other": "{datasets} don't line up with the data resolution. Remove them or choose another data resolution."
+			}
+		}
+	],
+	"get_data_not_on_now_blocked": "{dataset} isn't shown on Now. Choose dates, or turn it off.",
+	"get_data_custom_start_month": "Start month",
+	"get_data_custom_end_month": "End month",
+	"get_data_custom_start_year": "Start year",
+	"get_data_custom_end_year": "End year",
+	"get_data_custom_month": "Month",
+	"get_data_custom_year": "Year",
 	"get_data_resolution_blocked": "Choose another data resolution: this one doesn't fit these dates, places and datasets.",
 	"get_data_range_widened": "Monthly data covers whole months: showing {start} to {end}.",
 	"get_data_range_widened_year": "Yearly data covers whole years: showing {start} to {end}.",

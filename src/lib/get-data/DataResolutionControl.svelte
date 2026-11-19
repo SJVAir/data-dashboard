@@ -3,6 +3,7 @@
 	import type { Layer } from "$lib/data/schema";
 	import { m } from "$lib/paraglide/messages.js";
 	import Toggletip from "$lib/components/Toggletip.svelte";
+	import { LEVEL_LOWER } from "./level-phrases";
 	import type { ResolutionChoice } from "./resolution-offer";
 
 	let {
@@ -31,23 +32,15 @@
 		month: () => m.get_data_resolution_month(),
 		year: () => m.get_data_resolution_year()
 	};
-	/** A level as it reads mid-sentence ("isn't reported hourly"). */
-	const LOWER: Record<Level, () => string> = {
-		raw: () => m.get_data_resolution_level_raw(),
-		hour: () => m.get_data_resolution_level_hour(),
-		day: () => m.get_data_resolution_level_day(),
-		month: () => m.get_data_resolution_level_month(),
-		year: () => m.get_data_resolution_level_year()
-	};
 
 	function reason(choice: ResolutionChoice): string {
 		const blocked = choice.blocked;
 		if (blocked === "too-many-points") return m.get_data_resolution_too_many();
 		if (blocked && choice.level !== "auto") {
-			return m.get_data_resolution_not_offered({
-				dataset: datasetLabel(blocked.notOffered),
-				level: LOWER[choice.level]()
-			});
+			const dataset = datasetLabel(blocked.notOffered);
+			return choice.level === "raw"
+				? m.get_data_resolution_not_offered_raw({ dataset })
+				: m.get_data_resolution_not_offered({ dataset, level: LEVEL_LOWER[choice.level]() });
 		}
 		return "";
 	}

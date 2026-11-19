@@ -15,7 +15,8 @@ import { chartType } from "$lib/widgets/chart";
 import { contributionCalendarType } from "$lib/widgets/calendars/contribution";
 import { monthCalendarType } from "$lib/widgets/calendars/month";
 import { dataTableType } from "$lib/widgets/table";
-import { offeredDatasets, typeBlock } from "./offer";
+import { mapType } from "$lib/widgets/map";
+import { offeredDatasets, resolutionBlock, typeBlock } from "./offer";
 
 const NOW = new Date("2026-11-05T20:00:00Z");
 
@@ -244,5 +245,35 @@ describe("typeBlock", () => {
 			span: { maxDays: 7 }
 		});
 		expect(typeBlock(short, data(), CATALOG, NOW)).toBe("span");
+	});
+});
+
+describe("resolutionBlock", () => {
+	const data = (extra: Partial<WidgetDataConfig> = {}): WidgetDataConfig => ({
+		dateRange: { kind: "trailing", amount: 30, unit: "day" },
+		layers: [{ dataset: "air-quality", entryType: "pm25" }],
+		...extra
+	});
+
+	it("greys the Map at hourly or every measurement, never on Automatic or Now", () => {
+		expect(resolutionBlock(mapType, data({ resolution: "hour" }))).toBe("hour");
+		expect(resolutionBlock(mapType, data({ resolution: "raw" }))).toBe("raw");
+		expect(resolutionBlock(mapType, data({ resolution: "month" }))).toBeNull();
+		expect(resolutionBlock(mapType, data())).toBeNull();
+		expect(resolutionBlock(mapType, { layers: data().layers, resolution: "hour" })).toBeNull();
+	});
+
+	it("greys a calendar (pinned to day) at another chosen level", () => {
+		expect(resolutionBlock(monthCalendarType, data({ resolution: "month" }))).toBe("month");
+		expect(resolutionBlock(monthCalendarType, data({ resolution: "day" }))).toBeNull();
+		expect(resolutionBlock(monthCalendarType, data())).toBeNull();
+		expect(typeBlock(monthCalendarType, data({ resolution: "month" }), CATALOG, NOW)).toBe(
+			"resolution"
+		);
+	});
+
+	it("never greys a type with no pin", () => {
+		expect(resolutionBlock(chartType, data({ resolution: "raw" }))).toBeNull();
+		expect(typeBlock(chartType, data({ resolution: "year" }), CATALOG, NOW)).toBeNull();
 	});
 });

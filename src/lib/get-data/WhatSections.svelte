@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Accordion } from "bits-ui";
 	import type { CatalogEntry } from "$lib/data/metadata";
-	import type { PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
+	import type { Layer, PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
 	import Toggletip from "$lib/components/Toggletip.svelte";
 	import { layerKind } from "$lib/data/layer-kind";
 	import { formatList, formatNumber } from "$lib/format";
@@ -33,7 +33,8 @@
 		onaddpesticide,
 		onremove,
 		onfilters,
-		onstation
+		onstation,
+		blocked
 	}: {
 		/** The offered datasets, each with at least one entry type. */
 		sections: OfferedDataset[];
@@ -51,6 +52,11 @@
 		onremove: (index: number) => void;
 		onfilters: (index: number, filters: PesticideFilters) => void;
 		onstation: (station: string | undefined) => void;
+		/**
+		 * Why a dataset (its layers) can't be chosen at the data resolution, or undefined; `without`
+		 * is the layer it would replace (the pollutant chosen now).
+		 */
+		blocked?: (candidate: Layer[], without?: Layer) => string | undefined;
 	} = $props();
 
 	const uid = $props.id();
@@ -166,19 +172,30 @@
 						</div>
 						{#each pollutants as entry (entry.id)}
 							{@const checked = pollutant?.dataset === id && pollutant.entryType === entry.id}
-							<label class="flex min-h-6 items-center gap-2 text-sm">
-								<input
-									type="radio"
-									class="accent-primary size-4"
-									name="{uid}-pollutant"
-									value={entry.id}
-									{checked}
-									disabled={addBlocked}
-									aria-describedby={addBlocked ? addReasonId : undefined}
-									onchange={() => onpollutant({ dataset: id, entryType: entry.id })}
-								/>
-								<span class={[addBlocked && "text-muted-foreground"]}>{entry.label}</span>
-							</label>
+							{@const why =
+								checked || addBlocked
+									? undefined
+									: blocked?.([{ dataset: id, entryType: entry.id }], pollutant)}
+							{@const whyId = `${uid}-${id}-${entry.id}-reason`}
+							<div class="flex min-h-6 flex-wrap items-center gap-x-2 text-sm">
+								<label class="flex items-center gap-2">
+									<input
+										type="radio"
+										class="accent-primary size-4"
+										name="{uid}-pollutant"
+										value={entry.id}
+										{checked}
+										disabled={addBlocked || !!why}
+										aria-describedby={addBlocked ? addReasonId : why ? whyId : undefined}
+										onchange={() => onpollutant({ dataset: id, entryType: entry.id })}
+									/>
+									<span class={[(addBlocked || why) && "text-muted-foreground"]}>{entry.label}</span
+									>
+								</label>
+								{#if why}
+									{@render reason(whyId, why)}
+								{/if}
+							</div>
 						{/each}
 						{#if addBlocked}
 							{@render reason(addReasonId, limitText)}
@@ -195,6 +212,7 @@
 							{@const on = isOn(pick)}
 							{@const capped = !on && atCap}
 							{@const kept = on && !canRemoveLayer(data, catalog, indexOf(pick))}
+							{@const why = on || capped ? undefined : blocked?.([pick])}
 							{@const reasonId = `${uid}-${id}-${entry.id}-reason`}
 							<div class="flex min-h-6 flex-wrap items-center gap-x-2 text-sm">
 								<label class="flex items-center gap-2">
@@ -202,16 +220,20 @@
 										type="checkbox"
 										class="accent-primary size-4"
 										checked={on}
-										disabled={capped || kept}
-										aria-describedby={capped || kept ? reasonId : undefined}
+										disabled={capped || kept || !!why}
+										aria-describedby={capped || kept || why ? reasonId : undefined}
 										onchange={(e) => ontoggle(pick, e.currentTarget.checked)}
 									/>
-									<span class={[(capped || kept) && "text-muted-foreground"]}>{entry.label}</span>
+									<span class={[(capped || kept || why) && "text-muted-foreground"]}
+										>{entry.label}</span
+									>
 								</label>
 								{#if capped}
 									{@render reason(reasonId, limitText)}
 								{:else if kept}
 									{@render reason(reasonId, m.get_data_keep_one())}
+								{:else if why}
+									{@render reason(reasonId, why)}
 								{/if}
 							</div>
 						{/each}
@@ -224,7 +246,11 @@
 					<PesticideLayers
 						entryTypes={section.layerTypes}
 						layers={pesticideLayers}
-						blocked={atCap ? limitText : undefined}
+						blocked={atCap
+							? limitText
+							: blocked?.(
+									section.layerTypes.slice(0, 1).map((e) => ({ dataset: id, entryType: e.id }))
+								)}
 						canRemove={(index) => canRemoveLayer(data, catalog, index)}
 						onadd={onaddpesticide}
 						{onremove}

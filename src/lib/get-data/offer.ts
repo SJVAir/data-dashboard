@@ -1,9 +1,11 @@
 import type { DatasetAdapter } from "$lib/data/adapters/registry";
+import { MAP_LEVELS, type Level } from "$lib/data/dataset-rules";
 import { drawsAsBands } from "$lib/data/adapters/bands";
 import type { CatalogEntry, EntryTypeMeta } from "$lib/data/metadata";
 import type { WidgetDataConfig } from "$lib/data/schema";
 import type { Target } from "$lib/data/types";
 import { fromLayer } from "$lib/places/selection";
+import { MAP_TYPE } from "$lib/widgets/map/options";
 import type { WidgetType } from "$lib/widgets/registry";
 import { blockedBySpan } from "./date-presets";
 
@@ -59,7 +61,22 @@ export function offeredDatasets(
 }
 
 /** Why a widget type can't show a data config (the first that applies). */
-export type TypeBlock = "dataset" | "places" | "span" | "pollutants" | "pollutant";
+export type TypeBlock = "dataset" | "places" | "span" | "pollutants" | "pollutant" | "resolution";
+
+/**
+ * The chosen data resolution `type` can't show (`resolutionBlock` → "resolution"), or `null`. The
+ * Map with a range shows daily, monthly or yearly data (Automatic keeps to those, and Now has no
+ * resolution); a type pinned to a level (a calendar's day) shows only that one. Automatic is never
+ * blocked: a pinned type fetches at its pin.
+ */
+export function resolutionBlock(type: WidgetType, data: WidgetDataConfig): Level | null {
+	const chosen = data.resolution as Level | undefined;
+	if (!chosen) return null;
+	if (type.type === MAP_TYPE) {
+		return data.dateRange && !MAP_LEVELS.includes(chosen) ? chosen : null;
+	}
+	return type.resolution && type.resolution !== chosen ? chosen : null;
+}
 
 /** Why `type` can't show `data` as it stands, or `null` when it can. */
 export function typeBlock(
@@ -90,5 +107,6 @@ export function typeBlock(
 				?.entryTypes.find((e) => e.id === data.layers[0].entryType)?.kind === "pollutant";
 		if (!one) return "pollutant";
 	}
+	if (resolutionBlock(type, data)) return "resolution";
 	return null;
 }

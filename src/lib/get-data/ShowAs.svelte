@@ -2,7 +2,10 @@
 	import { ToggleGroup } from "bits-ui";
 	import { formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
+	import type { Level } from "$lib/data/dataset-rules";
+	import { MAP_TYPE } from "$lib/widgets/map/options";
 	import type { WidgetType } from "$lib/widgets/registry";
+	import { LEVEL_LOWER } from "./level-phrases";
 	import type { TypeBlock } from "./offer";
 
 	let {
@@ -10,15 +13,28 @@
 		value,
 		onchange
 	}: {
-		/** Each data type with why it can't show the current data (`null` when it can). */
-		types: { type: WidgetType; block: TypeBlock | null }[];
+		/**
+		 * Each data type with why it can't show the current data (`null` when it can), and for a
+		 * `"resolution"` block, the data resolution it can't show.
+		 */
+		types: { type: WidgetType; block: TypeBlock | null; level?: Level }[];
 		value: string;
 		onchange: (type: string) => void;
 	} = $props();
 
 	const uid = $props.id();
 
-	function reason(type: WidgetType, block: TypeBlock): string {
+	/** The whole sentence for a type that can't show the chosen data resolution. */
+	function resolutionReason(type: WidgetType, level: Level | undefined): string {
+		if (type.type === MAP_TYPE) return m.get_data_map_resolution();
+		if (level === "raw") return m.get_data_type_resolution_raw({ type: type.label() });
+		return m.get_data_type_resolution({
+			type: type.label(),
+			level: level ? LEVEL_LOWER[level]() : ""
+		});
+	}
+
+	function reason(type: WidgetType, block: Exclude<TypeBlock, "resolution">): string {
 		switch (block) {
 			case "dataset":
 				return m.get_data_block_dataset();
@@ -61,10 +77,12 @@
 			{/each}
 		</ToggleGroup.Root>
 	</div>
-	{#each types as { type, block } (type.type)}
+	{#each types as { type, block, level } (type.type)}
 		{#if block}
 			<p id="{uid}-{type.type}-reason" class="text-muted-foreground text-xs">
-				{m.get_data_type_blocked({ type: type.label(), reason: reason(type, block) })}
+				{block === "resolution"
+					? resolutionReason(type, level)
+					: m.get_data_type_blocked({ type: type.label(), reason: reason(type, block) })}
 			</p>
 		{/if}
 	{/each}

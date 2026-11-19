@@ -39,7 +39,8 @@
 		onperiod,
 		fill,
 		fillTypes,
-		onfill
+		onfill,
+		blocks = {}
 	}: {
 		/** The Map draft's data (plain). */
 		data: WidgetDataConfig;
@@ -73,6 +74,11 @@
 		fillTypes?: RegionTypeInfo[];
 		/** A fill chosen (a region type), or none (undefined). */
 		onfill: (type: string | undefined) => void;
+		/**
+		 * Why smoke and fire, the notices or use can't be switched on at the Map's data resolution
+		 * (or, for use, on Now); greyed with the reason, never hidden.
+		 */
+		blocks?: { smoke?: string; notices?: string; use?: string };
 	} = $props();
 
 	const uid = $props.id();
@@ -105,14 +111,16 @@
 	const useEntry = $derived(catalog.find((c) => c.id === PESTICIDE_USE));
 	const use = $derived(hasUse(data));
 	const listed = $derived(Array.isArray(years) ? years : []);
-	/** Why use can't be switched on, when the years are known not to allow it. */
+	/** Why use can't be switched on: the years are known not to allow it, or the resolution. */
 	const blocked = $derived(
 		years === "unavailable"
 			? m.getdata_map_use_years_unavailable()
 			: Array.isArray(years) && years.length === 0
 				? m.getdata_map_use_no_years()
-				: undefined
+				: blocks.use
 	);
+	const smokeBlocked = $derived(!smoke ? blocks.smoke : undefined);
+	const noticesBlocked = $derived(!notices ? blocks.notices : undefined);
 	/** The Map's one filter set, kept in step on both pesticide layers. */
 	const noticeFiltersSaved = $derived(mapPesticideFilters(data));
 
@@ -210,12 +218,19 @@
 						type="checkbox"
 						class="accent-primary size-4"
 						checked={smoke}
+						disabled={!!smokeBlocked}
+						aria-describedby={smokeBlocked ? `${uid}-smoke-blocked` : undefined}
 						onchange={(e) => onsmoke(e.currentTarget.checked)}
 					/>
-					<span>{m.get_data_smoke_and_fire()}</span>
+					<span class={[smokeBlocked && "text-muted-foreground"]}>
+						{m.get_data_smoke_and_fire()}
+					</span>
 				</label>
 				<Toggletip label={m.get_data_map_smoke_help_label()} text={m.get_data_map_smoke_help()} />
 			</div>
+			{#if smokeBlocked}
+				{@render reason(`${uid}-smoke-blocked`, smokeBlocked)}
+			{/if}
 		</Accordion.Content>
 	</Accordion.Item>
 	{#if noticesEntry || notices}
@@ -227,16 +242,25 @@
 				{#if noticesEntry?.description}
 					<p class="text-muted-foreground text-xs">{noticesEntry.description}</p>
 				{/if}
-				<label class="flex min-h-6 items-center gap-2 text-sm">
-					<input
-						type="checkbox"
-						role="switch"
-						class="accent-primary size-4"
-						checked={notices}
-						onchange={(e) => onnotices(e.currentTarget.checked)}
-					/>
-					<span>{m.getdata_map_notices_switch()}</span>
-				</label>
+				<div class="flex min-h-6 flex-wrap items-center gap-x-2 text-sm">
+					<label class="flex items-center gap-2">
+						<input
+							type="checkbox"
+							role="switch"
+							class="accent-primary size-4"
+							checked={notices}
+							disabled={!!noticesBlocked}
+							aria-describedby={noticesBlocked ? `${uid}-notices-blocked` : undefined}
+							onchange={(e) => onnotices(e.currentTarget.checked)}
+						/>
+						<span class={[noticesBlocked && "text-muted-foreground"]}>
+							{m.getdata_map_notices_switch()}
+						</span>
+					</label>
+					{#if noticesBlocked}
+						{@render reason(`${uid}-notices-blocked`, noticesBlocked)}
+					{/if}
+				</div>
 				<!-- With use on, the one filter set shows in its section. -->
 				{#if notices && !use}
 					{@render filterSet()}
@@ -260,11 +284,11 @@
 							role="switch"
 							class="accent-primary size-4"
 							checked={use}
-							disabled={!use && listed.length === 0}
+							disabled={!use && (listed.length === 0 || !!blocks.use)}
 							aria-describedby={!use && blocked ? `${uid}-use-blocked` : undefined}
 							onchange={(e) => onuse(e.currentTarget.checked)}
 						/>
-						<span class={[!use && listed.length === 0 && "text-muted-foreground"]}
+						<span class={[!use && (listed.length === 0 || blocks.use) && "text-muted-foreground"]}
 							>{m.getdata_map_use_switch()}</span
 						>
 					</label>

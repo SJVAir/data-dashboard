@@ -24,7 +24,14 @@
 	import { DEFAULT_RANGE } from "$lib/widgets/defaults";
 	import { CURRENT_TYPE } from "$lib/widgets/current";
 	import { MAP_TYPE } from "$lib/widgets/map";
-	import { MAP_MAX_DAYS, PESTICIDE_USE, mapOptions } from "$lib/widgets/map/options";
+	import {
+		HMS_FIRE,
+		HMS_SMOKE,
+		MAP_MAX_DAYS,
+		PESTICIDE_NOTICES,
+		PESTICIDE_USE,
+		mapOptions
+	} from "$lib/widgets/map/options";
 	import { dataTypes, getWidgetType, type WidgetType } from "$lib/widgets/registry";
 	import { offersNow } from "$lib/widgets/time";
 	import { DataWidget } from "$lib/widgets/shared/data-widget.svelte";
@@ -79,11 +86,18 @@
 	import { isCalendarType } from "$lib/calendars/types";
 	import ThresholdLineControl from "./ThresholdLineControl.svelte";
 	import { formatDate, formatDateRange, formatList, formatNumber } from "$lib/format";
-	import { offeredDatasets, typeBlock } from "./offer";
+	import { offeredDatasets, resolutionBlock, typeBlock } from "./offer";
+	import { datasetBlock, datasetBlockText } from "./dataset-offer";
+	import { LEVEL_BY, LEVEL_LABEL } from "./level-phrases";
 	import Preview, { type PreviewSize } from "./Preview.svelte";
 	import { resolutionChoices } from "./resolution-offer";
 	import { shownRange } from "./shown-range";
-	import { MAP_LEVELS, type Level as DataLevel } from "$lib/data/dataset-rules";
+	import {
+		LEVELS,
+		MAP_LEVELS,
+		offeredFrom,
+		type Level as DataLevel
+	} from "$lib/data/dataset-rules";
 	import ShowAs from "./ShowAs.svelte";
 	import WhatSections from "./WhatSections.svelte";
 	import WhenControl from "./WhenControl.svelte";
@@ -233,11 +247,21 @@
 			: plain.data
 	);
 	const showAs = $derived(
-		dataTypes().map((t) => ({
-			type: t,
-			// A type that offers now converts the draft to its shape, so it's never blocked.
-			block: known && !offersNow(t) ? typeBlock(t, blockData, known, now) : null
-		}))
+		dataTypes().map((t) => {
+			if (!known) return { type: t, block: null };
+			// A type that offers now converts the draft to its shape, so it's never blocked, but for
+			// the Map's resolution: it shows daily, monthly or yearly data.
+			const block = offersNow(t)
+				? t.type === MAP_TYPE && resolutionBlock(t, plain.data)
+					? ("resolution" as const)
+					: null
+				: typeBlock(t, blockData, known, now);
+			const level =
+				block === "resolution"
+					? (resolutionBlock(t, offersNow(t) ? plain.data : blockData) ?? undefined)
+					: undefined;
+			return { type: t, block, ...(level ? { level } : {}) };
+		})
 	);
 	/** Where the places are fetched for, as the dataset rules count it. */
 	const placeKind = $derived(widgetPlaceKind(plain.data, known));
@@ -285,21 +309,66 @@
 	/** A dataset's name, from the catalog. */
 	const datasetLabel = (layer: Layer) =>
 		known?.find((d) => d.id === layer.dataset)?.label ?? layer.dataset;
-	const BY: Record<DataLevel, () => string> = {
-		// Automatic never moves up to Every measurement (it's the finest).
-		raw: () => "",
-		hour: () => m.get_data_resolution_by_hour(),
-		day: () => m.get_data_resolution_by_day(),
-		month: () => m.get_data_resolution_by_month(),
-		year: () => m.get_data_resolution_by_year()
-	};
-	const LEVEL_LABEL: Record<DataLevel, () => string> = {
-		raw: () => m.get_data_resolution_raw(),
-		hour: () => m.get_data_resolution_hour(),
-		day: () => m.get_data_resolution_day(),
-		month: () => m.get_data_resolution_month(),
-		year: () => m.get_data_resolution_year()
-	};
+
+	/**
+	 * Why a dataset (`candidate`, its layers) can't be chosen, or undefined: on a Map on Now,
+	 * pesticide use (Now has no resolution); with a specific resolution, a dataset that isn't
+	 * reported at it; on Automatic, one that shares no level with those chosen (less `without`, the
+	 * layer it would replace, and any that already don't line up). A pinned type (a calendar) and
+	 * the Map's levels count as Automatic within them. Greyed, never hidden.
+	 */
+	function datasetReason(candidate: Layer[], without?: Layer): string | undefined {
+		if (!known) return undefined;
+		if (isMap && !plain.data.dateRange) {
+			const use = candidate.find((l) => l.dataset === PESTICIDE_USE);
+			const by = use && offeredFrom(use, known, placeKind);
+			return by ? m.get_data_dataset_not_on_now({ by: LEVEL_BY[by]() }) : undefined;
+		}
+		if (!hasRange) return undefined;
+		const misfits = effective?.misfits ?? [];
+		const chosen = plain.data.layers.filter(
+			(l) =>
+				l !== without &&
+				!misfits.includes(l) &&
+				!candidate.some((c) => c.dataset === l.dataset && c.entryType === l.entryType)
+		);
+		const pinned = !isMap && !!type?.resolution;
+		const block = datasetBlock({
+			candidate,
+			chosen,
+			catalog: known,
+			place: placeKind,
+			resolution: pinned ? undefined : (plain.data.resolution as DataLevel | undefined),
+			within: isMap ? MAP_LEVELS : LEVELS
+		});
+		return block ? datasetBlockText(block) : undefined;
+	}
+	/** The Map's place-less datasets' reasons (smoke and fire go together). */
+	const mapBlocks = $derived(
+		isMap
+			? {
+					smoke: datasetReason([{ dataset: HMS_SMOKE }, { dataset: HMS_FIRE }]),
+					notices: datasetReason([{ dataset: PESTICIDE_NOTICES }]),
+					use: datasetReason([{ dataset: PESTICIDE_USE }])
+				}
+			: {}
+	);
+
+	/**
+	 * Why the draft can't be added or saved because its datasets don't line up: only a draft from
+	 * untrusted input (a link, an old draft) can carry one, since the controls never build one.
+	 */
+	const misfitReason = $derived.by(() => {
+		if (!known) return undefined;
+		if (isMap && !plain.data.dateRange) {
+			const use = plain.data.layers.find((l) => l.dataset === PESTICIDE_USE);
+			return use ? m.get_data_not_on_now_blocked({ dataset: datasetLabel(use) }) : undefined;
+		}
+		const misfits = effective?.misfits ?? [];
+		if (misfits.length === 0) return undefined;
+		const names = [...new Set(misfits.map(datasetLabel))];
+		return m.get_data_misfits_blocked({ datasets: formatList(names), countValue: names.length });
+	});
 	/** Automatic moved above the range's level for a dataset: says so, naming both. */
 	const autoNote = $derived.by(() => {
 		if (!choices || !effective?.automatic || !effective.movedBy) return undefined;
@@ -307,7 +376,7 @@
 		return m.get_data_resolution_auto_moved({
 			level: LEVEL_LABEL[level](),
 			dataset: datasetLabel(effective.movedBy),
-			by: BY[level]()
+			by: LEVEL_BY[level]()
 		});
 	});
 	/** The range resolved wider than picked (whole months or years): the dates it shows. */
@@ -872,6 +941,7 @@
 							}}
 							onperiod={(value) => setMapUsePeriod(value)}
 							fill={mapOptions(plain).fill}
+							blocks={mapBlocks}
 							{fillTypes}
 							onfill={(type) => setMapFill(draft, type)}
 						/>
@@ -910,6 +980,7 @@
 							onremove={removeLayer}
 							onfilters={setFilters}
 							onstation={setStation}
+							blocked={datasetReason}
 						/>
 					{/if}
 				</section>
@@ -983,9 +1054,7 @@
 	<ActionBar
 		blocked={levelOnly
 			? m.get_data_level_only()
-			: resolutionBlocked
-				? m.get_data_resolution_blocked()
-				: undefined}
+			: (misfitReason ?? (resolutionBlocked ? m.get_data_resolution_blocked() : undefined))}
 		downloading={csvPending("get-data")}
 		ondownload={type?.downloadable ? download : undefined}
 		oncancel={onCancel}
