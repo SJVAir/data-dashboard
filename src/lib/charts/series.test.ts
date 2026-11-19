@@ -182,4 +182,28 @@ describe("chartXRange", () => {
 		);
 		expect(range).toBeUndefined();
 	});
+
+	// 2026-11-19 12:00 Pacific (PST).
+	const nov19 = new Date(Date.UTC(2026, 10, 19, 20));
+
+	it("starts trailing months at Monthly where the fetched data starts (N calendar months)", () => {
+		const range = chartXRange(
+			{ kind: "trailing", amount: 24, unit: "month" },
+			undefined,
+			"month",
+			nov19
+		);
+		// 2024-12-01 to 2026-11-01 Pacific: 24 months, no empty leading month.
+		expect(range).toEqual({ min: Date.UTC(2024, 11, 1, 8), max: Date.UTC(2026, 10, 1, 7) });
+	});
+
+	it("starts trailing months at Yearly on the first year's January", () => {
+		const range = chartXRange(
+			{ kind: "trailing", amount: 24, unit: "month" },
+			undefined,
+			"year",
+			nov19
+		);
+		expect(range).toEqual({ min: Date.UTC(2024, 0, 1, 8), max: Date.UTC(2026, 0, 1, 8) });
+	});
 });

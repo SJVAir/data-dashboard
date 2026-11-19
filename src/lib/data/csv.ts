@@ -337,7 +337,7 @@ export async function downloadDataCsv(
 	const skipped = layers.flatMap((l, i) =>
 		loaded[i] ? [] : [entryMeta(catalog, l)?.entryType.label ?? l.entryType ?? l.dataset]
 	);
-	const range = resolveRange(input.dateRange, new Date(data.fetchedAt));
+	const range = resolveRange(input.dateRange, new Date(data.fetchedAt), input.resolution);
 	const fileLabel =
 		data.places.length === 1
 			? placeLabel(data.places[0], viewer)

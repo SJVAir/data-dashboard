@@ -874,6 +874,23 @@ describe("a calendar's CSV", () => {
 		]);
 	});
 
+	it("names a monthly file by the widened dates it holds", async () => {
+		fake.metadata = fixtureMetadata();
+		fake.client = createQueryClient({
+			adapters: [fakeAdapter([])],
+			metadata: fake.metadata,
+			regions: { resolve: async () => "unsupported" }
+		});
+		const widget = chartWidget(["m1"]);
+		widget.data.dateRange = { kind: "custom", start: "2026-01-15", end: "2026-03-10" };
+		widget.data.resolution = "month";
+		let name = "";
+		await downloadWidgetCsv(widget, (n) => {
+			name = n;
+		});
+		expect(name).toMatch(/-2026-01-01-to-2026-03-31\.csv$/);
+	});
+
 	it("a pollutant overlay is read with its own figure and label", async () => {
 		const requests: AdapterRequest[] = [];
 		const base = fakeAdapter(requests);
