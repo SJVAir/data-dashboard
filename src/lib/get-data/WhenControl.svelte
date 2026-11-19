@@ -3,7 +3,7 @@
 	import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
 	import { Select } from "bits-ui";
 	import { Input } from "$lib/components/ui/input";
-	import { DateRangeSpecSchema, type DateRangeSpec } from "$lib/data/schema";
+	import { DateRangeSpecSchema, type DateRangeSpec, type Resolution } from "$lib/data/schema";
 	import { formatDateRange, todayPacific } from "$lib/format";
 	import { resolveRange } from "$lib/format/range";
 	import { m } from "$lib/paraglide/messages.js";
@@ -21,6 +21,7 @@
 		type,
 		value,
 		now,
+		resolution,
 		onchange
 	}: {
 		/**
@@ -31,6 +32,8 @@
 		/** The range; none is Now (for a type with `now`). */
 		value: DateRangeSpec | undefined;
 		now: Date;
+		/** The dataset's resolution: at Monthly or Yearly the shown dates are whole periods. */
+		resolution?: Resolution;
 		/** A range was chosen, or Now (`undefined`). */
 		onchange: (spec: DateRangeSpec | undefined) => void;
 	} = $props();
@@ -101,7 +104,7 @@
 		onchange(specFor(preset));
 	}
 
-	const resolved = $derived(resolveRange(base, now));
+	const resolved = $derived(resolveRange(base, now, resolution));
 	const rangeText = $derived.by(() => {
 		const range = formatDateRange(resolved.firstDate, resolved.lastDate);
 		return resolved.rolling ? m.get_data_range_rolling({ range }) : range;

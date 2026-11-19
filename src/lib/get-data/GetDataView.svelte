@@ -737,6 +737,7 @@
 							{type}
 							value={type.now ? plain.data.dateRange : range}
 							{now}
+							resolution={plain.data.resolution}
 							onchange={setRange}
 						/>
 					{/if}

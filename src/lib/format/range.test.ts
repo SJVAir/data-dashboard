@@ -6,6 +6,7 @@ import {
 	calendarSpanDays,
 	rangeSpanDays,
 	resolveRange,
+	rangeWidened,
 	type DateRangeSpec
 } from "./range";
 
@@ -217,5 +218,61 @@ describe("calendarSpanDays", () => {
 	it("uses elapsed hours over 24 for trailing hours", () => {
 		expect(days({ kind: "trailing", amount: 24, unit: "hour" })).toBe(1);
 		expect(days({ kind: "trailing", amount: 36, unit: "hour" })).toBe(1.5);
+	});
+});
+
+describe("resolveRange: whole periods", () => {
+	const at = new Date("2026-11-18T20:00:00Z");
+	const d = (spec: DateRangeSpec, res: Parameters<typeof resolveRange>[2], t = at) => {
+		const r = resolveRange(spec, t, res);
+		return [r.firstDate, r.lastDate];
+	};
+
+	it("widens a custom range to whole months", () => {
+		const spec: DateRangeSpec = { kind: "custom", start: "2026-03-15", end: "2026-06-10" };
+		expect(d(spec, "month")).toEqual(["2026-03-01", "2026-06-30"]);
+		expect(rangeWidened(spec, at, "month")).toBe(true);
+		expect(rangeWidened(spec, at, "day")).toBe(false);
+	});
+
+	it("makes a trailing 12 months the last 12 calendar months including this one", () => {
+		const spec: DateRangeSpec = { kind: "trailing", amount: 12, unit: "month" };
+		expect(d(spec, "month")).toEqual(["2025-12-01", "2026-11-30"]);
+		expect(rangeWidened(spec, at, "month")).toBe(false);
+		expect(resolveRange(spec, at, "month").rolling).toBe(true);
+	});
+
+	it("includes December on 2026-12-01 at 01:00 Pacific", () => {
+		const t = new Date("2026-12-01T09:00:00Z");
+		const spec: DateRangeSpec = { kind: "trailing", amount: 12, unit: "month" };
+		expect(d(spec, "month", t)).toEqual(["2026-01-01", "2026-12-31"]);
+	});
+
+	it("widens a trailing 30 days to whole months", () => {
+		const spec: DateRangeSpec = { kind: "trailing", amount: 30, unit: "day" };
+		expect(d(spec, "month")).toEqual(["2026-10-01", "2026-11-30"]);
+		expect(rangeWidened(spec, at, "month")).toBe(true);
+	});
+
+	it("widens to whole years at yearly", () => {
+		const spec: DateRangeSpec = { kind: "custom", start: "2025-06-01", end: "2026-02-01" };
+		expect(d(spec, "year")).toEqual(["2025-01-01", "2026-12-31"]);
+	});
+
+	it("leaves day and no resolution unchanged", () => {
+		const spec: DateRangeSpec = { kind: "custom", start: "2026-03-15", end: "2026-06-10" };
+		expect(d(spec, "day")).toEqual(["2026-03-15", "2026-06-10"]);
+		expect(d(spec, undefined)).toEqual(["2026-03-15", "2026-06-10"]);
+	});
+
+	it("handles the New Year and DST boundaries", () => {
+		expect(d({ kind: "custom", start: "2025-12-31", end: "2026-01-01" }, "month")).toEqual([
+			"2025-12-01",
+			"2026-01-31"
+		]);
+		const r = resolveRange({ kind: "custom", start: "2026-03-10", end: "2026-03-20" }, at, "month");
+		expect([r.firstDate, r.lastDate]).toEqual(["2026-03-01", "2026-03-31"]);
+		expect(r.start.toISOString()).toBe("2026-03-01T08:00:00.000Z");
+		expect(r.end.toISOString()).toBe("2026-04-01T07:00:00.000Z");
 	});
 });

@@ -194,7 +194,7 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 		const target = await adapter.target(layer, ctx);
 		if ("unavailable" in target) return target;
 
-		const range = resolveRange(input.dateRange, at);
+		const range = resolveRange(input.dateRange, at, input.resolution);
 		const offered = adapter.offered(entryType.resolutions, target);
 		const pick: Pick = { resolution: input.resolution, worstHour: input.worstHour === true };
 		const choice = choose(input.dateRange, range, offered, target, pick);
@@ -435,7 +435,7 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 			const entry = cache.get(key);
 			if (!entry || entry.controller) return;
 			const at = now();
-			const range = resolveRange(entry.spec, at);
+			const range = resolveRange(entry.spec, at, entry.pick.resolution);
 			const prev = entry.request;
 			const choice = choose(entry.spec, range, prev.offered, prev.target, entry.pick);
 			// The resolution is the input's, so only the worst-hour flag can change (a range that grew
