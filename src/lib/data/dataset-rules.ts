@@ -1,4 +1,4 @@
-import type { Layer } from "./schema";
+import type { Layer, Resolution } from "./schema";
 import type { CatalogEntry } from "./metadata";
 import { offeredLevels } from "./adapters/offered";
 import { entryMeta, mainLayer } from "$lib/widgets/shared/input";
@@ -20,9 +20,17 @@ const rank = (level: Level): number => LEVELS.indexOf(level);
  * (downsampled). Unknown dataset or entry type: [].
  */
 export function layerOffers(layer: Layer, catalog: CatalogEntry[], place: PlaceKind): Level[] {
-	const meta = entryMeta(catalog, layer);
-	if (!meta) return [];
-	const { resolutions } = meta.entryType;
+	let resolutions: readonly Resolution[];
+	if (layer.entryType) {
+		const meta = entryMeta(catalog, layer);
+		if (!meta) return [];
+		resolutions = meta.entryType.resolutions;
+	} else {
+		// A place-less layer (a Map's smoke, fire, notices or use) has no entry type: it offers what
+		// its dataset's entry types do together, or every level when the catalog lacks the dataset.
+		const dataset = catalog.find((d) => d.id === layer.dataset);
+		resolutions = dataset ? dataset.entryTypes.flatMap((e) => e.resolutions) : LEVELS;
+	}
 	const downsampled =
 		layer.dataset === "air-quality" && resolutions.length === 1 && resolutions[0] === "raw";
 	const base = downsampled ? [...LEVELS] : offeredLevels(layer.dataset, resolutions);
@@ -65,8 +73,7 @@ export type Effective = {
  * The dataset's resolution. Pinned types (calendars `day`, Current `hour`) use the pin. Explicit
  * (`data.resolution`): as stored. Automatic: the finest level at or above max(range level, floor)
  * every layer offers. When layers share no such level, the main layer (`mainLayer`; a Map's first
- * pollutant) decides and the others are misfits. Layers with no entry type have no offers of their
- * own and are left out.
+ * pollutant) decides and the others are misfits.
  */
 export function effectiveResolution(args: {
 	data: { layers: readonly Layer[]; resolution?: string };
@@ -78,7 +85,7 @@ export function effectiveResolution(args: {
 	floor?: Level;
 }): Effective {
 	const { data, catalog, place, spanDays, pin, within = LEVELS, floor } = args;
-	const layers = data.layers.filter((l) => l.entryType);
+	const layers = data.layers;
 	const misfitsAt = (level: Level) =>
 		layers.filter((l) => !layerOffers(l, catalog, place).includes(level));
 
@@ -107,7 +114,7 @@ export function effectiveResolution(args: {
 	}
 
 	// No shared level at or above the ideal: the main layer decides.
-	const main = mainLayer({ layers: [...layers] }, catalog);
+	const main = mainLayer({ layers: [...layers] }, catalog) ?? layers[0];
 	const own = main ? layerOffers(main, catalog, place).filter((l) => within.includes(l)) : [];
 	const resolution =
 		own.find((level) => rank(level) >= rank(ideal)) ?? own[own.length - 1] ?? ideal;

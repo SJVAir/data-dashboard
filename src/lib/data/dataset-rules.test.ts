@@ -120,9 +120,48 @@ describe("effectiveResolution", () => {
 	});
 });
 
+describe("effectiveResolution for a Map's place-less layers", () => {
+	const map = {
+		catalog,
+		place: "monitors" as const,
+		spanDays: 30,
+		within: MAP_LEVELS,
+		floor: "day" as const
+	};
+	const smokeLayer: Layer = { dataset: "hms-smoke" };
+	const fireLayer: Layer = { dataset: "hms-fire" };
+	const useLayer: Layer = { dataset: "pesticide-use" };
+	const notices: Layer = { dataset: "pesticide-notices" };
+	it("stays at day with smoke and fire", () => {
+		const e = effectiveResolution({ ...map, data: { layers: [pm25, smokeLayer, fireLayer] } });
+		expect(e).toMatchObject({ resolution: "day", misfits: [] });
+	});
+	it("moves to month with pesticide use", () => {
+		const e = effectiveResolution({ ...map, data: { layers: [pm25, useLayer] } });
+		expect(e.resolution).toBe("month");
+		expect(e.movedBy).toBe(useLayer);
+	});
+	it("lets the pollutant decide when layers share nothing", () => {
+		const e = effectiveResolution({ ...map, data: { layers: [pm25, smokeLayer, useLayer] } });
+		expect(e.resolution).toBe("day");
+		expect(e.misfits).toEqual([useLayer]);
+	});
+	it("lists a misfit for an explicit level", () => {
+		const e = effectiveResolution({
+			...map,
+			data: { layers: [pm25, notices], resolution: "month" }
+		});
+		expect(e.misfits).toEqual([notices]);
+	});
+	it("treats auto as Automatic", () => {
+		const e = effectiveResolution({ ...map, data: { layers: [pm25], resolution: "auto" } });
+		expect(e).toMatchObject({ resolution: "day", automatic: true });
+	});
+});
+
 describe("offeredFrom", () => {
 	it("is the finest offered level", () => {
 		expect(offeredFrom(use, catalog, "regions")).toBe("month");
-		expect(offeredFrom({ dataset: "nope" }, catalog, "none")).toBeNull();
+		expect(offeredFrom({ dataset: "nope", entryType: "x" }, catalog, "none")).toBeNull();
 	});
 });
