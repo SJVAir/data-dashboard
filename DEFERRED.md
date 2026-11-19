@@ -1658,6 +1658,25 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
 
 ## Analysis & data
 
+- **sjvair.com #342 final-review minors (period daily statistic).** _Deferred 2026-11-18
+  (session `sjvair-com-93`'s final review; all non-blocking)._
+  1. `_backfill_complete_chunk` reads `now` before its cascade and ignores
+     `roll_current_periods`' `stopped`, so a cascade that crosses midnight silently skips the
+     current periods until the next night. Rare, and it fixes itself the next night. **Revisit
+     when** the backfill job is next touched.
+  2. In nightly mode, an owner whose earlier days in the period a backfill rewrote isn't
+     re-rolled until it reports again or the period ends (`rebuild_summaries` and
+     `repair_summaries` pass ids, so they re-roll). The owner-level design accepts this.
+     **Revisit if** a backfill is ever run over the current period on production.
+  3. On spring-forward Sunday the 02:15 / 02:20 tasks don't run, as with the 02:30 integrity
+     check (documented). **Revisit before** 2027-03-14, or whenever `pacific_crontab` changes.
+  4. With more than one summaries worker, the 02:30 integrity check can report a false
+     `missing_current_periods` (documented). **Revisit when** production's worker count is
+     known.
+  5. Test polish: a misindented dict in `test_clean_data_returns_zeros_and_logs_nothing`, no
+     region twin for the guard-before-fills test, helper polish in `test_period_stats.py`.
+     **Revisit with** the next change to those files.
+
 - **sjvair.com: profile and speed up the nightly current-periods run.** _Deferred 2026-11-18
   (the user, session `sjvair-com-93`, sjvair.com #342)._ Profile a scoped nightly run phase by
   phase (DB reads, t-digest merge, upserts, daily-figure fill), then pick from:
@@ -1669,7 +1688,9 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     rollup gets faster, but new rows' percentiles differ slightly, and the stored-sketch
     format needs checking;
   - (d) a numpy centroid merge of our own (the server session prefers (c)).
-    Local laptop timings, deploy night: monitors 34.9 s, regions 62.3 s. **Why deferred:** the
+    Local laptop timings: deploy night 34.9 s (monitors) and 62.3 s (regions); a near-steady
+    night after the Nov 8–17 catch-up (540 of 568 monitor and 1,122 of 1,216 region owners
+    reporting, month rolls merging up to 17 daily sketches) 49.9 s and 92.9 s. **Why deferred:** the
     user wants to go through optimizations together later, and #342 doesn't depend on it.
     **Revisit when** the user starts the optimization pass, or the production nightly run
     (02:15 / 02:20 Pacific) runs long or overlaps the 02:30 integrity check.
