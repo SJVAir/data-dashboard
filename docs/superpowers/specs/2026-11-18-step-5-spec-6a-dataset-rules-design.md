@@ -253,8 +253,9 @@ main layer (a Map's first pollutant) decides the resolution, layers that don't o
 drawn, and a note says why and to change it in Edit data. On a Map on Now, pesticide use isn't
 drawn, with the same note. Earlier shapes (`Layer.resolution`, the Map's `usePeriod` and `day`)
 get no compatibility code (the user, 2026-11-18). Layer and data keys are dropped by the
-schemas, but `MapOptionsSchema` is strict and fails the whole dashboard, so the user deletes the
-affected test dashboards in the app (which also removes the server copies) before 6a lands.
+schemas, but `MapOptionsSchema` is strict and fails the whole dashboard. No cleanup is needed:
+a read-only scan of the local server (2026-11-18) found no saved dashboard with a Map, and the
+user confirmed the browser has none.
 
 ## Messages
 
@@ -304,7 +305,6 @@ period), and the null-figure reason. Old `show_values` keys go.
 - Every document the app or the tests open (the starter, sample documents, E2E and browser-test
   fixtures, the stack suites' seeds) must parse under the new strict `MapOptionsSchema`: grep
   them for `usePeriod`, `day`, `resolution` on layers, and quarter or season levels, and update
-  them (today's hits include `e2e/map.spec.ts` and the Map's browser tests). The user deletes
-  only their own dashboards.
+  them (today's hits include `e2e/map.spec.ts` and the Map's browser tests).
 - The new widget type checklist doesn't fire (no new place kind), but the share swap,
   `PlacePickerDialog` `regionOf` and Get data's type switch keep passing with `data.resolution`.
