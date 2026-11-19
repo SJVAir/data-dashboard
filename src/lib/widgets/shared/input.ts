@@ -190,7 +190,7 @@ export type WidgetInputs = {
 
 /**
  * A widget's queries: the main layer (`chartInput`) and each overlay (`overlayInput`), all at the
- * dataset's resolution (`widgetEffective`). An overlay that doesn't offer that resolution (from
+ * dataset's resolution (`widgetEffective` as of `now`). An overlay that doesn't offer that resolution (from
  * untrusted input, a share link or an import; or while the catalog isn't known yet) gets no input
  * and isn't fetched. No main input (no place), no overlays.
  */
@@ -198,9 +198,10 @@ export function widgetInputs(
 	widget: { type: string; data: WidgetDataConfig },
 	catalog: CatalogEntry[] | undefined,
 	place: PlaceKind,
-	maxPlaces: number = LIMITS.SELECTION_MAX
+	maxPlaces: number = LIMITS.SELECTION_MAX,
+	now: Date = new Date()
 ): WidgetInputs {
-	const effective = widgetEffective(widget, catalog, place);
+	const effective = widgetEffective(widget, catalog, place, undefined, now);
 	const { layer, input, hidden } = chartInput(
 		widget.data,
 		catalog,

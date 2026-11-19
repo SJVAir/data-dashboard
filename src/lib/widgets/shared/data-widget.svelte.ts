@@ -27,21 +27,31 @@ export type WidgetPicked = {
 	effective?: WidgetInputs["effective"];
 };
 
-/** Builds a widget's queries (default: `widgetInputs` at the widget's places). */
+/**
+ * Builds a widget's queries (default: `widgetInputs` at the widget's places). `now` is the
+ * widget's clock, so Automatic is chosen again as a growing range (`to-date`) crosses the range
+ * ladder.
+ */
 export type WidgetInputBuilder = (
 	widget: WidgetInstance,
 	catalog: CatalogEntry[] | undefined,
-	maxPlaces: number
+	maxPlaces: number,
+	now: Date
 ) => WidgetPicked;
 
 function defaultInputs(
 	widget: WidgetInstance,
 	catalog: CatalogEntry[] | undefined,
-	maxPlaces: number
+	maxPlaces: number,
+	now: Date
 ): WidgetPicked {
-	const got = widgetInputs(widget, catalog, widgetPlaceKind(widget.data, catalog), maxPlaces);
+	const place = widgetPlaceKind(widget.data, catalog);
+	const got = widgetInputs(widget, catalog, place, maxPlaces, now);
 	return { ...got, input: got.main };
 }
+
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
 
 /** One overlay layer: its catalog entry, its scale, and its own query at the main's places. */
 export type WidgetOverlay = {
@@ -105,7 +115,15 @@ export class DataWidget {
 			if (c !== "unavailable") this.catalog = c;
 		});
 
-		this.picked = $derived(build(widget(), this.catalog, maxPlaces));
+		// A coarse clock: read each minute, but `hour` only changes on the hour (Pacific hours start
+		// on UTC hours), so the queries are rebuilt at most hourly; an equal input is a no-op.
+		let clock = $state(Date.now());
+		$effect(() => {
+			const timer = setInterval(() => (clock = Date.now()), MINUTE_MS);
+			return () => clearInterval(timer);
+		});
+		const hour = $derived(Math.floor(clock / HOUR_MS));
+		this.picked = $derived(build(widget(), this.catalog, maxPlaces, new Date(hour * HOUR_MS)));
 		this.meta = $derived(entryMeta(this.catalog, this.picked.layer));
 		const entryTypeId = $derived(this.picked.layer?.entryType);
 

@@ -83,8 +83,9 @@ export function pointsCovered(doc: Dashboard, swaps: PointSwap[]): boolean {
  * The query a point layer's region is looked up with: the widget's own, for this layer alone (a
  * point is a single place). A Forecast strip's layer (no entry type) is looked up as a PM2.5 one at
  * the same place, as the place picker does; a "now" widget over the trailing hours its tile reads,
- * so the region matches what it shows. Its resolution is the widget's dataset's (from `catalog`),
- * so a lookup reads what the widget does. Null when the layer isn't the widget's places layer.
+ * so the region matches what it shows. The resolution comes from the dataset rules (with
+ * `catalog`) for this layer alone, not the widget's whole dataset, so a widget whose other layers
+ * move its resolution may read another level. Null when the layer isn't the widget's places layer.
  */
 function lookupInput(
 	widget: WidgetInstance,

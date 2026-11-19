@@ -56,7 +56,10 @@ beforeEach(async () => {
 	document.body.appendChild(frame);
 });
 
-afterEach(() => frame.remove());
+afterEach(() => {
+	vi.useRealTimers();
+	frame.remove();
+});
 
 async function show(widget: WidgetInstance, viewer?: PlaceViewer) {
 	const app = await initApp(createMemoryPlatform(), {
@@ -72,6 +75,22 @@ async function show(widget: WidgetInstance, viewer?: PlaceViewer) {
 		])
 	});
 }
+
+test("Automatic is chosen again as a to-date range grows: raw to hourly on its fourth day", async () => {
+	// Tuesday noon Pacific (weeks start Sunday): three days, so every measurement.
+	vi.useFakeTimers({
+		toFake: ["setInterval", "clearInterval", "Date"],
+		now: new Date("2026-10-27T19:00:00Z")
+	});
+	const widget = chartWidget(["m1"]);
+	widget.data.dateRange = { kind: "to-date", unit: "week" };
+	await show(widget);
+	await expect.poll(() => requests.map((r) => r.resolution)).toEqual(["raw"]);
+	// Wednesday noon: four days, so hourly, once the widget's clock ticks.
+	vi.setSystemTime(new Date("2026-10-28T19:00:00Z"));
+	await vi.advanceTimersByTimeAsync(60_000);
+	await expect.poll(() => requests.map((r) => r.resolution)).toEqual(["raw", "hour"]);
+});
 
 test("renders the time chart and sets the generated title", async () => {
 	const widget = chartWidget(["m1"]);
