@@ -24,6 +24,8 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
 import { getMetadata, getResolvers, placeRegion } from "$lib/data";
+import { loadDashboard } from "$lib/documents/load";
+import { CURRENT_SCHEMA_VERSION } from "$lib/documents/schema";
 import type { DateRangeSpec, Layer } from "$lib/data/schema";
 import type { CatalogEntry, MetadataSource } from "$lib/data/metadata";
 import { getNowClient } from "$lib/data/now";
@@ -3931,6 +3933,46 @@ test("a Daily Map with use (from a share link: Get data never builds one) draws 
 	expect(useBox()).toBeNull();
 	expect(useSelect("useFigure")).toBeNull();
 	expect(getPesticideTownships).not.toHaveBeenCalled();
+});
+
+test("a mixed Map from a share link opens without errors, draws the pollutant, and says use isn't shown", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	const raw = {
+		kind: "dashboard",
+		schemaVersion: CURRENT_SCHEMA_VERSION,
+		id: "shared",
+		name: null,
+		version: 0,
+		createdAt: "2026-10-20T00:00:00Z",
+		updatedAt: "2026-10-20T00:00:00Z",
+		body: {
+			widgets: [
+				{
+					...useMap(),
+					data: {
+						...layers(region("019"), [{ dataset: "pesticide-use", entryType: "pounds-applied" }]),
+						dateRange: { kind: "custom", start: "2023-06-01", end: "2023-06-30" },
+						resolution: "day"
+					}
+				}
+			]
+		}
+	};
+	const stored = JSON.stringify(raw);
+	const loaded = loadDashboard(JSON.parse(stored));
+	if (loaded.status !== "ok") throw new Error("the mixed document should open");
+	const widget = loaded.doc.body.widgets[0];
+	const errors = vi.spyOn(console, "error");
+	const screen = await showLive(widget, editing());
+	const map = await madeMap();
+	map.ready = true;
+	await expect.element(screen.getByText(notLinedUp("Pesticide Use"))).toBeVisible();
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "monitors"]);
+	expect(getPesticideTownships).not.toHaveBeenCalled();
+	expect(errors).not.toHaveBeenCalled();
+	// Opening never rewrites what was shared (key order aside: the schema's order is what saves).
+	expect(loaded.doc).toEqual(JSON.parse(stored));
+	expect(app().current.session!.doc.body.widgets[0].data).toEqual(raw.body.widgets[0].data);
 });
 
 test("a Map on Now with use draws no use and says so", async () => {

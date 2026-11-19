@@ -3,7 +3,6 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
 import type { AdapterRequest } from "$lib/data/adapters/registry";
-import { effectiveResolution } from "$lib/data/dataset-rules";
 import { mapDatasetCatalog, type MetadataSource } from "$lib/data/metadata";
 import { createQueryClient, type QueryClient } from "$lib/data/query/client";
 import { PESTICIDE_USE_DATASET, SDK_DATASET_CATALOG } from "$lib/data/testing/dataset-catalog";
@@ -13,7 +12,6 @@ import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import ChartWidget from "../widgets/chart/ChartWidget.svelte";
-import { mapNotShown, notShownNotes } from "../widgets/map/not-shown";
 import { fakeAdapter, fakeNumberAdapter } from "../widgets/shared/test-harness/fake-data";
 import { loadDashboard } from "./load";
 import { CURRENT_SCHEMA_VERSION } from "./schema";
@@ -37,7 +35,7 @@ const CATALOG = [
 	} as Parameters<typeof mapDatasetCatalog>[0]).map((d) => ({ ...d, geographies: ["monitor"] }))
 ];
 
-/** What a share link or an import carries: a Chart and a Map that mix datasets that don't line up. */
+/** What a share link or an import carries: a Chart (the Map half is in map-widget.browser.test.ts) that mixes datasets that don't line up. */
 const RAW = JSON.stringify({
 	kind: "dashboard",
 	schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -124,6 +122,7 @@ test("a mixed document opens, and its stored form isn't rewritten", () => {
 
 test("the Chart at Hourly draws its main layer and says smoke and use don't line up", async () => {
 	const widget = open().body.widgets[0];
+	const errors = vi.spyOn(console, "error");
 	const app = await initApp(createMemoryPlatform(), {
 		channel: createMemoryTabHub().channel(),
 		tabId: "t1"
@@ -141,24 +140,6 @@ test("the Chart at Hourly draws its main layer and says smoke and use don't line
 	// Only the main layer was asked for, at the widget's resolution.
 	expect(requests.length).toBeGreaterThan(0);
 	expect(requests.every((r) => r.entryType === "pm25" && r.resolution === "hour")).toBe(true);
+	expect(errors).not.toHaveBeenCalled();
 	expect(JSON.stringify(widget)).toBe(JSON.stringify(open().body.widgets[0]));
-});
-
-test("the Map at Daily leaves pesticide use out and names it; the pollutant stays", () => {
-	const widget = open().body.widgets[1];
-	const effective = effectiveResolution({
-		data: widget.data,
-		catalog: CATALOG,
-		place: "regions",
-		spanDays: 30,
-		within: ["day", "month", "year"]
-	});
-	expect(effective.resolution).toBe("day");
-	expect(effective.misfits.map((l) => l.dataset)).toEqual(["pesticide-use"]);
-	const notShown = mapNotShown(widget.data, effective);
-	expect(notShown).toEqual(["pesticide-use"]);
-	expect(notShownNotes(notShown, CATALOG).map((n) => n.message)).toEqual([
-		m.map_layer_not_lined_up({ dataset: "Pesticide Use" })
-	]);
-	expect(JSON.stringify(open())).toBe(RAW);
 });
