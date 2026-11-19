@@ -462,6 +462,8 @@ export async function routeMapNotices(
 						averaging_hours: null,
 						daily_statistic: null,
 						daily_statistic_label: null,
+						period_statistic: null,
+						period_statistic_label: null,
 						levels: [
 							{
 								key: "notice",

@@ -140,7 +140,7 @@ export function createFillEntry(ctx: FillContext): FillEntry {
 					const [shapes, name, figure, levels] = await Promise.all([
 						ctx.shapes(regionType, signal),
 						ctx.names(signal),
-						ctx.rating.dailyFigure(entryType, signal),
+						ctx.rating.figure(entryType, "day", signal),
 						ctx.rating.levels(entryType, signal)
 					]);
 					// The summaries name regions by server id; the shapes give their codes.
@@ -177,7 +177,7 @@ export const fillEntry = createFillEntry({
 	shapes: regionTypeShapes,
 	names: (signal) => directoryFor(getMetadata(), getResolvers().regions).regionNamer(signal),
 	rating: {
-		dailyFigure: (entryType, signal) => getMetadata().dailyFigure(entryType, signal),
+		figure: (entryType, resolution, signal) => getMetadata().figure(entryType, resolution, signal),
 		levels: (entryType, signal) => getMetadata().levels(entryType, signal)
 	},
 	today: () => todayPacific()

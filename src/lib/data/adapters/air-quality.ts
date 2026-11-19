@@ -159,9 +159,10 @@ async function rawSeries(
  * `opts` (totals, completeness) is for monitor targets only: bulk endpoints return means, and
  * summing them would be wrong.
  *
- * A daily figure request (a calendar's) takes every day from the server: daily rows over the
- * whole range, plus the open-day rows (today so far, yesterday while unsettled) when the range
- * reaches them. Nothing is filled or backfilled from finer levels, so no day is computed here.
+ * A figure request takes every period from the server: at `day`, daily rows over the whole range
+ * plus the open-day rows (today so far, yesterday while unsettled) when the range reaches them;
+ * at `month` and `year`, the stored rows (the current period's nightly row included). Nothing is
+ * filled or backfilled from finer levels, so no figure is computed here.
  */
 export async function summarySeries(
 	req: AdapterRequest,
@@ -303,9 +304,12 @@ export async function summarySeries(
 	});
 }
 
-/** Summary options asking for the daily figure, only at the daily level. */
+/** The levels a figure is read at: a day's figure, and a month's or year's average of them. */
+const FIGURE_LEVELS: ReadonlySet<string> = new Set(["day", "month", "year"]);
+
+/** Summary options asking for the figure, only at the levels that have one. */
 function figureOpts(req: AdapterRequest): SummaryOptions | undefined {
-	return req.dailyFigure && req.resolution === "day" ? { figure: req.dailyFigure } : undefined;
+	return req.figure && FIGURE_LEVELS.has(req.resolution) ? { figure: req.figure } : undefined;
 }
 
 /**

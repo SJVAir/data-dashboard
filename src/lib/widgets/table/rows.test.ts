@@ -46,6 +46,17 @@ test("sorting by a place puts nulls last both ways", () => {
 	expect(mean(sortRows(rows, 1, "desc"))).toEqual([7, 3, null, null]);
 });
 
+test("a figure with not enough data sorts last both ways, as no value does", () => {
+	const thin = { ...pt(5, NaN), figure: null };
+	const rows = wideRows({
+		...data,
+		series: [{ place: "monitor:a", points: [pt(1, 5), thin, pt(3, 1)] }],
+		places: [{ place: "monitor:a", name: "A" }]
+	});
+	expect(sortRows(rows, 0, "asc").map((r) => r.t)).toEqual([3, 1, 5]);
+	expect(sortRows(rows, 0, "desc").map((r) => r.t)).toEqual([1, 3, 5]);
+});
+
 test("sorting by date goes either way", () => {
 	const rows = wideRows(data);
 	expect(sortRows(rows, "t", "desc").map((r) => r.t)).toEqual([4, 3, 2, 1]);

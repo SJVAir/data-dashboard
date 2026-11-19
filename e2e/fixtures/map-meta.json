@@ -33,6 +33,8 @@
 				"averaging_hours": 1,
 				"daily_statistic": "max_1h",
 				"daily_statistic_label": "Highest 1-hour average",
+				"period_statistic": "daily_statistic_mean",
+				"period_statistic_label": "Average of daily highest 1-hour averages",
 				"levels": [
 					{
 						"key": "good",

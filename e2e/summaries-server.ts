@@ -46,8 +46,8 @@ function periods(start: string, end: string, hourly: boolean): TZDate[] {
 }
 
 /**
- * The month starts (Pacific) from `start` to `end` (inclusive dates) whose month has ended by now
- * (a monthly row exists only after its month: the open month is filled from daily rows).
+ * The month starts (Pacific) from `start` to `end` (inclusive dates) that have begun by now: an
+ * ended month's row, and the open month's nightly row (sjvair.com #342), not final yet.
  */
 function monthPeriods(start: string, end: string): TZDate[] {
 	const [y, m] = start.split("-").map(Number);
@@ -57,11 +57,15 @@ function monthPeriods(start: string, end: string): TZDate[] {
 	const out: TZDate[] = [];
 	for (let i = 0; ; i++) {
 		const t = new TZDate(y, m - 1 + i, 1, TIME_ZONE).getTime();
-		const next = new TZDate(y, m + i, 1, TIME_ZONE).getTime();
-		if (t >= stop || next > now) break;
+		if (t >= stop || t > now) break;
 		out.push(new TZDate(t, TIME_ZONE));
 	}
 	return out;
+}
+
+/** The start (epoch ms) of the month after the one starting at `p`. */
+function nextMonth(p: TZDate): number {
+	return new TZDate(p.getFullYear(), p.getMonth() + 1, 1, TIME_ZONE).getTime();
 }
 
 /** A monthly row for the month starting at `p`, with the figures a monthly row carries. */
@@ -81,16 +85,25 @@ function monthRow(p: TZDate, entryType: string) {
 		p25: mean - 1,
 		p75: mean + 1,
 		sum: mean * 720,
-		...figures(mean, false, true)
+		...figures(mean, "month", nextMonth(p) <= Date.now())
 	};
 }
 
-/** The server's figure fields for a row with `mean`: the daily figure only on a daily row. */
-function figures(mean: number, hourly: boolean, final: boolean) {
+/**
+ * The server's figure fields for a row with `mean`, as sjvair.com #342 serves them: the daily
+ * figures only on a daily row; on a monthly row the average of the daily figures (here the
+ * 24-hour average, `mean`) with its day counts, null on hourly and daily rows.
+ */
+function figures(mean: number, level: "hour" | "day" | "month", final: boolean) {
+	const day = level === "day";
+	const coarse = level === "month";
 	return {
-		max_1h: hourly ? null : mean + 2,
-		max_8h: hourly ? null : mean + 1,
-		mean_24h: hourly ? null : mean,
+		max_1h: day ? mean + 2 : null,
+		max_8h: day ? mean + 1 : null,
+		mean_24h: day ? mean : null,
+		daily_statistic_mean: coarse ? mean : null,
+		daily_statistic_days: coarse ? 30 : null,
+		daily_statistic_expected_days: coarse ? 30 : null,
 		is_final: final
 	};
 }
@@ -113,7 +126,7 @@ function todayRow(entryType: string) {
 		p75: mean + 1,
 		sum: mean * 12,
 		station_count: 1,
-		...figures(mean, false, false)
+		...figures(mean, "day", false)
 	};
 }
 
@@ -152,7 +165,7 @@ export async function routeSummaries(context: BrowserContext): Promise<void> {
 					p25: mean - 1,
 					p75: mean + 1,
 					sum: mean * (hourly ? 1 : 24),
-					...figures(mean, hourly, true)
+					...figures(mean, hourly ? "hour" : "day", true)
 				};
 			});
 			await route.fulfill({ json: { data, page: 1, pages: 1, has_next_page: false } });
@@ -208,7 +221,7 @@ export async function routeSummaries(context: BrowserContext): Promise<void> {
 					p25: mean - 1,
 					p75: mean + 1,
 					station_count: 1,
-					...figures(mean, hourly, true)
+					...figures(mean, hourly ? "hour" : "day", true)
 				};
 			});
 			const data = ids.map((id) => ({ id, name: id, slug: id, type: "county", summaries }));

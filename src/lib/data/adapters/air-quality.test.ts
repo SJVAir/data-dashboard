@@ -104,7 +104,7 @@ function request(
 		offered?: Resolution[];
 		now?: Date;
 		worstHour?: boolean;
-		dailyFigure?: string;
+		figure?: string;
 	} = {}
 ): AdapterRequest {
 	const now = opts.now ?? NOW;
@@ -116,7 +116,7 @@ function request(
 		range: resolveRange(spec, now),
 		offered: opts.offered ?? ALL,
 		worstHour: opts.worstHour ?? false,
-		...(opts.dailyFigure && { dailyFigure: opts.dailyFigure }),
+		...(opts.figure && { figure: opts.figure }),
 		now
 	};
 }
@@ -954,7 +954,7 @@ describe("airQualityAdapter.fetch worstHour", () => {
 	});
 });
 
-describe("airQualityAdapter.fetch dailyFigure", () => {
+describe("airQualityAdapter.fetch figure", () => {
 	const rows = [
 		{ ...row("2026-09-10T00:00:00-07:00", 12), mean_24h: 11.5, is_final: true },
 		{ ...row("2026-09-11T00:00:00-07:00", 5), mean_24h: null, is_final: true },
@@ -978,7 +978,7 @@ describe("airQualityAdapter.fetch dailyFigure", () => {
 		it(`reads the figure and is_final on the ${name} path`, async () => {
 			mock();
 			const data = await airQualityAdapter.fetch(
-				request(target, "day", SEPTEMBER, { dailyFigure: "mean_24h" }),
+				request(target, "day", SEPTEMBER, { figure: "mean_24h" }),
 				ctx,
 				signal
 			);
@@ -988,12 +988,76 @@ describe("airQualityAdapter.fetch dailyFigure", () => {
 			expect(points.map((p) => p.mean)).toEqual([12, 5, 9, 7]);
 		});
 
-		it(`adds no figure key without dailyFigure on the ${name} path`, async () => {
+		it(`adds no figure key without a figure on the ${name} path`, async () => {
 			mock();
 			const data = await airQualityAdapter.fetch(request(target, "day", SEPTEMBER), ctx, signal);
 			for (const p of data.series[0].points) expect("figure" in p).toBe(false);
 		});
 	}
+});
+
+describe("airQualityAdapter.fetch period figure", () => {
+	// A monthly row's shape as a local server serves it (sjvair.com #342, 2026-11-18): the
+	// average of daily figures with its day counts; null under 75% of the expected days.
+	const month = (
+		timestamp: string,
+		mean: number,
+		daily_statistic_mean: number | null,
+		is_final: boolean
+	) => ({
+		...row(timestamp, mean),
+		resolution: "month",
+		mean_24h: null,
+		max_1h: null,
+		max_8h: null,
+		daily_statistic_mean,
+		daily_statistic_days: daily_statistic_mean === null ? 4 : 28,
+		daily_statistic_expected_days: 30,
+		is_final
+	});
+	const rows = [
+		month("2026-08-01T00:00:00-07:00", 14, 13.2, true),
+		month("2026-09-01T00:00:00-07:00", 10, null, true),
+		month("2026-10-01T00:00:00-07:00", 8, 7.5, false)
+	];
+	const AUG_OCT: DateRangeSpec = { kind: "custom", start: "2026-08-01", end: "2026-10-31" };
+	const monitor: Target = { kind: "monitors", ids: ["m-pa"] };
+	const county: Target = { kind: "regions", keys: ["county:06019"] };
+
+	for (const [name, target] of [
+		["monitor", monitor],
+		["region bulk", county]
+	] as const) {
+		it(`a monthly request reads daily_statistic_mean on the ${name} path`, async () => {
+			vi.mocked(getMonitorSummariesMonthly).mockResolvedValue(rows as never);
+			vi.mocked(getRegionSummariesBulkMonthly).mockResolvedValue([
+				{ id: "sq1", summaries: rows }
+			] as never);
+			const data = await airQualityAdapter.fetch(
+				request(target, "month", AUG_OCT, { figure: "daily_statistic_mean" }),
+				ctx,
+				signal
+			);
+			const points = data.series[0].points;
+			expect(points.map((p) => p.figure)).toEqual([13.2, null, 7.5]);
+			expect(points.map((p) => p.final)).toEqual([true, true, false]);
+			// The current month is the server's nightly row, never filled from days here.
+			expect(getMonitorSummariesDaily).not.toHaveBeenCalled();
+			expect(getRegionSummariesBulkDaily).not.toHaveBeenCalled();
+		});
+	}
+
+	it("a figure is ignored at hour (the plain mean)", async () => {
+		vi.mocked(getMonitorSummariesHourly).mockResolvedValue([
+			{ ...row("2026-09-10T00:00:00-07:00", 12), mean_24h: 11 }
+		] as never);
+		const data = await airQualityAdapter.fetch(
+			request(monitor, "hour", SEPTEMBER, { figure: "mean_24h" }),
+			ctx,
+			signal
+		);
+		for (const p of data.series[0].points) expect("figure" in p).toBe(false);
+	});
 });
 
 describe("airQualityAdapter.fetch open days", () => {
@@ -1014,7 +1078,7 @@ describe("airQualityAdapter.fetch open days", () => {
 		vi.mocked(getMonitorSummariesDaily).mockResolvedValue(stored as never);
 		vi.mocked(getMonitorSummariesDailyOpen).mockResolvedValue(open as never);
 		const data = await airQualityAdapter.fetch(
-			request(monitor, "day", OCTOBER, { dailyFigure: "mean_24h" }),
+			request(monitor, "day", OCTOBER, { figure: "mean_24h" }),
 			ctx,
 			signal
 		);
@@ -1043,7 +1107,7 @@ describe("airQualityAdapter.fetch open days", () => {
 			{ id: "sq1", summaries: open }
 		] as never);
 		const data = await airQualityAdapter.fetch(
-			request(county, "day", OCTOBER, { dailyFigure: "mean_24h" }),
+			request(county, "day", OCTOBER, { figure: "mean_24h" }),
 			ctx,
 			signal
 		);
@@ -1065,7 +1129,7 @@ describe("airQualityAdapter.fetch open days", () => {
 			{ id: "m-new", summaries: open.slice(1) }
 		] as never);
 		const data = await airQualityAdapter.fetch(
-			request({ kind: "all" }, "day", OCTOBER, { dailyFigure: "mean_24h" }),
+			request({ kind: "all" }, "day", OCTOBER, { figure: "mean_24h" }),
 			ctx,
 			signal
 		);
@@ -1086,7 +1150,7 @@ describe("airQualityAdapter.fetch open days", () => {
 		] as never);
 		const range: DateRangeSpec = { kind: "custom", start: "2026-10-15", end: "2026-11-30" };
 		const data = await airQualityAdapter.fetch(
-			request(monitor, "day", range, { dailyFigure: "mean_24h", now }),
+			request(monitor, "day", range, { figure: "mean_24h", now }),
 			ctx,
 			signal
 		);
@@ -1097,7 +1161,7 @@ describe("airQualityAdapter.fetch open days", () => {
 		vi.mocked(getMonitorSummariesDailyOpen).mockClear();
 		const november: DateRangeSpec = { kind: "custom", start: "2026-11-01", end: "2026-11-30" };
 		const only = await airQualityAdapter.fetch(
-			request(monitor, "day", november, { dailyFigure: "mean_24h", now }),
+			request(monitor, "day", november, { figure: "mean_24h", now }),
 			ctx,
 			signal
 		);
@@ -1108,14 +1172,14 @@ describe("airQualityAdapter.fetch open days", () => {
 		vi.mocked(getMonitorSummariesDaily).mockResolvedValue([] as never);
 		const range: DateRangeSpec = { kind: "custom", start: "2026-10-01", end: "2026-10-20" };
 		await airQualityAdapter.fetch(
-			request(monitor, "day", range, { dailyFigure: "mean_24h" }),
+			request(monitor, "day", range, { figure: "mean_24h" }),
 			ctx,
 			signal
 		);
 		expect(getMonitorSummariesDailyOpen).not.toHaveBeenCalled();
 	});
 
-	it("a request without dailyFigure asks for no open days", async () => {
+	it("a request without a figure asks for no open days", async () => {
 		vi.mocked(getMonitorSummariesDaily).mockResolvedValue([] as never);
 		vi.mocked(getMonitorSummariesHourly).mockResolvedValue([] as never);
 		vi.mocked(getMonitorEntries).mockResolvedValue([] as never);

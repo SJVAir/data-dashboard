@@ -1,5 +1,5 @@
-import { mapScaleLevels } from "../metadata";
-import type { CatalogEntry, DailyFigure, EntryTypeMeta, Level, MetadataSource } from "../metadata";
+import { figureFromScale, mapScaleLevels } from "../metadata";
+import type { CatalogEntry, EntryTypeMeta, Level, MetadataSource } from "../metadata";
 import { FORECASTS_META } from "./forecasts-fixtures";
 
 const ALL = ["raw", "hour", "day", "month", "quarter", "season", "year"] as const;
@@ -65,8 +65,23 @@ const FIXTURE_PROCESSORS: Record<string, string | null> = {
 	bam1022: null
 };
 
-const FIXTURE_DAILY_FIGURES: Record<string, DailyFigure> = {
-	o3: { field: "max_1h", label: "Highest 1-hour average" }
+/**
+ * The figure keys of each fixture scale, as a local `monitors/meta/` serves them (sjvair.com #342,
+ * 2026-11-18); an entry type that isn't listed has no scale (weather's).
+ */
+const FIXTURE_FIGURE_SCALES: Record<string, Parameters<typeof figureFromScale>[0]> = {
+	pm25: {
+		daily_statistic: "mean_24h",
+		daily_statistic_label: "24-hour average",
+		period_statistic: "daily_statistic_mean",
+		period_statistic_label: "Average of 24-hour averages"
+	},
+	o3: {
+		daily_statistic: "max_1h",
+		daily_statistic_label: "Highest 1-hour average",
+		period_statistic: "daily_statistic_mean",
+		period_statistic_label: "Average of daily highest 1-hour averages"
+	}
 };
 
 /** An in-memory `MetadataSource`; any method can be replaced through `overrides`. */
@@ -96,7 +111,8 @@ export function fixtureMetadata(overrides: Partial<MetadataSource> = {}): Metada
 					: monitorType === "bam1022"
 						? { windowMinutes: 60, expectedIntervalMinutes: 60 }
 						: null,
-		dailyFigure: async (entryType) => FIXTURE_DAILY_FIGURES[entryType] ?? null,
+		figure: async (entryType, resolution) =>
+			figureFromScale(FIXTURE_FIGURE_SCALES[entryType], resolution),
 		mapPollutants: async () => ["o3", "pm25"],
 		serverScale: async () => null,
 		monitorTypeInterval: async (type) => (type === "purpleair" ? "2 min" : null),

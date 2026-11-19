@@ -22,7 +22,7 @@ export function drawSticks(
 	ctx.lineCap = "round";
 	ctx.setLineDash([]);
 	points.forEach((p, i) => {
-		if (!p?.worstHour) return;
+		if (!p?.worstHour || !Number.isFinite(p.mean)) return;
 		if (p.worstHour.value <= p.mean) return;
 		drawn++;
 		ctx.beginPath();
@@ -82,7 +82,7 @@ export function drawMarkers(
 	ctx.setLineDash([]);
 	ctx.lineWidth = style.line;
 	points.forEach((p, i) => {
-		if (!p) return;
+		if (!p || !Number.isFinite(p.mean)) return;
 		const isolated = !points[i - 1] && !points[i + 1];
 		if (dense && !isolated && !p.partial) return;
 		shape(ctx, style.marker, at.x(i), at.y(p.mean), style.radius);

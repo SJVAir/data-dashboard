@@ -1,6 +1,6 @@
 import { getMonitorSummariesBulkDaily, type MonitorWithSummaries } from "@sjvair/sdk";
 import { dayState } from "../day-state";
-import type { DailyFigure, Level } from "../metadata";
+import type { Figure, Level } from "../metadata";
 import type { NowSource } from "../now/client";
 import { numberOf, rowDate } from "./rows";
 import type { MonitorScope, Snapshot, SnapshotFigure } from "./types";
@@ -14,7 +14,7 @@ export function monitorDaySource(args: {
 	day: string;
 	scope: MonitorScope;
 	scopeKey: string;
-	figure: DailyFigure | null;
+	figure: Figure | null;
 	levels: Level[];
 	today: () => string;
 }): NowSource<Snapshot> & { poll: (s: Snapshot | undefined) => boolean } {

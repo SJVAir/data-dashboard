@@ -215,7 +215,7 @@ function setup(first: {
 		sectionZoom: SECTION_ZOOM,
 		lensCenter: null
 	};
-	const rating = { dailyFigure: vi.fn(), levels: vi.fn() } as never;
+	const rating = { figure: vi.fn(), levels: vi.fn() } as never;
 	const data = new MapData(() => input, { now, rating });
 	return {
 		data,

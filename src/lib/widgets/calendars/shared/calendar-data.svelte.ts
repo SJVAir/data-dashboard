@@ -1,6 +1,6 @@
 import { untrack } from "svelte";
 import { getMetadata } from "$lib/data";
-import type { DailyFigure, Level } from "$lib/data/metadata";
+import type { Figure, Level } from "$lib/data/metadata";
 import type { QueryState } from "$lib/data/types";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { CALENDAR_DEFAULT_RANGES, calendarInput } from "$lib/calendars/input";
@@ -17,7 +17,7 @@ import { mainLayer } from "../../shared/input";
 export { figureName };
 
 /** The figure lookup for one entry type, once it has settled (`null`: none, or it failed). */
-type FigureLookup = { entryType: string; figure: DailyFigure | null; failed?: boolean };
+type FigureLookup = { entryType: string; figure: Figure | null; failed?: boolean };
 
 /**
  * A calendar widget's state: its daily query (asking for the figure the metadata names), the
@@ -31,7 +31,7 @@ export class CalendarData {
 	/** The clock "today" is read from: ticks each minute and on each data refresh. */
 	#now = $state(Date.now());
 
-	readonly figure: DailyFigure | null;
+	readonly figure: Figure | null;
 	/** The figure lookup failed (as opposed to the server not naming one). */
 	readonly figureFailed: boolean;
 	readonly today: string;
@@ -58,7 +58,7 @@ export class CalendarData {
 				if (!input || !layer?.entryType || lookup?.entryType !== layer.entryType) {
 					return { layer, input: null, hidden: 0, overlays: [] };
 				}
-				const full = lookup.figure ? { ...input, dailyFigure: lookup.figure.field } : input;
+				const full = lookup.figure ? { ...input, figure: lookup.figure.field } : input;
 				return { layer, input: full, hidden: 0, overlays: [] };
 			}
 		});
@@ -70,7 +70,7 @@ export class CalendarData {
 			void this.#lookupRun;
 			if (!id) return;
 			const abort = new AbortController();
-			metadata.dailyFigure(id, abort.signal).then(
+			metadata.figure(id, "day", abort.signal).then(
 				(figure) => {
 					if (!abort.signal.aborted) this.#lookup = { entryType: id, figure };
 				},

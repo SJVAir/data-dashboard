@@ -103,14 +103,18 @@ export type TimeChart = {
 };
 
 function plotData(aligned: AlignedSeries): uPlot.AlignedData {
-	return [aligned.xs, ...aligned.points.map((row) => row.map((p) => (p ? p.mean : null)))];
+	// A point with no value (a figure with not enough data: NaN) is a gap, as a missing one is.
+	return [
+		aligned.xs,
+		...aligned.points.map((row) => row.map((p) => (p && Number.isFinite(p.mean) ? p.mean : null)))
+	];
 }
 
 /** The value axis's extent: from `yMin` (lowered to the data if needed) or 0, up past the data. */
 function valueRange(data: ChartData, levels: Level[]): [number, number] {
-	const values = data.aligned.points.flatMap((row) =>
-		row.flatMap((p) => (p ? [p.mean, p.worstHour?.value ?? p.mean] : []))
-	);
+	const values = data.aligned.points
+		.flatMap((row) => row.flatMap((p) => (p ? [p.mean, p.worstHour?.value ?? p.mean] : [])))
+		.filter(Number.isFinite);
 	const dataMax = values.length ? Math.max(...values) : null;
 	const dataMin = values.length ? Math.min(...values) : 0;
 	const top = valueAxisMax(levels, dataMax);
@@ -582,7 +586,11 @@ type SetCursor = (opts: { left: number; top: number }, fire?: boolean, pub?: boo
  */
 export function cursorTo(u: uPlot, idx: number, value: number): void {
 	(u.setCursor as SetCursor)(
-		{ left: u.valToPos(u.data[0][idx], "x"), top: u.valToPos(value, "y") },
+		{
+			left: u.valToPos(u.data[0][idx], "x"),
+			// A period with no value (not enough data) puts the cursor at the axis's foot.
+			top: u.valToPos(Number.isFinite(value) ? value : (u.scales.y.min ?? 0), "y")
+		},
 		true,
 		true
 	);

@@ -35,7 +35,16 @@ export function periodLabel(resolution: Resolution, aggregate: Aggregate): strin
 	return null;
 }
 
-/** `periodLabel`, or the entry type's label when the values never roll up. */
-export function seriesLabel(resolution: Resolution, aggregate: Aggregate, label: string): string {
-	return periodLabel(resolution, aggregate) ?? label;
+/**
+ * What a value is called: the figure's name when it reads one (`figure`: the server's
+ * `daily_statistic_label` or `period_statistic_label`), else `periodLabel`, else the entry type's
+ * label when the values never roll up.
+ */
+export function seriesLabel(
+	resolution: Resolution,
+	aggregate: Aggregate,
+	label: string,
+	figure: string | null = null
+): string {
+	return figure ?? periodLabel(resolution, aggregate) ?? label;
 }

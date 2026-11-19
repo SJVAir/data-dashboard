@@ -11,7 +11,7 @@ import {
 	getRegionSummariesBulkDailyOpen,
 	type RegionFeature
 } from "@sjvair/sdk";
-import type { DailyFigure, Level } from "$lib/data/metadata";
+import type { Figure, Level } from "$lib/data/metadata";
 import { pacificDay } from "$lib/format";
 import { createFillEntry, fillEntry, fillRegionType, fillScale, type FillContext } from "./fill";
 
@@ -27,7 +27,7 @@ const level = (key: string, min: number, max: number | null, tier: number): Leve
 	max
 });
 const levels = [level("good", 0, 9.1, 0), level("moderate", 9.1, null, 1)];
-const figure: DailyFigure = { field: "mean_24h", label: "24-hour average" };
+const figure: Figure = { field: "mean_24h", label: "24-hour average" };
 const DAY = "2026-11-09";
 const TODAY = "2026-11-12";
 
@@ -76,7 +76,7 @@ beforeEach(() => {
 	ctx = {
 		shapes: vi.fn(async () => [shape("93721"), shape("93722"), shape(null, "No code")]),
 		names: async () => (r) => `ZIP ${r.name}`,
-		rating: { dailyFigure: async () => figure, levels: async () => levels },
+		rating: { figure: async () => figure, levels: async () => levels },
 		today: () => TODAY
 	};
 	daily.mockResolvedValue([{ id: "z93721", summaries: [row(DAY, 5)] }]);
@@ -158,7 +158,7 @@ describe("the fill entry", () => {
 	});
 
 	it("draws every region with no figure when the days can't be rated", async () => {
-		ctx.rating = { dailyFigure: async () => null, levels: async () => levels };
+		ctx.rating = { figure: async () => null, levels: async () => levels };
 		const value = await createFillEntry(ctx)
 			.source({ regionType: "zipcode", entryType: "pm25", at: { day: DAY } })
 			.fetch(signal);

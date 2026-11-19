@@ -437,8 +437,10 @@ test("the legend names the active filters", async () => {
 	await expect
 		.element(screen.getByText("Pounds Applied · Chlorpyrifos · Grapes · Monitor m1"))
 		.toBeVisible();
-	// The dataset is monthly (Automatic): the main is a monthly average, the strip lines up with it.
-	await expect.element(screen.getByText(m.chart_series_month(), { exact: true })).toBeVisible();
+	// The dataset is monthly (Automatic): the main is its monthly figure, the strip lines up with it.
+	await expect
+		.element(screen.getByText("Average of 24-hour averages", { exact: true }))
+		.toBeVisible();
 	expect(requests.filter((r) => r.resolution !== "month")).toEqual([]);
 });
 
@@ -472,10 +474,90 @@ test("a weather-only chart names the station, and a summed main is a total", asy
 	expect(key.getByText(m.chart_series_day()).query()).toBeNull();
 });
 
-test("an averaged main stays an average, with no source to name", async () => {
+test("an averaged main is named by its figure, with no source to name", async () => {
 	const screen = await show(chartWidget(["m1"]));
 	const key = screen.getByRole("list", { name: m.chart_series_key() });
+	await expect.element(key.getByText("24-hour average", { exact: true })).toBeVisible();
+	expect(key.getByText(m.chart_series_day()).query()).toBeNull();
+});
+
+/** `fakeAdapter`, each point also carrying the figure asked for: 41, null, 43 (+ the place). */
+function figureAdapter(): ReturnType<typeof fakeAdapter> {
+	const base = fakeAdapter(requests);
+	return {
+		...base,
+		async fetch(req, ctx, signal) {
+			const data = await base.fetch(req, ctx, signal);
+			if (!req.figure) return data;
+			return {
+				...data,
+				series: data.series.map((s, n) => ({
+					...s,
+					points: s.points.map((p, i) => ({
+						...p,
+						figure: i === 1 ? null : 41 + i + n,
+						final: true
+					}))
+				}))
+			};
+		}
+	};
+}
+
+async function showFigures(widget: WidgetInstance) {
+	fake.client = createQueryClient({
+		adapters: [figureAdapter()],
+		metadata: fake.metadata!,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const screen = await show(widget);
+	const chart = screen.getByRole("group", { name: "Chart of Monitor m1" });
+	await expect.element(chart).toBeVisible();
+	await expect.poll(() => frame.querySelector("canvas")).not.toBeNull();
+	return { screen, chart };
+}
+
+const readout = () => frame.querySelector("[aria-live='polite']")?.textContent ?? "";
+
+test("a daily ozone chart shows max_1h, named by daily_statistic_label", async () => {
+	const widget = chartWidget(["m1"]);
+	widget.data.layers[0] = { ...widget.data.layers[0], entryType: "o3" };
+	widget.data.resolution = "day";
+	const { screen, chart } = await showFigures(widget);
+	expect(requests.at(-1)!.figure).toBe("max_1h");
+	const key = screen.getByRole("list", { name: m.chart_series_key() });
+	await expect.element(key.getByText("Highest 1-hour average", { exact: true })).toBeVisible();
+	(chart.element() as HTMLElement).focus();
+	await userEvent.keyboard("{Home}");
+	// The figure (41), never the plain mean (5).
+	await expect.poll(readout).toContain("41 µg/m³");
+});
+
+test("a monthly pm25 chart shows daily_statistic_mean; a null month is not enough data", async () => {
+	const widget = chartWidget(["m1"]);
+	widget.data.dateRange = { kind: "custom", start: "2026-01-01", end: "2026-06-30" };
+	widget.data.resolution = "month";
+	const { screen, chart } = await showFigures(widget);
+	expect(requests.at(-1)!.resolution).toBe("month");
+	expect(requests.at(-1)!.figure).toBe("daily_statistic_mean");
+	const key = screen.getByRole("list", { name: m.chart_series_key() });
+	await expect.element(key.getByText("Average of 24-hour averages", { exact: true })).toBeVisible();
+	(chart.element() as HTMLElement).focus();
+	await userEvent.keyboard("{Home}");
+	await expect.poll(readout).toContain("41 µg/m³");
+	await userEvent.keyboard("{ArrowRight}");
+	await expect.poll(readout).toContain(m.data_not_enough());
+});
+
+test("a weather main shows its plain mean, with no figure asked for", async () => {
+	const { screen } = await showLayers(
+		[{ dataset: "weather", entryType: "temperature" }],
+		[fakeNumberAdapter("weather", requests)]
+	);
+	const key = screen.getByRole("list", { name: m.chart_series_key() });
 	await expect.element(key.getByText(m.chart_series_day(), { exact: true })).toBeVisible();
+	expect(requests.length).toBeGreaterThan(0);
+	for (const r of requests) expect(r.figure).toBeUndefined();
 });
 
 test("a daily chart from an untrusted document draws without pesticide use and says why", async () => {

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import LevelSwatch from "$lib/components/data/LevelSwatch.svelte";
 	import { levelFor, type Level } from "$lib/data/metadata";
+	import { notEnoughData } from "$lib/data/figure-values";
 	import type { SeriesPoint } from "$lib/data/types";
 	import type { Resolution } from "$lib/data/schema";
 	import { formatHourRange, formatPeriod, formatValue } from "$lib/format";
@@ -46,18 +47,14 @@
 <p class="font-semibold">{formatPeriod(new Date(t), resolution)}</p>
 {#each entries as { name, point }, i (i)}
 	{@const level = point ? levelFor(levels, point.mean) : undefined}
+	<!-- A figure the server had too little data for: the period is there, its value isn't. -->
+	{@const shown = !point
+		? m.chart_no_data()
+		: notEnoughData(point)
+			? m.data_not_enough()
+			: value(point.mean)}
 	<div class="tabular-nums">
-		<p>
-			{#if point}
-				{name === null
-					? value(point.mean)
-					: m.chart_place_value({ place: name, value: value(point.mean) })}
-			{:else}
-				{name === null
-					? m.chart_no_data()
-					: m.chart_place_value({ place: name, value: m.chart_no_data() })}
-			{/if}
-		</p>
+		<p>{name === null ? shown : m.chart_place_value({ place: name, value: shown })}</p>
 		{#if level}
 			<LevelSwatch color={level.color ?? "transparent"} label={level.label} />
 		{/if}

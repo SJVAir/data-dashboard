@@ -208,7 +208,7 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 			downsampleFromRaw,
 			range: keyRange(input.dateRange, range),
 			worstHour,
-			dailyFigure: input.dailyFigure,
+			figure: input.figure,
 			station: layer.station,
 			filters: layer.filters
 		});
@@ -223,7 +223,7 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 				resolution,
 				downsampleFromRaw,
 				worstHour,
-				...(input.dailyFigure && { dailyFigure: input.dailyFigure }),
+				...(input.figure && { figure: input.figure }),
 				range,
 				offered,
 				now: at,

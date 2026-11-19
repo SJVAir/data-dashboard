@@ -7,7 +7,7 @@ vi.mock("@sjvair/sdk", () => ({
 
 import { getRegionSummariesBulkDaily, getRegionSummariesBulkDailyOpen } from "@sjvair/sdk";
 import { pacificDay } from "$lib/format";
-import type { DailyFigure, Level } from "../metadata";
+import type { Figure, Level } from "../metadata";
 import {
 	fillableTypes,
 	isRegionSummaryBulkType,
@@ -28,7 +28,7 @@ const level = (key: string, min: number, max: number | null, tier: number): Leve
 	max
 });
 const levels = [level("good", 0, 9.1, 0), level("moderate", 9.1, null, 1)];
-const figure: DailyFigure = { field: "mean_24h", label: "24-hour average" };
+const figure: Figure = { field: "mean_24h", label: "24-hour average" };
 const DAY = "2026-11-09";
 const TODAY = "2026-11-12";
 

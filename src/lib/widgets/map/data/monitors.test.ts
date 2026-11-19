@@ -174,7 +174,7 @@ describe("a day's monitors", () => {
 			{ id: "a", summaries: [{ timestamp: "2026-09-09T07:00:00Z", is_final: true, max_1h: 61 }] }
 		] as never);
 		const rating = {
-			dailyFigure: vi.fn(async () => ({ field: "max_1h", label: null })),
+			figure: vi.fn(async () => ({ field: "max_1h", label: null })),
 			levels: vi.fn(async () => [])
 		};
 		const source = entry().daySource({
@@ -187,7 +187,7 @@ describe("a day's monitors", () => {
 		expect(source.key).toBe("snapshot:monitors:o3:regions:r1:2026-09-09");
 		expect(source.cadence).toBe("hour");
 		const snap = await source.fetch(new AbortController().signal);
-		expect(rating.dailyFigure).toHaveBeenCalledWith("o3", expect.anything());
+		expect(rating.figure).toHaveBeenCalledWith("o3", "day", expect.anything());
 		expect(bulk.mock.calls[0][0]).toEqual({
 			entryType: "o3",
 			start: "2026-09-09",

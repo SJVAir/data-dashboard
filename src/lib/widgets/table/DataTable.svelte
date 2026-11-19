@@ -7,6 +7,7 @@
 	import { useApp } from "$lib/store/app.svelte";
 	import LevelSwatch from "$lib/components/data/LevelSwatch.svelte";
 	import { seriesLabel, type Aggregate } from "$lib/charts/period-label";
+	import { notEnoughData } from "$lib/data/figure-values";
 	import { layerKind } from "$lib/data/layer-kind";
 	import { unavailableMessage } from "$lib/data/messages";
 	import { levelFor } from "$lib/data/metadata";
@@ -62,7 +63,7 @@
 
 	/** The caption's period word: "Daily average", "Daily total", or the entry type's label. */
 	function caption(data: QueryData): string {
-		const resolution = seriesLabel(data.resolution, aggregate, entryLabel);
+		const resolution = seriesLabel(data.resolution, aggregate, entryLabel, w.figureLabel(data));
 		return data.fromRaw ? m.table_caption_raw({ resolution }) : m.table_caption({ resolution });
 	}
 
@@ -234,7 +235,9 @@
 										{#each row.cells as cell, i (i)}
 											{@const level = cell ? levelFor(levelList, cell.mean) : undefined}
 											<td class="border-border border-b px-2 py-1 tabular-nums">
-												{#if cell}
+												{#if cell && notEnoughData(cell)}
+													<span class="text-muted-foreground">{m.data_not_enough()}</span>
+												{:else if cell}
 													<span>{num(cell.mean)}</span>
 													{#if level}
 														<LevelSwatch

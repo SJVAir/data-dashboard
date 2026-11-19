@@ -1936,8 +1936,8 @@ function rated(over: Partial<MetadataSource> = {}) {
 	vi.mocked(getMetadata).mockReturnValue(
 		fixtureMetadata({
 			catalog: async () => CATALOG,
-			dailyFigure: async (entryType) =>
-				entryType === "pm25" || entryType === "o3" ? PM25_FIGURE : null,
+			figure: async (entryType, resolution) =>
+				resolution === "day" && (entryType === "pm25" || entryType === "o3") ? PM25_FIGURE : null,
 			...over
 		})
 	);
@@ -2027,6 +2027,10 @@ test("on a past day, the monitors draw the day's figures: no row isn't drawn, th
 });
 
 test("a pollutant whose days can't be rated draws no levels, and the note says so once", async () => {
+	// Its scale names no daily figure (the fixture's PM2.5 has one, as the server's does).
+	vi.mocked(getMetadata).mockReturnValue(
+		fixtureMetadata({ catalog: async () => CATALOG, figure: async () => null })
+	);
 	vi.mocked(getMonitors).mockResolvedValue([reading("a"), reading("b")] as never);
 	dailyFigures({ "2026-09-09": { a: 20, b: 30 } });
 	await show(rangedMap(region("019")));

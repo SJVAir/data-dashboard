@@ -46,6 +46,7 @@
 		mainChart = "line",
 		aggregate = "mean",
 		entryLabel = "",
+		figureLabel = null,
 		threshold = null,
 		source
 	}: {
@@ -69,6 +70,8 @@
 		aggregate?: Aggregate;
 		/** The main layer's label: its legend entry when its values never roll up. */
 		entryLabel?: string;
+		/** The main's figure's name ("24-hour average"), when its values are that figure. */
+		figureLabel?: string | null;
 		/** A level's line across the main plot (display only), named in the key under the chart. */
 		threshold?: ThresholdLine | null;
 		/** A legend entry with its place's source (station or filters) added, when it has one. */
@@ -114,7 +117,7 @@
 		aligned.places.map((p, i) => {
 			const name =
 				aligned.places.length === 1
-					? seriesLabel(data.resolution, aggregate, entryLabel)
+					? seriesLabel(data.resolution, aggregate, entryLabel, figureLabel)
 					: names[i];
 			return source ? source(name, p) : name;
 		})

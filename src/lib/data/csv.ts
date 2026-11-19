@@ -109,7 +109,9 @@ export type OverlayCsv = { data: QueryData; meta: EntryInfo; levels: Level[] };
 
 /**
  * One data set's rows, places in request order, oldest first. `placeAt` names the place a series
- * is reported as (the series' own, unless the caller pairs it with a main place).
+ * is reported as (the series' own, unless the caller pairs it with a main place). `figure` adds
+ * the figure and "Rated" cells (`"values"`), or two empty ones (`"blank"`: an overlay's rows
+ * under a main read with a figure).
  */
 function dataRows(
 	data: QueryData,
@@ -117,7 +119,7 @@ function dataRows(
 	levels: Level[],
 	placeAt: (series: QueryData["series"][number], index: number) => PlaceInfo | undefined,
 	viewer: PlaceViewer,
-	withFigure = false
+	figure: "values" | "blank" | false = false
 ): string[] {
 	const order = new Map(data.places.map((p, i) => [p.place, i]));
 	const own = new Map(data.places.map((p) => [p.place, p]));
@@ -159,9 +161,9 @@ function dataRows(
 				filters,
 				meta.aggregate ?? ""
 			];
-			if (withFigure) {
+			if (figure === "values") {
 				row.push(typeof p.figure === "number" ? plain(p.figure) : "", rated(p));
-			}
+			} else if (figure === "blank") row.push("", "");
 			lines.push(row.map(cell).join(","));
 		}
 	}
@@ -178,7 +180,8 @@ function dataRows(
  * use under daily data) keeps its own `period_start`/`period_end` and `resolution`, so it reads as
  * the whole period's value. A weather overlay's rows carry the station (`source_id`,
  * `source_name`) and a pesticide overlay's the active filters (`filters`, joined with "; ").
- * A calendar passes `figureLabel` and gets two more columns, the day's figure and "Rated".
+ * Data read with a figure passes `figureLabel` and gets two more columns, the figure (headed
+ * with its label) and "Rated"; `mean` stays the period's plain mean.
  * `aggregate` (last of the common columns, so no earlier column moves) says whether a value is
  * a total or an average.
  */
@@ -196,11 +199,18 @@ export function toCsv(
 		: CSV_COLUMNS.join(",");
 	const lines: string[] = [
 		header,
-		...dataRows(data, meta, [], (s) => own.get(s.place), viewer, withFigure)
+		...dataRows(data, meta, [], (s) => own.get(s.place), viewer, withFigure && "values")
 	];
 	for (const o of overlays) {
 		lines.push(
-			...dataRows(o.data, o.meta, o.levels, (s, i) => data.places[i] ?? o.data.places[i], viewer)
+			...dataRows(
+				o.data,
+				o.meta,
+				o.levels,
+				(s, i) => data.places[i] ?? o.data.places[i],
+				viewer,
+				withFigure && "blank"
+			)
 		);
 	}
 	return `${lines.join("\r\n")}\r\n`;
@@ -286,19 +296,27 @@ export async function downloadDataCsv(
 	const { layer } = chart;
 	let input = chart.main;
 	let figureLabel: string | undefined;
+	// The figure the widget shows (a calendar's is always the day's), with its own column named by
+	// the server's label. A failed lookup, or an entry type with no figure, gives a plain CSV:
+	// without the figure in the query, "Rated" would be false on every row. Only the main (a
+	// pollutant) has a figure, so overlay rows leave the two columns empty.
+	const need = calendar
+		? layer?.entryType
+			? { entryType: layer.entryType, resolution: "day" as const }
+			: null
+		: chart.figureFor;
+	const figure = need
+		? await getMetadata()
+				.figure(need.entryType, need.resolution)
+				.catch(() => null)
+		: null;
 	if (calendar) {
-		// A calendar's own query: one row per day, with the figure the server names.
-		const own = calendarInput(config, catalog, type);
-		// A failed lookup, or an entry type with no daily statistic, gives a plain daily CSV:
-		// without the figure in the query, "Rated" would be false on every row.
-		const figure = layer?.entryType
-			? await getMetadata()
-					.dailyFigure(layer.entryType)
-					.catch(() => null)
-			: null;
-		input = own ? (figure ? { ...own, dailyFigure: figure.field } : own) : null;
-		// Calendars take one pollutant layer, so there are no overlays to carry the columns.
-		if (figure) figureLabel = figureName(figure);
+		// A calendar's own query: one row per day.
+		input = calendarInput(config, catalog, type);
+	}
+	if (input && figure) {
+		input = { ...input, figure: figure.field };
+		figureLabel = calendar ? figureName(figure) : (figure.label ?? figure.field);
 	}
 	const info = entryMeta(catalog, layer);
 	if (!input || !info) throw new Error("There is no data to download");

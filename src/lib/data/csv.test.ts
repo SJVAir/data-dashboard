@@ -325,6 +325,14 @@ describe("toCsv overlay rows", () => {
 	};
 	const get = (row: string[], c: (typeof CSV_COLUMNS)[number]) => row[CSV_COLUMNS.indexOf(c)];
 
+	it("under a main read with a figure, overlay rows leave its two columns empty", () => {
+		const rows = parse(toCsv(main, META, "owner", [overlay], "24-hour average"));
+		const n = CSV_COLUMNS.length;
+		for (const row of rows) expect(row).toHaveLength(n + 2);
+		const last = rows.at(-1)!;
+		expect(last.slice(n)).toEqual(["", ""]);
+	});
+
 	it("overlay rows carry level_key and level_label", () => {
 		const rows = parse(toCsv(main, META, "owner", [overlay])).slice(1);
 		expect(get(rows[0], "level_key")).toBe("");
@@ -728,20 +736,20 @@ describe("a calendar's CSV", () => {
 			saved.push(contents);
 		});
 		seen.push(spy.mock.calls[0][0]);
-		expect(seen[0]).toMatchObject({ resolution: "day", dailyFigure: "max_1h" });
+		expect(seen[0]).toMatchObject({ resolution: "day", figure: "max_1h" });
 		const rows = parse(saved[0]);
 		expect(rows[0].slice(-2)).toEqual(["Highest 1-hour average", "Rated"]);
 		expect(rows[1].slice(-2)).toEqual(["12.5", "Yes"]);
 	});
 
-	async function download(dailyFigure: MetadataSource["dailyFigure"]): Promise<string[][]> {
+	async function download(figure: MetadataSource["figure"]): Promise<string[][]> {
 		const adapter: DatasetAdapter = {
 			...fakeAdapter([]),
 			async fetch() {
 				return { ...days([{ figure: 12.5, final: true }]), fetchedAt: 0 };
 			}
 		};
-		fake.metadata = fixtureMetadata({ dailyFigure });
+		fake.metadata = fixtureMetadata({ figure });
 		fake.client = createQueryClient({
 			adapters: [adapter],
 			metadata: fake.metadata,
@@ -770,6 +778,51 @@ describe("a calendar's CSV", () => {
 	it("adds no columns when the entry type has no daily figure", async () => {
 		const rows = await download(async () => null);
 		expect(rows[0]).toEqual([...CSV_COLUMNS]);
+	});
+
+	it("a Chart's monthly CSV carries the figure, its column named by period_statistic_label", async () => {
+		const requests: AdapterRequest[] = [];
+		const months = data({
+			series: [
+				{
+					place: "monitor:m1",
+					points: [
+						point("2026-01-01T08:00:00Z", { figure: 13.2, final: true }),
+						point("2026-02-01T08:00:00Z", { figure: null, final: true })
+					]
+				}
+			],
+			places: [{ place: "monitor:m1", name: "Monitor 1" }],
+			resolution: "month"
+		});
+		const adapter: DatasetAdapter = {
+			...fakeAdapter(requests),
+			async fetch(req) {
+				requests.push(req);
+				return { ...months, fetchedAt: Date.parse("2026-07-01T00:00:00Z") };
+			}
+		};
+		fake.metadata = fixtureMetadata();
+		fake.client = createQueryClient({
+			adapters: [adapter],
+			metadata: fake.metadata,
+			regions: { resolve: async () => "unsupported" }
+		});
+		const widget = chartWidget(["m1"]);
+		widget.data.dateRange = { kind: "custom", start: "2026-01-01", end: "2026-06-30" };
+		widget.data.resolution = "month";
+		let out = "";
+		await downloadWidgetCsv(widget, (_n, contents) => {
+			out = contents;
+		});
+		expect(requests[0]).toMatchObject({ resolution: "month", figure: "daily_statistic_mean" });
+		const rows = parse(out);
+		const n = CSV_COLUMNS.length;
+		expect(rows[0].slice(n)).toEqual(["Average of 24-hour averages", "Rated"]);
+		expect(rows.slice(1).map((r) => r.slice(n))).toEqual([
+			["13.2", "Yes"],
+			["", "Not enough data"]
+		]);
 	});
 
 	it("quotes a figure label with a comma in the header", () => {

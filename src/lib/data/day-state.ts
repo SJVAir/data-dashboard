@@ -1,6 +1,6 @@
 import { TZDate } from "@date-fns/tz";
 import { TIME_ZONE, toKey } from "$lib/format";
-import { levelFor, type DailyFigure, type Level } from "$lib/data/metadata";
+import { levelFor, type Figure, type Level } from "$lib/data/metadata";
 import type { SeriesPoint } from "$lib/data/types";
 
 /**
@@ -21,7 +21,7 @@ export function dayStates(args: {
 	points: SeriesPoint[];
 	dates: string[];
 	today: string;
-	figure: DailyFigure | null;
+	figure: Figure | null;
 	levels: Level[];
 }): Map<string, DayState> {
 	const { points, dates, today, figure, levels } = args;
@@ -42,7 +42,7 @@ export function dayState(args: {
 	date: string;
 	today: string;
 	row: { figure: number | null; final?: boolean } | undefined;
-	figure: DailyFigure | null;
+	figure: Figure | null;
 	levels: Level[];
 }): DayState {
 	const { date, today, row, figure, levels } = args;

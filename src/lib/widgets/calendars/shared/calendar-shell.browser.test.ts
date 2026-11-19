@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
 import type { AdapterRequest, DatasetAdapter } from "$lib/data/adapters/registry";
-import type { DailyFigure, Level, MetadataSource } from "$lib/data/metadata";
+import type { Figure, Level, MetadataSource } from "$lib/data/metadata";
 import { createQueryClient, type QueryClient } from "$lib/data/query/client";
 import { fixtureMetadata } from "$lib/data/testing/fixtures";
 import type { QueryData } from "$lib/data/types";
@@ -30,7 +30,7 @@ vi.mock("$lib/data", () => ({
 
 /** Noon Pacific on Mon, Nov 9 2026: "today". */
 const NOW = new Date("2026-11-09T20:00:00Z");
-const FIGURE: DailyFigure = { field: "mean_24h", label: "24-hour average" };
+const FIGURE: Figure = { field: "mean_24h", label: "24-hour average" };
 
 /**
  * The days' figures: Oct 1–2 Good, Oct 15 not enough data, the rest of October Moderate; Nov 1
@@ -59,7 +59,7 @@ function figures(): Record<string, number | null> {
 
 let requests: AdapterRequest[];
 let days: Record<string, number | null>;
-let figure: DailyFigure | null;
+let figure: Figure | null;
 let levels: Level[];
 
 function adapter(): DatasetAdapter {
@@ -83,7 +83,7 @@ function adapter(): DatasetAdapter {
 					max: v ?? 0,
 					count: 24,
 					partial: d === "2026-11-09",
-					...(req.dailyFigure ? { figure: v } : {}),
+					...(req.figure ? { figure: v } : {}),
 					final: d !== "2026-11-09"
 				}));
 			return {
@@ -109,7 +109,7 @@ beforeEach(async () => {
 	levels = PM25_LEVELS;
 	fake.metadata = fixtureMetadata({
 		levels: async (entryType) => (entryType === "pm25" ? levels : []),
-		dailyFigure: async (entryType) => (entryType === "pm25" ? figure : null)
+		figure: async (entryType) => (entryType === "pm25" ? figure : null)
 	});
 	fake.client = createQueryClient({
 		adapters: [adapter()],
@@ -169,7 +169,7 @@ const countLine = () =>
 test("asks once for the daily figure the metadata names, and reads the day states", async () => {
 	const { data } = await show(calendar());
 	expect(requests).toHaveLength(1);
-	expect(requests[0].dailyFigure).toBe("mean_24h");
+	expect(requests[0].figure).toBe("mean_24h");
 	expect(requests[0].resolution).toBe("day");
 	expect(data.figure).toEqual(FIGURE);
 	expect(data.today).toBe("2026-11-09");
@@ -259,7 +259,7 @@ test("no daily figure: one note, no figure asked for, every past day unrated", a
 	await expect.element(screen.getByText(m.calendar_day_rating_unknown())).toBeVisible();
 	expect(screen.getByText(m.calendar_day_rating_unknown()).elements()).toHaveLength(1);
 	expect(requests).toHaveLength(1);
-	expect(requests[0].dailyFigure).toBeUndefined();
+	expect(requests[0].figure).toBeUndefined();
 	expect(data.figure).toBeNull();
 	for (const [date, s] of data.states) {
 		if (date < "2026-11-09") expect(s.kind).toBe("unrated");
@@ -267,11 +267,11 @@ test("no daily figure: one note, no figure asked for, every past day unrated", a
 });
 
 test("a failed figure lookup proceeds without the figure", async () => {
-	fake.metadata = { ...fake.metadata!, dailyFigure: async () => Promise.reject(new Error("x")) };
+	fake.metadata = { ...fake.metadata!, figure: async () => Promise.reject(new Error("x")) };
 	const { screen, data } = await show(calendar());
 	await expect.element(screen.getByText(m.calendar_day_rating_unavailable())).toBeVisible();
 	expect(requests).toHaveLength(1);
-	expect(requests[0].dailyFigure).toBeUndefined();
+	expect(requests[0].figure).toBeUndefined();
 	expect(data.figure).toBeNull();
 });
 
@@ -280,15 +280,15 @@ test("a failed figure lookup can be tried again from its note", async () => {
 	const base = fake.metadata!;
 	fake.metadata = {
 		...base,
-		dailyFigure: async (entryType, signal) =>
-			fail ? Promise.reject(new Error("x")) : base.dailyFigure(entryType, signal)
+		figure: async (entryType, resolution, signal) =>
+			fail ? Promise.reject(new Error("x")) : base.figure(entryType, resolution, signal)
 	};
 	const { screen, data } = await show(calendar());
 	await expect.element(screen.getByText(m.calendar_day_rating_unavailable())).toBeVisible();
 	fail = false;
 	await screen.getByRole("button", { name: m.shared_try_again() }).click();
 	await expect.poll(() => data.figure).toEqual(FIGURE);
-	await expect.poll(() => requests.at(-1)?.dailyFigure).toBe("mean_24h");
+	await expect.poll(() => requests.at(-1)?.figure).toBe("mean_24h");
 	expect(frame.textContent).not.toContain(m.calendar_day_rating_unavailable());
 	await expect.poll(() => data.states.get("2026-11-06")?.kind).toBe("rated");
 });
@@ -301,7 +301,7 @@ test("no count line while days can't be rated (no figure, or its lookup failed)"
 	expect(frame.querySelector("[data-calendar-count]")).toBeNull();
 	unknown.screen.unmount();
 
-	fake.metadata = { ...fake.metadata!, dailyFigure: async () => Promise.reject(new Error("x")) };
+	fake.metadata = { ...fake.metadata!, figure: async () => Promise.reject(new Error("x")) };
 	const failed = await show(calendar({ thresholds: MODERATE }));
 	await expect.element(failed.screen.getByText(m.calendar_day_rating_unavailable())).toBeVisible();
 	expect(frame.querySelector("[data-calendar-count]")).toBeNull();

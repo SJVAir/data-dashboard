@@ -5,7 +5,7 @@ import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
 import { readableColor } from "$lib/color";
 import type { AdapterRequest, DatasetAdapter } from "$lib/data/adapters/registry";
-import type { DailyFigure, Level, MetadataSource } from "$lib/data/metadata";
+import type { Figure, Level, MetadataSource } from "$lib/data/metadata";
 import { createQueryClient, type QueryClient } from "$lib/data/query/client";
 import { fixtureMetadata } from "$lib/data/testing/fixtures";
 import type { QueryData } from "$lib/data/types";
@@ -34,7 +34,7 @@ vi.mock("$lib/data", () => ({
 
 /** Noon Pacific on Mon, Nov 9 2026: "today". */
 const NOW = new Date("2026-11-09T20:00:00Z");
-const FIGURE: DailyFigure = { field: "mean_24h", label: "24-hour average" };
+const FIGURE: Figure = { field: "mean_24h", label: "24-hour average" };
 
 /** October all Moderate (Oct 15 not enough data); Nov 1–8 as below; today 19.9 so far. */
 function figures(): Record<string, number | null> {
@@ -82,7 +82,7 @@ function adapter(): DatasetAdapter {
 					max: v ?? 0,
 					count: 24,
 					partial: d === "2026-11-09",
-					...(req.dailyFigure ? { figure: v } : {}),
+					...(req.figure ? { figure: v } : {}),
 					final: d !== "2026-11-09" && !pending.has(d)
 				}));
 			return {
@@ -108,7 +108,7 @@ beforeEach(async () => {
 	levels = PM25_LEVELS;
 	fake.metadata = fixtureMetadata({
 		levels: async (entryType) => (entryType === "pm25" ? levels : []),
-		dailyFigure: async (entryType) => (entryType === "pm25" ? FIGURE : null)
+		figure: async (entryType) => (entryType === "pm25" ? FIGURE : null)
 	});
 	fake.client = createQueryClient({
 		adapters: [adapter()],

@@ -5,7 +5,7 @@ import {
 	type RegionWithSummaries
 } from "@sjvair/sdk";
 import { dayState } from "../day-state";
-import type { DailyFigure, Level } from "../metadata";
+import type { Figure, Level } from "../metadata";
 import type { NowSource } from "../now/client";
 import { numberOf, rowDate } from "./rows";
 import type { Snapshot, SnapshotFigure } from "./types";
@@ -42,7 +42,7 @@ type Args = {
 	entryType: string;
 	regionType: string;
 	day: string;
-	figure: DailyFigure | null;
+	figure: Figure | null;
 	levels: Level[];
 	today: () => string;
 	/** The server's region id (sqid) to the external id; from the type's GeoJSON features. */

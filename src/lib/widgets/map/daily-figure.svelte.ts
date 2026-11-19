@@ -20,7 +20,7 @@ export class MapDailyFigure {
 	#looked = $state<{ for: string; label: string | undefined } | null>(null);
 	readonly #stop: () => void;
 
-	constructor(input: DailyFigureInput, metadata: Pick<MetadataSource, "dailyFigure">) {
+	constructor(input: DailyFigureInput, metadata: Pick<MetadataSource, "figure">) {
 		this.#input = input;
 		this.#stop = $effect.root(() => {
 			// Looked up for any ranged tile (on its Now stop too), so a step to a day knows it already.
@@ -31,7 +31,7 @@ export class MapDailyFigure {
 				const settle = (label: string | undefined) => {
 					if (!controller.signal.aborted) this.#looked = { for: type, label };
 				};
-				metadata.dailyFigure(type, controller.signal).then(
+				metadata.figure(type, "day", controller.signal).then(
 					(figure) => settle(figure?.label ?? undefined),
 					// Without it the monitors keep their interval note: nothing to show or report here.
 					() => settle(undefined)

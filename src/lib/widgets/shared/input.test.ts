@@ -134,6 +134,29 @@ describe("widgetInputs", () => {
 		expect(got.overlays[0]?.resolution).toBe("month");
 	});
 
+	it("a pollutant main names the figure it needs and carries the one passed", () => {
+		const data: WidgetDataConfig = {
+			dateRange: { kind: "trailing", amount: 30, unit: "day" },
+			resolution: "month",
+			layers: [pm25, use]
+		};
+		const figure = { field: "daily_statistic_mean", label: "Average of 24-hour averages" };
+		const got = widgetInputs(chart(data), RULES_CATALOG, "regions", undefined, undefined, figure);
+		expect(got.figureFor).toEqual({ entryType: "pm25", resolution: "month" });
+		expect(got.main?.figure).toBe("daily_statistic_mean");
+		// The figure is the main's: an overlay never carries it.
+		expect(got.overlays[0]).not.toHaveProperty("figure");
+		const none = widgetInputs(chart(data), RULES_CATALOG, "regions", undefined, undefined, null);
+		expect(none.main).not.toHaveProperty("figure");
+	});
+
+	it("a weather main needs no figure (the plain mean at every level)", () => {
+		const weather: Layer = { dataset: "weather", entryType: "temperature", place: FRESNO };
+		const got = widgetInputs(chart({ layers: [weather] }), RULES_CATALOG, "regions");
+		expect(got.figureFor).toBeNull();
+		expect(got.main).not.toHaveProperty("figure");
+	});
+
 	it("no input for a main layer with no place", () => {
 		const got = widgetInputs(
 			chart({ layers: [{ dataset: "air-quality", entryType: "pm25" }] }),

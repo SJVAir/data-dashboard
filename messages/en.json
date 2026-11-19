@@ -690,6 +690,7 @@
 	"chart_strip_station": "{station} ({distance} mi away)",
 	"chart_strip_value": "{layer}: {value}",
 	"data_none_pesticides": "No pesticide use reported for these dates.",
+	"data_not_enough": "Not enough data",
 	"table_overlay_place": "{layer}, {place}",
 	"table_overlay_place_unit": "{layer}, {place} ({unit})",
 	"widget_layer_not_lined_up": "{dataset} isn't shown: it isn't reported {level}. Change the data resolution in Edit data.",

@@ -95,13 +95,20 @@ export function wideRows(data: QueryData, overlays: OverlayRows[] = []): TableRo
 			};
 		});
 }
-/** Rows ordered by date (`"t"`) or a place's mean; periods with no value there come last either way. */
+/**
+ * Rows ordered by date (`"t"`) or a place's value; periods with no value there (no point, or a
+ * figure with not enough data) come last either way.
+ */
 export function sortRows(rows: TableRow[], column: "t" | number, dir: "asc" | "desc"): TableRow[] {
 	const sign = dir === "asc" ? 1 : -1;
 	return [...rows].sort((a, b) => {
 		if (column === "t") return sign * (a.t - b.t);
-		const x = a.cells[column]?.mean;
-		const y = b.cells[column]?.mean;
+		const value = (r: TableRow) => {
+			const v = r.cells[column]?.mean;
+			return v !== undefined && Number.isFinite(v) ? v : undefined;
+		};
+		const x = value(a);
+		const y = value(b);
 		if (x === undefined && y === undefined) return a.t - b.t;
 		if (x === undefined) return 1;
 		if (y === undefined) return -1;

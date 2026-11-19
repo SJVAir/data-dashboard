@@ -5,7 +5,7 @@ import {
 	type Level,
 	type PlaceKind
 } from "$lib/data/dataset-rules";
-import type { CatalogEntry, EntryTypeMeta } from "$lib/data/metadata";
+import type { CatalogEntry, EntryTypeMeta, Figure } from "$lib/data/metadata";
 import { layerKind } from "$lib/data/layer-kind";
 import { currentInput } from "$lib/data/now/current";
 import {
@@ -186,6 +186,11 @@ export type WidgetInputs = {
 	/** One per `overlayLayers` entry; `null` for a misfit (it doesn't offer the resolution). */
 	overlays: (QueryInput | null)[];
 	effective: Effective;
+	/**
+	 * The figure the main needs (`MetadataSource.figure` of its entry type at the dataset's
+	 * resolution) when it is a pollutant with a place; `null` when it reads the plain mean.
+	 */
+	figureFor: { entryType: string; resolution: Level } | null;
 };
 
 /**
@@ -193,13 +198,18 @@ export type WidgetInputs = {
  * dataset's resolution (`widgetEffective` as of `now`). An overlay that doesn't offer that resolution (from
  * untrusted input, a share link or an import; or while the catalog isn't known yet) gets no input
  * and isn't fetched. No main input (no place), no overlays.
+ *
+ * `figure` is the looked-up figure for `figureFor` (the caller looks it up, since it is async):
+ * the main reads it (`QueryInput.figure`); `null` or absent reads the plain mean. Overlays never
+ * carry one: only a pollutant has a figure, and a pollutant is always the main.
  */
 export function widgetInputs(
 	widget: { type: string; data: WidgetDataConfig },
 	catalog: CatalogEntry[] | undefined,
 	place: PlaceKind,
 	maxPlaces: number = LIMITS.SELECTION_MAX,
-	now: Date | number = new Date()
+	now: Date | number = new Date(),
+	figure?: Figure | null
 ): WidgetInputs {
 	const effective = widgetEffective(widget, catalog, place, undefined, new Date(now));
 	const { layer, input, hidden } = chartInput(
@@ -213,5 +223,10 @@ export function widgetInputs(
 				effective.misfits.includes(l) ? null : overlayInput(input, l)
 			)
 		: [];
-	return { layer, main: input, hidden, overlays, effective };
+	const figureFor =
+		input && layer?.entryType && layerKind(layer, catalog) === "pollutant"
+			? { entryType: layer.entryType, resolution: effective.resolution }
+			: null;
+	const main = input && figureFor && figure ? { ...input, figure: figure.field } : input;
+	return { layer, main, hidden, overlays, effective, figureFor };
 }

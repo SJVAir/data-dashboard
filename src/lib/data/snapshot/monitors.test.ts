@@ -4,7 +4,7 @@ vi.mock("@sjvair/sdk", () => ({ getMonitorSummariesBulkDaily: vi.fn() }));
 
 import { getMonitorSummariesBulkDaily } from "@sjvair/sdk";
 import { pacificDay } from "$lib/format";
-import type { DailyFigure, Level } from "../metadata";
+import type { Figure, Level } from "../metadata";
 import { monitorDaySource } from "./monitors";
 import type { MonitorScope, Snapshot } from "./types";
 
@@ -20,7 +20,7 @@ const level = (key: string, min: number, max: number | null, tier: number): Leve
 	max
 });
 const levels = [level("good", 0, 9.1, 0), level("moderate", 9.1, null, 1)];
-const figure: DailyFigure = { field: "mean_24h", label: "24-hour average" };
+const figure: Figure = { field: "mean_24h", label: "24-hour average" };
 const DAY = "2026-11-09";
 const TODAY = "2026-11-12";
 
@@ -31,7 +31,7 @@ const row = (day: string, mean: number | null, is_final = true) => ({
 });
 const stub = vi.mocked(getMonitorSummariesBulkDaily) as unknown as ReturnType<typeof vi.fn>;
 
-function source(over: { scope?: MonitorScope; figure?: DailyFigure | null } = {}) {
+function source(over: { scope?: MonitorScope; figure?: Figure | null } = {}) {
 	return monitorDaySource({
 		entryType: "pm25",
 		day: DAY,

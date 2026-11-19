@@ -154,6 +154,7 @@
 					mainChart={w.meta?.entryType.chart === "bar" ? "bar" : "line"}
 					aggregate={w.meta ? w.meta.entryType.aggregate : "mean"}
 					entryLabel={w.meta?.entryType.label ?? ""}
+					figureLabel={w.figureLabel(data)}
 					source={(name, place) =>
 						sourceLabel(
 							name,

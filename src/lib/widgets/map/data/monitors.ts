@@ -129,7 +129,7 @@ export type MonitorsEntry = Omit<
 };
 
 /** Where a pollutant's daily figure (`daily_statistic`) and levels come from. */
-export type DayRating = Pick<MetadataSource, "dailyFigure" | "levels">;
+export type DayRating = Pick<MetadataSource, "figure" | "levels">;
 
 /** A day's figures for the monitors, polled while `poll` says so (until they are all final). */
 export type DaySource = ReturnType<typeof monitorDaySource>;
@@ -177,7 +177,7 @@ export function createMonitorsEntry(ctx: MonitorsEntryContext): MonitorsEntry {
 				...shape,
 				async fetch(signal) {
 					const [figure, levels] = await Promise.all([
-						rating.dailyFigure(entryType, signal),
+						rating.figure(entryType, "day", signal),
 						rating.levels(entryType, signal)
 					]);
 					return monitorDaySource({ ...args, figure, levels }).fetch(signal);

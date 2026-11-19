@@ -242,8 +242,8 @@ test("downloads a CSV with station and filter columns", async ({ page }) => {
 		expect(row.aggregate).toBe("sum");
 	}
 	// The main rows carry neither. Pesticide use is monthly at best, so with Automatic the whole
-	// dataset is Monthly: the last 30 days reach into two months (the open one is partial, filled
-	// from daily rows by `planSegments` in `src/lib/data/periods.ts`).
+	// dataset is Monthly: the last 30 days reach into two months (the open one is partial: the
+	// server's nightly row, read with its figure, the average of 24-hour averages).
 	const main = rows.filter((r) => r.entry_type === "pm25");
 	expect(main).toHaveLength(2);
 	expect(main.every((r) => r.resolution === "month")).toBe(true);

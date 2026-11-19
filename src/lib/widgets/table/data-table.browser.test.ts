@@ -123,9 +123,50 @@ test("ten places at most, and the rest are counted", async () => {
 	expect(requests.at(-1)!.target).toEqual({ kind: "monitors", ids: ids.slice(0, 10) });
 });
 
-test("the caption names the resolution", async () => {
+test("the caption names the figure at the resolution", async () => {
 	const screen = await show(tableWidget(["m1"]));
-	await expect.element(screen.getByText(m.chart_series_day())).toBeVisible();
+	await expect.element(screen.getByText("24-hour average", { exact: true })).toBeVisible();
+	expect(requests.at(-1)!.figure).toBe("mean_24h");
+});
+
+test("a monthly table shows daily_statistic_mean; a null month reads not enough data", async () => {
+	const base = fakeAdapter(requests);
+	fake.client = createQueryClient({
+		adapters: [
+			{
+				...base,
+				fetch: async (r, c, s) => {
+					const data = await base.fetch(r, c, s);
+					return {
+						...data,
+						series: data.series.map((x) => ({
+							...x,
+							points: x.points.map((p, i) => ({ ...p, figure: i === 1 ? null : 40 + i }))
+						}))
+					};
+				}
+			}
+		],
+		metadata: fake.metadata!,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const widget = tableWidget(["m1"]);
+	widget.data.dateRange = { kind: "custom", start: "2026-01-01", end: "2026-06-30" };
+	widget.data.resolution = "month";
+	const screen = await show(widget);
+	await expect.poll(() => frame.querySelectorAll("tbody tr").length).toBe(3);
+	expect(requests.at(-1)!.figure).toBe("daily_statistic_mean");
+	await expect
+		.element(screen.getByText("Average of 24-hour averages", { exact: true }))
+		.toBeVisible();
+	const cells = [...frame.querySelectorAll("tbody tr")].map(
+		(r) => r.querySelectorAll("td")[0].textContent ?? ""
+	);
+	// Newest first: 42, not enough data, 40; never the plain means (5, 6, 7).
+	expect(cells[0]).toContain("42");
+	expect(cells[1]).toContain(m.data_not_enough());
+	expect(cells[2]).toContain("40");
+	expect(cells.join(" ")).not.toMatch(/\b[567]\b/);
 });
 
 test("has no axe violations narrow or wide", async () => {
