@@ -288,6 +288,7 @@
 					onchange={(draft) => (current = draft)}
 					saves={!handOff}
 					leftOut={handOff?.leftOut ?? 0}
+					startNotes={handOff?.notes}
 					keepOnOpen={handOff?.overCap
 						? { oncancel: goBack, onkeep: (draft) => (baseline = draft) }
 						: undefined}

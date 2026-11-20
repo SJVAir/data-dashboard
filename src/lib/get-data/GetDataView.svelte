@@ -111,7 +111,8 @@
 		onchange,
 		saves = true,
 		leftOut = 0,
-		keepOnOpen
+		keepOnOpen,
+		startNotes
 	}: {
 		mode: GetDataMode;
 		initial: Draft;
@@ -141,6 +142,8 @@
 		 * Cancel calls `oncancel` and changes nothing.
 		 */
 		keepOnOpen?: { oncancel: () => void; onkeep?: (draft: Draft) => void };
+		/** Opened from a Map: what its conversion left out or changed, noted as Show as notes it. */
+		startNotes?: Omit<NowConversion, "draft">;
 	} = $props();
 
 	const app = useApp();
@@ -506,6 +509,7 @@
 		if (keepsDraft) flushDraft();
 	});
 
+	let root = $state<HTMLElement>();
 	let size = $state<PreviewSize>("large");
 	let width = $state(0);
 	const phone = new MediaQuery(PHONE_QUERY);
@@ -517,12 +521,23 @@
 
 	// Choosing which places to keep (D17) ----------------------------------------------------
 
-	type Keeping = { max: number; onkeep: (picks: Picks) => void; oncancel: () => void };
+	type Keeping = {
+		max: number;
+		onkeep: (picks: Picks) => void;
+		oncancel: () => void;
+		restoreFocus?: () => boolean;
+	};
 
 	/** A keep request for the Where dialog; answered once, then dropped. */
-	function keepRequest(max: number, onkeep: (picks: Picks) => void, oncancel: () => void): Keeping {
+	function keepRequest(
+		max: number,
+		onkeep: (picks: Picks) => void,
+		oncancel: () => void,
+		restoreFocus?: () => boolean
+	): Keeping {
 		return {
 			max,
+			...(restoreFocus ? { restoreFocus } : {}),
 			onkeep: (picks) => {
 				keeping = undefined;
 				onkeep(picks);
@@ -543,6 +558,8 @@
 					openingCap,
 					(kept) => {
 						applyPlaces(kept);
+						// Passing the dialog isn't an edit: the Map's notes stay up (D24).
+						noteStart();
 						opening.onkeep?.($state.snapshot(draft) as Draft);
 					},
 					opening.oncancel
@@ -688,6 +705,13 @@
 		dropped = { after: JSON.stringify($state.snapshot(draft)), conversion };
 	}
 
+	/** Opened from a Map: its conversion's notes, until the next edit. */
+	const start = untrack(() => startNotes);
+	function noteStart(): void {
+		if (start?.dropped.length) noteConversion({ ...start, draft: $state.snapshot(draft) as Draft });
+	}
+	noteStart();
+
 	/** Replaces the whole draft (a conversion between range and now types). */
 	function replaceDraft(next: Draft): void {
 		draft.type = next.type;
@@ -778,7 +802,15 @@
 					applyPlaces(kept);
 					switchType(to);
 				},
-				() => {}
+				() => {},
+				// Done or Cancel, focus goes back to the Show as button pressed.
+				() => {
+					const pressed = root?.querySelector<HTMLElement>(
+						`[data-show-as="${CSS.escape(to.type)}"]`
+					);
+					pressed?.focus();
+					return !!pressed;
+				}
 			);
 			keepKey++;
 			return;
@@ -936,7 +968,7 @@
 	}
 </script>
 
-<div class="flex min-h-full flex-col" bind:clientWidth={width}>
+<div class="flex min-h-full flex-col" bind:this={root} bind:clientWidth={width}>
 	<div
 		class="grid flex-1 gap-(--grid-gap) p-(--grid-gap) md:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]"
 	>

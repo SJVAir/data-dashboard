@@ -485,6 +485,8 @@ describe("Show as over the cap", () => {
 		await expect.element(dialog.getByText("Choose up to 5 places to keep.")).toBeVisible();
 		await dialog.getByRole("button", { name: "Cancel" }).click();
 		await expect.element(dialog).not.toBeInTheDocument();
+		// Focus goes back to the button pressed.
+		await expect.element(chart).toHaveFocus();
 		await expect.element(page.getByRole("radio", { name: "Data table" })).toBeChecked();
 		expect(latest().type).toBe("data-table");
 		expect(selected(latest())).toEqual(ids);
@@ -500,6 +502,7 @@ describe("Show as over the cap", () => {
 		await dialog.getByRole("button", { name: "Done" }).click();
 		await expect.element(dialog).not.toBeInTheDocument();
 		await expect.element(page.getByRole("radio", { name: "Chart" })).toBeChecked();
+		await expect.element(page.getByRole("radio", { name: "Chart" })).toHaveFocus();
 		expect(latest().type).toBe("chart");
 		expect(selected(latest())).toEqual(["k1", "k3", "k5", "k6", "k7"]);
 		const cut = m.get_data_places_over_cap_left_out({ count: "5", countValue: 5 });

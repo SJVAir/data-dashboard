@@ -67,6 +67,7 @@
 			{#each types as { type, block } (type.type)}
 				<ToggleGroup.Item
 					value={type.type}
+					data-show-as={type.type}
 					disabled={!!block}
 					aria-describedby={block ? `${uid}-${type.type}-reason` : undefined}
 					class="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground hover:not-data-[state=on]:bg-secondary data-disabled:text-muted-foreground flex h-7 min-w-6 items-center gap-1 rounded-(--radius-sm) px-2.5 text-sm font-medium data-disabled:cursor-not-allowed"

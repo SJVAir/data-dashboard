@@ -179,6 +179,20 @@ describe("showInDraft: monitors", () => {
 		expect(at(mapDraft(["pm25", "pm10"], { showing: "pm10" }))).toBe("pm25");
 	});
 
+	it("carries the conversion's notes, less the marks and places ones", () => {
+		const map = fullMap();
+		const converted = fromMapDraft(map, chartType, CATALOG, "unavailable", DRAWABLE, NOW);
+		expect(converted.dropped).toEqual(expect.arrayContaining(["marks", "fill"]));
+		const h = showInDraft(map, send(monitors(6)), chartType, CATALOG, DRAWABLE, NOW);
+		expect(h.notes?.dropped).toEqual(
+			converted.dropped.filter((d) => d !== "marks" && d !== "places")
+		);
+		expect(h.notes?.dropped).toContain("fill");
+		// A plain Map's conversion leaves nothing out.
+		const plain = showInDraft(mapDraft(["pm25"]), send(["m1"]), chartType, CATALOG, [], NOW);
+		expect(plain.notes).toEqual({ dropped: [] });
+	});
+
 	it("never changes the passed draft", () => {
 		const map = fullMap();
 		const before = structuredClone(map);
@@ -322,6 +336,25 @@ describe("HandOffSchema", () => {
 		expect(HandOffSchema.safeParse({ ...handOff(), leftOut: 1.5 }).success).toBe(false);
 		expect(HandOffSchema.safeParse({ draft: handOff().draft }).success).toBe(false);
 		expect(HandOffSchema.safeParse(null).success).toBe(false);
+	});
+
+	it("rejects notes it doesn't know or too many of them, and a bad selection", () => {
+		const notes = (n: unknown) => HandOffSchema.safeParse({ ...handOff(), notes: n }).success;
+		expect(notes({ dropped: ["overlays", "fill"] })).toBe(true);
+		expect(notes({ dropped: ["marks"] })).toBe(false);
+		expect(notes({ dropped: ["places"] })).toBe(false);
+		expect(notes({ dropped: ["nope"] })).toBe(false);
+		expect(notes({ dropped: Array(11).fill("fill") })).toBe(false);
+		expect(notes({ dropped: [], cutAt: "hour" })).toBe(false);
+		expect(notes({ dropped: [], selection: { start: "2026-09-05", end: "2026-09-01" } })).toBe(
+			false
+		);
+		expect(
+			notes({
+				dropped: ["pollutant"],
+				pollutant: { from: { dataset: "air-quality", entryType: "pm10" }, to: "pm25" }
+			})
+		).toBe(true);
 	});
 });
 

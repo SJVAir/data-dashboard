@@ -7,6 +7,7 @@ import { getMetadata } from "$lib/data";
 import type { CatalogEntry } from "$lib/data/metadata";
 import type { Layer, PlaceRef, SpatialSelection } from "$lib/data/schema";
 import { fromMapDraft, mapPesticideFilters } from "$lib/get-data/map";
+import type { NowConversion } from "$lib/get-data/now";
 import type { Draft } from "$lib/get-data/draft.svelte";
 import { toLayerPlaces } from "$lib/places/selection";
 import { STARTER_ID } from "$lib/starter/starter";
@@ -16,7 +17,7 @@ import type { WidgetType } from "$lib/widgets/registry";
 import { dataTableType } from "$lib/widgets/table";
 import { DEFAULT_RANGE } from "$lib/widgets/defaults";
 import { navigate } from "../../../router";
-import type { HandOff } from "./hand-off";
+import { HAND_OFF_DROPPED, type HandOff, type HandOffNotes } from "./hand-off";
 import { PESTICIDE_USE, mapOptions, useFigureOf } from "./options";
 import { mapSend } from "./send-registry";
 
@@ -35,7 +36,7 @@ export function sendPlaces(send: MapSend): { place?: PlaceRef; selection?: Spati
 	}
 }
 
-export { HandOffSchema, type HandOff } from "./hand-off";
+export { HandOffSchema, type HandOff, type HandOffNotes } from "./hand-off";
 
 export type ShowInTarget = { path: "/dashboards/:id/widgets/new"; id: string } | { path: "/data" };
 
@@ -54,6 +55,20 @@ export function showInTarget(
 	if (session.readOnly) return { target: { path: "/data" }, skip: session.doc.id };
 	return {
 		target: { path: "/dashboards/:id/widgets/new", id: isStarter ? STARTER_ID : session.doc.id }
+	};
+}
+
+/** The conversion's notes the Data Portal shows (`HandOffNotes`). */
+function handOffNotes(converted: NowConversion): HandOffNotes {
+	const { pollutant, cutAt, selection } = converted;
+	const dropped = converted.dropped.filter((d): d is HandOffNotes["dropped"][number] =>
+		(HAND_OFF_DROPPED as readonly string[]).includes(d)
+	);
+	return {
+		dropped,
+		...(pollutant ? { pollutant: structuredClone(pollutant) } : {}),
+		...(cutAt ? { cutAt } : {}),
+		...(selection ? { selection: { ...selection } } : {})
 	};
 }
 
@@ -110,7 +125,8 @@ export function showInDraft(
 			overCap: false
 		};
 	}
-	const { draft } = fromMapDraft(map, type, catalog, "unavailable", drawable, now);
+	const converted = fromMapDraft(map, type, catalog, "unavailable", drawable, now);
+	const { draft } = converted;
 	const [main, ...rest] = draft.data.layers;
 	const places = sendPlaces(send);
 	return {
@@ -119,7 +135,8 @@ export function showInDraft(
 			data: { ...draft.data, layers: main ? [withPlaces(main, places), ...rest] : [] }
 		},
 		leftOut: send.leftOut,
-		overCap: send.ids.length > (type.accepts?.maxPlaces ?? Infinity)
+		overCap: send.ids.length > (type.accepts?.maxPlaces ?? Infinity),
+		notes: handOffNotes(converted)
 	};
 }
 

@@ -36,7 +36,16 @@
 		 * Keep mode: the picks are over a cap. The dialog opens at once to choose which to keep (at
 		 * `keep.max`); Done calls `onkeep`, and Cancel, Escape or closing calls `oncancel` (once).
 		 */
-		keep?: { max: number; onkeep: (picks: Picks) => void; oncancel: () => void };
+		keep?: {
+			max: number;
+			onkeep: (picks: Picks) => void;
+			oncancel: () => void;
+			/**
+			 * Where focus goes when the dialog closes (the control that asked, say); false when it
+			 * can't, and focus returns to Change places.
+			 */
+			restoreFocus?: () => boolean;
+		};
 	} = $props();
 
 	const app = useApp();
@@ -59,6 +68,8 @@
 	let controller: AbortController | null = null;
 	/** This open's keep request is answered (so closing after Done, or twice, cancels nothing). */
 	let settled = false;
+	/** Where the closing dialog returns focus, taken from the keep request it answered. */
+	let restore: (() => boolean) | undefined;
 
 	const pickerMode = $derived(
 		keep
@@ -114,6 +125,7 @@
 	}
 
 	function close(): void {
+		restore = keep?.restoreFocus;
 		open = false;
 		controller?.abort();
 		controller = null;
@@ -184,9 +196,11 @@
 		}}
 		onCloseAutoFocus={(e) => {
 			e.preventDefault();
-			// In keep mode the dialog opened on mount, not from this button; it still exists, so
-			// focus returns to it.
-			opener?.focus();
+			// A keep request from elsewhere (Show as) takes focus back there; otherwise (the dialog
+			// opened on mount, not from this button) focus returns to the button, which still exists.
+			const back = restore;
+			restore = undefined;
+			if (!back?.()) opener?.focus();
 		}}
 	>
 		<Dialog.Header>

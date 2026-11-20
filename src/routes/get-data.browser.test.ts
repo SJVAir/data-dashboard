@@ -6,7 +6,12 @@ import { render } from "vitest-browser-svelte";
 import { commands, page, userEvent } from "vitest/browser";
 import TopNav from "$lib/components/shell/TopNav.svelte";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
-import { DRAFT_KEY } from "$lib/get-data/draft.svelte";
+import { FIXTURE_CATALOG } from "$lib/data/testing/fixtures";
+import { DRAFT_KEY, type Draft } from "$lib/get-data/draft.svelte";
+import { setSmokeAndFire } from "$lib/get-data/map";
+import { m } from "$lib/paraglide/messages.js";
+import { chartType } from "$lib/widgets/chart";
+import { showInDraft } from "$lib/widgets/map/show-in";
 import { ADDED_HIGHLIGHT_MS } from "$lib/layout/focus-request.svelte";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { blankDashboard, STARTER_ID } from "$lib/starter/starter";
@@ -555,6 +560,8 @@ test("after the opening Done, leaving without edits doesn't ask; after an edit i
 	await keepDialog().getByRole("button", { name: "Done" }).click();
 	await expect.element(keepDialog()).not.toBeInTheDocument();
 	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("5 places");
+	// The opening dialog returns focus to Change places.
+	await expect.element(page.getByRole("button", { name: "Change places" })).toHaveFocus();
 	// Back, with no edits since Done: no question.
 	history.back();
 	await expect.poll(() => location.pathname).toBe("/workspace/dashboards/d1");
@@ -639,4 +646,35 @@ test("the Data Portal link from a visit from a Map starts a plain visit", async 
 	history.back();
 	await expect.element(note).toBeVisible();
 	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("2 places");
+});
+
+test("a Map with smoke and fire and a fill: the visit notes them, not the marks", async () => {
+	const map: Draft = {
+		type: "map",
+		data: {
+			dateRange: { kind: "trailing", amount: 30, unit: "day" },
+			layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }]
+		},
+		options: { fill: "zipcode", marks: SEVEN }
+	};
+	setSmokeAndFire(map.data, true);
+	const send = { kind: "monitors" as const, ids: SEVEN, leftOut: 0 };
+	const state = showInDraft(map, send, chartType, FIXTURE_CATALOG, ["pm25"]);
+	expect(state.notes?.dropped).toEqual(expect.arrayContaining(["overlays", "fill"]));
+	await fromMap(toNewWidget(state));
+	await expect.element(keepLine()).toBeVisible();
+	await keepDialog().getByRole("button", { name: "Remove Monitor r6" }).click();
+	await keepDialog().getByRole("button", { name: "Remove Monitor r7" }).click();
+	await keepDialog().getByRole("button", { name: "Done" }).click();
+	await expect.element(keepDialog()).not.toBeInTheDocument();
+	// Passing the keep dialog isn't an edit: the notes stay up.
+	const overlays = page.getByText(m.get_data_overlays_left_out());
+	const fill = page.getByText(m.getdata_note_fill_dropped());
+	await expect.element(overlays).toBeVisible();
+	await expect.element(fill).toBeVisible();
+	expect(page.getByText(m.get_data_marks_left_out()).query()).toBeNull();
+	expect(page.getByText(/places, so the others were left out/).query()).toBeNull();
+	// The next edit clears them, as after Show as.
+	await page.getByRole("radio", { name: "Data table" }).click();
+	await expect.element(overlays).not.toBeInTheDocument();
 });
