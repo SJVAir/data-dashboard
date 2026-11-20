@@ -14,6 +14,7 @@ import type { AppContext } from "$lib/store/app.svelte";
 import { CHART_TYPE, chartType } from "$lib/widgets/chart";
 import type { WidgetType } from "$lib/widgets/registry";
 import { dataTableType } from "$lib/widgets/table";
+import { DEFAULT_RANGE } from "$lib/widgets/defaults";
 import { z } from "$lib/zod";
 import { navigate } from "../../../router";
 import { PESTICIDE_USE, mapOptions, useFigureOf } from "./options";
@@ -114,7 +115,7 @@ export function showInDraft(
 			draft: {
 				type: CHART_TYPE,
 				data: {
-					dateRange: structuredClone(dateRange ?? chartType.defaultRange!),
+					dateRange: structuredClone(dateRange ?? chartType.defaultRange ?? DEFAULT_RANGE),
 					...(resolution ? { resolution } : {}),
 					layers: [layer]
 				}

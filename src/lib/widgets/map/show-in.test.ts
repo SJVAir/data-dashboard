@@ -222,6 +222,13 @@ describe("showInDraft: a section", () => {
 		});
 	});
 
+	it("a Map with no range gives the Chart's default range", () => {
+		const map = mapDraft(["pm25"]);
+		delete map.data.dateRange;
+		const h = showInDraft(map, { kind: "section", code: "X" }, chartType, CATALOG, [], NOW);
+		expect(h.draft.data.dateRange).toEqual(DEFAULT_RANGE);
+	});
+
 	it("copies the filters, so editing the Chart leaves the Map's alone", () => {
 		const map = fullMap();
 		const h = showInDraft(map, { kind: "section", code: "X" }, chartType, CATALOG, [], NOW);
