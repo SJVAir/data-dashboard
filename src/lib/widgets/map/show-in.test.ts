@@ -323,6 +323,9 @@ describe("showInDraft: the new widget type checklist", () => {
 		["Now", (d) => void delete d.data.dateRange]
 	];
 
+	// The notes are the same at every framing, by design: Chart and Table have no span limit, so a
+	// Map's range always carries over, and no framing-specific note (cutAt, pollutant, selection)
+	// can arise from a Map. The loop pins that.
 	for (const [name, frame] of framings) {
 		it(`${name}: the hand-off's notes are exactly overlays and fill`, () => {
 			const map = fullMap();
