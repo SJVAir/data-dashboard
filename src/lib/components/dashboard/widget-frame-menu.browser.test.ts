@@ -10,9 +10,13 @@ import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { setShownSelection } from "$lib/calendars/shown-registry";
 import { MONTH_CALENDAR_TYPE } from "$lib/calendars/types";
 import { monthCalendarType } from "$lib/widgets/calendars/month";
+import { MAP_TYPE, mapType } from "$lib/widgets/map";
+import { setMapSend } from "$lib/widgets/map/send-registry";
 import { placeholderType } from "$lib/widgets/placeholder";
 import { registerWidgetType } from "$lib/widgets/registry";
 import type { MenuItem } from "$lib/actions/types";
+import { m } from "$lib/paraglide/messages.js";
+import { navigate } from "../../../router";
 import Harness from "./test-harness/Harness.svelte";
 
 const TYPE = "viewer-menu-test";
@@ -124,4 +128,47 @@ test("a read-only month calendar showing a selection has no chart item (D20)", a
 	} finally {
 		unshow();
 	}
+});
+
+test("a read-only fullscreen Map has a ⋯ button while it has a mark to send (D6, D20)", async () => {
+	registerWidgetType({ ...mapType, load: placeholderType.load });
+	const view = doc();
+	view.body.widgets = [
+		{
+			id: "map",
+			type: MAP_TYPE,
+			title: "Valley",
+			rect: { x: 0, y: 0, w: 6, h: 6 },
+			data: { layers: [] }
+		}
+	];
+	await navigate("/shared/tok" as "/", {
+		search: { widget: "map" },
+		replace: true,
+		scrollToTop: false
+	});
+	const app = await initApp(createMemoryPlatform(), {
+		channel: createMemoryTabHub().channel(),
+		tabId: "t1"
+	});
+	await render(Harness, { props: { view }, context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await expect
+		.element(page.getByRole("button", { name: m.widget_exit_fullscreen() }))
+		.toBeVisible();
+	const button = page.getByRole("button", { name: "Actions for Valley" });
+	// No mark drawn: nothing in the menu, so no button.
+	await new Promise((r) => setTimeout(r, 50));
+	expect(document.querySelector('[aria-label="Actions for Valley"]')).toBeNull();
+	const draft = () => ({ type: MAP_TYPE, data: { layers: [] } });
+	const clear = setMapSend("map", Symbol("map"), { marks: ["a"], leftOut: 0, draft });
+	try {
+		await button.click();
+		await expect.element(page.getByRole("menuitem", { name: "Show in a chart" })).toBeVisible();
+		expect(items()).toEqual(expect.arrayContaining(["Show in a chart", "Show in a table"]));
+		await userEvent.keyboard("{Escape}");
+	} finally {
+		clear();
+	}
+	// The marks are gone: so is the button.
+	await expect.poll(() => document.querySelector('[aria-label="Actions for Valley"]')).toBeNull();
 });

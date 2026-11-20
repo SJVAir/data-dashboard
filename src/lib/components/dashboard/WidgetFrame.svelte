@@ -174,8 +174,15 @@
 	const hint = $derived({ "aria-description": m.layout_title_bar_hint() });
 	/** Arranging is offered: not in fullscreen, and not in view mode. */
 	const arrangeable = $derived(!fullscreen && !readOnly);
-	/** The ⋯ menu has something in it (a read-only fullscreen frame's has nothing). */
-	const hasMenu = $derived(!(readOnly && fullscreen && !type?.downloadable));
+	/**
+	 * The ⋯ menu has something in it. A read-only fullscreen frame's holds only Download and the
+	 * type's viewer items (a Map's Show in, while it has a mark to send; D6, D20).
+	 */
+	const hasMenu = $derived(
+		!(readOnly && fullscreen && !type?.downloadable) ||
+			viewerTypeItems(app, () => widget, { target: section ?? document.body, payload: {} }).length >
+				0
+	);
 	const shortcuts = $derived(arrangeable ? "Enter Shift+F10" : hasMenu ? "Shift+F10" : undefined);
 
 	const ARROWS: Record<string, ArrangeDirection> = {
