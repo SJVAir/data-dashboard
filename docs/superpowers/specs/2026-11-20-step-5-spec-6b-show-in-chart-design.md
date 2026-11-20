@@ -94,7 +94,11 @@ Audience: parents, teachers and students, researchers and agencies (copy serves 
 19. **The Chart's resolution follows Show as exactly**: the Map's saved resolution is kept, so a
     Monthly Map gives a Monthly Chart and an Automatic Map an Automatic Chart. The same Map never
     gives two different Charts by the two routes (decisions 7 and 8). The hand-off doesn't
-    store an effective resolution, and `fromMapDraft` doesn't change.
+    store an effective resolution. _Build call (2026-11-20, Task 2):_ Show as turned out to drop
+    the Map's resolution (`fromMapDraft` built the Chart's data from the range and layers only),
+    against this decision's example and 6a's "never silently reset". `fromMapDraft` now keeps a
+    ranged Map's saved resolution for range types that don't pin one (Chart, Table), so both
+    routes give a Monthly Chart for a Monthly Map; a Map on Now gives none.
 
 ### Settled after the builder check (my calls, 2026-11-20)
 
