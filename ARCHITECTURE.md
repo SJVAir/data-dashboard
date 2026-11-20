@@ -334,7 +334,8 @@ normal saved draft is used.
   only, and never writes the device's saved draft (as Edit data). "Add to" targets the Map's
   dashboard when the person can edit it; a read-only dashboard is never a target (`addTargets`
   skips dashboards known to be read-only, and the hand-off's `skip`); "Add to" then names the
-  last-opened dashboard, else the starter.
+  last-opened dashboard, else the starter; when the starter is skipped, it falls to the first
+  listed dashboard, else New dashboard.
 - **Leaving:** with changes, the action bar's Cancel, Back and nav links ask "Discard changes?".
   After the opening keep dialog's Done, the kept draft is the baseline, so passing the dialog
   alone isn't a change; the dialog's own Cancel never asks.
@@ -351,8 +352,9 @@ normal saved draft is used.
   else home). Focus returns to the pressed Show as toggle after a keep started from Show as, and
   to Change places after the opening keep.
 - **Show as:** an over-cap selection switching to Chart or Table opens the same dialog; Done
-  converts with the kept places, Cancel leaves the type and draft as they were (`offer.ts` no
-  longer blocks with `"places"`).
+  converts with the kept places, Cancel leaves the type and draft as they were. An over-cap
+  selection no longer blocks Chart or Table (`keepsOnSwitch` in `offer.ts`); a one-place type
+  and the Map still block with `"places"`.
 - **Resolution:** Show as and the hand-off agree: a ranged Map's saved resolution is kept.
 
 **The draft.** Kept in memory on the view and saved through the platform adapter as a
@@ -2703,7 +2705,8 @@ icon and messages; map-sdk, MapLibre and the rest load with `module.ts`.
   places (up to 25, with the "left out" note beyond). Leaving a Map for a one-place "now" type
   keeps the first place, with the same note. While a selection is over Chart's or Table's cap,
   Show as opens the place picker dialog to **choose which places to keep** (step 5 spec 6b;
-  below), instead of greying the buttons out.
+  below), instead of greying the buttons out (`keepsOnSwitch` in `offer.ts`); a one-place type
+  and the Map still block with `"places"`.
 - **`addable(doc)`.** `addable` now gets the dashboard it's added to. The Map's gives one PM2.5
   layer whose place is the bar's place when the bar shows, else the dashboard's most common
   single place, else Fresno County (`placesToReplace(doc)[0]`, then `DEFAULT_LAYER`). Notes

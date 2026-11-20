@@ -1241,8 +1241,8 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   the rule, shown together, for example a change map on a diverging scale or two series on one
   chart. This includes the Pesticides Explorer's compare (its change map between two years).
   Why: it needs its own design (how two datasets are chosen, stored and drawn), and spec 6a
-  only set the rule. Step 5 spec 6b is built and didn't take it up; the user raises it at the
-  end of 6b (2026-11-20). **Revisit when** the user decides, or when an agency or researcher
+  only set the rule. Step 5 spec 6b is built and didn't take it up; the user asked the 6b
+  session to raise it with them at the end of 6b (2026-11-20). **Revisit when** the user decides, or when an agency or researcher
   asks for trends.
 - **An hourly or finer Map.** _Deferred 2026-11-18 (step 5 spec 6a)._ The Map steps by day,
   month or year (`MAP_LEVELS`). Why: an hour's figures over the valley need their own snapshot
