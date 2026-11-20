@@ -623,6 +623,9 @@ string`) now get the union return type. The mobile app passes a string token, so
        #344**, or AQLite daily-and-longer `is_complete` is written wrong again (finding 1).
     3. Nothing else: no new commands. A scoped `--async` rebuild now refreshes `max_8h` only for
        its own monitors or regions (findings 7 and 10).
+  - **Review #341 fixes, PR B (sjvair.com [#345](https://github.com/SJVAir/sjvair.com/pull/345),
+    findings 9, 11, 12; in review, not merged):** nothing to run. No migration, command or
+    config.
   - **Deploy window:** between about 17:15 and 01:00 Pacific (#301 moved the rollups from
     01:00 UTC to 01:00 Pacific; deploying 01:00–17:00 Pacific skips a day). Otherwise run
     `daily_monitor_summaries(day=<yesterday>)` and `daily_region_summaries(day=<yesterday>)`
