@@ -51,7 +51,8 @@ const META = {
 	types: {
 		county: { type: "county", label: "County", count: 8, parents: [], browsable: false },
 		city: { type: "city", label: "City", count: 50, parents: [], browsable: false },
-		zipcode: { type: "zipcode", label: "ZIP code", count: 300, parents: [], browsable: false }
+		zipcode: { type: "zipcode", label: "ZIP code", count: 300, parents: [], browsable: false },
+		mtrs: { type: "mtrs", label: "Section", count: 5000, parents: [], browsable: false }
 	},
 	location_types: {
 		public_school: { type: "public_school", label: "Public school", source: "cde-public" }
@@ -62,7 +63,8 @@ const META = {
 const NAMES: Record<string, string> = {
 	"county:06019": "Fresno County",
 	"city:0627000": "City of Fresno",
-	"zipcode:93721": "ZIP 93721"
+	"zipcode:93721": "ZIP 93721",
+	"mtrs:M12S01E01": "Section M12S01E01"
 };
 
 let placeRegion: ReturnType<
@@ -565,4 +567,32 @@ test("a minimized widget's taskbar menu has Change place too", async () => {
 	await page.getByTestId("taskbar-w1").click({ button: "right" });
 	await page.getByRole("menuitem", { name: m.widget_change_place() }).click();
 	await expect.element(page.getByRole("combobox", { name: m.place_picker_label() })).toBeVisible();
+});
+
+test("Change place on a Chart made from a Map's monitors opens with the monitors as chips", async () => {
+	const { session } = await show(
+		widget({ place: undefined, selection: { kind: "monitors", ids: ["m-pa", "m-bam"] } })
+	);
+	await openFromMenu();
+	await expect
+		.element(page.getByRole("button", { name: m.place_picker_remove({ name: "Purple Air" }) }))
+		.toBeVisible();
+	await expect
+		.element(page.getByRole("button", { name: m.place_picker_remove({ name: "BAM" }) }))
+		.toBeVisible();
+	// No point, so no region lookup.
+	expect(placeRegion).not.toHaveBeenCalled();
+	await page.getByRole("button", { name: m.place_picker_cancel() }).click();
+	expect(layerOf(session).selection).toEqual({ kind: "monitors", ids: ["m-pa", "m-bam"] });
+});
+
+test("Change place on a Chart made from a section opens with the section as a chip", async () => {
+	await show(widget({ place: { kind: "region", type: "mtrs", code: "M12S01E01" } }));
+	await openFromMenu();
+	await expect
+		.element(
+			page.getByRole("button", { name: m.place_picker_remove({ name: "Section M12S01E01" }) })
+		)
+		.toBeVisible();
+	expect(placeRegion).not.toHaveBeenCalled();
 });

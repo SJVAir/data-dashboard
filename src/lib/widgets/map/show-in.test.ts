@@ -16,6 +16,7 @@ import { DEFAULT_RANGE } from "$lib/widgets/defaults";
 import { MAP_TYPE } from "$lib/widgets/map";
 import { PESTICIDE_USE } from "$lib/widgets/map/options";
 import { DATA_TABLE_TYPE, dataTableType } from "$lib/widgets/table";
+import { hasPoints, pointSwaps } from "$lib/sharing/points";
 import { navigate } from "../../../router";
 import { setMapSend } from "./send-registry";
 import {
@@ -254,6 +255,92 @@ describe("showInDraft: a section", () => {
 		const h = showInDraft(map, { kind: "section", code: "X" }, chartType, CATALOG, [], NOW);
 		h.draft.data.layers[0].filters!.category!.push("B");
 		expect(map.data.layers.at(-1)!.filters).toEqual({ chemical: "c1", category: ["A"] });
+	});
+});
+
+describe("showInDraft: the new widget type checklist", () => {
+	const chartDoc = (draft: Draft) => ({
+		id: "chart1",
+		type: CHART_TYPE,
+		title: null,
+		rect: { x: 0, y: 0, w: 6, h: 8 },
+		data: draft.data
+	});
+	const docOf = (draft: Draft) =>
+		({ id: "d", version: 1, title: "D", body: { widgets: [chartDoc(draft)] } }) as never;
+
+	it("a Chart made from the monitors needs no point swap on share", async () => {
+		const h = showInDraft(fullMap(), send(["m1", "m2"]), chartType, CATALOG, DRAWABLE, NOW);
+		expect(hasPoints(docOf(h.draft))).toBe(false);
+		expect(await pointSwaps(docOf(h.draft))).toEqual([]);
+	});
+
+	it("a Chart made from a section needs no point swap on share", async () => {
+		const h = showInDraft(
+			fullMap(),
+			{ kind: "section", code: "M12S01E01" },
+			chartType,
+			CATALOG,
+			DRAWABLE,
+			NOW
+		);
+		expect(h.draft.data.layers[0].place).toEqual({
+			kind: "region",
+			type: "mtrs",
+			code: "M12S01E01"
+		});
+		expect(hasPoints(docOf(h.draft))).toBe(false);
+		expect(await pointSwaps(docOf(h.draft))).toEqual([]);
+	});
+
+	/** Each way a Map can frame its dates, with the Map's Now (no range) too. */
+	const framings: [string, (d: Draft) => void][] = [
+		[
+			"Daily",
+			(d) => {
+				d.data.dateRange = { kind: "set", unit: "week", start: "2026-09-06" };
+				d.data.resolution = "day";
+			}
+		],
+		[
+			"Monthly",
+			(d) => {
+				d.data.dateRange = { kind: "set", unit: "year", start: "2026-01-01" };
+				d.data.resolution = "month";
+			}
+		],
+		[
+			"Yearly",
+			(d) => {
+				d.data.dateRange = { kind: "trailing", amount: 36, unit: "month" };
+				d.data.resolution = "year";
+			}
+		],
+		["Now", (d) => void delete d.data.dateRange]
+	];
+
+	for (const [name, frame] of framings) {
+		it(`${name}: the notes are the conversion's, less marks and places`, () => {
+			const map = fullMap();
+			frame(map);
+			const c = fromMapDraft(map, chartType, CATALOG, "unavailable", DRAWABLE, NOW);
+			const h = showInDraft(map, send(monitors(6)), chartType, CATALOG, DRAWABLE, NOW);
+			expect(h.notes).toBeDefined();
+			expect(h.notes!.dropped).toEqual(c.dropped.filter((d) => d !== "marks" && d !== "places"));
+			expect(h.notes!.dropped).not.toContain("marks");
+			expect(h.notes!.dropped).not.toContain("places");
+			expect(h.notes!.dropped).toContain("fill");
+			expect(h.notes!.pollutant).toEqual(c.pollutant);
+			expect(h.notes!.cutAt).toEqual(c.cutAt);
+			expect(h.notes!.selection).toEqual(c.selection);
+			const r = HandOffSchema.safeParse(h);
+			expect(r.success, JSON.stringify(r.error?.issues)).toBe(true);
+		});
+	}
+
+	it("smoke and fire, notices and use are named as left out, with a fill", () => {
+		const h = showInDraft(fullMap(), send(["m1"]), chartType, CATALOG, DRAWABLE, NOW);
+		expect(h.notes!.dropped).toEqual(expect.arrayContaining(["overlays", "fill"]));
 	});
 });
 
