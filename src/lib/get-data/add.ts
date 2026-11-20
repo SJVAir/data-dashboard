@@ -75,8 +75,9 @@ export async function landedIn(
 /**
  * The button's target: the dashboard Get data was opened from (`routeId`), else the last-opened
  * one, else the starter (named as it reads in the nav). `others` are the rest of this space's
- * dashboards, newest change first. Read-only dashboards and ids in `skip` are never offered; when
- * `skip` holds the starter, the button falls to the first remaining dashboard, else a new one.
+ * dashboards, newest change first. Read-only dashboards (the index's, and any this tab has open
+ * read-only: invalid or unkept) and ids in `skip` are never offered (D22); when the starter is
+ * skipped, the button falls to the first remaining dashboard, else a new one.
  */
 export function addTargets(
 	app: AppContext,
@@ -84,6 +85,8 @@ export function addTargets(
 	lastOpened: string | undefined,
 	skip: ReadonlySet<string> = new Set()
 ): { selected: AddTarget; others: AddTarget[] } {
+	const openReadOnly = app.openSessions().flatMap((s) => (s.readOnly ? [s.doc.id] : []));
+	if (openReadOnly.length) skip = new Set([...skip, ...openReadOnly]);
 	const listed = app.index.items
 		.filter((d) => !d.readOnly && !skip.has(d.id))
 		.map((d) => ({

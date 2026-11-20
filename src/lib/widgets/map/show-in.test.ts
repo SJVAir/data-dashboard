@@ -10,7 +10,7 @@ import {
 	setUse
 } from "$lib/get-data/map";
 import type { AppContext } from "$lib/store/app.svelte";
-import { STARTER_ID } from "$lib/starter/starter";
+import { STARTER_ID, starterTemplate } from "$lib/starter/starter";
 import { CHART_TYPE, chartType } from "$lib/widgets/chart";
 import { DEFAULT_RANGE } from "$lib/widgets/defaults";
 import { MAP_TYPE } from "$lib/widgets/map";
@@ -409,6 +409,14 @@ describe("showInTarget", () => {
 				skip: "d1"
 			});
 		}
+	});
+
+	it("skips a read-only starter as STARTER_ID (its doc's id), as addTargets skips the starter", () => {
+		const id = starterTemplate().id;
+		expect(showInTarget(appWith({ id, widgets: ["w1"], readOnly: "unkept" }, true), "w1")).toEqual({
+			target: { path: "/data" },
+			skip: STARTER_ID
+		});
 	});
 
 	it("opens /data with no session (a share link) or a session without the Map", () => {

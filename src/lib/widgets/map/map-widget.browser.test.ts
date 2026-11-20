@@ -1524,10 +1524,9 @@ describe("Show in a chart / Show in a table", () => {
 		await showEditing(widget);
 		const map = await madeMap();
 		await expect.poll(() => drawn(map)).toEqual(["a"]);
-		await new Promise((r) => setTimeout(r, 50));
-		expect(menuIds(widget)).toEqual([]);
 		// The entry is there (a section card's button reads it) but holds no marks.
-		expect(mapSend(widget.id)).toMatchObject({ marks: [] });
+		await expect.poll(() => mapSend(widget.id)).toMatchObject({ marks: [] });
+		expect(menuIds(widget)).toEqual([]);
 	});
 
 	test("aren't listed while every mark is hidden for its pollutant or places", async () => {
@@ -1577,7 +1576,8 @@ describe("Show in a chart / Show in a table", () => {
 		await showEditing(widget);
 		const map = await madeMap();
 		await expect.poll(() => drawn(map)).toEqual(["a"]);
-		await new Promise((r) => setTimeout(r, 50));
+		// The entry is set, with no marks while the lookup is out.
+		await expect.poll(() => mapSend(widget.id)).toMatchObject({ marks: [] });
 		expect(menuIds(widget)).toEqual([]);
 		lookup.resolve([
 			{ id: "a", type: "purpleair", name: "a", county: "Fresno", active: true, inside: false }
@@ -1621,8 +1621,9 @@ describe("Show in a chart / Show in a table", () => {
 		});
 		const map = await madeMap();
 		map.ready = true;
+		// Drawn: the effect that would set the entry has run (it returns at once with no tile
+		// options).
 		await expect.poll(() => drawn(map)).toEqual(["a"]);
-		await new Promise((r) => setTimeout(r, 50));
 		expect(mapSend(widget.id)).toBeNull();
 		expect(menuIds(widget)).toEqual([]);
 	});
@@ -4295,8 +4296,12 @@ describe("a section card's Show in a chart", () => {
 		const item = { refKey, name: "M99S99E99", level: "Good" } as unknown as FeatureListItem;
 		map.pinned = { hit: { pluginId: "sections", refKey, name: refKey, item } };
 		await button(screen).click();
-		await new Promise((r) => setTimeout(r, 50));
-		expect(vi.mocked(showIn)).not.toHaveBeenCalled();
+		// The source's own section is sent; had the first click sent, it would be first.
+		pin(map, SECTION, "lens");
+		await button(screen).click();
+		await expect.poll(() => vi.mocked(showIn).mock.calls.length).toBe(1);
+		const code = useOf(map, "lens")!.options.source.features!.features[0].properties.name;
+		expect(vi.mocked(showIn).mock.calls[0][2]).toEqual({ kind: "section", code });
 	});
 
 	test("isn't on a township's card", async () => {

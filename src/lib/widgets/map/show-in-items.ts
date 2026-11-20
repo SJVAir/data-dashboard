@@ -45,12 +45,12 @@ export function showInItems(env: WidgetMenuEnv): MenuItem[] {
 		group: "data",
 		forViewers: true,
 		run: () => {
-			const widget = env.widget();
-			// Read at the click: the marks may have changed since the menu opened.
-			const entry = widget && mapSend(widget.id);
-			if (!widget || !entry?.marks.length) return;
+			// Read at the click: the widget and its marks may have changed since the menu opened.
+			const clicked = env.widget();
+			const entry = clicked && mapSend(clicked.id);
+			if (!clicked || !entry?.marks.length) return;
 			const send = { kind: "monitors" as const, ids: [...entry.marks], leftOut: entry.leftOut };
-			runShowIn(env.app, widget.id, send, type);
+			runShowIn(env.app, clicked.id, send, type);
 		}
 	});
 	return [

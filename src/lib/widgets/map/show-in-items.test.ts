@@ -118,7 +118,12 @@ describe("showInItems", () => {
 		for (const remove of removals) remove();
 		removals = [];
 		chart.run(ctx);
-		await new Promise((r) => setTimeout(r, 10));
-		expect(showIn).not.toHaveBeenCalled();
+		// A run with the entry back is called; had the first run gone ahead, it would be first.
+		offer(["b"]);
+		chart.run(ctx);
+		await vi.waitFor(() => expect(showIn).toHaveBeenCalled());
+		expect(showIn.mock.calls).toEqual([
+			[app, "w1", { kind: "monitors", ids: ["b"], leftOut: 0 }, "chart"]
+		]);
 	});
 });

@@ -161,6 +161,16 @@ test.describe("from a Map's marks", () => {
 		await expect(keepDialog(page)).toHaveCount(0);
 		await expect(page.getByText(/aren't shown on the map|isn't shown on the map/)).toHaveCount(0);
 
+		// A reload keeps the history entry's hand-off: the same Chart comes back (D16).
+		await page.reload();
+		await expect(page).toHaveURL(NEW_WIDGET_URL);
+		await expect(page.getByRole("heading", GET_DATA)).toBeVisible();
+		await expect(page.getByRole("radio", { name: "Chart" })).toBeChecked();
+		await expect(whereSummary(page)).toHaveText(
+			"Fresno - Drummond Street, Fresno - Test Site A, and Fresno - Test Site B"
+		);
+		await expect(page.getByTestId("resolved-range")).toHaveText("Nov 9 – 11, 2026");
+
 		await expect(addToButton(page)).toHaveText("Add to County map");
 		await addToButton(page).click();
 		await expect(page).toHaveURL(dashboard);

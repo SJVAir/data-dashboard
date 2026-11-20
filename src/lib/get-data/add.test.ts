@@ -263,6 +263,17 @@ describe("addTargets", () => {
 		expect(targets.others.map((t) => t.id).sort()).toEqual(["d1", "d2"]);
 	});
 
+	it("never offers a dashboard this tab has open read-only (invalid or unkept)", async () => {
+		for (const readOnly of ["invalid", "unkept"] as const) {
+			const { app } = await withDashboards();
+			const session = (await app.sessions.get("d2"))!;
+			session.readOnly = readOnly;
+			const targets = addTargets(app, "d2", "d2");
+			expect(targets.selected.id).toBe(STARTER_ID);
+			expect(targets.others.map((t) => t.id)).toEqual(["d1"]);
+		}
+	});
+
 	it("skips ids in skip, even the route and last-opened ones", async () => {
 		const { app } = await withDashboards();
 		const targets = addTargets(app, "d2", "d2", new Set(["d2"]));
