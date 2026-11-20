@@ -3,9 +3,13 @@ import { afterEach, beforeEach, expect, test } from "vitest";
 import { render } from "vitest-browser-svelte";
 import { page, userEvent } from "vitest/browser";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
+import { setPlatform } from "$lib/platform";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
+import { setShownSelection } from "$lib/calendars/shown-registry";
+import { MONTH_CALENDAR_TYPE } from "$lib/calendars/types";
+import { monthCalendarType } from "$lib/widgets/calendars/month";
 import { placeholderType } from "$lib/widgets/placeholder";
 import { registerWidgetType } from "$lib/widgets/registry";
 import type { MenuItem } from "$lib/actions/types";
@@ -81,6 +85,43 @@ test("a minimized widget's menu on a read-only view lists them too", async () =>
 	await renderView();
 	await page.getByRole("button", { name: "Actions for Parked" }).click();
 	await expect.element(page.getByRole("menuitem", { name: "Open for viewers" })).toBeVisible();
-	expect(items()).not.toContain("Editors only");
+	expect(items()).toEqual(["Open for viewers", "Fullscreen"]);
 	await userEvent.keyboard("{Escape}");
+});
+
+test("a read-only month calendar showing a selection has no chart item (D20)", async () => {
+	registerWidgetType({ ...monthCalendarType, load: placeholderType.load });
+	const view = doc();
+	view.body.widgets = [
+		{
+			id: "cal",
+			type: MONTH_CALENDAR_TYPE,
+			title: "Days",
+			rect: { x: 0, y: 0, w: 6, h: 6 },
+			data: {
+				dateRange: { kind: "custom", start: "2026-11-01", end: "2026-11-30" },
+				timeSubRange: { start: "2026-11-05", end: "2026-11-08" },
+				layers: [{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "a" } }]
+			}
+		}
+	];
+	const unshow = setShownSelection("cal", Symbol("calendar"), {
+		start: "2026-11-05",
+		end: "2026-11-08"
+	});
+	try {
+		const platform = createMemoryPlatform();
+		setPlatform(platform);
+		const app = await initApp(platform, {
+			channel: createMemoryTabHub().channel(),
+			tabId: "t1"
+		});
+		await render(Harness, { props: { view }, context: new Map([[APP_CONTEXT_KEY, app]]) });
+		await page.getByRole("button", { name: "Actions for Days" }).click();
+		await expect.element(page.getByRole("menuitem", { name: "Fullscreen" })).toBeVisible();
+		expect(items()).toEqual(["Download data (CSV)", "Fullscreen"]);
+		await userEvent.keyboard("{Escape}");
+	} finally {
+		unshow();
+	}
 });

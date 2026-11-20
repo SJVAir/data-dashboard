@@ -19,7 +19,10 @@ export type MenuItem = {
 	/** Also show in menus of scopes nested inside this one. Off by default. */
 	bubbles?: boolean;
 	children?: MenuItem[];
-	/** Shown on a read-only frame too (a share link, a read-only dashboard); only for items that change nothing. */
+	/**
+	 * Shown on a read-only frame too (a share link, a read-only dashboard); only for items that
+	 * change nothing.
+	 */
 	forViewers?: boolean;
 	run(ctx: MenuContext): void;
 };

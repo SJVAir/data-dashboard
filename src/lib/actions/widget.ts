@@ -51,7 +51,7 @@ import { getWidgetType } from "$lib/widgets/registry";
 import { generatedTitle } from "$lib/widgets/titles.svelte";
 import type { PlaceViewer } from "$lib/widgets/shared/viewer";
 import { navigate } from "../../router";
-import type { MenuItem, MenuProvider } from "./types";
+import type { MenuContext, MenuItem, MenuProvider } from "./types";
 
 /**
  * A widget's generated title: the one its component worked out once loaded, else its type's
@@ -519,4 +519,15 @@ export function taskbarActions(
 		fullscreenItem(widgetId, fullscreen),
 		...common(ctx).filter((item) => !NOT_IN_TASKBAR.has(item.id))
 	];
+}
+
+/** The widget type's own items that opted in for viewers (a read-only frame lists only these). */
+export function viewerTypeItems(
+	app: AppContext,
+	widget: () => WidgetInstance | null,
+	ctx: MenuContext
+): MenuItem[] {
+	const current = widget();
+	const type = current ? getWidgetType(current.type) : undefined;
+	return (type?.menu(ctx, { app, widget }) ?? []).filter((i) => i.forViewers);
 }

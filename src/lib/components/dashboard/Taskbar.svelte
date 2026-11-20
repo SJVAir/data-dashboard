@@ -6,6 +6,7 @@
 	import { menuScope } from "$lib/actions/scope";
 	import {
 		downloadItems,
+		viewerTypeItems,
 		placeItems,
 		restoreWidget,
 		taskbarActions,
@@ -50,11 +51,7 @@
 			? viewActions(widget.id, onfullscreen)
 			: taskbarActions(app, widget.id, onfullscreen);
 		return (ctx) => [
-			...(readOnly
-				? (getWidgetType(widget.type)
-						?.menu(ctx, { app, widget: () => widget })
-						.filter((i) => i.forViewers) ?? [])
-				: []),
+			...(readOnly ? viewerTypeItems(app, () => widget, ctx) : []),
 			...placeItems(app, () => widget),
 			...downloadItems(app, () => widget, viewer),
 			...base(ctx)
