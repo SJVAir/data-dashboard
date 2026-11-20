@@ -75,6 +75,7 @@ import { mapType } from "./index";
 import MapWidget from "./MapWidget.svelte";
 import { resetUseLegendNote } from "./UseLegendNote.svelte";
 import { mapSend } from "./send-registry";
+import { showIn } from "./show-in";
 import RenderSnippet from "./test-harness/RenderSnippet.svelte";
 import SessionMap from "./test-harness/SessionMap.svelte";
 
@@ -156,6 +157,7 @@ vi.mock("@sjvair/sdk", async (original) => ({
 	getRegionSummariesBulkYearly: vi.fn()
 }));
 vi.mock("$lib/data/now", () => ({ getNowClient: vi.fn() }));
+vi.mock("./show-in", () => ({ showIn: vi.fn() }));
 vi.mock("./host/metadata", () => ({ mapMetadata: () => ({}) }));
 vi.mock("./host/config", () => ({ mapConfig: vi.fn() }));
 vi.mock("$lib/data", () => ({
@@ -1524,7 +1526,8 @@ describe("Show in a chart / Show in a table", () => {
 		await expect.poll(() => drawn(map)).toEqual(["a"]);
 		await new Promise((r) => setTimeout(r, 50));
 		expect(menuIds(widget)).toEqual([]);
-		expect(mapSend(widget.id)).toBeNull();
+		// The entry is there (a section card's button reads it) but holds no marks.
+		expect(mapSend(widget.id)).toMatchObject({ marks: [] });
 	});
 
 	test("aren't listed while every mark is hidden for its pollutant or places", async () => {
@@ -4208,6 +4211,67 @@ test("a pinned section's card names its township, a button that pins the townshi
 	expect(map.pinCalls).toEqual([["townships", township]]);
 	expect(map.pinned?.hit).toMatchObject({ pluginId: "townships", refKey: township });
 	expect(map.cameraCalls).toEqual([]);
+});
+
+describe("a section card's Show in a chart", () => {
+	const SECTION = encodeRef({ kind: "feature", id: "section:s1" });
+	/** The Map with a section loaded in the lens, its card pinned. */
+	async function pinnedSection(live = true) {
+		vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+		const widget = useMap();
+		const screen = live ? await showLive(widget, editing()) : await show(widget);
+		const map = await madeMap();
+		map.ready = true;
+		await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
+		fakeLenses.at(-1)!.center = encodeRef({ kind: "feature", id: "township:T-0" });
+		await expect.poll(() => useOf(map, "lens")?.options.source.features?.features).toHaveLength(1);
+		pin(map, SECTION, "lens");
+		return { screen, map, widget };
+	}
+	const button = (screen: { getByRole: typeof page.getByRole }) =>
+		screen.getByRole("button", { name: m.map_show_in_chart() });
+
+	test("is on the pinned card and sends the section's code, not its id", async () => {
+		vi.mocked(showIn).mockClear();
+		const { screen, map, widget } = await pinnedSection();
+		const props = useOf(map, "lens")!.options.source.features!.features[0].properties;
+		await button(screen).click();
+		await expect
+			.poll(() => vi.mocked(showIn).mock.calls)
+			.toEqual([[expect.anything(), widget.id, { kind: "section", code: props.name }, "chart"]]);
+		expect(props.name).not.toBe(props.id);
+	});
+
+	test("is on a section card of the sections plugin too", async () => {
+		const { screen, map } = await pinnedSection();
+		pin(map, SECTION, "sections");
+		await expect.element(button(screen)).toBeVisible();
+	});
+
+	test("isn't on a township's card", async () => {
+		const { screen, map } = await pinnedSection();
+		pin(map, encodeRef({ kind: "feature", id: "township:T-0" }), "townships");
+		await expect
+			.element(screen.getByRole("button", { name: m.map_mark_select() }))
+			.not.toBeInTheDocument();
+		expect(button(screen).query()).toBeNull();
+	});
+
+	test("isn't in a preview", async () => {
+		const { screen } = await pinnedSection(false);
+		expect(button(screen).query()).toBeNull();
+	});
+
+	test("keeps focus across a refetch", async () => {
+		const { screen, map } = await pinnedSection();
+		const el = button(screen).element() as HTMLButtonElement;
+		el.focus();
+		// A refetch re-pins the same card (cards stay mounted).
+		map.pinned = { hit: { ...map.pinned!.hit } };
+		await new Promise((r) => setTimeout(r, 50));
+		expect(document.activeElement).toBe(el);
+		expect(button(screen).element()).toBe(el);
+	});
 });
 
 test("the Layers row hides use without unloading it", async () => {

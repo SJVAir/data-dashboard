@@ -23,6 +23,8 @@
 	import { formatNumber, pacificDay, parseDateKey } from "$lib/format";
 	import { HMS_FIRE, HMS_SMOKE } from "$lib/get-data/map";
 	import { m } from "$lib/paraglide/messages.js";
+	import { loadLazy } from "$lib/safety/lazy";
+	import { report } from "$lib/safety/report";
 	import { useApp } from "$lib/store/app.svelte";
 	import { entryMeta, placesLayer, widgetEffective, widgetPlaceKind } from "../shared/input";
 	import { useTileOptions } from "../shared/tile-options.svelte";
@@ -792,11 +794,13 @@
 		metadata
 	);
 	// What the ⋯ menu's Show in a chart / table sends (D21): the sent marks, and the dataset as
-	// this person sees it. None in a preview (no tile options; D23), nor with no mark to send.
+	// this person sees it. None in a preview (no tile options; D23); with no mark the entry is empty
+	// (the menu lists nothing) but still serves a section card's button.
 	const sendOwner = Symbol();
 	$effect(() => {
 		const { ids, leftOut } = noteLinesOf.send;
-		if (!tileOptionsContext || !ids.length) return;
+		// An empty entry still holds the draft a section card's button sends.
+		if (!tileOptionsContext) return;
 		return setMapSend(widget.id, sendOwner, {
 			marks: ids,
 			leftOut,
@@ -805,6 +809,18 @@
 				$state.snapshot({ type: widget.type, data: widget.data, options: wiring.options })
 		});
 	});
+	/** A section card's "Show in a chart": its MTRS code (the feature's name) goes to the Chart. */
+	function showSectionInChart(ctx: CardContext) {
+		const source = ctx.pluginId === "lens" ? data.useBlock.lens : data.useBlock.sections;
+		const found = source.features?.features?.find((f) => f.properties.refKey === ctx.refKey);
+		const code = found?.properties.name ?? ctx.item?.name;
+		if (!code) return;
+		const send = { kind: "section" as const, code };
+		// A gone chunk (an older deploy) offers a reload; the failure is reported, not swallowed.
+		loadLazy(() => import("./show-in"))
+			.then((mod) => mod.showIn(app, widget.id, send, "chart"))
+			.catch((error) => report(error));
+	}
 	/** The map's notes: the day's, then why marks are hidden. */
 	const noteLines = $derived(noteLinesOf.lines);
 	/** The notes as one text, for the map's list and its name. */
@@ -961,6 +977,13 @@
 	{#if ctx.selectable}
 		<Button size="sm" variant="outline" onclick={() => ctx.toggle()}>
 			{ctx.selected ? m.map_mark_remove() : m.map_mark_select()}
+		</Button>
+	{/if}
+	<!-- Only the sections' cards (the townships' have none); none in a preview (D23). The code is
+		read at the click, so a refetch never unmounts the button under focus. -->
+	{#if tileOptionsContext && (ctx.pluginId === "sections" || ctx.pluginId === "lens")}
+		<Button size="sm" variant="outline" onclick={() => showSectionInChart(ctx)}>
+			{m.map_show_in_chart()}
 		</Button>
 	{/if}
 {/snippet}
