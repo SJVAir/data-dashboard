@@ -210,6 +210,18 @@ string`) now get the union return type. The mobile app passes a string token, so
   **Related:** the CSRF fix for session-authenticated API writes is decided for
   Release 1 (in django-resticus; see `ARCHITECTURE.md` → "CSRF protection"). CORS
   tightening can ride along with it.
+- **Document writes get Django's CSRF check by accident, token clients included.** _Noted
+  2026-11-20 (sjvair.com #344, finding 5 of [#341](https://github.com/SJVAir/sjvair.com/issues/341),
+  session `sjvair-com-a7`; checked by the coordinator)._ resticus #25 (the session CSRF fix) is
+  still open upstream, but the document endpoints are protected anyway: `NoStoreMixin.dispatch`
+  (`camp/api/v2/documents/endpoints.py`) overrides resticus's `csrf_exempt` `dispatch` without
+  the decorator, so Django's `CsrfViewMiddleware` checks every unsafe documents request. Two
+  effects: the protection depends on that mixin, not on resticus; and a `Token`-header client with
+  no CSRF token (a standalone or Tauri build, see `ARCHITECTURE.md` → "Authentication") would be
+  refused on document writes. Release 1 (session cookie on `/workspace/`) is unaffected. #344
+  makes `test_csrf.py` always run, so a change to the mixin fails CI. **Revisit when** resticus
+  #25 merges (decide whether the mixin keeps the middleware check or goes back to `csrf_exempt`),
+  or when a token-mode build saves documents.
 - **Pinning django-resticus in sjvair.com.** _Deferred 2026-09-28 by the user, who is
   discussing it with resticus's developer._ sjvair.com installs
   `git+https://github.com/dmpayton/django-resticus@develop` unpinned, so any commit to
@@ -567,7 +579,7 @@ string`) now get the union return type. The mobile app passes a string token, so
        monitor's regions; there's no region-type flag). Region hourly rows are weighted means, so a -999 monitor hour usually
        lands above -900 and the skip doesn't catch it (sjvair-com-64's final review, 2026-11-09). Count the regions first (the
        sum of `monitor.regions` over those monitors; the query comes with the PR).
-    3. `rebuild_summaries --monitor=<id> --monitors-only` per AQLite monitor (its O3 hourly `is_complete` fix).
+    3. `rebuild_summaries --monitor=<id> --monitors-only` per AQLite monitor (its O3 hourly `is_complete` fix), on code that has sjvair.com #344 (see "Review #341 fixes" below).
     4. `fill_daily_peaks`, scoped, `--dry-run` first and then for real: monitor types `airnow`, `aqlite`, `vozbox`,
        `purpleair`, `airgradient`, `aqview` and `bam1022`, then each region type (`mean_24h` makes PM types part of it).
     5. Run the backfill **before announcing** the dashboard: settled daily responses are cached for 24 hours.
@@ -604,6 +616,16 @@ string`) now get the union return type. The mobile app passes a string token, so
        will be slower). Announce after that night, and after the backfill, because settled
        responses are cached for 24 hours.
        `@sjvair/sdk` `5.0.0-beta.15` and the dashboard's step 5 spec 6a need this deployed.
+  - **Review #341 fixes, PR A (sjvair.com [#344](https://github.com/SJVAir/sjvair.com/pull/344),
+    session `sjvair-com-a7`; in review, not merged: update this when it merges):**
+    1. **Deploy:** the release phase runs `documents/0002` (state only; `sqlmigrate` is a no-op).
+    2. **The AQLite rebuilds in the Daily peaks steps (step 3 above) must run on code that has
+       #344**, or AQLite daily-and-longer `is_complete` is written wrong again (finding 1).
+    3. Nothing else: no new commands. A scoped `--async` rebuild now refreshes `max_8h` only for
+       its own monitors or regions (findings 7 and 10).
+  - **Review #341 fixes, PR B (sjvair.com [#345](https://github.com/SJVAir/sjvair.com/pull/345),
+    findings 9, 11, 12; in review, not merged):** nothing to run. No migration, command or
+    config.
   - **Deploy window:** between about 17:15 and 01:00 Pacific (#301 moved the rollups from
     01:00 UTC to 01:00 Pacific; deploying 01:00–17:00 Pacific skips a day). Otherwise run
     `daily_monitor_summaries(day=<yesterday>)` and `daily_region_summaries(day=<yesterday>)`
