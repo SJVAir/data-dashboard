@@ -2214,6 +2214,12 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   (map-sdk #38, 2026-11-17). Remove this item when the dashboard pins beta.21 (step 5 spec 6).
   _The dashboard pins beta.21 since step 5 spec 6a (e78376a, 2026-11-18). The item stays until
   the user's hand check of the lens passes._
+- **The Monthly and Yearly legend line takes its units from the catalog.** _Deferred 2026-11-20
+  (step 5 spec 6b, Task 11 review)._ map-sdk's own "(units)" line reads the monitors meta's scale
+  units, while the Monthly or Yearly figure line that replaces it ("µg/m³ · Average of 24-hour
+  averages") reads the dataset catalog's `entry_types[].units`. Two server sources that match
+  today. Why: reading the scale's units needs a change in `MapWidget.svelte` beyond the pin.
+  **Revisit when** the two sources ever differ, or `MapWidget` next reads the scale's units.
 - **map-sdk's demo page doesn't show the newer opt-in features.** _Deferred 2026-11-15 (the user,
   in map-sdk `0.1.0-beta.15`'s session `map-sdk-42`, [#32](https://github.com/SJVAir/map-sdk/pull/32))._
   Missing from the demo: regions with no figure drawn as outlines, plus the legend's "No data"
