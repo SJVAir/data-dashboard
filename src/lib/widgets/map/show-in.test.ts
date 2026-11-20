@@ -142,13 +142,15 @@ describe("showInDraft: monitors", () => {
 		expect(now.draft.data.dateRange).toEqual(DEFAULT_RANGE);
 	});
 
-	it("a Monthly Map gives a Monthly Chart, as Show as does (fromMapDraft)", () => {
+	it("a Monthly Map gives a Monthly Chart and Table, as Show as does (fromMapDraft)", () => {
 		const monthly = mapDraft(["pm25"]);
 		monthly.data.resolution = "month";
 		const shown = fromMapDraft(monthly, chartType, CATALOG, "unavailable", [], NOW).draft;
 		const h = showInDraft(monthly, send(["m1"]), chartType, CATALOG, [], NOW);
 		expect(h.draft.data.resolution).toEqual(shown.data.resolution);
 		expect(h.draft.data.resolution).toBe("month");
+		const table = showInDraft(monthly, send(["m1"]), dataTableType, CATALOG, [], NOW);
+		expect(table.draft.data.resolution).toBe("month");
 	});
 
 	it("leaves out smoke and fire, notices, fill and marks; use reaches a Chart, not a Table", () => {
