@@ -2548,7 +2548,7 @@ test("a Monthly Map steps by month and draws each month's figure from the monthl
 	// The legend's line under the section's title: the units and the figure (E2E checks the text
 	// in map-sdk's Legend).
 	expect(monitorsOptionsOf(map)?.legendUnits).toBe(
-		m.map_legend_units_figure({ units: "µg/m³", figure: PERIOD_FIGURE.label })
+		m.label_join({ first: "µg/m³", second: PERIOD_FIGURE.label })
 	);
 	const props = (id: string) =>
 		(

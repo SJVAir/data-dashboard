@@ -36,5 +36,5 @@ export function periodLegendUnits(args: {
 }): string | undefined {
 	const { onDay, resolution, figure, units } = args;
 	if (!onDay || resolution === "day" || !figure) return undefined;
-	return units ? m.map_legend_units_figure({ units, figure }) : figure;
+	return units ? m.label_join({ first: units, second: figure }) : figure;
 }

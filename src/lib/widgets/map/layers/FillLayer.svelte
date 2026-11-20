@@ -13,7 +13,7 @@
 		label,
 		loads,
 		drawn,
-		resolution,
+		period,
 		legendUnits
 	}: {
 		map: MapContext;
@@ -24,8 +24,8 @@
 		loads: boolean;
 		/** Whether the fill is on the map. */
 		drawn: boolean;
-		/** The stop's level (Daily, Monthly or Yearly); undefined on now. */
-		resolution: MapLevel | undefined;
+		/** A Monthly or Yearly stop's level; undefined on a day or now (so a step there remakes nothing). */
+		period: Exclude<MapLevel, "day"> | undefined;
 		/** The legend's unit line (the units and figure on a Monthly or Yearly stop); else unset. */
 		legendUnits: string | undefined;
 	} = $props();
@@ -37,7 +37,7 @@
 	$effect(() => {
 		const current = map;
 		const layerLabel = label;
-		const level = resolution;
+		const level = period;
 		const units = legendUnits;
 		if (!layerLabel || !loads || !drawn) return;
 		const plugin = regionsPlugin({
@@ -46,10 +46,7 @@
 			layerLabel,
 			selectable: false,
 			noFigure: "outline",
-			...(level &&
-				level !== "day" && {
-					detail: (props: MapFeatureProperties) => thinDetail(props, level)
-				}),
+			...(level && { detail: (props: MapFeatureProperties) => thinDetail(props, level) }),
 			...(units && { legendUnits: units })
 		});
 		untrack(() => current.addPlugin(plugin, beforeIn(current, plugin.id)));

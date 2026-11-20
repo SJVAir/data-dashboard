@@ -8,8 +8,10 @@ describe("thinDetail", () => {
 	it("says why a thin stop has no figure: a day, or a month's or year's day counts", () => {
 		const thin = { ...base, thin: true as const };
 		const counted = { ...thin, thinDays: { days: 3, expected: 31 } };
-		expect(thinDetail(thin, "day")).toBe("Not enough data");
-		expect(thinDetail(counted, "month")).toBe("Only 3 of 31 days had a figure");
+		expect(thinDetail(thin, "day")).toBe(m.calendar_not_enough_data());
+		expect(thinDetail(counted, "month")).toBe(
+			m.map_period_days_with_figure({ days: "3", expected: "31", expectedValue: 31 })
+		);
 		expect(thinDetail(thin, "year")).toBe(m.map_period_too_few_days());
 	});
 
@@ -23,7 +25,7 @@ describe("periodLegendUnits", () => {
 	const figure = "Average of 24-hour averages";
 	it("names the units and figure on a Monthly or Yearly stop", () => {
 		expect(periodLegendUnits({ onDay: true, resolution: "month", figure, units: "µg/m³" })).toBe(
-			"µg/m³ · Average of 24-hour averages"
+			m.label_join({ first: "µg/m³", second: figure })
 		);
 		expect(periodLegendUnits({ onDay: true, resolution: "year", figure, units: "" })).toBe(figure);
 	});
