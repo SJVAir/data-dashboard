@@ -131,7 +131,6 @@ test("a read-only month calendar showing a selection has no chart item (D20)", a
 });
 
 test("a read-only fullscreen Map has a ⋯ button while it has a mark to send (D6, D20)", async () => {
-	registerWidgetType({ ...mapType, load: placeholderType.load });
 	const view = doc();
 	view.body.widgets = [
 		{
@@ -151,13 +150,15 @@ test("a read-only fullscreen Map has a ⋯ button while it has a mark to send (D
 		channel: createMemoryTabHub().channel(),
 		tabId: "t1"
 	});
+	// After initApp, which registers the real Map: no Map mounts, so the only entry is the test's.
+	registerWidgetType({ ...mapType, load: placeholderType.load });
 	await render(Harness, { props: { view }, context: new Map([[APP_CONTEXT_KEY, app]]) });
 	await expect
 		.element(page.getByRole("button", { name: m.widget_exit_fullscreen() }))
 		.toBeVisible();
+	await expect.element(page.getByText(m.widget_placeholder_body())).toBeVisible();
 	const button = page.getByRole("button", { name: "Actions for Valley" });
-	// No mark drawn: nothing in the menu, so no button.
-	await new Promise((r) => setTimeout(r, 50));
+	// No mark to send: nothing in the menu, so no button.
 	expect(document.querySelector('[aria-label="Actions for Valley"]')).toBeNull();
 	const draft = () => ({ type: MAP_TYPE, data: { layers: [] } });
 	const clear = setMapSend("map", Symbol("map"), { marks: ["a"], leftOut: 0, draft });
