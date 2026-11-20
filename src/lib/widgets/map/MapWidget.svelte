@@ -1046,7 +1046,7 @@
 		label={fillLabel}
 		{loads}
 		drawn={fillDrawn}
-		period={days.onDay && days.resolution !== "day" ? days.resolution : undefined}
+		level={days.onDay ? days.resolution : undefined}
 		{legendUnits}
 	/>
 	<HmsLayers

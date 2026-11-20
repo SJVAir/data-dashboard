@@ -1283,6 +1283,40 @@ test.describe("a Map's region fill", () => {
 		await page.keyboard.press("Escape");
 	});
 
+	test("on a day a thin ZIP says Not enough data, in its row and its hover card", async ({
+		context,
+		page
+	}) => {
+		// Routed after the beforeEach's, so it answers first: 93722 has a final row with no figure.
+		await routeMapFill(context, {
+			days: { "2026-11-11": { "93721": 5, "93722": null } },
+			todayDate: "2026-11-15",
+			today: { "93721": 8, "93722": 30 }
+		});
+		await openSharedDoc(page, fillDoc({ kind: "custom", start: "2026-11-09", end: "2026-11-11" }));
+		const map = mapOf(page, FRESNO_MAP);
+		await expect(daySlider(page)).toHaveAttribute("aria-valuetext", /November 11, 2026$/);
+		await expect(fillLine(map)).toHaveText(/^ZIP Codes: /);
+
+		// The thin ZIP's reason is in its accessible name; one with no row reads No data alone.
+		const list = await featureList(map);
+		await expect(
+			list.getByRole("option", { name: "ZIP 93722, No data, Not enough data", exact: true })
+		).toHaveCount(1);
+		await expect(list.getByRole("option", { name: "ZIP 93999, No data", exact: true })).toHaveCount(
+			1
+		);
+		await closeFeatureList(map);
+
+		// The middle of the GL map (the county's framing) is inside ZIP 93722: its hover card says why.
+		const box = (await glMap(map).boundingBox())!;
+		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+		const tip = map.getByRole("tooltip");
+		await expect(tip).toBeVisible();
+		await expect(tip).toContainText("93722");
+		await expect(tip).toContainText("Not enough data");
+	});
+
 	test("on a month the legend names the figure, and a thin ZIP says how many days had one", async ({
 		context,
 		page

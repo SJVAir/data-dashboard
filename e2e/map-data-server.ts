@@ -301,9 +301,12 @@ export const FILL_ZIPS = [
 	{ id: "zfil3", code: "93999", name: "93999", lon: -119.5 }
 ];
 
-/** Each ZIP's figure on a past day (by date) and today so far; a ZIP with none has no row. */
+/**
+ * Each ZIP's figure on a past day (by date) and today so far; a ZIP with none has no row, and
+ * `null` is a final row with no figure (too little data: thin).
+ */
 export type FillFigures = {
-	days: Record<string, Record<string, number>>;
+	days: Record<string, Record<string, number | null>>;
 	/** The Pacific date today so far is for (the test clock's). */
 	todayDate: string;
 	today: Record<string, number>;

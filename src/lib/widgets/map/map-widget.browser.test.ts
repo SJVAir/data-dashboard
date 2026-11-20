@@ -3271,6 +3271,37 @@ test("on a day, the fill draws the day's figures, labelled by its type", async (
 	expect(entry).toMatchObject({ polling: false });
 });
 
+test("on a day, a thin region says Not enough data; a region with no row says nothing more", async () => {
+	rated();
+	zipFill();
+	// 93721 has a final row with no figure (thin); 93722 has a figure; 93723 has no row at all.
+	vi.mocked(getRegionSummariesBulkDaily).mockImplementation((async (config: { start: string }) => [
+		{ id: "z93721", summaries: [dayRow(config.start, null)] },
+		{ id: "z93722", summaries: [dayRow(config.start, 40)] }
+	]) as never);
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	dailyFigures({ "2026-09-09": { a: 20 } });
+	await show(rangedMap(region("019"), { fill: "zipcode" }));
+	const map = await madeMap();
+	await expect.poll(dayLabel).toBe("Wednesday, September 9, 2026");
+	await expect
+		.poll(() => fillValues(map))
+		.toEqual({
+			"region:zipcode:93721": null,
+			"region:zipcode:93722": 40,
+			"region:zipcode:93723": null
+		});
+	// map-sdk puts the detail in the list row's accessible name and the hover card (E2E checks both).
+	const detail = (fillOf(map)!.options as { detail?: (p: unknown) => string | undefined }).detail;
+	const props = (code: string) =>
+		fillOf(map)!.options.source.features!.features.find(
+			(f) => f.properties.refKey === `region:zipcode:${code}`
+		)!.properties;
+	expect(detail?.(props("93721"))).toBe(m.calendar_not_enough_data());
+	expect(detail?.(props("93722"))).toBeUndefined();
+	expect(detail?.(props("93723"))).toBeUndefined();
+});
+
 test("the Layers group shows with a fill alone; its row hides the fill without a new request", async () => {
 	rated();
 	zipFill();
