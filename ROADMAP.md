@@ -221,7 +221,8 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
           year; one figure per pollutant everywhere. **Built on `step-5-spec-6a`** (PR into
           `step-5` pending), on `@sjvair/map-sdk` `0.1.0-beta.21` and `@sjvair/sdk`
           `5.0.0-beta.15`.
-        - **6b:** "Show in a chart" / "Show in a table" from a map's selection. Next.
+        - **6b:** "Show in a chart" / "Show in a table" from a map's selection. **Built on
+          `step-5-spec-6b`** (PR into `step-5` pending).
      7. Schools and child care as a Map data set (added by the user 2026-11-17, after spec 6b,
         since spec 6b decides how a Map's layers reach charts and tables).
    - **Critical path (decided 2026-09-28): only `map-sdk` → the dashboard's Map widget.**

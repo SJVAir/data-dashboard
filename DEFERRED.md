@@ -1241,8 +1241,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   the rule, shown together, for example a change map on a diverging scale or two series on one
   chart. This includes the Pesticides Explorer's compare (its change map between two years).
   Why: it needs its own design (how two datasets are chosen, stored and drawn), and spec 6a
-  only set the rule. **Revisit after** step 5 spec 6b, or when an agency or researcher asks for
-  trends.
+  only set the rule. Step 5 spec 6b is built and didn't take it up; the user raises it at the
+  end of 6b (2026-11-20). **Revisit when** the user decides, or when an agency or researcher
+  asks for trends.
 - **An hourly or finer Map.** _Deferred 2026-11-18 (step 5 spec 6a)._ The Map steps by day,
   month or year (`MAP_LEVELS`). Why: an hour's figures over the valley need their own snapshot
   and many more stops (a week is 168), and nobody has asked. **Revisit when** someone asks to
@@ -1275,14 +1276,26 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 - **`land_use` / `mtrs` region browsing ("progressive unlock").** _Deferred 2026-09-17
   (multi-region selector spec)._ These tables have roughly 66k and 28k rows. Browsing them
   only after narrowing to a small parent area needs its own design. **Revisit when**
-  pesticide analyses need parcel-level (MTRS) selection, or with step 5 spec 6b (trigger added
-  2026-11-16, step 5 spec 5; spec 6 was split into 6a and 6b on 2026-11-18).
+  pesticide analyses need parcel-level selection in the place picker (for example, a Chart of
+  several sections). _Step 5 spec 6b (2026-11-20, the user's option B) dropped itself as the
+  trigger: a pinned section card charts that one section without browsing._
 - **Readable names for MTRS sections.** _Deferred 2026-11-17 (the user, while planning step 5
   spec 6)._ A section's name is its PLSS code (for example `MDM-T14S-R20E-07`). The Map's section
-  card shows it, and so would any chart of a marked section. The user accepted the codes for now,
+  card shows it, and so does the Chart that a pinned section card opens (step 5 spec 6b,
+  2026-11-20; its title is the code). The user accepted the codes for now,
   since the Pesticides Explorer shows sections the same way. A readable name would come from the
   server, never be built in the dashboard. **Revisit when** people find the codes confusing (for
   example in the private preview), or the explorer gets readable section names.
+- **Show a township in a chart.** _Deferred 2026-11-20 (step 5 spec 6b)._ The township card has
+  no "Show in a chart" button, since townships aren't a chartable region type (only a pinned
+  section card has one). Why: charting a township's use needs the server to offer townships as a
+  region type, which is outside the Map spec. **Revisit when** someone asks to chart a
+  township's use.
+- **Show in a chart from a minimized Map.** _Deferred 2026-11-20 (step 5 spec 6b)._ A minimized
+  Map offers no "Show in a chart" or "Show in a table" (the spec had them in its taskbar menu).
+  Why: a minimized Map isn't mounted, so nothing is drawn and no marks are known; the items
+  list only while a mark would be sent. **Revisit when** someone asks, or when the Map's drawn
+  set is computed outside the tile.
 - **`protected` / `custom` / `school_district` region data.** _Deferred 2026-09-17; re-checked
   2026-09-28 and 2026-10-13._ The `place` region type was **removed** from the server (migrations
   0009/0010); name lookup now tries city, then CDP, then urban area. New types exist: `air_district`
@@ -1449,11 +1462,9 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   `locationTypeLabel`, so what is left is the schools data set itself, an entry in
   `src/lib/widgets/map/data/` and its Layers row. The user moved the trigger to after spec 5
   (2026-11-16), then to after spec 6 (2026-11-17): it becomes its own small spec in step 5 (spec
-  7), since spec 6b decides how a Map's layers reach charts and tables. **Revisit after** spec 6b.
-
-- **Spec 6b charts only the drawn marks.** _Decided 2026-11-12 (step 5 spec 2; the user)._ Marks
-  kept but hidden (outside the places, or not reporting the pollutant showing) are not sent to a
-  chart or table. **Revisit with** spec 6b ("Show in a chart" / "Show in a table").
+  7), since spec 6b decides how a Map's layers reach charts and tables. Spec 6b is built
+  (2026-11-20): a `MapSend` kind and one case in `show-in.ts` take a new layer (see
+  `ARCHITECTURE.md` → "Widget catalog" → Map). **Revisit with** spec 7.
 
 - **More than 4 pollutants on one Map.** _Deferred 2026-11-12 (step 5 spec 2); lowered from 6 on
   2026-11-16 (step 5 spec 5)._ A tile holds at most `LAYERS_MAX` (8) less smoke, fire, spray
@@ -1543,8 +1554,9 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     label lookups move into `MapData` (every layer pollutant's label looked up up front).
   - **On a past day, a monitor that has left the current monitors list isn't drawn**, and its
     mark is counted as "outside the places" rather than "no figure for this day": a day's
-    figures are joined to the current list (`toDayFeatures`, `marks.ts`). Rare. **Revisit when**
-    spec 6b reads series for marked monitors, or when someone reports it.
+    figures are joined to the current list (`toDayFeatures`, `marks.ts`). Rare. Step 5 spec 6b
+    doesn't change it (an undrawn mark isn't sent to a chart). **Revisit when** someone reports
+    it, or when the Map reads a past day's monitors from that day's own list.
   - **A step can still fold into an unrelated edit** made within the 1 s `StepRun` window
     (`step-run.ts`): the run closes on time and on a drag's end, not on another kind of change.
     Rare (a person editing something else within a second of stepping). **Revisit if** someone

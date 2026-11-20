@@ -316,3 +316,32 @@ wording other than the lines quoted above, and how the view's "unsaved visit" fl
   entry to go back to, and the share link isn't a dashboard of theirs). _Builder: check
   `cancelPlan` gives `/shared/:token` back if a better target exists._
 - The hidden-marks note doesn't break the count down by reason (the Map's own note already does).
+
+## Calls made during the build (2026-11-20)
+
+- **Decision 19** (the Map's saved resolution kept by `fromMapDraft`) is recorded under the
+  decision. `ARCHITECTURE.md` states it in the Data Portal text.
+- **A minimized Map offers no items.** It isn't mounted, so nothing is drawn and no marks are
+  known (decision 13); decision 15's taskbar menu for a minimized Map doesn't hold. In
+  `DEFERRED.md` as "Show in a chart from a minimized Map".
+- **The conversion's notes travel in `HandOff.notes`** (dropped items minus marks and places,
+  plus the pollutant, the cut and the selection) and show on the hand-off visit. They stay after
+  the opening keep's Done and clear on the next edit.
+- **Focus:** after a keep started from Show as, focus returns to the pressed Show as toggle;
+  after the opening keep, to Change places.
+- **The hidden-marks note stays** until the person changes places through Change places.
+- **Cancel on a hand-off visit:** the action bar's Cancel asks "Discard changes?" when there
+  are edits (decision 3); the opening keep dialog's Cancel never asks.
+- **`HandOffSchema` lives in `src/lib/widgets/map/hand-off.ts`**, so the Data Portal's chunk
+  doesn't load the conversion.
+- **The registry entry:** the Map writes it whenever it isn't a preview, with marks possibly
+  empty, so the section button works on a Map with no marks.
+- **Viewer menus:** `MenuItem.forViewers` and `viewerTypeItems(app, widget, ctx)` in
+  `src/lib/actions/widget.ts`, used by `WidgetFrame` and the taskbar; only the Map's two items
+  opt in.
+- **A thin Daily region reads "No data"** with no reason (with the `0.1.0-beta.22` pin, "No data,
+  Not enough data" repeated itself). The user was told; a one-line change in `FillLayer` if
+  wanted.
+- **A section always gives a Chart** (no Table), whatever the type argument.
+- **"Add to":** `addTargets(app, routeId, lastOpened, skip)`; `DashboardSummary.readOnly` marks
+  "newer" documents; a skipped starter falls to the first listed dashboard, else New dashboard.
