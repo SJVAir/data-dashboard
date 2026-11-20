@@ -1534,7 +1534,7 @@ The checklist below is the whole step's scope.
       Chart or Table through history state; "choose which places to keep" in the shared place
       picker when a selection is over the limit (the user, 2026-11-11); "Add to" never targets a
       read-only dashboard; `@sjvair/map-sdk` `0.1.0-beta.22` pinned (the legend names the month or
-      year figure; no-figure regions give their reason). Bundle 213.6 KB. Comparing two datasets
+      year figure; no-figure regions give their reason). Bundle 213.7 KB. Comparing two datasets
       is raised with the user at the end of 6b.
   - **Spec 7, schools and child care as a Map data set** (the user, 2026-11-17), after 6b.
 
