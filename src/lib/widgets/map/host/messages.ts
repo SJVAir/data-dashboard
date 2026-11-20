@@ -33,6 +33,7 @@ export const MAP_MESSAGES: Record<MessageKey, Message> = {
 	mapsdk_list_row_no_value: fill(m.mapsdk_list_row_no_value),
 	mapsdk_list_row_level: fill(m.mapsdk_list_row_level),
 	mapsdk_list_row_detail: fill(m.mapsdk_list_row_detail),
+	mapsdk_list_row_level_detail: fill(m.mapsdk_list_row_level_detail),
 	mapsdk_list_empty: fill(m.mapsdk_list_empty),
 	mapsdk_selected_count_one: fill(m.mapsdk_selected_count_one),
 	mapsdk_selected_count: plural(m.mapsdk_selected_count_one, m.mapsdk_selected_count_other),

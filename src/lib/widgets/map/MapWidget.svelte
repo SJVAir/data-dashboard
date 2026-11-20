@@ -34,7 +34,6 @@
 	import { generatedTitle } from "../titles.svelte";
 	import { navigate } from "../../../router";
 	import { MapData } from "./data/loaded.svelte";
-	import { isThin, thinDays } from "./data/monitors";
 	import type { UseQuery } from "./data/use";
 	import { USE_FIELDS } from "./data/use-fields";
 	import { sectionZoom } from "./data/use-geometry";
@@ -64,6 +63,7 @@
 	import NoticesLegendNote from "./NoticesLegendNote.svelte";
 	import UseLegendNote from "./UseLegendNote.svelte";
 	import { OnScreen } from "./on-screen.svelte";
+	import { periodLegendUnits, thinDetail } from "./thin-detail";
 	import { canMark, marksChange, sameIds } from "./marks";
 	import {
 		MAP_MARKS_MAX,
@@ -229,12 +229,13 @@
 	 * first layer pollutant it does. Never saved back into the options.
 	 */
 	const entryType: string | undefined = $derived(wiring.drawn);
-	const entryLabel = $derived(
+	const entryInfo = $derived(
 		entryMeta(
 			known,
 			pollutantLayers(widget.data, known).find((l) => l.entryType === entryType)
-		)?.entryType.label
+		)?.entryType
 	);
+	const entryLabel = $derived(entryInfo?.label);
 	const periodFigure = new MapPeriodFigure(
 		{
 			get entryType() {
@@ -260,6 +261,18 @@
 	 * of 24-hour averages"); unset on now.
 	 */
 	const figureLabel = $derived(periodFigure.label);
+	/**
+	 * On a Monthly or Yearly stop, the legend's line under the pollutant's section: its units and
+	 * figure, for the monitors and the fill (one shared section). Unset on a day or now.
+	 */
+	const legendUnits = $derived(
+		periodLegendUnits({
+			onDay: days.onDay,
+			resolution: days.resolution,
+			figure: figureLabel,
+			units: entryInfo?.units
+		})
+	);
 	const idle = $derived(
 		!layer || (!layer.place && !layer.selection) || layer.place?.kind === "default-place"
 	);
@@ -647,6 +660,7 @@
 		const clusters = clustered;
 		const onDay = days.onDay;
 		const figure = figureLabel;
+		const units = legendUnits;
 		// On a day, made once its figure's name is known: one plugin per stop, not two.
 		if (!current || !label || !loads || !figureLabelSettled) return;
 		untrack(() =>
@@ -657,8 +671,9 @@
 					selectedStyle: "ring",
 					clustered: clusters,
 					// On a stop: why a monitor has no figure, and what its figure is. Unset on now.
-					...(onDay && { detail: thinDetail }),
-					...(figure && { figureLabel: figure })
+					...(onDay && { detail: monitorThinDetail }),
+					...(figure && { figureLabel: figure }),
+					...(units && { legendUnits: units })
 				}),
 				{
 					selectionMode,
@@ -682,22 +697,9 @@
 			current.setSelection("monitors", selection);
 	});
 
-	/**
-	 * A stop's monitor without enough data for a figure says so where "No level" would be: a day
-	 * had too few readings; a month or year too few days with a figure ("Only 20 of 31 days had a
-	 * figure", from the row's counts).
-	 */
-	function thinDetail(props: MonitorFeatureProperties): string | undefined {
-		if (!isThin(props)) return undefined;
-		if (days.resolution === "day") return m.calendar_not_enough_data();
-		const counts = thinDays(props);
-		return counts
-			? m.map_period_days_with_figure({
-					days: formatNumber(counts.days),
-					expected: formatNumber(counts.expected),
-					expectedValue: counts.expected
-				})
-			: m.map_period_too_few_days();
+	/** A stop's monitor without enough data for a figure says so where "No level" would be. */
+	function monitorThinDetail(props: MonitorFeatureProperties): string | undefined {
+		return thinDetail(props, days.resolution);
 	}
 
 	/** Each notices marker's latest properties, by refKey: an open card follows its marker. */
@@ -1043,7 +1045,15 @@
 		noticesDay={noticesPastDay}
 		bind:lens={useLens}
 	/>
-	<FillLayer {map} source={fillSource} label={fillLabel} {loads} drawn={fillDrawn} />
+	<FillLayer
+		{map}
+		source={fillSource}
+		label={fillLabel}
+		{loads}
+		drawn={fillDrawn}
+		resolution={days.onDay ? days.resolution : undefined}
+		{legendUnits}
+	/>
 	<HmsLayers
 		{map}
 		{smokeSource}

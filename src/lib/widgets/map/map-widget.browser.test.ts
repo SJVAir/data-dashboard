@@ -2545,6 +2545,11 @@ test("a Monthly Map steps by month and draws each month's figure from the monthl
 	expect(daysAsked()).toEqual([]);
 	await expect.poll(() => monitorsOptionsOf(map)?.figureLabel).toBe(PERIOD_FIGURE.label);
 	expect(listNoteOf(map)).toContain(PERIOD_FIGURE.label);
+	// The legend's line under the section's title: the units and the figure (E2E checks the text
+	// in map-sdk's Legend).
+	expect(monitorsOptionsOf(map)?.legendUnits).toBe(
+		m.map_legend_units_figure({ units: "µg/m³", figure: PERIOD_FIGURE.label })
+	);
 	const props = (id: string) =>
 		(
 			map.plugins.find((p) => p.id === "monitors")!.options.source as {
@@ -3017,6 +3022,7 @@ test("a map with no range shows no day stepper", async () => {
 type MonitorsOptions = {
 	detail?: (props: Record<string, unknown>) => string | undefined;
 	figureLabel?: string;
+	legendUnits?: string;
 };
 const monitorsOptionsOf = (map: FakeMap) =>
 	map.plugins.find((p) => p.id === "monitors")?.options as MonitorsOptions | undefined;
@@ -3054,6 +3060,8 @@ test("on a day, a thin monitor reads Not enough data and the figure is named; on
 	const detail = monitorsOptionsOf(map)!.detail!;
 	expect(detail(b)).toBe(m.calendar_not_enough_data());
 	expect(detail(a)).toBeUndefined();
+	// A day's legend is as before: "(units)" after the title, no line under it.
+	expect(monitorsOptionsOf(map)).not.toHaveProperty("legendUnits");
 	// The list names the figure once, above its rows.
 	expect(listNoteOf(map)).toBe(PM25_FIGURE.label);
 

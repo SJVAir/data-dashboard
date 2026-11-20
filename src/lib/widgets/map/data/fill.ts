@@ -16,12 +16,13 @@ import {
 	regionPeriodSource,
 	regionTodaySource,
 	type Snapshot,
-	type SnapshotAt
+	type SnapshotAt,
+	type SnapshotFigure
 } from "$lib/data/snapshot";
 import { todayPacific } from "$lib/format";
 import { directoryFor } from "$lib/places/host";
 import { regionTypeShapes } from "../regions";
-import type { DayRating } from "./monitors";
+import type { DayRating, ThinProperties } from "./monitors";
 import { dataStatus } from "./status";
 
 /** A fill as map-sdk draws it: every region of the type, each with its figure or none. */
@@ -102,6 +103,22 @@ export function fillSourceOf(d: {
 }
 
 /**
+ * A region's properties with its figure: none when the summaries leave it out; a thin row (too
+ * little data for a figure) is marked, with its day counts, so the fill says why it has none.
+ */
+function fillProperties(
+	figure: SnapshotFigure | undefined,
+	base: { refKey: string; name: string }
+): MapFeatureProperties & ThinProperties {
+	const props: MapFeatureProperties & ThinProperties = { ...base, value: figure?.value ?? null };
+	if (figure?.kind === "thin") {
+		props.thin = true;
+		if (figure.days) props.thinDays = figure.days;
+	}
+	return props;
+}
+
+/**
  * The fill's features: every region of the type with a code, ref `region:<type>:<code>`, with its
  * figure; a region the summaries leave out has no figure (drawn as no data), never an error.
  */
@@ -118,11 +135,10 @@ function toFillFeatures(
 		features.push({
 			type: "Feature",
 			geometry: shape.geometry as Geometry,
-			properties: {
+			properties: fillProperties(snapshot.figures.get(`${type}:${code}`), {
 				refKey: encodeRef({ kind: "region", type, code }),
-				name: name({ type, name: shape.properties.name }),
-				value: snapshot.figures.get(`${type}:${code}`)?.value ?? null
-			}
+				name: name({ type, name: shape.properties.name })
+			})
 		});
 	}
 	return { type: "FeatureCollection", features };

@@ -379,6 +379,56 @@ export async function routeMapFill(context: BrowserContext, figures: FillFigures
 	);
 }
 
+const REGION_PERIOD = /\/api\/2\.0\/regions\/([a-z0-9]+)\/summaries\/(monthly|yearly)\/$/;
+
+/**
+ * A ZIP's month or year: its figure, or a thin row (too few days had a figure) with its day
+ * counts, `[days, expected]`. A ZIP left out has no row.
+ */
+export type FillPeriodFigure = number | { thin: [number, number] };
+
+/**
+ * Answers a ZIP fill's month and year stops (`regions/<entry>/summaries/monthly|yearly/
+ * ?type=zipcode`) by the period's start, with the server's field names; `routeMapFill` first for
+ * the ZIPs' shapes.
+ */
+export async function routeMapFillPeriods(
+	context: BrowserContext,
+	periods: Record<string, Record<string, FillPeriodFigure>>
+): Promise<void> {
+	await context.route(
+		(url) => REGION_PERIOD.test(url.pathname) && url.searchParams.get("type") === "zipcode",
+		(route) => {
+			const url = new URL(route.request().url());
+			const [, entry, level] = REGION_PERIOD.exec(url.pathname)!;
+			const start = url.searchParams.get("start") ?? "";
+			const byCode = periods[start] ?? {};
+			const data = FILL_ZIPS.filter((z) => byCode[z.code] !== undefined).map((z) => {
+				const figure = byCode[z.code];
+				const [days, expected] = typeof figure === "number" ? [30, 30] : figure.thin;
+				return {
+					id: z.id,
+					name: z.name,
+					slug: z.id,
+					type: "zipcode",
+					summaries: [
+						{
+							timestamp: `${start}T00:00:00-08:00`,
+							entry_type: entry,
+							resolution: level === "yearly" ? "year" : "month",
+							daily_statistic_mean: typeof figure === "number" ? figure : null,
+							daily_statistic_days: days,
+							daily_statistic_expected_days: expected,
+							is_final: true
+						}
+					]
+				};
+			});
+			return route.fulfill({ json: { data, page: 1, pages: 1, has_next_page: false } });
+		}
+	);
+}
+
 const PESTICIDES_META = /\/api\/2\.0\/pesticides\/meta\/$/;
 const NOTICES = /\/api\/2\.0\/pesticides\/notices\/active\/$/;
 const COMMODITY = /\/api\/2\.0\/pesticides\/commodities\/([a-z0-9]+)\/$/;

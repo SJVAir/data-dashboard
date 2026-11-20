@@ -1345,6 +1345,7 @@
 		}
 	],
 	"map_period_too_few_days": "Too few days had a figure",
+	"map_legend_units_figure": "{units} · {figure}",
 	"map_day_unrated": "{pollutant}'s days can't be rated",
 	"map_month_unrated": "{pollutant}'s months can't be rated",
 	"map_year_unrated": "{pollutant}'s years can't be rated",
@@ -1611,6 +1612,7 @@
 	"mapsdk_list_row_no_value": "{name}, no reading",
 	"mapsdk_list_row_level": "{name}, {level}",
 	"mapsdk_list_row_detail": "{name}, {detail}",
+	"mapsdk_list_row_level_detail": "{name}, {level}, {detail}",
 	"mapsdk_list_empty": "Nothing on the map in this view",
 	"mapsdk_selected_count_one": "{count} selected",
 	"mapsdk_selected_count_other": "{count} selected",

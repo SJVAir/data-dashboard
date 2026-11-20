@@ -2015,15 +2015,6 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
 
 ## Map plugins
 
-- **map-sdk: list the two new `Scale` keys in `NO_SCALE`.** _Deferred 2026-11-18 (the
-  coordinator, from `@sjvair/sdk` `5.0.0-beta.15`'s approved shape, session `sdk-js-9f`)._
-  beta.15 adds the required `Scale` keys `period_statistic` and `period_statistic_label`, and
-  map-sdk's literal `NO_SCALE` (`src/lib/plugins/scale-resolution.svelte.ts`) lists every key,
-  so map-sdk's own type check fails once it builds against beta.15. Nothing breaks at runtime,
-  and the dashboard's pins are unaffected. **Why deferred:** a two-line change, too small for a
-  map-sdk release of its own. **Revisit when** map-sdk next moves its dev pin to `@sjvair/sdk`
-  `5.0.0-beta.15` or later: add both keys as `null` in that release.
-
 - **The regions meta doesn't say which types the server simplifies.** _Deferred 2026-11-15
   (step 5 spec 4, Task 12)._ `regions/geojson/?simplify=1` is accepted only for county,
   zipcode and tract (sjvair.com answers 400 for any other type), and no `regions/meta/` field
@@ -2223,16 +2214,6 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   (map-sdk #38, 2026-11-17). Remove this item when the dashboard pins beta.21 (step 5 spec 6).
   _The dashboard pins beta.21 since step 5 spec 6a (e78376a, 2026-11-18). The item stays until
   the user's hand check of the lens passes._
-- **The Map's legend doesn't name the month or year figure.** _Deferred 2026-11-19 (step 5 spec
-  6a, Task 12)._ The spec says a Monthly or Yearly Map's legend names the figure from
-  `period_statistic_label`. map-sdk's `monitorsPlugin` has no legend slot for a figure name, so
-  the dashboard names it in the tooltips (`figureLabel`) and the feature list's note instead, as
-  at Daily. Likewise a region fill with no period figure
-  reads "No data" with no reason, since `regionsPlugin` has no detail slot (monitors say "Only
-  {days} of {expected} days had a figure"). Why: it needs a map-sdk change, and the figure is
-  already named next to every value. **Revisit with** the next map-sdk release the dashboard
-  pins: name the figure in the monitors legend, and give a no-figure region its reason, if that
-  release offers them.
 - **map-sdk's demo page doesn't show the newer opt-in features.** _Deferred 2026-11-15 (the user,
   in map-sdk `0.1.0-beta.15`'s session `map-sdk-42`, [#32](https://github.com/SJVAir/map-sdk/pull/32))._
   Missing from the demo: regions with no figure drawn as outlines, plus the legend's "No data"
@@ -2242,7 +2223,7 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   tooltip and ViewSummary for no-figure outlines, the unfilled list swatch, and the Legend's
   no-figure swatch on `--swatch-outline-*`. The trigger below fired with beta.16 and wasn't raised
   then (the prompt didn't carry it); the user set the new trigger on 2026-11-15. Why: the user wants the demo
-  updated, but not in that PR. The demo isn't shipped, so the package is unaffected. **Revisit when** the user asks, or before map-sdk's 1.0 release.
+  updated, but not in that PR. The demo isn't shipped, so the package is unaffected. `0.1.0-beta.22` (map-sdk #39) shows its own new options in the demo, and the older ones listed stay missing. **Revisit when** the user asks, or before map-sdk's 1.0 release.
 - **map-sdk: one frame of tint at a tile edge when the lens recentres.** _Deferred 2026-11-17 (the
   user, map-sdk `0.1.0-beta.21`, session `map-sdk-f0`)._ From beta.21 the lens hides its townships
   once the sections' source has loaded, so it no longer flashes them clear. But MapLibre swaps a

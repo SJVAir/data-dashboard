@@ -1,5 +1,10 @@
 import { getMonitors, type MonitorEntryType, type MonitorLatest } from "@sjvair/sdk";
-import { encodeRef, type DataSource, type MonitorFeatureProperties } from "@sjvair/map-sdk/data";
+import {
+	encodeRef,
+	type DataSource,
+	type MapFeatureProperties,
+	type MonitorFeatureProperties
+} from "@sjvair/map-sdk/data";
 import type { FeatureCollection, Point } from "geojson";
 import { getResolvers, placeRegion } from "$lib/data";
 import type { Figure, Level, MetadataSource } from "$lib/data/metadata";
@@ -94,7 +99,10 @@ export function toDayFeatures(list: MonitorLatest[], snapshot: Snapshot): Collec
 }
 
 /** A stop's monitor: `thin` when it had a row for the stop without enough data for a figure. */
-export type DayMonitorProperties = MonitorFeatureProperties & {
+export type DayMonitorProperties = MonitorFeatureProperties & ThinProperties;
+
+/** A stop's feature (a monitor or a fill's region) with too little data for a figure. */
+export type ThinProperties = {
 	thin?: true;
 	/** A thin month or year: how many days had a figure, of those expected. */
 	thinDays?: { days: number; expected: number };
@@ -102,14 +110,14 @@ export type DayMonitorProperties = MonitorFeatureProperties & {
 
 /** A thin month's or year's day counts, when its row has them. */
 export function thinDays(
-	props: MonitorFeatureProperties
+	props: MapFeatureProperties
 ): { days: number; expected: number } | undefined {
-	return (props as DayMonitorProperties).thinDays;
+	return (props as ThinProperties).thinDays;
 }
 
-/** Whether a day's monitor had too little data that day for a figure. */
-export function isThin(props: MonitorFeatureProperties): boolean {
-	return (props as DayMonitorProperties).thin === true;
+/** Whether a stop's monitor or region had too little data for a figure. */
+export function isThin(props: MapFeatureProperties): boolean {
+	return (props as ThinProperties).thin === true;
 }
 
 /** The places' scope as the snapshot query takes it, with a key that names its kind. */
