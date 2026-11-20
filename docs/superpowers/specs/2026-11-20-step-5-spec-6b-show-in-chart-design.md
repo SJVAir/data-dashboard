@@ -339,9 +339,16 @@ wording other than the lines quoted above, and how the view's "unsaved visit" fl
 - **Viewer menus:** `MenuItem.forViewers` and `viewerTypeItems(app, widget, ctx)` in
   `src/lib/actions/widget.ts`, used by `WidgetFrame` and the taskbar; only the Map's two items
   opt in.
-- **A thin Daily region reads "No data"** with no reason (with the `0.1.0-beta.22` pin, "No data,
-  Not enough data" repeated itself). The user was told; a one-line change in `FillLayer` if
-  wanted.
+- **A thin Daily region reads "Not enough data"** (the user, 2026-11-20, replacing the build's
+  plain "No data"), matching the monitors: a final day row with no figure gets the reason, a
+  region with no row stays "No data" (`regions.ts` skips it). Monthly and Yearly regions give
+  "Only {days} of {expected} days had a figure" (the `0.1.0-beta.22` pin).
+- **From the final review (all its minors fixed, the user's preference):** a viewer's fullscreen
+  Map keeps its ⋯ button while it has a mark to send (the send registry is reactive); the keep
+  dialog on arrival is derived from the draft's places, never a flag in history state, and an
+  unreadable state never breaks the page; "Add to" also skips this tab's other open read-only
+  dashboards (`app.openSessions()`); a second click while one "Show in" is opening does
+  nothing; a failed "Show in" says "Couldn't open the Data Portal. Please try again.".
 - **A section always gives a Chart** (no Table), whatever the type argument.
 - **"Add to":** `addTargets(app, routeId, lastOpened, skip)`; `DashboardSummary.readOnly` marks
   "newer" documents; a skipped starter falls to the first listed dashboard, else New dashboard.
