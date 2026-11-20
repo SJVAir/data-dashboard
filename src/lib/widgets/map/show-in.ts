@@ -90,8 +90,10 @@ function withPlaces(layer: Layer, places: ReturnType<typeof sendPlaces>): Layer 
  * layer's places swapped for the ids (D7, D19). Over the type's cap every id is kept and
  * `overCap` is set (the Data Portal asks which to keep).
  *
- * A section: a Chart of the use figure the Map draws at that section, with the Map's use
- * filters, over the Map's range at its saved resolution (D10).
+ * A section: always a Chart, whatever `type` says (D1, D15: the card offers only "Show in a
+ * chart"), of the use figure the Map draws at that section, with the Map's use filters, over the
+ * Map's range at its saved resolution (D10). A Map on Now has no resolution, so it gets the
+ * Chart's default range at Automatic.
  */
 export function showInDraft(
 	map: Draft,
@@ -104,7 +106,8 @@ export function showInDraft(
 	if (send.kind === "section") {
 		const figure = useFigureOf(mapOptions(map), catalog);
 		const filters = mapPesticideFilters(map.data);
-		const { dateRange, resolution } = map.data;
+		const { dateRange } = map.data;
+		const resolution = dateRange ? map.data.resolution : undefined;
 		const layer: Layer = {
 			dataset: PESTICIDE_USE,
 			...(figure ? { entryType: figure } : {}),

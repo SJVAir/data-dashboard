@@ -225,11 +225,14 @@ describe("showInDraft: a section", () => {
 		});
 	});
 
-	it("a Map with no range gives the Chart's default range", () => {
+	it("a Map with no range gives a Chart (whatever the type) over its default range, at Automatic", () => {
 		const map = mapDraft(["pm25"]);
 		delete map.data.dateRange;
-		const h = showInDraft(map, { kind: "section", code: "X" }, chartType, CATALOG, [], NOW);
+		map.data.resolution = "year";
+		const h = showInDraft(map, { kind: "section", code: "X" }, dataTableType, CATALOG, [], NOW);
+		expect(h.draft.type).toBe(CHART_TYPE);
 		expect(h.draft.data.dateRange).toEqual(DEFAULT_RANGE);
+		expect(h.draft.data).not.toHaveProperty("resolution");
 	});
 
 	it("copies the filters, so editing the Chart leaves the Map's alone", () => {

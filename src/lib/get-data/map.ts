@@ -467,9 +467,10 @@ export function fromMapDraft(
 		converted.draft.data.dateRange = structuredClone(range);
 	}
 	// A chosen resolution is never reset by itself: a range type that doesn't pin one keeps the
-	// Map's (one that doesn't fit shows blocked there). Automatic stays absent.
+	// Map's (one that doesn't fit shows blocked there). Automatic stays absent, and a Map on Now
+	// has no resolution, so a stale one isn't carried to the type's default range.
 	const resolution = draft.data.resolution;
-	if (type.time !== "now" && !type.resolution && resolution) {
+	if (type.time !== "now" && !type.resolution && range && resolution) {
 		converted.draft.data.resolution = resolution;
 	}
 	const use = mapUseLayer(draft.data);

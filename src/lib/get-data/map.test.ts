@@ -364,6 +364,10 @@ describe("converting to and from the Map", () => {
 		const calendar = fromMapDraft(monthly, monthCalendarType, CATALOG, "unavailable", [], NOW);
 		expect(calendar.draft.data).not.toHaveProperty("resolution");
 		expect(fromMapDraft(monthly, currentType, CATALOG).draft.data).not.toHaveProperty("resolution");
+		// A Map on Now has no resolution: a stale one gives the Chart none.
+		const onNow = mapDraft(["pm25"], undefined, false);
+		onNow.data.resolution = "year";
+		expect(fromMapDraft(onNow, chartType, CATALOG).draft.data).not.toHaveProperty("resolution");
 	});
 
 	it("a ranged Map converts to a Chart with its range; a Map on Now takes the Chart's default", () => {
