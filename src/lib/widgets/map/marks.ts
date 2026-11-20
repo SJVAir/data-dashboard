@@ -46,6 +46,22 @@ export const HIDDEN_REASON_ORDER: readonly HiddenReason[] = [
 	"unknown"
 ];
 
+/** The one reason a marked monitor isn't drawn. */
+function hiddenReasonOf(
+	id: string,
+	monitors: ReadonlyMap<string, { type: string }> | null,
+	reports: (type: string) => boolean | undefined,
+	loadedIds: ReadonlySet<string>,
+	dayDrawn?: ReadonlySet<string>
+): HiddenReason {
+	const monitor = monitors?.get(id);
+	if (!monitor) return "unknown";
+	if (reports(monitor.type) === false) return "pollutant";
+	const inPlaces = loadedIds.has(id);
+	if (inPlaces && dayDrawn && !dayDrawn.has(id)) return "period";
+	return inPlaces ? "options" : "places";
+}
+
 /**
  * Counts the hidden marks by reason. A mark whose monitor the metadata doesn't list is
  * `unknown`; one whose type doesn't report the pollutant drawn is `pollutant`; one among the
@@ -63,20 +79,28 @@ export function hiddenReasons(
 ): Map<HiddenReason, number> {
 	const counts = new Map<HiddenReason, number>();
 	for (const id of hidden) {
-		const monitor = monitors?.get(id);
-		const inPlaces = loadedIds.has(id);
-		const reason: HiddenReason = !monitor
-			? "unknown"
-			: reports(monitor.type) === false
-				? "pollutant"
-				: inPlaces && dayDrawn && !dayDrawn.has(id)
-					? "period"
-					: inPlaces
-						? "options"
-						: "places";
+		const reason = hiddenReasonOf(id, monitors, reports, loadedIds, dayDrawn);
 		counts.set(reason, (counts.get(reason) ?? 0) + 1);
 	}
 	return counts;
+}
+
+/**
+ * The marks to send (D4, D18): drawn ones, plus hidden ones whose only reason is "period";
+ * `leftOut` counts the rest. Same arguments as `hiddenReasons`, plus the drawn set.
+ */
+export function marksToSend(
+	marks: readonly string[],
+	drawn: ReadonlySet<string>,
+	monitors: ReadonlyMap<string, { type: string }> | null,
+	reports: (type: string) => boolean | undefined,
+	loadedIds: ReadonlySet<string>,
+	dayDrawn?: ReadonlySet<string>
+): { ids: string[]; leftOut: number } {
+	const ids = marks.filter(
+		(id) => drawn.has(id) || hiddenReasonOf(id, monitors, reports, loadedIds, dayDrawn) === "period"
+	);
+	return { ids, leftOut: marks.length - ids.length };
 }
 
 /**
