@@ -16,6 +16,7 @@ import { contributionCalendarType } from "$lib/widgets/calendars/contribution";
 import { monthCalendarType } from "$lib/widgets/calendars/month";
 import { dataTableType } from "$lib/widgets/table";
 import { mapType } from "$lib/widgets/map";
+import { currentType } from "$lib/widgets/current";
 import { offeredDatasets, resolutionBlock, typeBlock } from "./offer";
 
 const NOW = new Date("2026-11-05T20:00:00Z");
@@ -226,12 +227,21 @@ describe("typeBlock", () => {
 		expect(typeBlock(chartType, data(), CATALOG, NOW)).toBeNull();
 	});
 
-	it("7 places blocks Chart (places), not Data table", () => {
+	it("places over the cap never block Chart or Table (Show as asks which to keep)", () => {
 		const d = data({
 			layers: [{ dataset: "air-quality", entryType: "pm25", selection: monitors(7) }]
 		});
-		expect(typeBlock(chartType, d, CATALOG, NOW)).toBe("places");
+		expect(typeBlock(chartType, d, CATALOG, NOW)).toBeNull();
 		expect(typeBlock(dataTableType, d, CATALOG, NOW)).toBeNull();
+	});
+
+	it("a 25-place Map's draft isn't blocked for Chart or Table; a one-place type still is", () => {
+		const d = data({
+			layers: [{ dataset: "air-quality", entryType: "pm25", selection: monitors(25) }]
+		});
+		expect(typeBlock(chartType, d, CATALOG, NOW)).toBeNull();
+		expect(typeBlock(dataTableType, d, CATALOG, NOW)).toBeNull();
+		expect(typeBlock(currentType, d, CATALOG, NOW)).toBe("places");
 	});
 
 	it("a dataset the type doesn't accept blocks it", () => {

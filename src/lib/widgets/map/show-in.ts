@@ -7,7 +7,7 @@ import { getMetadata } from "$lib/data";
 import type { CatalogEntry } from "$lib/data/metadata";
 import type { Layer, PlaceRef, SpatialSelection } from "$lib/data/schema";
 import { fromMapDraft, mapPesticideFilters } from "$lib/get-data/map";
-import { DraftSchema, type Draft } from "$lib/get-data/draft.svelte";
+import type { Draft } from "$lib/get-data/draft.svelte";
 import { toLayerPlaces } from "$lib/places/selection";
 import { STARTER_ID } from "$lib/starter/starter";
 import type { AppContext } from "$lib/store/app.svelte";
@@ -15,8 +15,8 @@ import { CHART_TYPE, chartType } from "$lib/widgets/chart";
 import type { WidgetType } from "$lib/widgets/registry";
 import { dataTableType } from "$lib/widgets/table";
 import { DEFAULT_RANGE } from "$lib/widgets/defaults";
-import { z } from "$lib/zod";
 import { navigate } from "../../../router";
+import type { HandOff } from "./hand-off";
 import { PESTICIDE_USE, mapOptions, useFigureOf } from "./options";
 import { mapSend } from "./send-registry";
 
@@ -35,24 +35,7 @@ export function sendPlaces(send: MapSend): { place?: PlaceRef; selection?: Spati
 	}
 }
 
-/** What travels in history state: the starting draft and counts, never a layer kind. */
-export type HandOff = {
-	draft: Draft;
-	/** The marks left out because they're hidden (the Data Portal's note). */
-	leftOut: number;
-	/** More places than the type takes: the Data Portal opens the keep dialog. */
-	overCap: boolean;
-	/** The Map's dashboard when it's read-only, so "Add to" never targets it. */
-	skip?: string;
-};
-
-/** Validates a hand-off read back from history state (any input; an invalid one is ignored). */
-export const HandOffSchema: z.ZodType<HandOff> = z.object({
-	draft: DraftSchema,
-	leftOut: z.number().int().nonnegative(),
-	overCap: z.boolean(),
-	skip: z.string().max(200).optional()
-});
+export { HandOffSchema, type HandOff } from "./hand-off";
 
 export type ShowInTarget = { path: "/dashboards/:id/widgets/new"; id: string } | { path: "/data" };
 

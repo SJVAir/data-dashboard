@@ -14,6 +14,7 @@
 	import { STARTER_ID } from "$lib/starter/starter";
 	import { LAST_OPENED_KEY, useApp } from "$lib/store/app.svelte";
 	import type { DocumentSession } from "$lib/store/document-session.svelte";
+	import { HandOffSchema, type HandOff } from "$lib/widgets/map/hand-off";
 	import { dataTypes } from "$lib/widgets/registry";
 	import { navigate, p, route } from "../router";
 
@@ -23,8 +24,13 @@
 	app.current = { session: null, isStarter: false };
 
 	const mode = $derived(parseGetDataMode(route.params));
-	/** Another mode (`/data` from Edit data's nav link, say) starts the view afresh. */
-	const modeKey = $derived(JSON.stringify(mode));
+	/**
+	 * Another mode (`/data` from Edit data's nav link, say) starts the view afresh, as does another
+	 * hand-off (`/data` from the nav link on a visit from a Map, or Back to one).
+	 */
+	const modeKey = $derived(
+		JSON.stringify([mode, (route.state as { getData?: unknown } | null)?.getData ?? null])
+	);
 	let heading = $state<HTMLElement>();
 	let initial = $state.raw<Draft | null>(null);
 	let lastOpened = $state<string | undefined>();
@@ -34,6 +40,16 @@
 	let notFound = $state<"dashboard" | "widget" | null>(null);
 	/** The view's draft as it is now (Edit data compares it with `initial`). */
 	let current = $state.raw<Draft | null>(null);
+	/**
+	 * Opened from a Map ("Show in a chart"): what it handed over in history state (D16). Its
+	 * draft is this visit's start, never written to the saved draft (D3).
+	 */
+	let handOff = $state.raw<HandOff | null>(null);
+	/**
+	 * What "Discard changes?" compares with: the start (the widget's draft, the Map's), then the
+	 * places kept in the opening keep dialog (D24).
+	 */
+	let baseline = $state.raw<Draft | null>(null);
 	/** Saved, or discarded: navigation goes ahead without asking. */
 	let leaving = false;
 
@@ -50,6 +66,8 @@
 		let active = true;
 		initial = null;
 		current = null;
+		handOff = null;
+		baseline = null;
 		editing = null;
 		notFound = null;
 		leaving = false;
@@ -75,6 +93,7 @@
 					}
 					editing = session;
 					initial = editDraft(widget);
+					baseline = initial;
 				});
 		} else if (
 			at.dashboardId !== undefined &&
@@ -84,16 +103,24 @@
 			// A new widget for a dashboard that isn't here.
 			notFound = "dashboard";
 		} else {
+			// A hand-off that doesn't parse (an app update changed the draft, or a hand-edited entry)
+			// is ignored: the visit starts from the saved draft, as a plain one does.
+			const state = untrack(() => route.state) as { getData?: unknown } | null;
+			const parsed = HandOffSchema.safeParse(state?.getData);
+			const from = parsed.success ? parsed.data : null;
 			const search = route.search as Record<string, unknown>;
 			const type = typeof search.type === "string" ? search.type : undefined;
 			const last = Promise.resolve()
 				.then(() => app.platform.preferences.get<string>(app.space, LAST_OPENED_KEY))
 				// Storage blocked: the target falls back to the starter.
 				.catch(() => undefined);
-			void Promise.all([loadDraft(app.platform, app.space, type), last]).then(([d, opened]) => {
+			const start = from ? Promise.resolve(from.draft) : loadDraft(app.platform, app.space, type);
+			void Promise.all([start, last]).then(([d, opened]) => {
 				if (!active) return;
 				lastOpened = opened;
+				handOff = from;
 				initial = d;
+				if (from) baseline = d;
 			});
 		}
 		return () => {
@@ -116,7 +143,14 @@
 
 	/** The dashboard the button names, and the others in its menu. */
 	const targets = $derived(
-		mode.kind === "new" ? addTargets(app, mode.dashboardId, lastOpened) : null
+		mode.kind === "new"
+			? addTargets(
+					app,
+					mode.dashboardId,
+					lastOpened,
+					handOff?.skip ? new Set([handOff.skip]) : undefined
+				)
+			: null
 	);
 	let adding = $state(false);
 
@@ -133,8 +167,10 @@
 			adding = false;
 			return;
 		}
-		// Kept for the next visit.
-		flushDraft();
+		// Kept for the next visit (a visit from a Map keeps none).
+		if (!handOff) flushDraft();
+		// Added: the page goes without asking.
+		leaving = true;
 		requestFocus({ kind: "added", id: added.widgetId });
 		// Still busy until the page has gone, so a second click can't add another.
 		try {
@@ -145,11 +181,14 @@
 		}
 	}
 
-	// Leaving Edit data with unsaved changes asks first --------------------------------------
+	// Leaving Edit data, or a visit from a Map, with unsaved changes asks first --------------
 
-	/** The draft differs from the widget's. */
+	/** The draft differs from the widget's (or the Map's, D3). */
 	const dirty = $derived(
-		mode.kind === "edit" && !!initial && !!current && draftChanged(initial, current)
+		(mode.kind === "edit" || !!handOff) &&
+			!!baseline &&
+			!!current &&
+			draftChanged(baseline, current)
 	);
 	let asking = $state(false);
 	let answer: ((discard: boolean) => void) | null = null;
@@ -175,6 +214,11 @@
 
 	async function cancel(): Promise<void> {
 		if (dirty && !(await askDiscard())) return;
+		goBack();
+	}
+
+	/** Back, or (opened on a link) the dashboard the view is for, else home; without asking. */
+	function goBack(): void {
 		leaving = true;
 		const plan = cancelPlan(history.state, mode);
 		if (plan.kind === "back") history.back();
@@ -242,6 +286,11 @@
 					onSave={mode.kind === "edit" ? save : undefined}
 					onCancel={cancel}
 					onchange={(draft) => (current = draft)}
+					saves={!handOff}
+					leftOut={handOff?.leftOut ?? 0}
+					keepOnOpen={handOff?.overCap
+						? { oncancel: goBack, onkeep: (draft) => (baseline = draft) }
+						: undefined}
 				/>
 			{/if}
 		{/key}

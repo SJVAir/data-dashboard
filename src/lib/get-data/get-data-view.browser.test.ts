@@ -455,13 +455,60 @@ test("Overlay for appears only when places are in different zones", async () => 
 	expect((await second.current()).options).toEqual({ overlayFor: { kind: "monitor", id: "m2" } });
 });
 
-test("Show as Chart is disabled with a reason at 7 places", async () => {
-	const ids = ["m1", "m2", "m3", "m4", "m5", "m6", "m7"];
-	await show(monitorsDraft(ids, { type: "data-table" }));
-	const chart = page.getByRole("radio", { name: "Chart" });
-	await expect.element(chart).toBeDisabled();
-	await expect.element(chart).toHaveAccessibleDescription("Chart: Shows up to 5 places");
-	await expect.element(page.getByRole("radio", { name: "Data table" })).toBeChecked();
+describe("Show as over the cap", () => {
+	const ids = ["k1", "k2", "k3", "k4", "k5", "k6", "k7"];
+	const selected = (d: Draft) => d.data.layers[0].selection?.ids;
+
+	beforeEach(() => {
+		fake.metadata = fixtureMetadata({
+			catalog: async () => CATALOG,
+			monitors: async () =>
+				ids.map((id) => ({
+					id,
+					name: `Monitor ${id}`,
+					type: "purpleair",
+					county: "Fresno",
+					active: true,
+					inside: false
+				}))
+		});
+		makeClient();
+	});
+
+	test("Chart from a 7-place Table asks which 5 to keep; Cancel keeps the Table and its 7", async () => {
+		const { latest } = await show(monitorsDraft(ids, { type: "data-table" }));
+		const chart = page.getByRole("radio", { name: "Chart" });
+		await expect.element(chart).toBeEnabled();
+		await expect.element(chart).not.toHaveAccessibleDescription();
+		await chart.click();
+		const dialog = page.getByRole("dialog");
+		await expect.element(dialog.getByText("Choose up to 5 places to keep.")).toBeVisible();
+		await dialog.getByRole("button", { name: "Cancel" }).click();
+		await expect.element(dialog).not.toBeInTheDocument();
+		await expect.element(page.getByRole("radio", { name: "Data table" })).toBeChecked();
+		expect(latest().type).toBe("data-table");
+		expect(selected(latest())).toEqual(ids);
+	});
+
+	test("Done with 5 gives a Chart of those 5, with no places-left-out note", async () => {
+		const { latest } = await show(monitorsDraft(ids, { type: "data-table" }));
+		await page.getByRole("radio", { name: "Chart" }).click();
+		const dialog = page.getByRole("dialog");
+		await expect.element(dialog.getByText("Choose up to 5 places to keep.")).toBeVisible();
+		await dialog.getByRole("button", { name: "Remove Monitor k2" }).click();
+		await dialog.getByRole("button", { name: "Remove Monitor k4" }).click();
+		await dialog.getByRole("button", { name: "Done" }).click();
+		await expect.element(dialog).not.toBeInTheDocument();
+		await expect.element(page.getByRole("radio", { name: "Chart" })).toBeChecked();
+		expect(latest().type).toBe("chart");
+		expect(selected(latest())).toEqual(["k1", "k3", "k5", "k6", "k7"]);
+		const cut = m.get_data_places_over_cap_left_out({ count: "5", countValue: 5 });
+		expect(page.getByText(cut).query()).toBeNull();
+		// Change places afterwards opens the picker as usual, not to choose which to keep.
+		await page.getByRole("button", { name: "Change places" }).click();
+		await expect.element(page.getByRole("dialog")).toBeVisible();
+		expect(page.getByText("Choose up to 5 places to keep.").query()).toBeNull();
+	});
 });
 
 test("opens a Chart draft with 6 places without looping", async () => {

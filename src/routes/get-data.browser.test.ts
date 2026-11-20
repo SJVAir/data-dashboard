@@ -31,7 +31,18 @@ vi.mock("$lib/safety/report", () => ({
 vi.mock("$lib/data", async () => {
 	const { createQueryClient } = await import("$lib/data/query/client");
 	const { fixtureMetadata } = await import("$lib/data/testing/fixtures");
-	const metadata = fixtureMetadata();
+	// Monitors r1–r7, for a hand-off from a Map.
+	const metadata = fixtureMetadata({
+		monitors: async () =>
+			["r1", "r2", "r3", "r4", "r5", "r6", "r7"].map((id) => ({
+				id,
+				name: `Monitor ${id}`,
+				type: "purpleair",
+				county: "Fresno",
+				active: true,
+				inside: false
+			}))
+	});
 	const regions = { resolve: async () => null };
 	const client = createQueryClient({ adapters: [], metadata, regions });
 	return {
@@ -382,4 +393,250 @@ test("Cancel on a page opened on its link goes to the dashboard, not off the app
 	await expect.element(saveButton()).toBeVisible();
 	await page.getByRole("button", { name: "Cancel" }).click();
 	await expect.poll(() => location.pathname).toBe("/workspace/dashboards/d1");
+});
+
+// Opened from a Map ("Show in a chart") -------------------------------------------------------
+
+/** What a Map hands the Data Portal: a Chart of monitors `ids` (from the Map's 30 days). */
+function handOff(ids: string[], extra: Partial<{ leftOut: number; skip: string }> = {}) {
+	return {
+		draft: {
+			type: "chart",
+			data: {
+				dateRange: { kind: "trailing", amount: 30, unit: "day" },
+				layers: [
+					{ dataset: "air-quality", entryType: "pm25", selection: { kind: "monitors", ids } }
+				]
+			}
+		},
+		leftOut: 0,
+		overCap: ids.length > 5,
+		...extra
+	};
+}
+
+const SEVEN = ["r1", "r2", "r3", "r4", "r5", "r6", "r7"];
+
+/**
+ * The whole app over dashboards `names` (d1, …), on d1, then opened by `go` (as the Map's items
+ * open it), with every preference write recorded.
+ */
+async function fromMap(
+	go: () => Promise<unknown>,
+	{ names = ["Home"], lastOpened, onDashboard = true } = {} as {
+		names?: string[];
+		lastOpened?: string;
+		onDashboard?: boolean;
+	}
+) {
+	const platform = createMemoryPlatform();
+	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	for (const [i, name] of names.entries()) {
+		const doc: Dashboard = {
+			...blankDashboard(new Date(Date.UTC(2026, 10, 1 + i))),
+			id: `d${i + 1}`,
+			name
+		};
+		await platform.documents.commit(app.space, {
+			docId: doc.id,
+			baseVersion: null,
+			doc,
+			entries: []
+		});
+	}
+	if (lastOpened) await platform.preferences.set(app.space, LAST_OPENED_KEY, lastOpened);
+	await app.index.refresh();
+	const writes = vi.spyOn(platform.preferences, "set");
+	const context = new Map([[APP_CONTEXT_KEY, app]]);
+	if (onDashboard) {
+		await navigate("/dashboards/:id", { params: { id: "d1" } });
+		const screen = await render(App, { context });
+		await go();
+		return { app, platform, writes, screen, context };
+	}
+	await go();
+	const screen = await render(App, { context });
+	return { app, platform, writes, screen, context };
+}
+
+const toNewWidget = (state: unknown) => () =>
+	navigate("/dashboards/:id/widgets/new", { params: { id: "d1" }, state: { getData: state } });
+const draftWrites = (writes: ReturnType<typeof vi.spyOn>) =>
+	writes.mock.calls.filter((call: unknown[]) => call[1] === DRAFT_KEY);
+const keepDialog = () => page.getByRole("dialog");
+const keepLine = () => keepDialog().getByText("Choose up to 5 places to keep.");
+const newPath = "/workspace/dashboards/d1/widgets/new";
+
+test("a hand-off opens on its Chart with its places; the saved draft is never written", async () => {
+	const { writes } = await fromMap(toNewWidget(handOff(["r1", "r2"])));
+	await expect.element(page.getByRole("radio", { name: "Chart" })).toBeChecked();
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("2 places");
+	// No note: nothing was left out.
+	expect(page.getByText(/aren't shown on the map/).query()).toBeNull();
+	// An edit, and the page being hidden, write nothing either.
+	await page.getByRole("radio", { name: "Data table" }).click();
+	await expect.element(page.getByRole("radio", { name: "Data table" })).toBeChecked();
+	window.dispatchEvent(new PageTransitionEvent("pagehide"));
+	await new Promise((r) => setTimeout(r, 700));
+	expect(draftWrites(writes)).toEqual([]);
+	// Leaving with that edit asks.
+	await page.getByRole("link", { name: "Data Portal" }).click();
+	await expect.element(discardDialog()).toBeVisible();
+	await page.getByRole("button", { name: "Discard" }).click();
+	await expect.poll(() => location.pathname).toBe("/workspace/data");
+	expect(draftWrites(writes)).toEqual([]);
+});
+
+test("a hand-off with hidden marks says how many were left out", async () => {
+	await fromMap(toNewWidget(handOff(["r1", "r2"], { leftOut: 2 })));
+	const note = page.getByText("2 marked monitors aren't shown on the map, so they were left out.");
+	await expect.element(note).toBeVisible();
+	// It stays through other edits, and goes once the places are changed.
+	await page.getByRole("radio", { name: "Data table" }).click();
+	await expect.element(note).toBeVisible();
+	await page.getByRole("button", { name: "Change places" }).click();
+	await keepDialog().getByRole("button", { name: "Remove Monitor r2" }).click();
+	await keepDialog().getByRole("button", { name: "Done" }).click();
+	await expect.element(note).not.toBeInTheDocument();
+});
+
+test("one hidden mark is counted in the singular", async () => {
+	await fromMap(toNewWidget(handOff(["r1"], { leftOut: 1 })));
+	await expect
+		.element(page.getByText("1 marked monitor isn't shown on the map, so it was left out."))
+		.toBeVisible();
+});
+
+test("Add from a hand-off adds the Chart without asking, even after an edit", async () => {
+	const { app, writes } = await fromMap(toNewWidget(handOff(["r1", "r2"])));
+	await page.getByRole("radio", { name: "Data table" }).click();
+	await addButton("Home").click();
+	const { widget } = await landed(app, "d1");
+	expect(widget.type).toBe("data-table");
+	expect(widget.data.layers[0].selection).toEqual({ kind: "monitors", ids: ["r1", "r2"] });
+	expect(discardDialog().query()).toBeNull();
+	expect(draftWrites(writes)).toEqual([]);
+});
+
+test("over the cap the keep dialog opens at once; Cancel goes Back to the Map", async () => {
+	const { app } = await fromMap(toNewWidget(handOff(SEVEN)));
+	await expect.poll(() => location.pathname).toBe(newPath);
+	await expect.element(keepLine()).toBeVisible();
+	await keepDialog().getByRole("button", { name: "Cancel" }).click();
+	await expect.poll(() => location.pathname).toBe("/workspace/dashboards/d1");
+	expect(discardDialog().query()).toBeNull();
+	expect((await app.sessions.get("d1"))!.doc.body.widgets).toEqual([]);
+});
+
+test("Cancel in the opening keep dialog on /data opened in a new tab goes home", async () => {
+	const { app } = await fromMap(
+		async () => {
+			await navigate("/data", { state: { getData: handOff(SEVEN) } });
+			// The router's first entry: Back would leave the app.
+			history.replaceState({ ...history.state, _routerIndex: 0 }, "");
+		},
+		{ onDashboard: false }
+	);
+	await expect.element(keepLine()).toBeVisible();
+	await keepDialog().getByRole("button", { name: "Cancel" }).click();
+	await expect.poll(() => location.pathname).not.toBe("/workspace/data");
+	expect(location.pathname.startsWith("/workspace/")).toBe(true);
+	await expect.element(page.getByRole("heading", { name: "Data Portal" })).not.toBeInTheDocument();
+	expect(discardDialog().query()).toBeNull();
+	expect(app.index.items.map((d) => d.id)).toEqual(["d1"]);
+	expect((await app.sessions.get("d1"))!.doc.body.widgets).toEqual([]);
+});
+
+test("after the opening Done, leaving without edits doesn't ask; after an edit it does", async () => {
+	const { writes } = await fromMap(toNewWidget(handOff(SEVEN)));
+	await expect.element(keepLine()).toBeVisible();
+	await keepDialog().getByRole("button", { name: "Remove Monitor r6" }).click();
+	await keepDialog().getByRole("button", { name: "Remove Monitor r7" }).click();
+	await keepDialog().getByRole("button", { name: "Done" }).click();
+	await expect.element(keepDialog()).not.toBeInTheDocument();
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("5 places");
+	// Back, with no edits since Done: no question.
+	history.back();
+	await expect.poll(() => location.pathname).toBe("/workspace/dashboards/d1");
+	expect(discardDialog().query()).toBeNull();
+	// Forward again is the Map's draft again: the dialog opens over the seven.
+	history.forward();
+	await expect.element(keepLine()).toBeVisible();
+	await keepDialog().getByRole("button", { name: "Remove Monitor r6" }).click();
+	await keepDialog().getByRole("button", { name: "Remove Monitor r7" }).click();
+	await keepDialog().getByRole("button", { name: "Done" }).click();
+	await expect.element(keepDialog()).not.toBeInTheDocument();
+	// Change places later opens as usual, not to keep.
+	await page.getByRole("button", { name: "Change places" }).click();
+	await expect.element(keepDialog()).toBeVisible();
+	expect(keepLine().query()).toBeNull();
+	await keepDialog().getByRole("button", { name: "Cancel" }).click();
+	await page.getByRole("radio", { name: "Data table" }).click();
+	history.back();
+	await expect.element(discardDialog()).toBeVisible();
+	await page.getByRole("button", { name: "Keep editing" }).click();
+	await expect.poll(() => location.pathname).toBe(newPath);
+	expect(draftWrites(writes)).toEqual([]);
+});
+
+test("a hand-off that doesn't parse opens the saved draft, as a plain visit does", async () => {
+	const { platform, app } = await fromMap(() => Promise.resolve());
+	reported.length = 0;
+	await platform.preferences.set(app.space, DRAFT_KEY, {
+		type: "data-table",
+		data: {
+			dateRange: { kind: "trailing", amount: 7, unit: "day" },
+			layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }]
+		}
+	});
+	await toNewWidget({ draft: { type: 5 }, leftOut: -1, overCap: "yes" })();
+	await expect.element(page.getByRole("heading", { name: "Data Portal" })).toBeVisible();
+	await expect.element(page.getByRole("radio", { name: "Data table" })).toBeChecked();
+	await expect
+		.element(page.getByRole("button", { name: /^Dates/ }))
+		.toHaveTextContent("Last 7 days");
+	expect(keepDialog().query()).toBeNull();
+	expect(reported).toEqual([]);
+});
+
+test("a read-only Map dashboard (skip) is kept out of Add to", async () => {
+	await fromMap(() => navigate("/data", { state: { getData: handOff(["r1"], { skip: "d1" }) } }), {
+		names: ["Home", "School"],
+		lastOpened: "d1"
+	});
+	await expect.element(addButton("Starter dashboard")).toBeVisible();
+	await page.getByRole("button", { name: "Add to another dashboard" }).click();
+	const items = page.getByRole("menuitem");
+	await expect.element(items.first()).toBeVisible();
+	expect(items.elements().map((e) => e.textContent?.trim())).toEqual(["School", "New dashboard"]);
+});
+
+test("a reload starts from the Map's Chart again, and the saved draft stays untouched", async () => {
+	const { screen, context, writes } = await fromMap(toNewWidget(handOff(["r1", "r2"])));
+	await expect.element(page.getByRole("radio", { name: "Chart" })).toBeChecked();
+	await page.getByRole("radio", { name: "Data table" }).click();
+	await expect.element(page.getByRole("radio", { name: "Data table" })).toBeChecked();
+	// A reload: the page goes, and the app starts again on the same history entry.
+	window.dispatchEvent(new PageTransitionEvent("pagehide"));
+	screen.unmount();
+	await render(App, { context });
+	await expect.element(page.getByRole("radio", { name: "Chart" })).toBeChecked();
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("2 places");
+	await new Promise((r) => setTimeout(r, 700));
+	expect(draftWrites(writes)).toEqual([]);
+});
+
+test("the Data Portal link from a visit from a Map starts a plain visit", async () => {
+	await fromMap(() =>
+		navigate("/data", { state: { getData: handOff(["r1", "r2"], { leftOut: 2 }) } })
+	);
+	const note = page.getByText("2 marked monitors aren't shown on the map, so they were left out.");
+	await expect.element(note).toBeVisible();
+	await page.getByRole("link", { name: "Data Portal" }).click();
+	await expect.element(note).not.toBeInTheDocument();
+	await expect.element(page.getByTestId("where-summary")).not.toHaveTextContent("2 places");
+	// Back to the visit from the Map starts from its draft again.
+	history.back();
+	await expect.element(note).toBeVisible();
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("2 places");
 });
