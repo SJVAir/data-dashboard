@@ -26,7 +26,8 @@
 		locate,
 		pointKeys,
 		ondone,
-		oncancel
+		oncancel,
+		keepId: keepIdProp
 	}: {
 		directory: PlaceDirectory;
 		/** What the places are for; only the entry type filters monitors today (by monitor type). */
@@ -44,13 +45,15 @@
 		/** Single mode: the first pick. Multiple mode: Done. */
 		ondone: (picks: Picks) => void;
 		oncancel: () => void;
+		/** The keep line's id, so a host dialog can use it as its description. */
+		keepId?: string;
 	} = $props();
 
 	const uid = $props.id();
 	const listboxId = `${uid}-results`;
 	const locationReasonId = `${uid}-location-reason`;
 	const browseId = `${uid}-browse`;
-	const keepId = `${uid}-keep`;
+	const keepId = $derived(keepIdProp ?? `${uid}-keep`);
 
 	// `initial` seeds the picks once; later changes to it don't reset what the person picked.
 	// svelte-ignore state_referenced_locally
@@ -155,6 +158,7 @@
 		aria-autocomplete="list"
 		aria-expanded={picker.rows.length > 0 ? "true" : "false"}
 		aria-controls={listboxId}
+		aria-describedby={keepMax !== null ? keepId : undefined}
 		aria-activedescendant={picker.active?.id}
 		placeholder={m.place_picker_placeholder()}
 		value={picker.query}

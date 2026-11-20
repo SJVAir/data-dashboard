@@ -2179,6 +2179,11 @@ describe("Where in keep mode", () => {
 
 	test("opens its picker at once; Done hands over the places to keep", async () => {
 		const { dialog, onkeep, oncancel, onchange } = await showWhere();
+		// The keep line is announced up front: it describes the dialog and the search box.
+		await expect.element(dialog).toHaveAccessibleDescription("Choose up to 5 places to keep.");
+		await expect
+			.element(dialog.getByRole("combobox"))
+			.toHaveAccessibleDescription("Choose up to 5 places to keep.");
 		const done = dialog.getByRole("button", { name: "Done" });
 		await expect.element(done).toHaveAttribute("aria-disabled", "true");
 		await dialog.getByRole("button", { name: "Remove Monitor k6" }).click();
@@ -2201,17 +2206,21 @@ describe("Where in keep mode", () => {
 	});
 
 	test("Escape cancels once", async () => {
-		const { dialog, oncancel } = await showWhere();
+		const { dialog, onkeep, oncancel } = await showWhere();
 		await expect.element(dialog.getByRole("combobox")).toHaveFocus();
 		await userEvent.keyboard("{Escape}");
 		await expect.element(dialog).not.toBeInTheDocument();
 		expect(oncancel).toHaveBeenCalledOnce();
+		expect(onkeep).not.toHaveBeenCalled();
+		await expect.element(page.getByRole("button", { name: "Change places" })).toHaveFocus();
 	});
 
 	test("the dialog's close button cancels once", async () => {
-		const { dialog, oncancel } = await showWhere();
+		const { dialog, onkeep, oncancel } = await showWhere();
 		await dialog.getByRole("button", { name: /close/i }).click();
 		await expect.element(dialog).not.toBeInTheDocument();
 		expect(oncancel).toHaveBeenCalledOnce();
+		expect(onkeep).not.toHaveBeenCalled();
+		await expect.element(page.getByRole("button", { name: "Change places" })).toHaveFocus();
 	});
 });

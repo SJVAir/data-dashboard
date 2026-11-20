@@ -40,6 +40,8 @@
 	} = $props();
 
 	const app = useApp();
+	const uid = $props.id();
+	const keepId = `${uid}-keep`;
 
 	type Ready = {
 		directory: PlaceDirectory;
@@ -127,10 +129,13 @@
 	}
 
 	function done(next: Picks): void {
+		if (next.length === 0) {
+			dismiss();
+			return;
+		}
 		const keeping = keep && !settled ? keep : null;
 		settled = true;
 		close();
-		if (next.length === 0) return;
 		if (keeping) keeping.onkeep(next);
 		else onchange(next);
 		void (async () => {
@@ -171,6 +176,7 @@
 	<Dialog.Content
 		bind:ref={content}
 		tabindex={-1}
+		aria-describedby={keep ? keepId : undefined}
 		class="flex max-h-[85dvh] flex-col overflow-y-auto max-sm:top-0 max-sm:left-0 max-sm:h-dvh max-sm:max-h-none max-sm:w-full max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none max-sm:border-0 sm:max-w-lg"
 		onOpenAutoFocus={(e) => {
 			e.preventDefault();
@@ -202,6 +208,7 @@
 				pointKeys={(lat, lon, signal) => ready!.resolvers.points.keys(lat, lon, signal)}
 				ondone={done}
 				oncancel={dismiss}
+				{keepId}
 			/>
 		{/if}
 		<div class={["flex flex-wrap items-center gap-2 text-sm", ready && "sr-only"]}>
