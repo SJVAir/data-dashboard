@@ -293,7 +293,11 @@ describe("showInDraft: the new widget type checklist", () => {
 		expect(await pointSwaps(docOf(h.draft))).toEqual([]);
 	});
 
-	/** Each way a Map can frame its dates, with the Map's Now (no range) too. */
+	/**
+	 * Each way a Map can frame its dates, with what the Data Portal then shows (a Map holding two
+	 * pollutants, smoke and fire, notices, use and a fill, showing a drawable pollutant: no
+	 * pollutant change, no cut, no selection).
+	 */
 	const framings: [string, (d: Draft) => void][] = [
 		[
 			"Daily",
@@ -320,27 +324,32 @@ describe("showInDraft: the new widget type checklist", () => {
 	];
 
 	for (const [name, frame] of framings) {
-		it(`${name}: the notes are the conversion's, less marks and places`, () => {
+		it(`${name}: the hand-off's notes are exactly overlays and fill`, () => {
 			const map = fullMap();
 			frame(map);
-			const c = fromMapDraft(map, chartType, CATALOG, "unavailable", DRAWABLE, NOW);
 			const h = showInDraft(map, send(monitors(6)), chartType, CATALOG, DRAWABLE, NOW);
-			expect(h.notes).toBeDefined();
-			expect(h.notes!.dropped).toEqual(c.dropped.filter((d) => d !== "marks" && d !== "places"));
-			expect(h.notes!.dropped).not.toContain("marks");
-			expect(h.notes!.dropped).not.toContain("places");
-			expect(h.notes!.dropped).toContain("fill");
-			expect(h.notes!.pollutant).toEqual(c.pollutant);
-			expect(h.notes!.cutAt).toEqual(c.cutAt);
-			expect(h.notes!.selection).toEqual(c.selection);
+			expect(h.notes).toEqual({ dropped: ["overlays", "fill"] });
 			const r = HandOffSchema.safeParse(h);
 			expect(r.success, JSON.stringify(r.error?.issues)).toBe(true);
 		});
 	}
 
-	it("smoke and fire, notices and use are named as left out, with a fill", () => {
-		const h = showInDraft(fullMap(), send(["m1"]), chartType, CATALOG, DRAWABLE, NOW);
-		expect(h.notes!.dropped).toEqual(expect.arrayContaining(["overlays", "fill"]));
+	it("a Chart from a Map with smoke and fire, notices, use and a fill keeps the use layer only", () => {
+		const map = fullMap();
+		expect(map.data.layers.map((l) => l.dataset)).toEqual(
+			expect.arrayContaining(["hms-smoke", "hms-fire", PESTICIDE_USE])
+		);
+		const h = showInDraft(map, send(["m1"]), chartType, CATALOG, DRAWABLE, NOW);
+		// Smoke and fire and notices are left out (the "overlays" note); use reaches the Chart.
+		expect(h.draft.data.layers.map((l) => l.dataset)).toEqual(["air-quality", PESTICIDE_USE]);
+		expect(h.draft.options).toBeUndefined();
+		expect(h.notes!.dropped).toEqual(["overlays", "fill"]);
+	});
+
+	it("fullMap gives a fresh draft each call", () => {
+		const a = fullMap();
+		a.data.layers.pop();
+		expect(fullMap().data.layers.length).toBeGreaterThan(a.data.layers.length);
 	});
 });
 
