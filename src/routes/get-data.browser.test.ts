@@ -480,8 +480,8 @@ test("a hand-off opens on its Chart with its places; the saved draft is never wr
 	// An edit, and the page being hidden, write nothing either.
 	await page.getByRole("radio", { name: "Data table" }).click();
 	await expect.element(page.getByRole("radio", { name: "Data table" })).toBeChecked();
+	// "pagehide" flushes a pending save at once, so nothing pending was written either.
 	window.dispatchEvent(new PageTransitionEvent("pagehide"));
-	await new Promise((r) => setTimeout(r, 700));
 	expect(draftWrites(writes)).toEqual([]);
 	// Leaving with that edit asks.
 	await page.getByRole("link", { name: "Data Portal" }).click();
@@ -645,7 +645,8 @@ test("a reload starts from the Map's Chart again, and the saved draft stays unto
 	await render(App, { context });
 	await expect.element(page.getByRole("radio", { name: "Chart" })).toBeChecked();
 	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("2 places");
-	await new Promise((r) => setTimeout(r, 700));
+	// "pagehide" flushes a pending save at once: nothing waits on a timer.
+	window.dispatchEvent(new PageTransitionEvent("pagehide"));
 	expect(draftWrites(writes)).toEqual([]);
 });
 

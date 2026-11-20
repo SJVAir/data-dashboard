@@ -4,8 +4,32 @@ import type { MenuItem } from "$lib/actions/types";
 import { m } from "$lib/paraglide/messages.js";
 import { loadLazy } from "$lib/safety/lazy";
 import { report } from "$lib/safety/report";
+import type { AppContext } from "$lib/store/app.svelte";
 import type { WidgetMenuEnv } from "../registry";
 import { mapSend } from "./send-registry";
+import type { MapSend } from "./show-in";
+
+/** A Show in is opening: a second click (an item or a section's button) waits for it. */
+let running = false;
+
+/**
+ * Opens the Data Portal with `send` (the Map's items and a section card's button). Ignored while
+ * another is still opening, so a double click pushes one history entry.
+ */
+export function runShowIn(
+	app: AppContext,
+	widgetId: string,
+	send: MapSend,
+	type: "chart" | "table" = "chart"
+): void {
+	if (running) return;
+	running = true;
+	// A gone chunk (an older deploy) offers a reload; the failure is reported, not swallowed.
+	loadLazy(() => import("./show-in"))
+		.then((mod) => mod.showIn(app, widgetId, send, type))
+		.catch((error) => report(error))
+		.finally(() => (running = false));
+}
 
 /**
  * The Map's "Show in a chart" and "Show in a table" (D13, D15): listed only while the mounted Map
@@ -26,10 +50,7 @@ export function showInItems(env: WidgetMenuEnv): MenuItem[] {
 			const entry = widget && mapSend(widget.id);
 			if (!widget || !entry?.marks.length) return;
 			const send = { kind: "monitors" as const, ids: [...entry.marks], leftOut: entry.leftOut };
-			// A gone chunk (an older deploy) offers a reload; the failure is reported, not swallowed.
-			loadLazy(() => import("./show-in"))
-				.then((mod) => mod.showIn(env.app, widget.id, send, type))
-				.catch((error) => report(error));
+			runShowIn(env.app, widget.id, send, type);
 		}
 	});
 	return [

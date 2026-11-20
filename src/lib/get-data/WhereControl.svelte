@@ -62,6 +62,8 @@
 
 	let open = $state(false);
 	let ready = $state.raw<Ready | null>(null);
+	/** The picker's keep line is shown: the dialog's description names it only then. */
+	let keepShown = $state(false);
 	let failed = $state(false);
 	let content = $state<HTMLElement | null>(null);
 	let opener = $state<HTMLButtonElement | null>(null);
@@ -188,7 +190,7 @@
 	<Dialog.Content
 		bind:ref={content}
 		tabindex={-1}
-		aria-describedby={keep ? keepId : undefined}
+		aria-describedby={keepShown ? keepId : undefined}
 		class="flex max-h-[85dvh] flex-col overflow-y-auto max-sm:top-0 max-sm:left-0 max-sm:h-dvh max-sm:max-h-none max-sm:w-full max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none max-sm:border-0 sm:max-w-lg"
 		onOpenAutoFocus={(e) => {
 			e.preventDefault();
@@ -223,6 +225,7 @@
 				ondone={done}
 				oncancel={dismiss}
 				{keepId}
+				onkeepline={(shown) => (keepShown = shown)}
 			/>
 		{/if}
 		<div class={["flex flex-wrap items-center gap-2 text-sm", ready && "sr-only"]}>

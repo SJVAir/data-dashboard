@@ -2238,6 +2238,11 @@ describe("Where in keep mode", () => {
 		await expect.element(done).toHaveAttribute("aria-disabled", "true");
 		await dialog.getByRole("button", { name: "Remove Monitor k6" }).click();
 		await dialog.getByRole("button", { name: "Remove Monitor k7" }).click();
+		// Within the cap the keep line goes, and the dialog no longer names it.
+		await expect
+			.element(dialog.getByText("Choose up to 5 places to keep."))
+			.not.toBeInTheDocument();
+		await expect.element(dialog).not.toHaveAttribute("aria-describedby");
 		await done.click();
 		expect(onkeep).toHaveBeenCalledWith(picks.slice(0, 5));
 		expect(oncancel).not.toHaveBeenCalled();

@@ -6,7 +6,7 @@ import { m } from "$lib/paraglide/messages.js";
 import type { AppContext } from "$lib/store/app.svelte";
 import type { WidgetMenuEnv } from "../registry";
 import { setMapSend } from "./send-registry";
-import { showInItems } from "./show-in-items";
+import { runShowIn, showInItems } from "./show-in-items";
 
 const showIn = vi.fn(async () => {});
 vi.mock("./show-in", () => ({ showIn: (...args: unknown[]) => showIn(...(args as [])) }));
@@ -78,6 +78,38 @@ describe("showInItems", () => {
 			{ kind: "monitors", ids: ["a", "b"], leftOut: 1 },
 			"table"
 		);
+	});
+
+	it("ignores a second run while the first is still opening", async () => {
+		let finish = () => {};
+		showIn.mockImplementationOnce(() => new Promise<void>((r) => (finish = r)));
+		offer(["a"]);
+		const [chart, table] = showInItems(env());
+		chart.run(ctx);
+		chart.run(ctx);
+		table.run(ctx);
+		// The section card's button shares the guard.
+		runShowIn(app, "w1", { kind: "section", code: "M1" });
+		await vi.waitFor(() => expect(showIn).toHaveBeenCalledTimes(1));
+		await new Promise((r) => setTimeout(r, 10));
+		expect(showIn).toHaveBeenCalledTimes(1);
+		finish();
+		await new Promise((r) => setTimeout(r, 10));
+		table.run(ctx);
+		await vi.waitFor(() => expect(showIn).toHaveBeenCalledTimes(2));
+	});
+
+	it("runs again after a failed run", async () => {
+		showIn.mockImplementationOnce(async () => {
+			throw new Error("offline");
+		});
+		offer(["a"]);
+		const [chart] = showInItems(env());
+		chart.run(ctx);
+		await vi.waitFor(() => expect(showIn).toHaveBeenCalledTimes(1));
+		await new Promise((r) => setTimeout(r, 10));
+		chart.run(ctx);
+		await vi.waitFor(() => expect(showIn).toHaveBeenCalledTimes(2));
 	});
 
 	it("does nothing when the entry is gone by the time it runs", async () => {

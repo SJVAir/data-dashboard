@@ -6,7 +6,7 @@ import {
 	type SelectionMode,
 	type SpatialSelection
 } from "@sjvair/map-sdk/data";
-import type { OptionGroup, OptionValues } from "@sjvair/map-sdk";
+import type { FeatureListItem, OptionGroup, OptionValues } from "@sjvair/map-sdk";
 import { mapMessages } from "../host/messages";
 /**
  * A stand-in for map-sdk's `createMap` in browser tests (no WebGL, no MapTiler): it records the
@@ -75,7 +75,9 @@ export class FakeMap {
 	/** Every `setSelection` call, in order (`[pluginId, selection]`). */
 	selectionCalls: [string, unknown][] = [];
 	/** The pinned card's feature (map-sdk's `Hovered`), set by a click on the fake MapView with `card`. */
-	pinned = $state.raw<{ hit: { pluginId: string; refKey: string; name: string } } | null>(null);
+	pinned = $state.raw<{
+		hit: { pluginId: string; refKey: string; name: string; item?: FeatureListItem };
+	} | null>(null);
 	/** The keyboard-focused feature list item's refKey (map-sdk's `focusedKey`); set by the test. */
 	focusedKey = $state<string | null>(null);
 	/** Every camera move asked for, in order. */

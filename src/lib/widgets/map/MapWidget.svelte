@@ -23,8 +23,6 @@
 	import { formatNumber, pacificDay, parseDateKey } from "$lib/format";
 	import { HMS_FIRE, HMS_SMOKE } from "$lib/get-data/map";
 	import { m } from "$lib/paraglide/messages.js";
-	import { loadLazy } from "$lib/safety/lazy";
-	import { report } from "$lib/safety/report";
 	import { useApp } from "$lib/store/app.svelte";
 	import { entryMeta, placesLayer, widgetEffective, widgetPlaceKind } from "../shared/input";
 	import { useTileOptions } from "../shared/tile-options.svelte";
@@ -53,6 +51,7 @@
 	import { syncMapTitle } from "./map-title.svelte";
 	import { MapNoteLines } from "./note-lines.svelte";
 	import { setMapSend } from "./send-registry";
+	import { runShowIn } from "./show-in-items";
 	import FillLayer from "./layers/FillLayer.svelte";
 	import HmsLayers from "./layers/HmsLayers.svelte";
 	import NoticesLayer from "./layers/NoticesLayer.svelte";
@@ -815,13 +814,9 @@
 	function showSectionInChart(ctx: CardContext) {
 		const source = ctx.pluginId === "lens" ? data.useBlock.lens : data.useBlock.sections;
 		const found = source.features?.features?.find((f) => f.properties.refKey === ctx.refKey);
-		const code = found?.properties.name ?? ctx.item?.name;
-		if (!code) return;
-		const send = { kind: "section" as const, code };
-		// A gone chunk (an older deploy) offers a reload; the failure is reported, not swallowed.
-		loadLazy(() => import("./show-in"))
-			.then((mod) => mod.showIn(app, widget.id, send, "chart"))
-			.catch((error) => report(error));
+		// Only a section the source still holds: its name is its MTRS code.
+		if (found?.properties.level !== "section" || !found.properties.name) return;
+		runShowIn(app, widget.id, { kind: "section", code: found.properties.name }, "chart");
 	}
 	/** The map's notes: the day's, then why marks are hidden. */
 	const noteLines = $derived(noteLinesOf.lines);

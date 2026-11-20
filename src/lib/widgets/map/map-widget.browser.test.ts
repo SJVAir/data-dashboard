@@ -4256,6 +4256,18 @@ describe("a section card's Show in a chart", () => {
 		await expect.element(button(screen)).toBeVisible();
 	});
 
+	test("sends nothing once the section has left its source", async () => {
+		const { screen, map } = await pinnedSection();
+		vi.mocked(showIn).mockClear();
+		// A feature the source doesn't hold: its listed item's name is all that's left.
+		const refKey = encodeRef({ kind: "feature", id: "section:gone" });
+		const item = { refKey, name: "M99S99E99", level: "Good" } as unknown as FeatureListItem;
+		map.pinned = { hit: { pluginId: "sections", refKey, name: refKey, item } };
+		await button(screen).click();
+		await new Promise((r) => setTimeout(r, 50));
+		expect(vi.mocked(showIn)).not.toHaveBeenCalled();
+	});
+
 	test("isn't on a township's card", async () => {
 		const { screen, map } = await pinnedSection();
 		pin(map, encodeRef({ kind: "feature", id: "township:T-0" }), "townships");

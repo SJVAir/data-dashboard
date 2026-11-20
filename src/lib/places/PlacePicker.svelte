@@ -1,7 +1,7 @@
 <script lang="ts">
 	import LocateFixedIcon from "@lucide/svelte/icons/locate-fixed";
 	import XIcon from "@lucide/svelte/icons/x";
-	import { onDestroy, tick } from "svelte";
+	import { onDestroy, tick, untrack } from "svelte";
 	import { Button } from "$lib/components/ui/button";
 	import type { PlaceRef } from "$lib/data/schema";
 	import { formatNumber } from "$lib/format";
@@ -27,7 +27,8 @@
 		pointKeys,
 		ondone,
 		oncancel,
-		keepId: keepIdProp
+		keepId: keepIdProp,
+		onkeepline
 	}: {
 		directory: PlaceDirectory;
 		/** What the places are for; only the entry type filters monitors today (by monitor type). */
@@ -47,6 +48,8 @@
 		oncancel: () => void;
 		/** The keep line's id, so a host dialog can use it as its description. */
 		keepId?: string;
+		/** Called with whether the keep line is shown, so a host names it only while it exists. */
+		onkeepline?: (shown: boolean) => void;
 	} = $props();
 
 	const uid = $props.id();
@@ -80,6 +83,11 @@
 	const keepMax = $derived(
 		mode.kind === "multiple" && picker.picks.length > mode.max ? mode.max : null
 	);
+	$effect.pre(() => {
+		const shown = keepMax !== null;
+		untrack(() => onkeepline?.(shown));
+	});
+	onDestroy(() => onkeepline?.(false));
 
 	let input = $state<HTMLInputElement | null>(null);
 	let chips = $state<HTMLUListElement | null>(null);
