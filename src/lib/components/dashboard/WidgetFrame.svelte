@@ -145,10 +145,14 @@
 	const title = $derived(widgetTitle(widget));
 	const titleId = $derived(`widget-title-${widget.id}`);
 
-	// The type's own items first, then the common widget actions. Read-only: Fullscreen only.
+	// The type's own items first, then the common widget actions. Read-only: opted-in type items, Download and Fullscreen.
+	/** The type's items that opted in for viewers (they change nothing). */
+	const viewerTypeItems: MenuProvider = (ctx) =>
+		(type?.menu(ctx, { app, widget: () => widget }) ?? []).filter((i) => i.forViewers);
 	const provider: MenuProvider = (ctx) =>
 		readOnly
 			? [
+					...viewerTypeItems(ctx),
 					...downloadItems(app, () => widget, viewer),
 					...viewActions(widget.id, () => onfullscreen(), fullscreen)(ctx)
 				]

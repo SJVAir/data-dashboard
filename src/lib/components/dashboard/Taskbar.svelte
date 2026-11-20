@@ -50,6 +50,11 @@
 			? viewActions(widget.id, onfullscreen)
 			: taskbarActions(app, widget.id, onfullscreen);
 		return (ctx) => [
+			...(readOnly
+				? (getWidgetType(widget.type)
+						?.menu(ctx, { app, widget: () => widget })
+						.filter((i) => i.forViewers) ?? [])
+				: []),
 			...placeItems(app, () => widget),
 			...downloadItems(app, () => widget, viewer),
 			...base(ctx)
