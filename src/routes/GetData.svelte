@@ -14,9 +14,15 @@
 	import { STARTER_ID } from "$lib/starter/starter";
 	import { LAST_OPENED_KEY, useApp } from "$lib/store/app.svelte";
 	import type { DocumentSession } from "$lib/store/document-session.svelte";
-	import { HandOffSchema, type HandOff } from "$lib/widgets/map/hand-off";
+	import { HandOffSchema, overCap, type HandOff } from "$lib/widgets/map/hand-off";
 	import { dataTypes } from "$lib/widgets/registry";
 	import { navigate, p, route } from "../router";
+
+	/** History state's hand-off, validated (it's untrusted: anything structured clone allows). */
+	function parseHandOff(state: unknown): HandOff | null {
+		const parsed = HandOffSchema.safeParse(state);
+		return parsed.success ? parsed.data : null;
+	}
 
 	const app = useApp();
 	// No dashboard is open here: undo, redo and the preview's widget actions never reach one (as
@@ -29,7 +35,7 @@
 	 * hand-off (`/data` from the nav link on a visit from a Map, or Back to one).
 	 */
 	const modeKey = $derived(
-		JSON.stringify([mode, (route.state as { getData?: unknown } | null)?.getData ?? null])
+		JSON.stringify([mode, parseHandOff((route.state as { getData?: unknown } | null)?.getData)])
 	);
 	let heading = $state<HTMLElement>();
 	let initial = $state.raw<Draft | null>(null);
@@ -106,8 +112,7 @@
 			// A hand-off that doesn't parse (an app update changed the draft, or a hand-edited entry)
 			// is ignored: the visit starts from the saved draft, as a plain one does.
 			const state = untrack(() => route.state) as { getData?: unknown } | null;
-			const parsed = HandOffSchema.safeParse(state?.getData);
-			const from = parsed.success ? parsed.data : null;
+			const from = parseHandOff(state?.getData);
 			const search = route.search as Record<string, unknown>;
 			const type = typeof search.type === "string" ? search.type : undefined;
 			const last = Promise.resolve()
@@ -289,7 +294,7 @@
 					saves={!handOff}
 					leftOut={handOff?.leftOut ?? 0}
 					startNotes={handOff?.notes}
-					keepOnOpen={handOff?.overCap
+					keepOnOpen={handOff && overCap(handOff.draft)
 						? { oncancel: goBack, onkeep: (draft) => (baseline = draft) }
 						: undefined}
 				/>

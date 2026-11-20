@@ -6,6 +6,8 @@
 import { LIMITS, TimeSubRangeSchema, type TimeSubRange } from "$lib/data/schema";
 import { DraftSchema, type Draft } from "$lib/get-data/draft.svelte";
 import type { NowDropped } from "$lib/get-data/now";
+import { fromLayer } from "$lib/places/selection";
+import { getWidgetType } from "$lib/widgets/registry";
 import { z } from "$lib/zod";
 
 /**
@@ -36,8 +38,6 @@ export type HandOff = {
 	draft: Draft;
 	/** The marks left out because they're hidden (the Data Portal's note). */
 	leftOut: number;
-	/** More places than the type takes: the Data Portal opens the keep dialog. */
-	overCap: boolean;
 	/** The Map's dashboard when it's read-only, so "Add to" never targets it. */
 	skip?: string;
 	/** What the conversion left out or changed (none for a section's Chart). */
@@ -50,7 +50,6 @@ const Id = z.string().min(1).max(LIMITS.ID_MAX);
 export const HandOffSchema: z.ZodType<HandOff> = z.object({
 	draft: DraftSchema,
 	leftOut: z.number().int().nonnegative(),
-	overCap: z.boolean(),
 	skip: z.string().max(200).optional(),
 	notes: z
 		.object({
@@ -61,3 +60,13 @@ export const HandOffSchema: z.ZodType<HandOff> = z.object({
 		})
 		.optional()
 });
+
+/**
+ * The draft's main layer holds more places than its type takes: the Data Portal opens the keep
+ * dialog (D17). Derived from the draft, never read from history state.
+ */
+export function overCap(draft: Draft): boolean {
+	const main = draft.data.layers[0];
+	const max = getWidgetType(draft.type)?.accepts?.maxPlaces;
+	return !!main && max !== undefined && fromLayer(main).length > max;
+}

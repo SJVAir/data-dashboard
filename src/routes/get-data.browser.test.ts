@@ -415,7 +415,6 @@ function handOff(ids: string[], extra: Partial<{ leftOut: number; skip: string }
 			}
 		},
 		leftOut: 0,
-		overCap: ids.length > 5,
 		...extra
 	};
 }
@@ -531,6 +530,23 @@ test("over the cap the keep dialog opens at once; Cancel goes Back to the Map", 
 	await expect.poll(() => location.pathname).toBe("/workspace/dashboards/d1");
 	expect(discardDialog().query()).toBeNull();
 	expect((await app.sessions.get("d1"))!.doc.body.widgets).toEqual([]);
+});
+
+test("the opening keep dialog follows the draft's places, not the state's overCap", async () => {
+	const { screen } = await fromMap(toNewWidget({ ...handOff(SEVEN), overCap: false }));
+	await expect.element(keepLine()).toBeVisible();
+	await keepDialog().getByRole("button", { name: "Cancel" }).click();
+	await expect.poll(() => location.pathname).toBe("/workspace/dashboards/d1");
+	screen.unmount();
+	await fromMap(toNewWidget({ ...handOff(["r1", "r2"]), overCap: true }));
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("2 places");
+	expect(keepDialog().query()).toBeNull();
+});
+
+test("a hand-off beside a value JSON can't hold (a BigInt) opens without an error", async () => {
+	await fromMap(toNewWidget({ ...handOff(["r1", "r2"]), extra: 1n }));
+	await expect.element(page.getByRole("heading", { name: "Data Portal" })).toBeVisible();
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("2 places");
 });
 
 test("Cancel in the opening keep dialog on /data opened in a new tab goes home", async () => {

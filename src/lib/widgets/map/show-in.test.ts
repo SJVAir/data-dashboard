@@ -18,6 +18,8 @@ import { PESTICIDE_USE } from "$lib/widgets/map/options";
 import { DATA_TABLE_TYPE, dataTableType } from "$lib/widgets/table";
 import { hasPoints, pointSwaps } from "$lib/sharing/points";
 import { navigate } from "../../../router";
+import { registerWidgetType } from "$lib/widgets/registry";
+import { overCap } from "./hand-off";
 import { setMapSend } from "./send-registry";
 import {
 	HandOffSchema,
@@ -118,13 +120,15 @@ describe("showInDraft: monitors", () => {
 	});
 
 	it("is over the cap past 5 for a Chart and 10 for a Table, keeping every id", () => {
+		registerWidgetType(chartType);
+		registerWidgetType(dataTableType);
 		const at = (n: number, type = chartType) =>
 			showInDraft(mapDraft(["pm25"]), send(monitors(n)), type, CATALOG, DRAWABLE, NOW);
-		expect(at(5).overCap).toBe(false);
-		expect(at(6).overCap).toBe(true);
+		expect(overCap(at(5).draft)).toBe(false);
+		expect(overCap(at(6).draft)).toBe(true);
 		expect(at(6).draft.data.layers[0].selection).toEqual({ kind: "monitors", ids: monitors(6) });
-		expect(at(10, dataTableType).overCap).toBe(false);
-		expect(at(11, dataTableType).overCap).toBe(true);
+		expect(overCap(at(10, dataTableType).draft)).toBe(false);
+		expect(overCap(at(11, dataTableType).draft)).toBe(true);
 	});
 
 	it("carries the left-out count and no skip", () => {
@@ -223,8 +227,7 @@ describe("showInDraft: a section", () => {
 					]
 				}
 			},
-			leftOut: 0,
-			overCap: false
+			leftOut: 0
 		});
 	});
 

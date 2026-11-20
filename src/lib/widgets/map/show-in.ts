@@ -85,8 +85,8 @@ function withPlaces(layer: Layer, places: ReturnType<typeof sendPlaces>): Layer 
  *
  * Monitors: exactly what Show as gives for this Map (`fromMapDraft`, with `"unavailable"` levels
  * and `drawable` the Map's pollutants, as `GetDataView`'s `setType` calls it), with the main
- * layer's places swapped for the ids (D7, D19). Over the type's cap every id is kept and
- * `overCap` is set (the Data Portal asks which to keep).
+ * layer's places swapped for the ids (D7, D19). Over the type's cap every id is kept (the Data
+ * Portal asks which to keep; `overCap`).
  *
  * A section: always a Chart, whatever `type` says (D1, D15: the card offers only "Show in a
  * chart"), of the use figure the Map draws at that section, with the Map's use filters, over the
@@ -121,8 +121,7 @@ export function showInDraft(
 					layers: [layer]
 				}
 			},
-			leftOut: 0,
-			overCap: false
+			leftOut: 0
 		};
 	}
 	const converted = fromMapDraft(map, type, catalog, "unavailable", drawable, now);
@@ -135,7 +134,6 @@ export function showInDraft(
 			data: { ...draft.data, layers: main ? [withPlaces(main, places), ...rest] : [] }
 		},
 		leftOut: send.leftOut,
-		overCap: send.ids.length > (type.accepts?.maxPlaces ?? Infinity),
 		notes: handOffNotes(converted)
 	};
 }
