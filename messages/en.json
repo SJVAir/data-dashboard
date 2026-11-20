@@ -1485,6 +1485,8 @@
 	],
 	"map_mark_select": "Select",
 	"map_mark_remove": "Remove",
+	"map_show_in_chart": "Show in a chart",
+	"map_show_in_table": "Show in a table",
 	"map_marks_limit": [
 		{
 			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],

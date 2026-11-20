@@ -51,6 +51,7 @@
 	import { mapMetadata } from "./host/metadata";
 	import { syncMapTitle } from "./map-title.svelte";
 	import { MapNoteLines } from "./note-lines.svelte";
+	import { setMapSend } from "./send-registry";
 	import FillLayer from "./layers/FillLayer.svelte";
 	import HmsLayers from "./layers/HmsLayers.svelte";
 	import NoticesLayer from "./layers/NoticesLayer.svelte";
@@ -790,6 +791,20 @@
 		},
 		metadata
 	);
+	// What the ⋯ menu's Show in a chart / table sends (D21): the sent marks, and the dataset as
+	// this person sees it. None in a preview (no tile options; D23), nor with no mark to send.
+	const sendOwner = Symbol();
+	$effect(() => {
+		const { ids, leftOut } = noteLinesOf.send;
+		if (!tileOptionsContext || !ids.length) return;
+		return setMapSend(widget.id, sendOwner, {
+			marks: ids,
+			leftOut,
+			// A plain snapshot: the hand-off clones it.
+			draft: () =>
+				$state.snapshot({ type: widget.type, data: widget.data, options: wiring.options })
+		});
+	});
 	/** The map's notes: the day's, then why marks are hidden. */
 	const noteLines = $derived(noteLinesOf.lines);
 	/** The notes as one text, for the map's list and its name. */

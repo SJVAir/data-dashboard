@@ -74,6 +74,7 @@ import { registerWidgetType } from "../registry";
 import { mapType } from "./index";
 import MapWidget from "./MapWidget.svelte";
 import { resetUseLegendNote } from "./UseLegendNote.svelte";
+import { mapSend } from "./send-registry";
 import RenderSnippet from "./test-harness/RenderSnippet.svelte";
 import SessionMap from "./test-harness/SessionMap.svelte";
 
@@ -1494,6 +1495,136 @@ test("hands a mark on the starter off to its copy", async () => {
 	expect(app().current.session).toBe(copy);
 });
 
+/** Shows `widget` in the grid's editing context (where the Map offers Show in). */
+async function showEditing(widget: WidgetInstance) {
+	await openSession(widget);
+	return render(MapWidget, {
+		target: frame,
+		props: { widget },
+		context: new Map<unknown, unknown>([
+			[APP_CONTEXT_KEY, app()],
+			[TILE_OPTIONS_KEY, editing()]
+		])
+	});
+}
+
+/** The Map's ⋯ menu item ids for `widget`. */
+const menuIds = (widget: WidgetInstance) =>
+	mapType
+		.menu({ target: document.body, payload: {} }, { app: app(), widget: () => widget })
+		.map((i) => i.id);
+const SHOW_IN = ["map_show_in_chart", "map_show_in_table"];
+
+describe("Show in a chart / Show in a table", () => {
+	test("aren't listed with no marks", async () => {
+		vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+		const widget = mapWidget(region("019"));
+		await showEditing(widget);
+		const map = await madeMap();
+		await expect.poll(() => drawn(map)).toEqual(["a"]);
+		await new Promise((r) => setTimeout(r, 50));
+		expect(menuIds(widget)).toEqual([]);
+		expect(mapSend(widget.id)).toBeNull();
+	});
+
+	test("aren't listed while every mark is hidden for its pollutant or places", async () => {
+		await listedMonitors();
+		vi.mocked(getMonitors).mockImplementation(
+			async (type) => (type === "o3" ? [reading("b")] : [reading("a"), reading("b")]) as never
+		);
+		// "a" (purpleair) doesn't report Ozone; "c" is outside the places.
+		const widget: WidgetInstance = {
+			...mapWidget({}),
+			data: layers(region("019"), [{ entryType: "o3" }]),
+			options: { showing: "o3", marks: ["a", "c"] }
+		};
+		await showEditing(widget);
+		const map = await madeMap();
+		await expect.poll(() => drawn(map)).toEqual(["b"]);
+		await expect.poll(hiddenLines).toEqual([reasonLine("pollutant"), reasonLine("places")]);
+		expect(menuIds(widget)).toEqual([]);
+	});
+
+	test("are listed with one mark drawn, the hidden ones counted as left out", async () => {
+		await listedMonitors();
+		vi.mocked(getMonitors).mockResolvedValue([reading("a"), reading("b")] as never);
+		const widget = { ...mapWidget(region("019")), options: { marks: ["c", "a"] } };
+		const screen = await showEditing(widget);
+		const map = await madeMap();
+		await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+		await expect.poll(() => menuIds(widget)).toEqual(SHOW_IN);
+		expect(mapSend(widget.id)).toMatchObject({ marks: ["a"], leftOut: 1 });
+		const draft = mapSend(widget.id)!.draft();
+		// A plain snapshot: the hand-off clones it.
+		expect(structuredClone(draft)).toEqual({
+			type: "map",
+			data: widget.data,
+			options: { marks: ["c", "a"] }
+		});
+		// Cleared once the Map unmounts.
+		screen.unmount();
+		expect(mapSend(widget.id)).toBeNull();
+		expect(menuIds(widget)).toEqual([]);
+	});
+
+	test("wait for the monitors lookup before listing", async () => {
+		const lookup = await lookupMetadata();
+		vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+		const widget = { ...mapWidget(region("019")), options: { marks: ["a"] } };
+		await showEditing(widget);
+		const map = await madeMap();
+		await expect.poll(() => drawn(map)).toEqual(["a"]);
+		await new Promise((r) => setTimeout(r, 50));
+		expect(menuIds(widget)).toEqual([]);
+		lookup.resolve([
+			{ id: "a", type: "purpleair", name: "a", county: "Fresno", active: true, inside: false }
+		]);
+		await expect.poll(() => menuIds(widget)).toEqual(SHOW_IN);
+	});
+
+	test("are listed for a viewer, whose held pollutant reaches the draft", async () => {
+		await listedMonitors();
+		vi.mocked(getMonitors).mockResolvedValue([reading("b")] as never);
+		const widget: WidgetInstance = {
+			...mapWidget({}),
+			data: layers(region("019"), [{ entryType: "o3" }]),
+			options: { marks: ["b"] }
+		};
+		const changes = new ViewerChanges();
+		const screen = await showViewer(widget, changes);
+		const map = await madeMap();
+		map.ready = true;
+		await expect.poll(() => drawn(map)).toEqual(["b"]);
+		await expect.poll(() => menuIds(widget)).toEqual(SHOW_IN);
+		await screen.getByRole("radio", { name: "Ozone" }).click();
+		await expect.poll(() => changes.get(widget.id)).toEqual({ showing: "o3" });
+		await expect.poll(() => mapSend(widget.id)?.draft().options?.showing).toBe("o3");
+		expect(structuredClone(mapSend(widget.id)!.draft())).toMatchObject({
+			options: { marks: ["b"], showing: "o3" }
+		});
+		expect(optionsOf()).toEqual({ marks: ["b"] });
+	});
+
+	test("aren't offered by Get data's preview", async () => {
+		await listedMonitors();
+		vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+		registerWidgetType(mapType);
+		const widget = { ...mapWidget(region("019")), options: { marks: ["a"] } };
+		await openSession(widget);
+		await render(Preview, {
+			target: frame,
+			props: { widget, title: "Map", size: "large", gridWidth: 1200, phone: false, onsize() {} },
+			context: new Map<unknown, unknown>([[APP_CONTEXT_KEY, app()]])
+		});
+		const map = await madeMap();
+		map.ready = true;
+		await expect.poll(() => drawn(map)).toEqual(["a"]);
+		await new Promise((r) => setTimeout(r, 50));
+		expect(mapSend(widget.id)).toBeNull();
+		expect(menuIds(widget)).toEqual([]);
+	});
+});
+
 test("shows no buttons on smoke, fire or the focus pin", async () => {
 	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
 	const screen = await showLive({ ...mapWidget({}), data: layers(region("019"), [], true) });
@@ -2365,6 +2496,21 @@ test("a hidden mark with no figure that day gives its reason line", async () => 
 	await expect.poll(() => drawn(map)).toEqual(["a"]);
 	const line = m.map_marks_hidden_period({ count: "1", countValue: 1 });
 	await expect.poll(() => frame.querySelector("[data-map-marks-hidden]")?.textContent).toBe(line);
+});
+
+test("a mark hidden only for having no figure that day is still sent", async () => {
+	await listedMonitors();
+	const listed = vi.mocked(getMetadata)();
+	rated({ monitors: listed.monitors, monitorTypes: listed.monitorTypes });
+	vi.mocked(getMonitors).mockResolvedValue([reading("a"), reading("c")] as never);
+	dailyFigures({ "2026-09-09": { a: 9 } });
+	const widget = rangedMap(region("019"), { marks: ["c"] });
+	await showEditing(widget);
+	const map = await madeMap();
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	await expect.poll(() => mapSend(widget.id)?.marks).toEqual(["c"]);
+	expect(mapSend(widget.id)?.leftOut).toBe(0);
+	expect(menuIds(widget)).toEqual(SHOW_IN);
 });
 
 test("a Monthly Map steps by month and draws each month's figure from the monthly summaries", async () => {
