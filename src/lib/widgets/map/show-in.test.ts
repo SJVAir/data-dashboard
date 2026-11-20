@@ -10,6 +10,7 @@ import {
 	setUse
 } from "$lib/get-data/map";
 import type { AppContext } from "$lib/store/app.svelte";
+import { m } from "$lib/paraglide/messages.js";
 import { STARTER_ID, starterTemplate } from "$lib/starter/starter";
 import { CHART_TYPE, chartType } from "$lib/widgets/chart";
 import { DEFAULT_RANGE } from "$lib/widgets/defaults";
@@ -21,6 +22,7 @@ import { navigate } from "../../../router";
 import { registerWidgetType } from "$lib/widgets/registry";
 import { overCap } from "./hand-off";
 import { setMapSend } from "./send-registry";
+import { runShowIn, showInItems } from "./show-in-items";
 import {
 	HandOffSchema,
 	sendPlaces,
@@ -31,13 +33,16 @@ import {
 } from "./show-in";
 
 vi.mock("../../../router", () => ({ navigate: vi.fn(async () => {}) }));
+const catalog = vi.fn(async () => CATALOG);
 vi.mock("$lib/data", async (original) => ({
 	...(await original<typeof import("$lib/data")>()),
 	getMetadata: () => ({
-		catalog: async () => CATALOG,
+		catalog: () => catalog(),
 		mapPollutants: async () => DRAWABLE
 	})
 }));
+const toastError = vi.fn();
+vi.mock("svelte-sonner", () => ({ toast: { error: (...a: unknown[]) => toastError(...a) } }));
 
 const FRESNO = { kind: "region", type: "city", code: "fresno" } as never;
 const IDS = ["pm25", "pm10", "o3"];
@@ -511,6 +516,26 @@ describe("showIn", () => {
 		expect(path).toBe("/data");
 		const getData = HandOffSchema.parse((opts as { state: { getData: unknown } }).state.getData);
 		expect(getData.skip).toBe("d1");
+	});
+
+	it("a rejected catalog() shows the failure toast once, from an item or a section", async () => {
+		const clear = setMapSend("w1", Symbol(), {
+			marks: ["m1"],
+			leftOut: 0,
+			draft: () => mapDraft(["pm25"])
+		});
+		vi.mocked(navigate).mockClear();
+		catalog.mockRejectedValueOnce(new Error("offline"));
+		const env = { app, widget: () => ({ id: "w1", type: "map" }) as never };
+		showInItems(env)[0].run({ target: {} as Element, payload: {} });
+		await vi.waitFor(() => expect(toastError).toHaveBeenCalledOnce());
+		expect(toastError).toHaveBeenCalledWith(m.map_show_in_failed());
+		catalog.mockRejectedValueOnce(new Error("offline"));
+		runShowIn(app, "w1", { kind: "section", code: "M1" });
+		await vi.waitFor(() => expect(toastError).toHaveBeenCalledTimes(2));
+		expect(navigate).not.toHaveBeenCalled();
+		clear();
+		toastError.mockClear();
 	});
 
 	it("does nothing when the Map isn't mounted", async () => {
