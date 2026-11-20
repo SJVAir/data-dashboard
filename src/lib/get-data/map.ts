@@ -441,7 +441,8 @@ export function mapShowingOnly(
  * notes. A now type then follows its own rules (`toNowDraft`, with `levels`: the alert level's
  * scale, or `"unavailable"` to leave the default owed; a range is left out with a note); a range
  * type takes the Map's range when it fits the type's span (else, and for a Map on Now, the
- * type's default range) and its place cap (`fromNowDraft`).
+ * type's default range) and its place cap (`fromNowDraft`), and the Map's saved resolution
+ * unless the type pins one (the calendars); Automatic stays Automatic.
  *
  * A Chart also takes the use, as a pesticide layer of the figure drawn (`useFigureOf`) with the
  * Map's filters (its periods are the Chart's, at the Chart's resolution). Any other type leaves
@@ -464,6 +465,12 @@ export function fromMapDraft(
 	const range = one.draft.data.dateRange;
 	if (type.time !== "now" && range && !blockedBySpan(range, type.span, now)) {
 		converted.draft.data.dateRange = structuredClone(range);
+	}
+	// A chosen resolution is never reset by itself: a range type that doesn't pin one keeps the
+	// Map's (one that doesn't fit shows blocked there). Automatic stays absent.
+	const resolution = draft.data.resolution;
+	if (type.time !== "now" && !type.resolution && resolution) {
+		converted.draft.data.resolution = resolution;
 	}
 	const use = mapUseLayer(draft.data);
 	const figure = useFigureOf(mapOptions(draft), catalog);
