@@ -39,6 +39,8 @@ import { makeDoc } from "$lib/sync/test-support";
 import { defaultDraft, type Draft } from "./draft.svelte";
 import { editDraft, saveEdit } from "./edit";
 import GetDataView from "./GetDataView.svelte";
+import WhereControl from "./WhereControl.svelte";
+import type { Picks } from "$lib/places/selection";
 
 type Hit = { id: string; name: string; detail: string; placeholder?: boolean };
 type Station = { id: string; name: string; distance: number; inside: boolean; active: boolean };
@@ -2128,5 +2130,88 @@ describe("calendar types", () => {
 		const { current } = await show(rangedMonth(daysAgo(2), daysAgo(1)));
 		await chooseDates("Last 90 days");
 		expect((await current()).data.timeSubRange).toEqual({ start: daysAgo(2), end: daysAgo(1) });
+	});
+});
+
+describe("Where in keep mode", () => {
+	const ids = ["k1", "k2", "k3", "k4", "k5", "k6", "k7"];
+	const picks: Picks = ids.map((id) => ({ kind: "monitor", id }));
+
+	async function showWhere() {
+		fake.metadata = fixtureMetadata({
+			catalog: async () => CATALOG,
+			monitors: async () =>
+				ids.map((id) => ({
+					id,
+					name: `Monitor ${id}`,
+					type: "purpleair",
+					county: "Fresno",
+					active: true,
+					inside: false
+				}))
+		});
+		const platform = createMemoryPlatform();
+		const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+		const host = document.createElement("div");
+		host.dataset.getDataHost = "";
+		document.body.appendChild(host);
+		const onkeep = vi.fn();
+		const oncancel = vi.fn();
+		const onchange = vi.fn();
+		const screen = await render(WhereControl, {
+			target: host,
+			props: {
+				picks,
+				names: null,
+				namesSettled: true,
+				max: 5,
+				purpose: { dataset: "air-quality", entryType: "pm25" },
+				onchange,
+				keep: { max: 5, onkeep, oncancel }
+			},
+			context: new Map([[APP_CONTEXT_KEY, app]])
+		});
+		const dialog = page.getByRole("dialog");
+		await expect.element(dialog).toBeVisible();
+		await expect.element(dialog.getByText("Choose up to 5 places to keep.")).toBeVisible();
+		return { screen, dialog, onkeep, oncancel, onchange };
+	}
+
+	test("opens its picker at once; Done hands over the places to keep", async () => {
+		const { dialog, onkeep, oncancel, onchange } = await showWhere();
+		const done = dialog.getByRole("button", { name: "Done" });
+		await expect.element(done).toHaveAttribute("aria-disabled", "true");
+		await dialog.getByRole("button", { name: "Remove Monitor k6" }).click();
+		await dialog.getByRole("button", { name: "Remove Monitor k7" }).click();
+		await done.click();
+		expect(onkeep).toHaveBeenCalledWith(picks.slice(0, 5));
+		expect(oncancel).not.toHaveBeenCalled();
+		expect(onchange).not.toHaveBeenCalled();
+		await expect.element(dialog).not.toBeInTheDocument();
+		await expect.element(page.getByRole("button", { name: "Change places" })).toHaveFocus();
+	});
+
+	test("Cancel calls oncancel once and returns focus to the Change button", async () => {
+		const { dialog, onkeep, oncancel } = await showWhere();
+		await dialog.getByRole("button", { name: "Cancel" }).click();
+		await expect.element(dialog).not.toBeInTheDocument();
+		expect(oncancel).toHaveBeenCalledOnce();
+		expect(onkeep).not.toHaveBeenCalled();
+		await expect.element(page.getByRole("button", { name: "Change places" })).toHaveFocus();
+	});
+
+	test("Escape cancels once", async () => {
+		const { dialog, oncancel } = await showWhere();
+		await expect.element(dialog.getByRole("combobox")).toHaveFocus();
+		await userEvent.keyboard("{Escape}");
+		await expect.element(dialog).not.toBeInTheDocument();
+		expect(oncancel).toHaveBeenCalledOnce();
+	});
+
+	test("the dialog's close button cancels once", async () => {
+		const { dialog, oncancel } = await showWhere();
+		await dialog.getByRole("button", { name: /close/i }).click();
+		await expect.element(dialog).not.toBeInTheDocument();
+		expect(oncancel).toHaveBeenCalledOnce();
 	});
 });

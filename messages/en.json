@@ -957,6 +957,16 @@
 	"place_picker_reason_alone_picked": "Remove {name} to add other places.",
 	"place_picker_reason_alone_picked_unnamed": "Remove the school or location first to add other places.",
 	"place_picker_reason_at_cap": "This widget shows up to {max} places.",
+	"place_picker_keep": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Choose up to {count} place to keep.",
+				"countPlural=other": "Choose up to {count} places to keep."
+			}
+		}
+	],
 	"place_picker_chosen": "Chosen places",
 	"place_picker_remove": "Remove {name}",
 	"place_picker_your_location": "Your location",

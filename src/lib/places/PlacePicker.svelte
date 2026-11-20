@@ -4,6 +4,7 @@
 	import { onDestroy, tick } from "svelte";
 	import { Button } from "$lib/components/ui/button";
 	import type { PlaceRef } from "$lib/data/schema";
+	import { formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import type { GeoResult } from "$lib/platform/types";
 	import BrowsePanel from "./BrowsePanel.svelte";
@@ -49,6 +50,7 @@
 	const listboxId = `${uid}-results`;
 	const locationReasonId = `${uid}-location-reason`;
 	const browseId = `${uid}-browse`;
+	const keepId = `${uid}-keep`;
 
 	// `initial` seeds the picks once; later changes to it don't reset what the person picked.
 	// svelte-ignore state_referenced_locally
@@ -71,6 +73,10 @@
 	onDestroy(() => picker.destroy());
 
 	const multiple = $derived(mode.kind === "multiple");
+	/** Keep state: started with more places than the cap; Done waits until enough are removed. */
+	const keepMax = $derived(
+		mode.kind === "multiple" && picker.picks.length > mode.max ? mode.max : null
+	);
 
 	let input = $state<HTMLInputElement | null>(null);
 	let chips = $state<HTMLUListElement | null>(null);
@@ -112,6 +118,11 @@
 </script>
 
 <div class="flex min-w-0 flex-col gap-3">
+	{#if keepMax !== null}
+		<p id={keepId} class="text-sm font-medium">
+			{m.place_picker_keep({ count: formatNumber(keepMax), countValue: keepMax })}
+		</p>
+	{/if}
 	{#if multiple && picker.picks.length > 0}
 		<ul bind:this={chips} aria-label={m.place_picker_chosen()} class="flex flex-wrap gap-1.5">
 			{#each picker.picks as ref, index (refKey(ref))}
@@ -216,7 +227,12 @@
 			<Button variant="outline" onclick={oncancel}>{m.place_picker_cancel()}</Button>
 			<Button
 				disabled={picker.picks.length === 0}
-				onclick={() => ondone($state.snapshot(picker.picks))}>{m.place_picker_done()}</Button
+				aria-disabled={keepMax !== null ? "true" : undefined}
+				aria-describedby={keepMax !== null ? keepId : undefined}
+				class="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+				onclick={() => {
+					if (keepMax === null) ondone($state.snapshot(picker.picks));
+				}}>{m.place_picker_done()}</Button
 			>
 		</div>
 	{/if}
