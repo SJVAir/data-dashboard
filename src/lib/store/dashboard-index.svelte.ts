@@ -53,7 +53,8 @@ function summarize(raw: unknown): DashboardSummary | null {
 		copiedFrom: optionalString(doc.copiedFrom),
 		createdAt,
 		updatedAt,
-		deletedAt: optionalString(doc.deletedAt)
+		deletedAt: optionalString(doc.deletedAt),
+		readOnly: true
 	};
 }
 

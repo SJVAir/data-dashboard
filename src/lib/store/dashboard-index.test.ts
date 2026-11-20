@@ -87,6 +87,8 @@ describe("DashboardIndex", () => {
 		await index.refresh();
 		expect(index.items.map((d) => d.id).sort()).toEqual(["newer", "ok"]);
 		expect(index.names.get("newer")).toBe("Future");
+		expect(index.items.find((d) => d.id === "newer")?.readOnly).toBe(true);
+		expect(index.items.find((d) => d.id === "ok")?.readOnly).toBeUndefined();
 		expect(index.unreadable).toEqual([{ id: "bad" }]);
 		expect(index.storedCount).toBe(3);
 	});
