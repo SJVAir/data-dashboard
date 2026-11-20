@@ -10,6 +10,22 @@ import { runShowIn, showInItems } from "./show-in-items";
 
 const showIn = vi.fn(async () => {});
 vi.mock("./show-in", () => ({ showIn: (...args: unknown[]) => showIn(...(args as [])) }));
+const toastError = vi.fn();
+vi.mock("svelte-sonner", () => ({ toast: { error: (...a: unknown[]) => toastError(...a) } }));
+const chunkGone = { now: false };
+vi.mock("$lib/safety/lazy", async (original) => {
+	const actual = await original<typeof import("$lib/safety/lazy")>();
+	return {
+		loadLazy: <T>(load: () => Promise<T>) =>
+			chunkGone.now
+				? actual.loadLazy(() => Promise.reject(new Error("gone")))
+				: actual.loadLazy(load)
+	};
+});
+const reload = vi.fn();
+vi.mock("$lib/safety/update-notice.svelte", () => ({
+	updateNotice: { show: (...a: unknown[]) => reload(...a) }
+}));
 
 const app = {} as AppContext;
 const widget = { id: "w1", type: "map" } as WidgetInstance;
@@ -31,6 +47,9 @@ afterEach(() => {
 	for (const remove of removals) remove();
 	removals = [];
 	showIn.mockClear();
+	toastError.mockClear();
+	reload.mockClear();
+	chunkGone.now = false;
 });
 
 describe("showInItems", () => {
@@ -110,6 +129,29 @@ describe("showInItems", () => {
 		await new Promise((r) => setTimeout(r, 10));
 		chart.run(ctx);
 		await vi.waitFor(() => expect(showIn).toHaveBeenCalledTimes(2));
+	});
+
+	it("a failed showIn says so in a toast", async () => {
+		showIn.mockImplementationOnce(async () => {
+			throw new Error("offline");
+		});
+		offer(["a"]);
+		showInItems(env())[0].run(ctx);
+		await vi.waitFor(() => expect(toastError).toHaveBeenCalledWith(m.map_show_in_failed()));
+		expect(toastError).toHaveBeenCalledOnce();
+		expect(reload).not.toHaveBeenCalled();
+	});
+
+	it("a gone chunk gets only loadLazy's reload notice, no toast", async () => {
+		chunkGone.now = true;
+		offer(["a"]);
+		runShowIn(app, "w1", { kind: "section", code: "M1" });
+		await vi.waitFor(() => expect(reload).toHaveBeenCalledWith("chunk-failed"));
+		// Settled: the guard is free again, and no toast came.
+		chunkGone.now = false;
+		showInItems(env())[0].run(ctx);
+		await vi.waitFor(() => expect(showIn).toHaveBeenCalledOnce());
+		expect(toastError).not.toHaveBeenCalled();
 	});
 
 	it("does nothing when the entry is gone by the time it runs", async () => {

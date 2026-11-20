@@ -1,5 +1,6 @@
 import ChartLine from "@lucide/svelte/icons/chart-line";
 import Table from "@lucide/svelte/icons/table";
+import { toast } from "svelte-sonner";
 import type { MenuItem } from "$lib/actions/types";
 import { m } from "$lib/paraglide/messages.js";
 import { loadLazy } from "$lib/safety/lazy";
@@ -24,11 +25,33 @@ export function runShowIn(
 ): void {
 	if (running) return;
 	running = true;
-	// A gone chunk (an older deploy) offers a reload; the failure is reported, not swallowed.
-	loadLazy(() => import("./show-in"))
-		.then((mod) => mod.showIn(app, widgetId, send, type))
-		.catch((error) => report(error))
-		.finally(() => (running = false));
+	void open(app, widgetId, send, type).finally(() => (running = false));
+}
+
+/**
+ * Loads the conversion code and runs it. A gone chunk (an older deploy) gets `loadLazy`'s reload
+ * notice alone; any other failure (the catalog, the pollutants) says so in a toast. Both are
+ * reported, never swallowed.
+ */
+async function open(
+	app: AppContext,
+	widgetId: string,
+	send: MapSend,
+	type: "chart" | "table"
+): Promise<void> {
+	let mod: typeof import("./show-in");
+	try {
+		mod = await loadLazy(() => import("./show-in"));
+	} catch (error) {
+		report(error);
+		return;
+	}
+	try {
+		await mod.showIn(app, widgetId, send, type);
+	} catch (error) {
+		report(error);
+		toast.error(m.map_show_in_failed());
+	}
 }
 
 /**
