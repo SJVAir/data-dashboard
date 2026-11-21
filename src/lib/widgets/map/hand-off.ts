@@ -21,7 +21,6 @@ export const HAND_OFF_DROPPED = [
 	"pollutant",
 	"selection",
 	"outside",
-	"range-cut",
 	"fill"
 ] as const satisfies readonly NowDropped[];
 

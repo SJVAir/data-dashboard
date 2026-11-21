@@ -459,6 +459,7 @@ describe("HandOffSchema", () => {
 		expect(notes({ dropped: ["marks"] })).toBe(false);
 		expect(notes({ dropped: ["places"] })).toBe(false);
 		expect(notes({ dropped: ["nope"] })).toBe(false);
+		expect(notes({ dropped: ["range-cut"] })).toBe(false);
 		expect(notes({ dropped: Array(11).fill("fill") })).toBe(false);
 		expect(notes({ dropped: [], cutAt: "hour" })).toBe(false);
 		expect(notes({ dropped: [], selection: { start: "2026-09-05", end: "2026-09-01" } })).toBe(
