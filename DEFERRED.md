@@ -617,15 +617,21 @@ string`) now get the union return type. The mobile app passes a string token, so
        responses are cached for 24 hours.
        `@sjvair/sdk` `5.0.0-beta.15` and the dashboard's step 5 spec 6a need this deployed.
   - **Review #341 fixes, PR A (sjvair.com [#344](https://github.com/SJVAir/sjvair.com/pull/344),
-    session `sjvair-com-a7`; in review, not merged: update this when it merges):**
+    session `sjvair-com-a7`; merged into `develop` 2026-11-20, 4c1e3e53):**
     1. **Deploy:** the release phase runs `documents/0002` (state only; `sqlmigrate` is a no-op).
     2. **The AQLite rebuilds in the Daily peaks steps (step 3 above) must run on code that has
        #344**, or AQLite daily-and-longer `is_complete` is written wrong again (finding 1).
     3. Nothing else: no new commands. A scoped `--async` rebuild now refreshes `max_8h` only for
        its own monitors or regions (findings 7 and 10).
   - **Review #341 fixes, PR B (sjvair.com [#345](https://github.com/SJVAir/sjvair.com/pull/345),
-    findings 9, 11, 12; in review, not merged):** nothing to run. No migration, command or
-    config.
+    findings 9, 11, 12; merged into `develop` 2026-11-20, c80c1220):** nothing to run. No migration,
+    command or config.
+  - **Review #341 fixes, PR C (sjvair.com [#346](https://github.com/SJVAir/sjvair.com/pull/346),
+    finding 15, tests only; merged 2026-11-20, e8d94a4d) and PR D ([#347](https://github.com/SJVAir/sjvair.com/pull/347),
+    finding 14, document snapshot ids become sqid strings; merged 2026-11-20, 09bfd5be):** nothing to
+    run. No migration (the sqid is derived from the pk), command or config. PR D changes the
+    snapshot API shape, so the dashboard build deployed with it must have its string snapshot ids
+    (data-dashboard #63).
   - **Deploy window:** between about 17:15 and 01:00 Pacific (#301 moved the rollups from
     01:00 UTC to 01:00 Pacific; deploying 01:00–17:00 Pacific skips a day). Otherwise run
     `daily_monitor_summaries(day=<yesterday>)` and `daily_region_summaries(day=<yesterday>)`
