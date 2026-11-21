@@ -350,6 +350,24 @@ test("Back while dirty asks to discard; Keep editing stays", async () => {
 	expect((await app.sessions.get("d1"))!.doc.body.widgets[0]).toEqual(preSpec);
 });
 
+test("Save changes whose navigation is refused still asks before a later Back", async () => {
+	await editAt({ id: "d1", widgetId: "w1" });
+	await page.getByRole("radio", { name: "Data table" }).click();
+	// Another blocker, after the page's own, refuses the move to the dashboard.
+	const unblock = blockNavigation(() => false);
+	try {
+		await saveButton().click();
+		await expect.element(saveButton()).toBeEnabled();
+		expect(location.pathname).toBe(editPath);
+	} finally {
+		unblock();
+	}
+	history.back();
+	await expect.element(discardDialog()).toBeVisible();
+	await page.getByRole("button", { name: "Keep editing" }).click();
+	await expect.poll(() => location.pathname).toBe(editPath);
+});
+
 test("a nav link or Cancel while dirty asks to discard; with no changes they just leave", async () => {
 	const { app, platform } = await editAt({ id: "d1", widgetId: "w1" });
 	// A Get data draft unlike both the widget (Last 30 days) and the edit (Data table).

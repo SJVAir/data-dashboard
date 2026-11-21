@@ -59,6 +59,27 @@
 	/** Saved, or discarded: navigation goes ahead without asking. */
 	let leaving = false;
 
+	/**
+	 * Navigates with the discard guard lifted. The router reports a refused move (another blocker,
+	 * a `beforeLoad` that says no) by resolving with the page unmoved, and a failed one by
+	 * throwing; either puts the guard back. Resolves true when the page moved.
+	 */
+	async function leaveTo(path: string, id: string): Promise<boolean> {
+		const from = route.pathname;
+		leaving = true;
+		try {
+			await navigate(path as "/dashboards/:id", { params: { id } });
+		} catch (error) {
+			leaving = false;
+			throw error;
+		}
+		if (route.pathname === from) {
+			leaving = false;
+			return false;
+		}
+		return true;
+	}
+
 	// Arriving on the page puts focus on its heading (as the dashboard list does), and on the
 	// not-found heading once Edit data finds nothing to edit.
 	onMount(() => heading?.focus());
@@ -175,12 +196,12 @@
 		// Kept for the next visit (a visit from a Map keeps none).
 		if (!handOff) flushDraft();
 		// Added: the page goes without asking.
-		leaving = true;
 		requestFocus({ kind: "added", id: added.widgetId });
 		// Still busy until the page has gone, so a second click can't add another.
 		try {
-			await navigate("/dashboards/:id", { params: { id: added.dashboardId } });
-			if (added.copied) toast(m.starter_copied());
+			if ((await leaveTo("/dashboards/:id", added.dashboardId)) && added.copied) {
+				toast(m.starter_copied());
+			}
 		} finally {
 			adding = false;
 		}
@@ -249,11 +270,11 @@
 			saving = false;
 			return;
 		}
-		leaving = true;
 		requestFocus({ kind: "title", id: widgetId });
 		try {
-			await navigate("/dashboards/:id", { params: { id: landed.session.doc.id } });
-			if (landed.copied) toast(m.starter_copied());
+			if ((await leaveTo("/dashboards/:id", landed.session.doc.id)) && landed.copied) {
+				toast(m.starter_copied());
+			}
 		} finally {
 			saving = false;
 		}
