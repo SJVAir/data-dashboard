@@ -2,6 +2,7 @@ import Map from "@lucide/svelte/icons/map";
 import { m } from "$lib/paraglide/messages.js";
 import type { WidgetType } from "../registry";
 import { HMS_FIRE, HMS_SMOKE, MAP_MAX_STOPS, MAP_POLLUTANTS_MAX, MAP_TYPE } from "./options";
+import { showInItems } from "./show-in-items";
 import { mapStartData } from "./start";
 
 export { MAP_TYPE } from "./options";
@@ -28,7 +29,7 @@ export const mapType: WidgetType = {
 		maxPollutantLayers: MAP_POLLUTANTS_MAX,
 		maxPlaces: 25
 	},
-	menu: () => [],
+	menu: (_ctx, env) => showInItems(env),
 	addable: (doc) => ({ data: mapStartData(doc) }),
 	load: () => import("./module")
 };

@@ -34,7 +34,7 @@ the lens) **is merged** (#60, bb3e882, 2026-11-17), on `@sjvair/map-sdk` `0.1.0-
 2026-11-18): **6a, dataset rules** (one date range and one data resolution per widget; spec
 `docs/superpowers/specs/2026-11-18-step-5-spec-6a-dataset-rules-design.md`) **is merged**
 (#61, 30292e5, 2026-11-19), on `@sjvair/map-sdk` `0.1.0-beta.21` and `@sjvair/sdk`
-`5.0.0-beta.15` (bundle 213.2 KB); then **6b**, "Show in a chart" / "Show in a table"; then the schools data
+`5.0.0-beta.15` (bundle 213.2 KB); then **6b**, "Show in a chart" / "Show in a table" (built on `step-5-spec-6b` 2026-11-20, PR into `step-5` pending); then the schools data
 set (spec 7; the user, 2026-11-17), in order in the same track, since they change the same Map
 code (the user, 2026-11-12).
 
@@ -1527,10 +1527,15 @@ The checklist below is the whole step's scope.
       figure per pollutant in every widget and CSV, and coarse series from the server's stored
       rows. On `@sjvair/map-sdk` `0.1.0-beta.21` and `@sjvair/sdk` `5.0.0-beta.15` (sjvair.com
       #342, the period daily statistic). The rule is in `ARCHITECTURE.md` → "Datasets line up".
-    - **6b, "Show in a chart" / "Show in a table"** from a map's selection, next. It also adds
-      "choose which places to keep" when an over-limit selection switches to Chart or Table,
-      reusing the shared place picker with its limit (the user, 2026-11-11). Until then, Get data
-      greys out Chart and Table, as today.
+    - **6b, "Show in a chart" / "Show in a table"** from a map's selection. **Built 2026-11-20
+      on `step-5-spec-6b`** (PR into `step-5` pending; spec
+      `docs/superpowers/specs/2026-11-20-step-5-spec-6b-show-in-chart-design.md`): the Map's
+      menu items (for viewers too) and a pinned section card's button open the Data Portal on a
+      Chart or Table through history state; "choose which places to keep" in the shared place
+      picker when a selection is over the limit (the user, 2026-11-11); "Add to" never targets a
+      read-only dashboard; `@sjvair/map-sdk` `0.1.0-beta.22` pinned (the legend names the month or
+      year figure; no-figure regions give their reason). Bundle 213.7 KB. Comparing two datasets
+      is raised with the user at the end of 6b.
   - **Spec 7, schools and child care as a Map data set** (the user, 2026-11-17), after 6b.
 
 **Release 1, parallel track: hosting on sjvair.com** (approved sjvair.com plan first)

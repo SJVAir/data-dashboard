@@ -957,6 +957,16 @@
 	"place_picker_reason_alone_picked": "Remove {name} to add other places.",
 	"place_picker_reason_alone_picked_unnamed": "Remove the school or location first to add other places.",
 	"place_picker_reason_at_cap": "This widget shows up to {max} places.",
+	"place_picker_keep": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Choose up to {count} place to keep.",
+				"countPlural=other": "Choose up to {count} places to keep."
+			}
+		}
+	],
 	"place_picker_chosen": "Chosen places",
 	"place_picker_remove": "Remove {name}",
 	"place_picker_your_location": "Your location",
@@ -1072,6 +1082,16 @@
 	"get_data_smoke_and_fire": "Smoke and fire",
 	"getdata_note_fill_dropped": "Filled regions only apply to the map, so the fill was left out.",
 	"get_data_marks_left_out": "Marked monitors don't apply to this widget, so they were left out.",
+	"get_data_marks_hidden_left_out": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} marked monitor isn't shown on the map, so it was left out.",
+				"countPlural=other": "{count} marked monitors aren't shown on the map, so they were left out."
+			}
+		}
+	],
 	"get_data_show_as": "Show as",
 	"get_data_pollutant": "Pollutant",
 	"get_data_alert_level": "Alert level",
@@ -1485,6 +1505,9 @@
 	],
 	"map_mark_select": "Select",
 	"map_mark_remove": "Remove",
+	"map_show_in_chart": "Show in a chart",
+	"map_show_in_table": "Show in a table",
+	"map_show_in_failed": "Couldn't open the Data Portal. Please try again.",
 	"map_marks_limit": [
 		{
 			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
@@ -1589,6 +1612,7 @@
 	"mapsdk_list_row_no_value": "{name}, no reading",
 	"mapsdk_list_row_level": "{name}, {level}",
 	"mapsdk_list_row_detail": "{name}, {detail}",
+	"mapsdk_list_row_level_detail": "{name}, {level}, {detail}",
 	"mapsdk_list_empty": "Nothing on the map in this view",
 	"mapsdk_selected_count_one": "{count} selected",
 	"mapsdk_selected_count_other": "{count} selected",

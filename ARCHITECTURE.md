@@ -322,6 +322,41 @@ hides it. A Map offers Daily, Monthly and Yearly.
 draft never goes in the URL**, so coordinates never do. An unknown dashboard or widget id shows
 the not-found page.
 
+**Opened from a Map (step 5 spec 6b).** The Map's "Show in a chart" / "Show in a table" open
+`/dashboards/:id/widgets/new` (or `/data`; see "Widget catalog" → Map) with the starting draft in
+**history state** (`navigate(path, { state: { getData: HandOff } })`, read back as `route.state`
+and validated with `HandOffSchema`, in `src/lib/widgets/map/hand-off.ts` so this chunk doesn't
+load the conversion). The URL is unchanged, so nothing about the Map leaks into it. A reload or
+Back / Forward to that entry starts from the Map's draft again; an invalid one is ignored and the
+normal saved draft is used.
+
+- **No saved draft:** a visit from a Map starts from the hand-off, keeps edits for this visit
+  only, and never writes the device's saved draft (as Edit data). "Add to" targets the Map's
+  dashboard when the person can edit it; a read-only dashboard is never a target (`addTargets`
+  skips dashboards known to be read-only, and the hand-off's `skip`); "Add to" then names the
+  last-opened dashboard, else the starter; when the starter is skipped, it falls to the first
+  listed dashboard, else New dashboard.
+- **Leaving:** with changes, the action bar's Cancel, Back and nav links ask "Discard changes?".
+  After the opening keep dialog's Done, the kept draft is the baseline, so passing the dialog
+  alone isn't a change; the dialog's own Cancel never asks.
+- **Notes:** the conversion's notes travel in `HandOff.notes` (dropped items minus marks and
+  places, plus the pollutant, the cut and the selection) and show on this visit. A note counts
+  the hidden marks left out ("‹N› marked monitors aren't shown on the map, so they were left
+  out."); it states the problem only, since a viewer can't change it, and stays until the person
+  changes places through Change places. The notes stay after the opening keep's Done and clear on
+  the next edit.
+- **Keeping places:** over the cap, the Where control's place picker dialog opens in **keep
+  mode** at the type's cap with every place ticked, and a line "Choose up to ‹N› places to
+  keep." Done is disabled (with that line as its description) while more than the cap are ticked;
+  Cancel goes back (`cancelPlan`: Back when the app pushed the entry, else the Map's dashboard,
+  else home). Focus returns to the pressed Show as toggle after a keep started from Show as, and
+  to Change places after the opening keep.
+- **Show as:** an over-cap selection switching to Chart or Table opens the same dialog; Done
+  converts with the kept places, Cancel leaves the type and draft as they were. An over-cap
+  selection no longer blocks Chart or Table (`keepsOnSwitch` in `offer.ts`); a one-place type
+  and the Map still block with `"places"`.
+- **Resolution:** Show as and the hand-off agree: a ranged Map's saved resolution is kept.
+
 **The draft.** Kept in memory on the view and saved through the platform adapter as a
 preference (device-local, never synced) so a reload or later visit starts from it: one draft
 for `/data` and `…/widgets/new`; Edit data starts from the widget each time. It's a
@@ -2659,7 +2694,8 @@ icon and messages; map-sdk, MapLibre and the rest load with `module.ts`.
 - **The descriptor:** `type: "map"`, label "Map", `time: "now"` (since spec 4 it is `time: "range"` with
   the `now` flag), `accepts: { datasets: ["air-quality"], maxPollutantLayers: 1, maxPlaces:
 25, onlyPollutant: true }`, `thresholds`, `analyzable` and `downloadable` all `false`,
-  `menu: () => []`. "Change place" and "Edit data" come from the generic items. Sizes: 6 × 6 by
+  `menu` lists "Show in a chart" and "Show in a table" (below; empty without a mark to send).
+  "Change place" and "Edit data" come from the generic items. Sizes: 6 × 6 by
   default, 3 × 4 at minimum.
 - **The pollutants come from metadata:** the map accepts only the monitors meta's
   `available_pollutants` (today PM2.5 and ozone), because that's what map-sdk's monitors store
@@ -2668,7 +2704,9 @@ icon and messages; map-sdk, MapLibre and the rest load with `module.ts`.
 - **25 places at most.** A chart's data can become a map in Get data's Show as, keeping all its
   places (up to 25, with the "left out" note beyond). Leaving a Map for a one-place "now" type
   keeps the first place, with the same note. While a selection is over Chart's or Table's cap,
-  Show as greys them out, as before (choosing which places to keep comes in step 5 spec 6).
+  Show as opens the place picker dialog to **choose which places to keep** (step 5 spec 6b;
+  below), instead of greying the buttons out (`keepsOnSwitch` in `offer.ts`); a one-place type
+  and the Map still block with `"places"`.
 - **`addable(doc)`.** `addable` now gets the dashboard it's added to. The Map's gives one PM2.5
   layer whose place is the bar's place when the bar shows, else the dashboard's most common
   single place, else Fresno County (`placesToReplace(doc)[0]`, then `DEFAULT_LAYER`). Notes
@@ -2679,6 +2717,46 @@ icon and messages; map-sdk, MapLibre and the rest load with `module.ts`.
 - **Title:** generated, never saved. One place reads "PM2.5 · {place}" (`label_join`, with the
   viewer, so "(your location)" and "(shared location)" read right); several read "PM2.5 · {n}
   places" (`label_join` and `get_data_places_count`).
+
+- **"Show in a chart" / "Show in a table" (step 5 spec 6b).** Spec:
+  `docs/superpowers/specs/2026-11-20-step-5-spec-6b-show-in-chart-design.md`. Looking is the
+  common case, so these items **open the Data Portal on a new Chart or Table of the Map's
+  marked monitors** rather than adding a widget; "Add to" there is the person's choice. They
+  show in the Map's ⋯ menu for owners and viewers alike, and only while at least one mark would
+  be sent.
+  - **What's sent:** the drawn marks, plus marks hidden only because they have no figure for the
+    stop shown (a chart covers the whole range). Marks hidden for any other reason (pollutant,
+    options, places, unknown) are left out and counted. "Drawn" is what this person sees: a
+    viewer's held toolbar changes count (`tileOptions`) and are never written.
+  - **The registry** (`send-registry.ts`, in the initial bundle, types only) holds, per widget
+    id, the marks to send, the left-out count and a getter for the Map's dataset as this person
+    sees it. The Map writes it whenever it isn't a preview (the marks may be empty, so the
+    section button works on a Map with none) and clears it on unmount. A **minimized Map offers
+    no items**: it isn't mounted, so no marks are known.
+  - **The hand-off** (`show-in.ts`, the Map's chunk) builds the starting draft: the Map's dataset
+    through the same `fromMapDraft` Show as calls, with the main layer's places replaced by the
+    sent marks. It takes the Map's range and its saved resolution (a Monthly Map gives a Monthly
+    Chart; Automatic stays Automatic; a Map on Now gets the type's default range, the last 30
+    days). Show as does the same: `fromMapDraft` keeps a ranged Map's saved resolution for
+    range types that don't pin one, so the two routes never give different Charts. A `MapSend`
+    names the layer kind (`monitors`, or `section`); a new Map layer adds a kind and one case,
+    nothing else.
+  - **A pinned section card** (never the hover card, which can't take clicks) has **"Show in a
+    chart"** among its actions: one pesticide use layer on that `mtrs` section, the figure the
+    Map draws, its use filters, range and saved resolution, with a generated title (the PLSS
+    code). A section always gives a Chart, never a Table. The township card has none, since
+    townships aren't a chartable region type.
+  - **Where it opens:** `/dashboards/:id/widgets/new` when the Map's dashboard is the current,
+    editable one (the starter as `STARTER_ID`); else `/data`, which is tied to no dashboard (a
+    share link, or a read-only dashboard of the person's own). `HandOff` carries the draft, the
+    left-out count, whether it's over the cap, the Map's dashboard when read-only (`skip`) and
+    the conversion's notes.
+  - **Not in previews:** the items and the section button don't show in the Data Portal's Map
+    preview, where nothing else changes.
+  - **Viewers:** `MenuItem.forViewers` opts an item into read-only frames, and
+    `viewerTypeItems(app, widget, ctx)` (`src/lib/actions/widget.ts`) lists them for
+    `WidgetFrame` and the taskbar. Only the Map's two items opt in; the calendars' "Open these
+    days in a chart" adds a widget and stays hidden for viewers.
 
 How the widget hosts map-sdk is in "Map SDK" → "The dashboard's Map widget"; what its places are
 is in "Widget data selection".
@@ -3420,6 +3498,11 @@ documents }`, with its own version separate from `schemaVersion`. A shared docum
     shared document it copies today (`view.doc`), with the held changes applied to the widgets'
     options and validated like any document. Matching an existing copy stays by source id.
   - **Marks stay owner-only:** Select and Remove stay hidden for viewers.
+  - **Opted-in items for viewers (step 5 spec 6b):** a type's menu items reach a read-only
+    frame only when marked `forViewers`; the Map's "Show in a chart" and "Show in a table" are.
+    What they send is the viewer's own view (the held pollutant and stop included), as a draft
+    in history state; nothing is written to the shared document, the viewer's dashboards or the
+    saved draft.
   - **It is not "Show patterns".** The contribution calendar's "Show patterns" switch is a
     personal display preference (device-wide, never in a document); viewer changes are per tile,
     per visit, about the tile's own data, and can become part of a copy.

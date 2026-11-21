@@ -352,6 +352,24 @@ describe("converting to and from the Map", () => {
 		expect(c.cutAt).toBe("month");
 	});
 
+	it("keeps a Map's saved resolution for a range type that doesn't pin one; Automatic stays absent", () => {
+		const monthly = mapDraft(["pm25"], undefined, false);
+		monthly.data.dateRange = { kind: "set", unit: "year", start: "2025-01-01" };
+		monthly.data.resolution = "month";
+		expect(fromMapDraft(monthly, chartType, CATALOG).draft.data.resolution).toBe("month");
+		const auto = mapDraft(["pm25"], undefined, false);
+		auto.data.dateRange = { kind: "set", unit: "year", start: "2025-01-01" };
+		expect(fromMapDraft(auto, chartType, CATALOG).draft.data).not.toHaveProperty("resolution");
+		// A calendar pins Daily, and a now type has no resolution.
+		const calendar = fromMapDraft(monthly, monthCalendarType, CATALOG, "unavailable", [], NOW);
+		expect(calendar.draft.data).not.toHaveProperty("resolution");
+		expect(fromMapDraft(monthly, currentType, CATALOG).draft.data).not.toHaveProperty("resolution");
+		// A Map on Now has no resolution: a stale one gives the Chart none.
+		const onNow = mapDraft(["pm25"], undefined, false);
+		onNow.data.resolution = "year";
+		expect(fromMapDraft(onNow, chartType, CATALOG).draft.data).not.toHaveProperty("resolution");
+	});
+
 	it("a ranged Map converts to a Chart with its range; a Map on Now takes the Chart's default", () => {
 		const ranged = mapDraft(["pm25"], undefined, false);
 		ranged.data.dateRange = { kind: "set", unit: "month", start: "2026-09-01" };

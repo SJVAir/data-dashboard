@@ -301,9 +301,12 @@ export const FILL_ZIPS = [
 	{ id: "zfil3", code: "93999", name: "93999", lon: -119.5 }
 ];
 
-/** Each ZIP's figure on a past day (by date) and today so far; a ZIP with none has no row. */
+/**
+ * Each ZIP's figure on a past day (by date) and today so far; a ZIP with none has no row, and
+ * `null` is a final row with no figure (too little data: thin).
+ */
 export type FillFigures = {
-	days: Record<string, Record<string, number>>;
+	days: Record<string, Record<string, number | null>>;
 	/** The Pacific date today so far is for (the test clock's). */
 	todayDate: string;
 	today: Record<string, number>;
@@ -374,6 +377,56 @@ export async function routeMapFill(context: BrowserContext, figures: FillFigures
 					}
 				]
 			}));
+			return route.fulfill({ json: { data, page: 1, pages: 1, has_next_page: false } });
+		}
+	);
+}
+
+const REGION_PERIOD = /\/api\/2\.0\/regions\/([a-z0-9]+)\/summaries\/(monthly|yearly)\/$/;
+
+/**
+ * A ZIP's month or year: its figure, or a thin row (too few days had a figure) with its day
+ * counts, `[days, expected]`. A ZIP left out has no row.
+ */
+export type FillPeriodFigure = number | { thin: [number, number] };
+
+/**
+ * Answers a ZIP fill's month and year stops (`regions/<entry>/summaries/monthly|yearly/
+ * ?type=zipcode`) by the period's start, with the server's field names; `routeMapFill` first for
+ * the ZIPs' shapes.
+ */
+export async function routeMapFillPeriods(
+	context: BrowserContext,
+	periods: Record<string, Record<string, FillPeriodFigure>>
+): Promise<void> {
+	await context.route(
+		(url) => REGION_PERIOD.test(url.pathname) && url.searchParams.get("type") === "zipcode",
+		(route) => {
+			const url = new URL(route.request().url());
+			const [, entry, level] = REGION_PERIOD.exec(url.pathname)!;
+			const start = url.searchParams.get("start") ?? "";
+			const byCode = periods[start] ?? {};
+			const data = FILL_ZIPS.filter((z) => byCode[z.code] !== undefined).map((z) => {
+				const figure = byCode[z.code];
+				const [days, expected] = typeof figure === "number" ? [30, 30] : figure.thin;
+				return {
+					id: z.id,
+					name: z.name,
+					slug: z.id,
+					type: "zipcode",
+					summaries: [
+						{
+							timestamp: `${start}T00:00:00-08:00`,
+							entry_type: entry,
+							resolution: level === "yearly" ? "year" : "month",
+							daily_statistic_mean: typeof figure === "number" ? figure : null,
+							daily_statistic_days: days,
+							daily_statistic_expected_days: expected,
+							is_final: true
+						}
+					]
+				};
+			});
 			return route.fulfill({ json: { data, page: 1, pages: 1, has_next_page: false } });
 		}
 	);
@@ -851,4 +904,142 @@ export async function routeMapUse(
 		}
 	);
 	return requests;
+}
+
+const MONITORS_LIST = /\/api\/2\.0\/monitors\/$/;
+const CURRENT = /\/api\/2\.0\/monitors\/([a-z0-9]+)\/current\/$/;
+
+/** A made-up monitor `routeMoreMonitors` adds to Fresno County. */
+export type ExtraMonitor = { id: string; name: string };
+
+/** Fresno County's server id (`regions.json`), whose monitors the extra ones join. */
+const FRESNO_COUNTY_ID = "r6phe";
+/** The Science Building monitor: inactive, so it has no past days. */
+const SCIENCE_BUILDING = "Tt5ixZRKSH-rVKJtwVh-bw";
+
+/**
+ * Adds `extras` to Fresno County: copies of the Drummond Street monitor (an active outdoor AirNow
+ * monitor, Good), each a little east of it, in the monitor list (`monitors/`), the whole Valley's
+ * readings (`monitors/<type>/current/`), the region-scoped readings (`monitors/<type>/at/`) and the
+ * past days' bulk daily summaries (`monitors/<type>/summaries/daily/?region=`, every Fresno County
+ * monitor at `figure` on any day), with Drummond Street's raw readings
+ * (`monitors/<id>/entries/pm25/`) as their own. Routed after the fixtures, so it wins; PM2.5 only.
+ */
+export async function routeMoreMonitors(
+	context: BrowserContext,
+	extras: ExtraMonitor[],
+	figure = 5
+): Promise<void> {
+	type Row = { id: string; name: string; position: { type: string; coordinates: number[] } };
+	const current = (await json<{ data: Row[] }>(`${API_FIXTURES}monitors/pm25/current.json`))!;
+	const listed = (await json<{ data: Row[] }>(`${API_FIXTURES}monitors.json`))!;
+	const drummond = current.data.find((m) => m.id === REGION_MONITORS[FRESNO_COUNTY_ID][0])!;
+	const copies = extras.map(({ id, name }, i) => {
+		const [lng, lat] = drummond.position.coordinates;
+		return {
+			...structuredClone(drummond),
+			id,
+			name,
+			position: { type: "Point", coordinates: [lng + 0.02 * (i + 1), lat + 0.01 * (i % 2)] }
+		};
+	});
+	const inCounty = new Set([...REGION_MONITORS[FRESNO_COUNTY_ID], ...extras.map((m) => m.id)]);
+	const regionsOf = (url: URL) => url.searchParams.getAll("region").flatMap((r) => r.split(","));
+	const wantedIn = (url: URL) =>
+		new Set(
+			regionsOf(url).flatMap((r) =>
+				r === FRESNO_COUNTY_ID ? [...inCounty] : (REGION_MONITORS[r] ?? [])
+			)
+		);
+	const all = [...current.data, ...copies];
+
+	await context.route(
+		(url) => MONITORS_LIST.test(url.pathname),
+		(route) => {
+			// eslint-disable-next-line @typescript-eslint/no-unused-vars -- the list has no reading
+			const rows = copies.map(({ latest, ...rest }: Row & { latest?: unknown }) => rest);
+			return route.fulfill({ json: { data: [...listed.data, ...rows] } });
+		}
+	);
+	// A Chart of an extra monitor reads Drummond Street's readings.
+	const entries = await readFile(
+		`${API_FIXTURES}monitors/${drummond.id}/entries/pm25.json`,
+		"utf8"
+	);
+	await context.route(
+		(url) => extras.some((m) => url.pathname.endsWith(`/api/2.0/monitors/${m.id}/entries/pm25/`)),
+		(route) => route.fulfill({ contentType: "application/json", body: entries })
+	);
+	await context.route(
+		(url) => CURRENT.exec(url.pathname)?.[1] === "pm25",
+		(route) => route.fulfill({ json: { data: all } })
+	);
+	await context.route(
+		(url) => AT.exec(url.pathname)?.[1] === "pm25",
+		(route) => {
+			const wanted = wantedIn(new URL(route.request().url()));
+			return route.fulfill({ json: { data: all.filter((m) => wanted.has(m.id)) } });
+		}
+	);
+	await context.route(
+		(url) => MONITOR_DAILY.exec(url.pathname)?.[1] === "pm25" && url.searchParams.has("region"),
+		(route) => {
+			const url = new URL(route.request().url());
+			const day = url.searchParams.get("start") ?? "";
+			if (url.searchParams.get("end") !== day) {
+				return route.fulfill({ status: 400, json: { error: "end must equal start" } });
+			}
+			const wanted = wantedIn(url);
+			const data = all
+				.filter((m) => wanted.has(m.id) && m.id !== SCIENCE_BUILDING)
+				.map((m) => ({
+					id: m.id,
+					name: m.name,
+					summaries: [
+						{
+							timestamp: `${day}T00:00:00-08:00`,
+							entry_type: "pm25",
+							resolution: "day",
+							count: 24,
+							expected_count: 24,
+							mean_24h: figure,
+							is_final: true
+						}
+					]
+				}));
+			return route.fulfill({ json: { data, page: 1, pages: 1, has_next_page: false } });
+		}
+	);
+}
+
+const REGIONS_LIST = /\/api\/2\.0\/regions\/$/;
+
+/**
+ * Answers the region list for the use fixtures' sections (`regions/?type=mtrs&external_id=…`):
+ * each section a region named by its MTRS code, as the server has them. Other types go on to
+ * `routePlaces`.
+ */
+export async function routeSectionRegions(
+	context: BrowserContext,
+	{ sections }: UseFixtures
+): Promise<void> {
+	await context.route(
+		(url) => REGIONS_LIST.test(url.pathname) && url.searchParams.get("type") === "mtrs",
+		(route) => {
+			const url = new URL(route.request().url());
+			const codes = url.searchParams.get("external_id")?.split(",") ?? [];
+			const data = sections
+				.filter((s) => codes.includes(s.mtrs))
+				.map((s) => ({
+					id: s.id,
+					name: s.mtrs,
+					slug: s.mtrs.toLowerCase(),
+					type: "mtrs",
+					external_id: s.mtrs,
+					retired: null,
+					boundary: { id: `b${s.id}`, version: "2023", bbox: s.box }
+				}));
+			return route.fulfill({ json: { data } });
+		}
+	);
 }

@@ -193,6 +193,53 @@ describe("the fill entry", () => {
 		expect(source.poll(value)).toBe(false);
 	});
 
+	it("marks a month's thin region (too few days had a figure), with its day counts when the row has them", async () => {
+		ctx.rating = {
+			figure: async () => ({ field: "daily_statistic_mean", label: "Average" }),
+			levels: async () => levels
+		};
+		const start = pacificDay("2026-10-01").toISOString();
+		monthly.mockResolvedValue([
+			{
+				id: "z93721",
+				summaries: [
+					{
+						timestamp: start,
+						is_final: true,
+						daily_statistic_mean: null,
+						daily_statistic_days: 3,
+						daily_statistic_expected_days: 31
+					}
+				]
+			},
+			{
+				id: "z93722",
+				summaries: [{ timestamp: start, is_final: true, daily_statistic_mean: null }]
+			}
+		]);
+		const at = { start: "2026-10-01", resolution: "month" } as const;
+		const value = await createFillEntry(ctx)
+			.source({ regionType: "zipcode", entryType: "pm25", at })
+			.fetch(signal);
+		const props = value.features.features.map(
+			(f) => f.properties as unknown as Record<string, unknown>
+		);
+		expect(props[0]).toMatchObject({
+			value: null,
+			thin: true,
+			thinDays: { days: 3, expected: 31 }
+		});
+		expect(props[1]).toMatchObject({ value: null, thin: true });
+		expect(props[1].thinDays).toBeUndefined();
+	});
+
+	it("leaves a region with a figure, or with no row, unmarked", async () => {
+		const value = await createFillEntry(ctx)
+			.source({ regionType: "zipcode", entryType: "pm25", at: { day: DAY } })
+			.fetch(signal);
+		for (const f of value.features.features) expect(f.properties).not.toHaveProperty("thin");
+	});
+
 	it("keeps the current year polling while its nightly row isn't final", async () => {
 		yearly.mockResolvedValue([
 			{

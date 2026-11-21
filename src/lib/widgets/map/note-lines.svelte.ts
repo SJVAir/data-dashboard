@@ -4,11 +4,16 @@ import type { MetadataSource, MonitorTypeInfo } from "$lib/data/metadata";
 import { formatNumber } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";
 import type { MapLevel } from "./days";
-import { hiddenMarks, hiddenReasonLines, hiddenReasons } from "./marks";
+import { hiddenMarks, hiddenReasonLines, hiddenReasons, marksToSend } from "./marks";
 import { monitorIds } from "./sources";
 
 /** The stand-in while the places aren't known; never mutated. */
 const NO_PLACES: ReadonlySet<string> = new Set();
+/** Nothing to send yet; never mutated. */
+const NOTHING_SENT: MarksSent = Object.freeze({ ids: Object.freeze([]), leftOut: 0 });
+
+/** The marks "Show in" sends, in mark order, and how many marks are left out. */
+export type MarksSent = { readonly ids: readonly string[]; readonly leftOut: number };
 
 /** What the map's notes read from the tile; each field read on its own. */
 export interface NoteLinesInput {
@@ -79,13 +84,36 @@ export class MapNoteLines {
 		return info.published.includes(entryType) || (info.unflagged?.includes(entryType) ?? false);
 	};
 
+	/** Every monitor the server lists, once the types are known too; else null. */
+	get #listed(): ReadonlyMap<string, { type: string }> | null {
+		return this.#monitorList && this.#monitorTypes ? this.#monitorList : null;
+	}
+
+	/**
+	 * The marks "Show in" sends (D4, D18) and how many are left out; none until the monitors for
+	 * now have loaded and the lookups have settled, so the menu doesn't list items it then drops.
+	 */
+	readonly send: MarksSent = $derived.by(() => {
+		const features = this.#input.monitors;
+		if (!features || !this.#lookupsSettled) return NOTHING_SENT;
+		const input = this.#input;
+		return marksToSend(
+			input.marks,
+			monitorIds(features),
+			this.#listed,
+			this.#reports,
+			input.inPlaces ?? NO_PLACES,
+			input.dayDrawn
+		);
+	});
+
 	/** One line per reason the marks are hidden, in order. */
 	readonly #hiddenLines = $derived.by(() => {
 		if (!this.#hidden.length || !this.#lookupsSettled) return [];
 		const input = this.#input;
 		const reasons = hiddenReasons(
 			this.#hidden,
-			this.#monitorList && this.#monitorTypes ? this.#monitorList : null,
+			this.#listed,
 			this.#reports,
 			input.inPlaces ?? NO_PLACES,
 			input.dayDrawn

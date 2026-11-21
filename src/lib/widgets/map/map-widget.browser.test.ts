@@ -74,6 +74,8 @@ import { registerWidgetType } from "../registry";
 import { mapType } from "./index";
 import MapWidget from "./MapWidget.svelte";
 import { resetUseLegendNote } from "./UseLegendNote.svelte";
+import { mapSend } from "./send-registry";
+import { showIn } from "./show-in";
 import RenderSnippet from "./test-harness/RenderSnippet.svelte";
 import SessionMap from "./test-harness/SessionMap.svelte";
 
@@ -155,6 +157,7 @@ vi.mock("@sjvair/sdk", async (original) => ({
 	getRegionSummariesBulkYearly: vi.fn()
 }));
 vi.mock("$lib/data/now", () => ({ getNowClient: vi.fn() }));
+vi.mock("./show-in", () => ({ showIn: vi.fn() }));
 vi.mock("./host/metadata", () => ({ mapMetadata: () => ({}) }));
 vi.mock("./host/config", () => ({ mapConfig: vi.fn() }));
 vi.mock("$lib/data", () => ({
@@ -1494,6 +1497,138 @@ test("hands a mark on the starter off to its copy", async () => {
 	expect(app().current.session).toBe(copy);
 });
 
+/** Shows `widget` in the grid's editing context (where the Map offers Show in). */
+async function showEditing(widget: WidgetInstance) {
+	await openSession(widget);
+	return render(MapWidget, {
+		target: frame,
+		props: { widget },
+		context: new Map<unknown, unknown>([
+			[APP_CONTEXT_KEY, app()],
+			[TILE_OPTIONS_KEY, editing()]
+		])
+	});
+}
+
+/** The Map's ⋯ menu item ids for `widget`. */
+const menuIds = (widget: WidgetInstance) =>
+	mapType
+		.menu({ target: document.body, payload: {} }, { app: app(), widget: () => widget })
+		.map((i) => i.id);
+const SHOW_IN = ["map_show_in_chart", "map_show_in_table"];
+
+describe("Show in a chart / Show in a table", () => {
+	test("aren't listed with no marks", async () => {
+		vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+		const widget = mapWidget(region("019"));
+		await showEditing(widget);
+		const map = await madeMap();
+		await expect.poll(() => drawn(map)).toEqual(["a"]);
+		// The entry is there (a section card's button reads it) but holds no marks.
+		await expect.poll(() => mapSend(widget.id)).toMatchObject({ marks: [] });
+		expect(menuIds(widget)).toEqual([]);
+	});
+
+	test("aren't listed while every mark is hidden for its pollutant or places", async () => {
+		await listedMonitors();
+		vi.mocked(getMonitors).mockImplementation(
+			async (type) => (type === "o3" ? [reading("b")] : [reading("a"), reading("b")]) as never
+		);
+		// "a" (purpleair) doesn't report Ozone; "c" is outside the places.
+		const widget: WidgetInstance = {
+			...mapWidget({}),
+			data: layers(region("019"), [{ entryType: "o3" }]),
+			options: { showing: "o3", marks: ["a", "c"] }
+		};
+		await showEditing(widget);
+		const map = await madeMap();
+		await expect.poll(() => drawn(map)).toEqual(["b"]);
+		await expect.poll(hiddenLines).toEqual([reasonLine("pollutant"), reasonLine("places")]);
+		expect(menuIds(widget)).toEqual([]);
+	});
+
+	test("are listed with one mark drawn, the hidden ones counted as left out", async () => {
+		await listedMonitors();
+		vi.mocked(getMonitors).mockResolvedValue([reading("a"), reading("b")] as never);
+		const widget = { ...mapWidget(region("019")), options: { marks: ["c", "a"] } };
+		const screen = await showEditing(widget);
+		const map = await madeMap();
+		await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+		await expect.poll(() => menuIds(widget)).toEqual(SHOW_IN);
+		expect(mapSend(widget.id)).toMatchObject({ marks: ["a"], leftOut: 1 });
+		const draft = mapSend(widget.id)!.draft();
+		// A plain snapshot: the hand-off clones it.
+		expect(structuredClone(draft)).toEqual({
+			type: "map",
+			data: widget.data,
+			options: { marks: ["c", "a"] }
+		});
+		// Cleared once the Map unmounts.
+		screen.unmount();
+		expect(mapSend(widget.id)).toBeNull();
+		expect(menuIds(widget)).toEqual([]);
+	});
+
+	test("wait for the monitors lookup before listing", async () => {
+		const lookup = await lookupMetadata();
+		vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+		const widget = { ...mapWidget(region("019")), options: { marks: ["a"] } };
+		await showEditing(widget);
+		const map = await madeMap();
+		await expect.poll(() => drawn(map)).toEqual(["a"]);
+		// The entry is set, with no marks while the lookup is out.
+		await expect.poll(() => mapSend(widget.id)).toMatchObject({ marks: [] });
+		expect(menuIds(widget)).toEqual([]);
+		lookup.resolve([
+			{ id: "a", type: "purpleair", name: "a", county: "Fresno", active: true, inside: false }
+		]);
+		await expect.poll(() => menuIds(widget)).toEqual(SHOW_IN);
+	});
+
+	test("are listed for a viewer, whose held pollutant reaches the draft", async () => {
+		await listedMonitors();
+		vi.mocked(getMonitors).mockResolvedValue([reading("b")] as never);
+		const widget: WidgetInstance = {
+			...mapWidget({}),
+			data: layers(region("019"), [{ entryType: "o3" }]),
+			options: { marks: ["b"] }
+		};
+		const changes = new ViewerChanges();
+		const screen = await showViewer(widget, changes);
+		const map = await madeMap();
+		map.ready = true;
+		await expect.poll(() => drawn(map)).toEqual(["b"]);
+		await expect.poll(() => menuIds(widget)).toEqual(SHOW_IN);
+		await screen.getByRole("radio", { name: "Ozone" }).click();
+		await expect.poll(() => changes.get(widget.id)).toEqual({ showing: "o3" });
+		await expect.poll(() => mapSend(widget.id)?.draft().options?.showing).toBe("o3");
+		expect(structuredClone(mapSend(widget.id)!.draft())).toMatchObject({
+			options: { marks: ["b"], showing: "o3" }
+		});
+		expect(optionsOf()).toEqual({ marks: ["b"] });
+	});
+
+	test("aren't offered by Get data's preview", async () => {
+		await listedMonitors();
+		vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+		registerWidgetType(mapType);
+		const widget = { ...mapWidget(region("019")), options: { marks: ["a"] } };
+		await openSession(widget);
+		await render(Preview, {
+			target: frame,
+			props: { widget, title: "Map", size: "large", gridWidth: 1200, phone: false, onsize() {} },
+			context: new Map<unknown, unknown>([[APP_CONTEXT_KEY, app()]])
+		});
+		const map = await madeMap();
+		map.ready = true;
+		// Drawn: the effect that would set the entry has run (it returns at once with no tile
+		// options).
+		await expect.poll(() => drawn(map)).toEqual(["a"]);
+		expect(mapSend(widget.id)).toBeNull();
+		expect(menuIds(widget)).toEqual([]);
+	});
+});
+
 test("shows no buttons on smoke, fire or the focus pin", async () => {
 	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
 	const screen = await showLive({ ...mapWidget({}), data: layers(region("019"), [], true) });
@@ -2367,6 +2502,21 @@ test("a hidden mark with no figure that day gives its reason line", async () => 
 	await expect.poll(() => frame.querySelector("[data-map-marks-hidden]")?.textContent).toBe(line);
 });
 
+test("a mark hidden only for having no figure that day is still sent", async () => {
+	await listedMonitors();
+	const listed = vi.mocked(getMetadata)();
+	rated({ monitors: listed.monitors, monitorTypes: listed.monitorTypes });
+	vi.mocked(getMonitors).mockResolvedValue([reading("a"), reading("c")] as never);
+	dailyFigures({ "2026-09-09": { a: 9 } });
+	const widget = rangedMap(region("019"), { marks: ["c"] });
+	await showEditing(widget);
+	const map = await madeMap();
+	await expect.poll(() => drawn(map)).toEqual(["a"]);
+	await expect.poll(() => mapSend(widget.id)?.marks).toEqual(["c"]);
+	expect(mapSend(widget.id)?.leftOut).toBe(0);
+	expect(menuIds(widget)).toEqual(SHOW_IN);
+});
+
 test("a Monthly Map steps by month and draws each month's figure from the monthly summaries", async () => {
 	await listedMonitors();
 	const listed = vi.mocked(getMetadata)();
@@ -2396,6 +2546,11 @@ test("a Monthly Map steps by month and draws each month's figure from the monthl
 	expect(daysAsked()).toEqual([]);
 	await expect.poll(() => monitorsOptionsOf(map)?.figureLabel).toBe(PERIOD_FIGURE.label);
 	expect(listNoteOf(map)).toContain(PERIOD_FIGURE.label);
+	// The legend's line under the section's title: the units and the figure (E2E checks the text
+	// in map-sdk's Legend).
+	expect(monitorsOptionsOf(map)?.legendUnits).toBe(
+		m.label_join({ first: "µg/m³", second: PERIOD_FIGURE.label })
+	);
 	const props = (id: string) =>
 		(
 			map.plugins.find((p) => p.id === "monitors")!.options.source as {
@@ -2868,6 +3023,7 @@ test("a map with no range shows no day stepper", async () => {
 type MonitorsOptions = {
 	detail?: (props: Record<string, unknown>) => string | undefined;
 	figureLabel?: string;
+	legendUnits?: string;
 };
 const monitorsOptionsOf = (map: FakeMap) =>
 	map.plugins.find((p) => p.id === "monitors")?.options as MonitorsOptions | undefined;
@@ -2905,6 +3061,8 @@ test("on a day, a thin monitor reads Not enough data and the figure is named; on
 	const detail = monitorsOptionsOf(map)!.detail!;
 	expect(detail(b)).toBe(m.calendar_not_enough_data());
 	expect(detail(a)).toBeUndefined();
+	// A day's legend is as before: "(units)" after the title, no line under it.
+	expect(monitorsOptionsOf(map)).not.toHaveProperty("legendUnits");
 	// The list names the figure once, above its rows.
 	expect(listNoteOf(map)).toBe(PM25_FIGURE.label);
 
@@ -3112,6 +3270,37 @@ test("on a day, the fill draws the day's figures, labelled by its type", async (
 	// A final day isn't polled.
 	const entry = nowClient.entries().find((e) => e.key === "map-fill:pm25:zipcode:2026-09-09");
 	expect(entry).toMatchObject({ polling: false });
+});
+
+test("on a day, a thin region says Not enough data; a region with no row says nothing more", async () => {
+	rated();
+	zipFill();
+	// 93721 has a final row with no figure (thin); 93722 has a figure; 93723 has no row at all.
+	vi.mocked(getRegionSummariesBulkDaily).mockImplementation((async (config: { start: string }) => [
+		{ id: "z93721", summaries: [dayRow(config.start, null)] },
+		{ id: "z93722", summaries: [dayRow(config.start, 40)] }
+	]) as never);
+	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+	dailyFigures({ "2026-09-09": { a: 20 } });
+	await show(rangedMap(region("019"), { fill: "zipcode" }));
+	const map = await madeMap();
+	await expect.poll(dayLabel).toBe("Wednesday, September 9, 2026");
+	await expect
+		.poll(() => fillValues(map))
+		.toEqual({
+			"region:zipcode:93721": null,
+			"region:zipcode:93722": 40,
+			"region:zipcode:93723": null
+		});
+	// map-sdk puts the detail in the list row's accessible name and the hover card (E2E checks both).
+	const detail = (fillOf(map)!.options as { detail?: (p: unknown) => string | undefined }).detail;
+	const props = (code: string) =>
+		fillOf(map)!.options.source.features!.features.find(
+			(f) => f.properties.refKey === `region:zipcode:${code}`
+		)!.properties;
+	expect(detail?.(props("93721"))).toBe(m.calendar_not_enough_data());
+	expect(detail?.(props("93722"))).toBeUndefined();
+	expect(detail?.(props("93723"))).toBeUndefined();
 });
 
 test("the Layers group shows with a fill alone; its row hides the fill without a new request", async () => {
@@ -4062,6 +4251,83 @@ test("a pinned section's card names its township, a button that pins the townshi
 	expect(map.pinCalls).toEqual([["townships", township]]);
 	expect(map.pinned?.hit).toMatchObject({ pluginId: "townships", refKey: township });
 	expect(map.cameraCalls).toEqual([]);
+});
+
+describe("a section card's Show in a chart", () => {
+	const SECTION = encodeRef({ kind: "feature", id: "section:s1" });
+	/** The Map with a section loaded in the lens, its card pinned. */
+	async function pinnedSection(live = true) {
+		vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+		const widget = useMap();
+		const screen = live ? await showLive(widget, editing()) : await show(widget);
+		const map = await madeMap();
+		map.ready = true;
+		await expect.poll(() => townshipFeatures(map)).toHaveLength(2);
+		fakeLenses.at(-1)!.center = encodeRef({ kind: "feature", id: "township:T-0" });
+		await expect.poll(() => useOf(map, "lens")?.options.source.features?.features).toHaveLength(1);
+		pin(map, SECTION, "lens");
+		return { screen, map, widget };
+	}
+	const button = (screen: { getByRole: typeof page.getByRole }) =>
+		screen.getByRole("button", { name: m.map_show_in_chart() });
+
+	test("is on the pinned card and sends the section's code, not its id", async () => {
+		vi.mocked(showIn).mockClear();
+		const { screen, map, widget } = await pinnedSection();
+		const props = useOf(map, "lens")!.options.source.features!.features[0].properties;
+		await button(screen).click();
+		await expect
+			.poll(() => vi.mocked(showIn).mock.calls)
+			.toEqual([[expect.anything(), widget.id, { kind: "section", code: props.name }, "chart"]]);
+		expect(props.name).not.toBe(props.id);
+	});
+
+	test("is on a section card of the sections plugin too", async () => {
+		const { screen, map } = await pinnedSection();
+		pin(map, SECTION, "sections");
+		await expect.element(button(screen)).toBeVisible();
+	});
+
+	test("sends nothing once the section has left its source", async () => {
+		const { screen, map } = await pinnedSection();
+		vi.mocked(showIn).mockClear();
+		// A feature the source doesn't hold: its listed item's name is all that's left.
+		const refKey = encodeRef({ kind: "feature", id: "section:gone" });
+		const item = { refKey, name: "M99S99E99", level: "Good" } as unknown as FeatureListItem;
+		map.pinned = { hit: { pluginId: "sections", refKey, name: refKey, item } };
+		await button(screen).click();
+		// The source's own section is sent; had the first click sent, it would be first.
+		pin(map, SECTION, "lens");
+		await button(screen).click();
+		await expect.poll(() => vi.mocked(showIn).mock.calls.length).toBe(1);
+		const code = useOf(map, "lens")!.options.source.features!.features[0].properties.name;
+		expect(vi.mocked(showIn).mock.calls[0][2]).toEqual({ kind: "section", code });
+	});
+
+	test("isn't on a township's card", async () => {
+		const { screen, map } = await pinnedSection();
+		pin(map, encodeRef({ kind: "feature", id: "township:T-0" }), "townships");
+		await expect
+			.element(screen.getByRole("button", { name: m.map_mark_select() }))
+			.not.toBeInTheDocument();
+		expect(button(screen).query()).toBeNull();
+	});
+
+	test("isn't in a preview", async () => {
+		const { screen } = await pinnedSection(false);
+		expect(button(screen).query()).toBeNull();
+	});
+
+	test("keeps focus across a refetch", async () => {
+		const { screen, map } = await pinnedSection();
+		const el = button(screen).element() as HTMLButtonElement;
+		el.focus();
+		// A refetch re-pins the same card (cards stay mounted).
+		map.pinned = { hit: { ...map.pinned!.hit } };
+		await new Promise((r) => setTimeout(r, 50));
+		expect(document.activeElement).toBe(el);
+		expect(button(screen).element()).toBe(el);
+	});
 });
 
 test("the Layers row hides use without unloading it", async () => {

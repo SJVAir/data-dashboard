@@ -85,7 +85,7 @@
 	import { isCalendarType } from "$lib/calendars/types";
 	import ThresholdLineControl from "./ThresholdLineControl.svelte";
 	import { formatDate, formatDateRange, formatList, formatNumber } from "$lib/format";
-	import { offeredDatasets, resolutionBlock, typeBlock } from "./offer";
+	import { keepsOnSwitch, offeredDatasets, resolutionBlock, typeBlock } from "./offer";
 	import { datasetBlock, datasetBlockText } from "./dataset-offer";
 	import { LEVEL_BY, LEVEL_LABEL } from "./level-phrases";
 	import Preview, { type PreviewSize } from "./Preview.svelte";
@@ -108,7 +108,11 @@
 		add,
 		onSave,
 		onCancel,
-		onchange
+		onchange,
+		saves = true,
+		leftOut = 0,
+		keepOnOpen,
+		startNotes
 	}: {
 		mode: GetDataMode;
 		initial: Draft;
@@ -125,6 +129,21 @@
 		onCancel: () => void;
 		/** The draft after each change (and once at the start). */
 		onchange?: (draft: Draft) => void;
+		/**
+		 * The draft is kept for a reload or a later visit (a new widget's). False opened from a
+		 * Map: this visit's edits are never written to the device's saved draft (D3).
+		 */
+		saves?: boolean;
+		/** Opened from a Map: the marks left out because they're hidden (a note, D4). */
+		leftOut?: number;
+		/**
+		 * Opened from a Map with more places than the type takes: the Where dialog opens at once
+		 * to choose which to keep (D17). Done keeps them (`onkeep` gets the draft with them);
+		 * Cancel calls `oncancel` and changes nothing.
+		 */
+		keepOnOpen?: { oncancel: () => void; onkeep?: (draft: Draft) => void };
+		/** Opened from a Map: what its conversion left out or changed, noted as Show as notes it. */
+		startNotes?: Omit<NowConversion, "draft">;
 	} = $props();
 
 	const app = useApp();
@@ -229,6 +248,8 @@
 	const main = $derived(isNow ? placesLayer(plain.data, known) : mainLayer(plain.data, known));
 	const mainIndex = $derived(main ? plain.data.layers.indexOf(main) : -1);
 	const picks = $derived(main ? fromLayer(main) : []);
+	/** Whether the Where control renders; a Show as keep request needs it to open its dialog. */
+	const showsWhere = $derived(!!(main?.entryType || (isNow && main)));
 	/** Only level layers (smoke, burn status): nothing to chart, so no Add, Save or Download. */
 	const levelOnly = $derived(layers.levelOnly(plain.data, known));
 
@@ -473,18 +494,24 @@
 		untrack(() => onchange?.(snapshot));
 	});
 
-	// The draft is kept for a reload or a later visit; Edit data starts from the widget each time.
+	// The draft is kept for a reload or a later visit; Edit data starts from the widget each time,
+	// and a visit from a Map never writes it (`saves`).
+	const keepsDraft = untrack(() => saves) && untrack(() => mode.kind) === "new";
 	$effect(() => {
 		const snapshot = plain;
-		if (mode.kind === "new") untrack(() => saveDraft(app.platform, app.space, snapshot));
+		if (keepsDraft) untrack(() => saveDraft(app.platform, app.space, snapshot));
 	});
 	$effect(() => {
+		if (!keepsDraft) return;
 		const flush = () => flushDraft();
 		window.addEventListener("pagehide", flush);
 		return () => window.removeEventListener("pagehide", flush);
 	});
-	onDestroy(flushDraft);
+	onDestroy(() => {
+		if (keepsDraft) flushDraft();
+	});
 
+	let root = $state<HTMLElement>();
 	let size = $state<PreviewSize>("large");
 	let width = $state(0);
 	const phone = new MediaQuery(PHONE_QUERY);
@@ -493,6 +520,56 @@
 	function mainDraftLayer(): Layer | undefined {
 		return mainIndex >= 0 ? draft.data.layers[mainIndex] : undefined;
 	}
+
+	// Choosing which places to keep (D17) ----------------------------------------------------
+
+	type Keeping = {
+		max: number;
+		onkeep: (picks: Picks) => void;
+		oncancel: () => void;
+		restoreFocus?: () => boolean;
+	};
+
+	/** A keep request for the Where dialog; answered once, then dropped. */
+	function keepRequest(
+		max: number,
+		onkeep: (picks: Picks) => void,
+		oncancel: () => void,
+		restoreFocus?: () => boolean
+	): Keeping {
+		return {
+			max,
+			...(restoreFocus ? { restoreFocus } : {}),
+			onkeep: (picks) => {
+				keeping = undefined;
+				onkeep(picks);
+			},
+			oncancel: () => {
+				keeping = undefined;
+				oncancel();
+			}
+		};
+	}
+
+	const opening = untrack(() => keepOnOpen);
+	const openingCap = untrack(() => getWidgetType(initial.type)?.accepts?.maxPlaces);
+	/** The Where dialog's keep request, while one is open. */
+	let keeping = $state.raw<Keeping | undefined>(
+		opening && openingCap !== undefined
+			? keepRequest(
+					openingCap,
+					(kept) => {
+						applyPlaces(kept);
+						// Passing the dialog isn't an edit: the Map's notes stay up (D24).
+						noteStart();
+						opening.onkeep?.($state.snapshot(draft) as Draft);
+					},
+					opening.oncancel
+				)
+			: undefined
+	);
+	/** Bumped for each later keep request: the Where control remounts to open its dialog. */
+	let keepKey = $state(0);
 
 	/** Sets the range, or (`undefined`, for a type with `now`) Now. */
 	function setRange(spec: DateRangeSpec | undefined): void {
@@ -513,7 +590,14 @@
 		}
 	}
 
+	/** Change places' Done: the places the person chose (the hidden-marks note goes with them). */
 	function setPlaces(next: Picks): void {
+		leftOutShown = false;
+		applyPlaces(next);
+	}
+
+	/** Replaces the main layer's places. */
+	function applyPlaces(next: Picks): void {
 		const layer = mainDraftLayer();
 		if (!layer) return;
 		delete layer.place;
@@ -607,10 +691,28 @@
 		return out;
 	});
 
+	/** Opened from a Map: the hidden marks' note, until the person changes the places. */
+	let leftOutShown = $state(untrack(() => leftOut) > 0);
+	const allNotes = $derived(
+		leftOutShown
+			? [
+					m.get_data_marks_hidden_left_out({ count: formatNumber(leftOut), countValue: leftOut }),
+					...notes
+				]
+			: notes
+	);
+
 	/** Shows `conversion`'s notes until the draft changes. */
 	function noteConversion(conversion: NowConversion): void {
 		dropped = { after: JSON.stringify($state.snapshot(draft)), conversion };
 	}
+
+	/** Opened from a Map: its conversion's notes, until the next edit. */
+	const start = untrack(() => startNotes);
+	function noteStart(): void {
+		if (start?.dropped.length) noteConversion({ ...start, draft: $state.snapshot(draft) as Draft });
+	}
+	noteStart();
 
 	/** Replaces the whole draft (a conversion between range and now types). */
 	function replaceDraft(next: Draft): void {
@@ -692,6 +794,40 @@
 	function setType(next: string): void {
 		const to = getWidgetType(next);
 		if (!to) return;
+		// More places than a Chart or Table takes: the person chooses which to keep first, and
+		// Cancel changes nothing (D17). Kept within the cap, the conversion cuts none.
+		const cap = to.accepts?.maxPlaces;
+		if (
+			keepsOnSwitch(to) &&
+			cap !== undefined &&
+			picks.length > cap &&
+			showsWhere &&
+			mainDraftLayer()
+		) {
+			keeping = keepRequest(
+				cap,
+				(kept) => {
+					applyPlaces(kept);
+					switchType(to);
+				},
+				() => {},
+				// Done or Cancel, focus goes back to the Show as button pressed.
+				() => {
+					const pressed = root?.querySelector<HTMLElement>(
+						`[data-show-as="${CSS.escape(to.type)}"]`
+					);
+					pressed?.focus();
+					return !!pressed;
+				}
+			);
+			keepKey++;
+			return;
+		}
+		switchType(to);
+	}
+
+	function switchType(to: WidgetType): void {
+		const next = to.type;
 		if (offersNow(to) && known) {
 			void convertToNow(to, known);
 			return;
@@ -840,14 +976,14 @@
 	}
 </script>
 
-<div class="flex min-h-full flex-col" bind:clientWidth={width}>
+<div class="flex min-h-full flex-col" bind:this={root} bind:clientWidth={width}>
 	<div
 		class="grid flex-1 gap-(--grid-gap) p-(--grid-gap) md:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]"
 	>
 		<div class="flex min-w-0 flex-col gap-4">
-			{#if notes.length > 0}
+			{#if allNotes.length > 0}
 				<div role="status" class="flex flex-col gap-1">
-					{#each notes as note (note)}
+					{#each allNotes as note (note)}
 						<p class="text-muted-foreground text-sm">{note}</p>
 					{/each}
 				</div>
@@ -880,19 +1016,22 @@
 
 			<section class="flex flex-col gap-2" aria-labelledby="{uid}-where">
 				<h2 id="{uid}-where" class="text-primary text-sm font-semibold">{m.get_data_where()}</h2>
-				{#if main?.entryType || (isNow && main)}
-					<WhereControl
-						{picks}
-						{names}
-						{namesSettled}
-						max={type?.accepts?.maxPlaces ?? 1}
-						purpose={{
-							dataset: main.dataset,
-							// A Forecast strip's place is any place PM2.5 is offered for.
-							entryType: placesEntryType(main)
-						}}
-						onchange={setPlaces}
-					/>
+				{#if showsWhere && main}
+					{#key keepKey}
+						<WhereControl
+							{picks}
+							{names}
+							{namesSettled}
+							max={type?.accepts?.maxPlaces ?? 1}
+							purpose={{
+								dataset: main.dataset,
+								// A Forecast strip's place is any place PM2.5 is offered for.
+								entryType: placesEntryType(main)
+							}}
+							onchange={setPlaces}
+							keep={keeping}
+						/>
+					{/key}
 				{/if}
 			</section>
 

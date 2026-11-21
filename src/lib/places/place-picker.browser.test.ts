@@ -505,6 +505,79 @@ describe("multiple mode", () => {
 	});
 });
 
+describe("keep state (more picks than the cap)", () => {
+	const mode: PickerMode = { kind: "multiple", max: 5 };
+	const seven = ["a", "b", "c", "d", "e", "f", "g"].map((n) => monitor(`Monitor ${n}`));
+	const sevenPicks: Picks = seven.map((o) => ({ kind: "monitor", id: o.id }));
+
+	test("says how many to keep; Done is disabled with that as its reason until at the cap", async () => {
+		const { screen, ondone } = await show({ mode, initial: sevenPicks, known: seven });
+		const line = screen.getByText("Choose up to 5 places to keep.");
+		await expect.element(line).toBeVisible();
+		// The line sits above the chips.
+		const chips = screen.getByRole("list", { name: "Chosen places" }).element();
+		expect(
+			line.element().compareDocumentPosition(chips) & Node.DOCUMENT_POSITION_FOLLOWING
+		).toBeTruthy();
+
+		const done = screen.getByRole("button", { name: "Done" });
+		await expect.element(done).toHaveAttribute("aria-disabled", "true");
+		await expect.element(done).toHaveAccessibleDescription("Choose up to 5 places to keep.");
+		// Still focusable, so its reason can be read; a click does nothing.
+		(done.element() as HTMLButtonElement).focus();
+		await expect.element(done).toHaveFocus();
+		(done.element() as HTMLButtonElement).click();
+		expect(ondone).not.toHaveBeenCalled();
+
+		await screen.getByRole("button", { name: "Remove Monitor a" }).click();
+		await expect.element(done).toHaveAttribute("aria-disabled", "true");
+		await screen.getByRole("button", { name: "Remove Monitor b" }).click();
+		await expect.element(done).not.toHaveAttribute("aria-disabled");
+		await expect.element(done).not.toHaveAttribute("aria-describedby");
+		expect(screen.container.textContent).not.toContain("places to keep");
+		await done.click();
+		expect(ondone).toHaveBeenCalledWith(sevenPicks.slice(2));
+	});
+
+	test("the line has a singular form", async () => {
+		const { screen } = await show({
+			mode: { kind: "multiple", max: 1 },
+			initial: sevenPicks.slice(0, 2),
+			known: seven
+		});
+		await expect.element(screen.getByText("Choose up to 1 place to keep.")).toBeVisible();
+	});
+
+	test("no row can be added while over the cap; a picked row can go", async () => {
+		const extra = monitor("Monitor h");
+		const { screen, input } = await show({
+			mode,
+			initial: sevenPicks,
+			known: seven,
+			recent: [extra, seven[0]]
+		});
+		await input.click();
+		await userEvent.keyboard("{ArrowDown}");
+		const row = activeOption()!;
+		expect(row.textContent).toContain("Monitor h");
+		expect(row.getAttribute("aria-disabled")).toBe("true");
+		expect(document.getElementById(row.getAttribute("aria-describedby")!)!.textContent).toBe(
+			"This widget shows up to 5 places."
+		);
+		await userEvent.keyboard("{Enter}");
+		expect(screen.container.querySelector("[aria-label='Remove Monitor h']")).toBeNull();
+		// The picked one toggles off.
+		await userEvent.keyboard("{ArrowDown}{Enter}");
+		expect(screen.container.querySelector("[aria-label='Remove Monitor a']")).toBeNull();
+		await expect
+			.element(screen.getByRole("button", { name: "Use my location" }))
+			.toHaveAttribute("aria-disabled", "true");
+		document.body.style.background = "#ffffff";
+		const results = await axe.run(screen.container);
+		expect(results.violations).toEqual([]);
+	});
+});
+
 describe("Use my location", () => {
 	test("picks the point at once when it's inside the area", async () => {
 		const { screen, ondone, pointKeys } = await show({

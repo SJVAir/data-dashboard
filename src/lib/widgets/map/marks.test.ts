@@ -8,6 +8,7 @@ import {
 	hiddenReasonLines,
 	hiddenReasons,
 	marksChange,
+	marksToSend,
 	sameIds
 } from "./marks";
 import { MAP_MARKS_MAX } from "./options";
@@ -195,5 +196,65 @@ describe("hiddenReasonLines", () => {
 		expect(hiddenReasonLines(new Map([["pollutant", 1]]), undefined)).toEqual([
 			{ reason: "unknown", count: 1 }
 		]);
+	});
+});
+
+describe("marksToSend", () => {
+	const monitors = new Map([
+		["a", { type: "pm25" }],
+		["b", { type: "pm25" }],
+		["c", { type: "pm25" }],
+		["d", { type: "o3" }],
+		["e", { type: "pm25" }]
+	]);
+	const reports = (type: string) => type === "pm25";
+
+	it("keeps a drawn mark", () => {
+		const r = marksToSend(["a"], new Set(["a"]), monitors, reports, new Set(["a"]));
+		expect(r).toEqual({ ids: ["a"], leftOut: 0 });
+	});
+
+	it("keeps a mark hidden only for the period", () => {
+		const r = marksToSend(["a"], new Set(), monitors, reports, new Set(["a"]), new Set());
+		expect(r).toEqual({ ids: ["a"], leftOut: 0 });
+	});
+
+	it("leaves out the other reasons and counts them", () => {
+		const r = marksToSend(
+			["d", "b", "x", "zz"],
+			new Set(),
+			monitors,
+			reports,
+			new Set(["b"]),
+			undefined
+		);
+		// d: pollutant, b: options (no stop), x: unknown (not listed), zz: unknown
+		expect(r).toEqual({ ids: [], leftOut: 4 });
+		const places = marksToSend(["e"], new Set(), monitors, reports, new Set());
+		expect(places).toEqual({ ids: [], leftOut: 1 });
+	});
+
+	it("keeps mark order", () => {
+		const r = marksToSend(
+			["c", "d", "a", "b"],
+			new Set(["a"]),
+			monitors,
+			reports,
+			new Set(["a", "b", "c"]),
+			new Set(["a"])
+		);
+		expect(r).toEqual({ ids: ["c", "a", "b"], leftOut: 1 });
+	});
+
+	it("sends all when every mark is hidden for the period", () => {
+		const r = marksToSend(
+			["a", "b", "c"],
+			new Set(),
+			monitors,
+			reports,
+			new Set(["a", "b", "c"]),
+			new Set()
+		);
+		expect(r).toEqual({ ids: ["a", "b", "c"], leftOut: 0 });
 	});
 });

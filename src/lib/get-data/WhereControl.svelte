@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from "svelte";
 	import { Button } from "$lib/components/ui/button";
 	import * as Dialog from "$lib/components/ui/dialog";
 	import { getMetadata, getResolvers } from "$lib/data";
@@ -19,7 +20,8 @@
 		namesSettled,
 		max,
 		purpose,
-		onchange
+		onchange,
+		keep
 	}: {
 		picks: Picks;
 		/** The places' names from the preview's latest data; `null` before it has any. */
@@ -30,9 +32,25 @@
 		max: number;
 		purpose: { dataset: string; entryType: string };
 		onchange: (picks: Picks) => void;
+		/**
+		 * Keep mode: the picks are over a cap. The dialog opens at once to choose which to keep (at
+		 * `keep.max`); Done calls `onkeep`, and Cancel, Escape or closing calls `oncancel` (once).
+		 */
+		keep?: {
+			max: number;
+			onkeep: (picks: Picks) => void;
+			oncancel: () => void;
+			/**
+			 * Where focus goes when the dialog closes (the control that asked, say); false when it
+			 * can't, and focus returns to Change places.
+			 */
+			restoreFocus?: () => boolean;
+		};
 	} = $props();
 
 	const app = useApp();
+	const uid = $props.id();
+	const keepId = `${uid}-keep`;
 
 	type Ready = {
 		directory: PlaceDirectory;
@@ -44,10 +62,24 @@
 
 	let open = $state(false);
 	let ready = $state.raw<Ready | null>(null);
+	/** The picker's keep line is shown: the dialog's description names it only then. */
+	let keepShown = $state(false);
 	let failed = $state(false);
 	let content = $state<HTMLElement | null>(null);
 	let opener = $state<HTMLButtonElement | null>(null);
 	let controller: AbortController | null = null;
+	/** This open's keep request is answered (so closing after Done, or twice, cancels nothing). */
+	let settled = false;
+	/** Where the closing dialog returns focus, taken from the keep request it answered. */
+	let restore: (() => boolean) | undefined;
+
+	const pickerMode = $derived(
+		keep
+			? { kind: "multiple" as const, max: keep.max }
+			: max > 1
+				? { kind: "multiple" as const, max }
+				: { kind: "single" as const }
+	);
 
 	const summary = $derived.by(() => {
 		if (names && names.length > 0) return formatList(names);
@@ -89,20 +121,37 @@
 	function show(): void {
 		controller?.abort();
 		controller = new AbortController();
+		settled = false;
 		open = true;
 		void load(controller.signal);
 	}
 
 	function close(): void {
+		restore = keep?.restoreFocus;
 		open = false;
 		controller?.abort();
 		controller = null;
 	}
 
-	function done(next: Picks): void {
+	/** Cancel, Escape, or the dialog closing by itself. */
+	function dismiss(): void {
 		close();
-		if (next.length === 0) return;
-		onchange(next);
+		if (keep && !settled) {
+			settled = true;
+			keep.oncancel();
+		}
+	}
+
+	function done(next: Picks): void {
+		if (next.length === 0) {
+			dismiss();
+			return;
+		}
+		const keeping = keep && !settled ? keep : null;
+		settled = true;
+		close();
+		if (keeping) keeping.onkeep(next);
+		else onchange(next);
 		void (async () => {
 			try {
 				for (const ref of [...next].reverse()) await addRecent(app.platform, app.space, ref);
@@ -113,6 +162,10 @@
 	}
 
 	$effect(() => () => controller?.abort());
+
+	onMount(() => {
+		if (keep) show();
+	});
 </script>
 
 <div class="flex flex-wrap items-center gap-2">
@@ -131,12 +184,13 @@
 <Dialog.Root
 	bind:open
 	onOpenChange={(o) => {
-		if (!o) close();
+		if (!o) dismiss();
 	}}
 >
 	<Dialog.Content
 		bind:ref={content}
 		tabindex={-1}
+		aria-describedby={keepShown ? keepId : undefined}
 		class="flex max-h-[85dvh] flex-col overflow-y-auto max-sm:top-0 max-sm:left-0 max-sm:h-dvh max-sm:max-h-none max-sm:w-full max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none max-sm:border-0 sm:max-w-lg"
 		onOpenAutoFocus={(e) => {
 			e.preventDefault();
@@ -144,26 +198,34 @@
 		}}
 		onCloseAutoFocus={(e) => {
 			e.preventDefault();
-			opener?.focus();
+			// A keep request from elsewhere (Show as) takes focus back there; otherwise (the dialog
+			// opened on mount, not from this button) focus returns to the button, which still exists.
+			const back = restore;
+			restore = undefined;
+			if (!back?.()) opener?.focus();
 		}}
 	>
 		<Dialog.Header>
 			<Dialog.Title>
-				{max > 1 ? m.place_picker_dialog_title_multiple() : m.place_picker_dialog_title()}
+				{pickerMode.kind === "multiple"
+					? m.place_picker_dialog_title_multiple()
+					: m.place_picker_dialog_title()}
 			</Dialog.Title>
 		</Dialog.Header>
 		{#if ready}
 			<PlacePicker
 				directory={ready.directory}
 				{purpose}
-				mode={max > 1 ? { kind: "multiple", max } : { kind: "single" }}
+				mode={pickerMode}
 				initial={ready.initial}
 				known={ready.known}
 				recent={ready.recent}
 				locate={(signal) => app.platform.geolocation.locate(signal)}
 				pointKeys={(lat, lon, signal) => ready!.resolvers.points.keys(lat, lon, signal)}
 				ondone={done}
-				oncancel={close}
+				oncancel={dismiss}
+				{keepId}
+				onkeepline={(shown) => (keepShown = shown)}
 			/>
 		{/if}
 		<div class={["flex flex-wrap items-center gap-2 text-sm", ready && "sr-only"]}>

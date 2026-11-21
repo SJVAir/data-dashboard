@@ -12,7 +12,7 @@ import { SyncWorker } from "$lib/sync/worker.svelte";
 import { chartType } from "$lib/widgets/chart";
 import { dataTableType } from "$lib/widgets/table";
 import { registerWidgetType } from "$lib/widgets/registry";
-import { addFromDraft, addTargets } from "./add";
+import { addFromDraft, addTargets, NEW_DASHBOARD } from "./add";
 import type { Draft } from "./draft.svelte";
 
 // The live-link rule's region lookup: any point is in ZIP 93721.
@@ -250,6 +250,46 @@ describe("addTargets", () => {
 		const { app } = await anonymous();
 		expect(addTargets(app, STARTER_ID, undefined)).toEqual({
 			selected: { id: STARTER_ID, name: "Starter dashboard" },
+			others: []
+		});
+	});
+	it("never offers a read-only dashboard, as the button or in others", async () => {
+		const { platform, app } = await withDashboards();
+		await put(platform, { ...makeDoc("d3"), schemaVersion: 99 as never, name: "Future" });
+		await app.index.refresh();
+		expect(app.index.items.find((d) => d.id === "d3")?.readOnly).toBe(true);
+		const targets = addTargets(app, "d3", "d3");
+		expect(targets.selected.id).toBe(STARTER_ID);
+		expect(targets.others.map((t) => t.id).sort()).toEqual(["d1", "d2"]);
+	});
+
+	it("never offers a dashboard this tab has open read-only (invalid or unkept)", async () => {
+		for (const readOnly of ["invalid", "unkept"] as const) {
+			const { app } = await withDashboards();
+			const session = (await app.sessions.get("d2"))!;
+			session.readOnly = readOnly;
+			const targets = addTargets(app, "d2", "d2");
+			expect(targets.selected.id).toBe(STARTER_ID);
+			expect(targets.others.map((t) => t.id)).toEqual(["d1"]);
+		}
+	});
+
+	it("skips ids in skip, even the route and last-opened ones", async () => {
+		const { app } = await withDashboards();
+		const targets = addTargets(app, "d2", "d2", new Set(["d2"]));
+		expect(targets.selected.id).toBe(STARTER_ID);
+		expect(targets.others.map((t) => t.id)).toEqual(["d1"]);
+	});
+
+	it("a skipped starter falls to the first remaining dashboard, else a new one", async () => {
+		const { app } = await withDashboards();
+		const skip = new Set([STARTER_ID]);
+		const first = addTargets(app, STARTER_ID, undefined, skip);
+		expect(first.selected.id).toBe(app.index.items[0].id);
+		expect(first.others.map((t) => t.id)).not.toContain(first.selected.id);
+		const { app: empty } = await anonymous();
+		expect(addTargets(empty, STARTER_ID, undefined, skip)).toEqual({
+			selected: { id: NEW_DASHBOARD, name: "New dashboard" },
 			others: []
 		});
 	});

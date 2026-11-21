@@ -75,21 +75,29 @@ export async function landedIn(
 /**
  * The button's target: the dashboard Get data was opened from (`routeId`), else the last-opened
  * one, else the starter (named as it reads in the nav). `others` are the rest of this space's
- * dashboards, newest change first.
+ * dashboards, newest change first. Read-only dashboards (the index's, and any this tab has open
+ * read-only: invalid or unkept) and ids in `skip` are never offered (D22); when the starter is
+ * skipped, the button falls to the first remaining dashboard, else a new one.
  */
 export function addTargets(
 	app: AppContext,
 	routeId: string | undefined,
-	lastOpened: string | undefined
+	lastOpened: string | undefined,
+	skip: ReadonlySet<string> = new Set()
 ): { selected: AddTarget; others: AddTarget[] } {
-	const listed = app.index.items.map((d) => ({
-		id: d.id,
-		name: app.index.names.get(d.id) ?? m.dashboard_untitled()
-	}));
+	const openReadOnly = app.openSessions().flatMap((s) => (s.readOnly ? [s.doc.id] : []));
+	if (openReadOnly.length) skip = new Set([...skip, ...openReadOnly]);
+	const listed = app.index.items
+		.filter((d) => !d.readOnly && !skip.has(d.id))
+		.map((d) => ({
+			id: d.id,
+			name: app.index.names.get(d.id) ?? m.dashboard_untitled()
+		}));
 	const find = (id: string | undefined) => listed.find((t) => t.id === id);
-	const selected = (routeId === STARTER_ID ? undefined : (find(routeId) ?? find(lastOpened))) ?? {
-		id: STARTER_ID,
-		name: m.dashboard_starter()
-	};
+	const fallback: AddTarget = !skip.has(STARTER_ID)
+		? { id: STARTER_ID, name: m.dashboard_starter() }
+		: (listed[0] ?? { id: NEW_DASHBOARD, name: m.get_data_add_new() });
+	const selected =
+		(routeId === STARTER_ID ? undefined : (find(routeId) ?? find(lastOpened))) ?? fallback;
 	return { selected, others: listed.filter((t) => t.id !== selected.id) };
 }

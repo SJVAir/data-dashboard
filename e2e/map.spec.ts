@@ -34,6 +34,7 @@ import {
 	routeMapDays,
 	routeMapPeriods,
 	routeMapFill,
+	routeMapFillPeriods,
 	routeMapMeta,
 	routeMapNotices,
 	routeMapReadings,
@@ -897,8 +898,13 @@ test.describe("a Map's days", () => {
 		await expect(page.locator("[data-day-status]")).toContainText("Not final yet");
 		await expect(page.getByRole("button", { name: "Next month" })).toBeDisabled();
 		await expect(inView(map)).toHaveText("PM2.5: 1 Good");
-		// The figure is named by the scale's period_statistic_label, where map-sdk shows it (its
-		// legend has no figure name): the feature list's note, above the rows.
+		// The figure is named by the scale's period_statistic_label: in the legend, with the units
+		// under the title (in place of "(µg/m³)"), and in the feature list's note, above the rows.
+		const legend = legendOf(map);
+		await expect(legend.getByRole("heading", { level: 3 })).toHaveText("PM2.5");
+		await expect(
+			legend.getByText("µg/m³ · Average of 24-hour averages", { exact: true })
+		).toBeVisible();
 		await featureList(map);
 		await expect(map.getByText("Average of 24-hour averages", { exact: true })).toBeVisible();
 		await closeFeatureList(map);
@@ -1274,6 +1280,83 @@ test.describe("a Map's region fill", () => {
 			1
 		);
 		await expect(list.getByRole("option", { name: "ZIP 93999, No data" })).toHaveCount(1);
+		await page.keyboard.press("Escape");
+	});
+
+	test("on a day a thin ZIP says Not enough data, in its row and its hover card", async ({
+		context,
+		page
+	}) => {
+		// Routed after the beforeEach's, so it answers first: 93722 has a final row with no figure.
+		await routeMapFill(context, {
+			days: { "2026-11-11": { "93721": 5, "93722": null } },
+			todayDate: "2026-11-15",
+			today: { "93721": 8, "93722": 30 }
+		});
+		await openSharedDoc(page, fillDoc({ kind: "custom", start: "2026-11-09", end: "2026-11-11" }));
+		const map = mapOf(page, FRESNO_MAP);
+		await expect(daySlider(page)).toHaveAttribute("aria-valuetext", /November 11, 2026$/);
+		await expect(fillLine(map)).toHaveText(/^ZIP Codes: /);
+
+		// The thin ZIP's reason is in its accessible name; one with no row reads No data alone.
+		const list = await featureList(map);
+		await expect(
+			list.getByRole("option", { name: "ZIP 93722, No data, Not enough data", exact: true })
+		).toHaveCount(1);
+		await expect(list.getByRole("option", { name: "ZIP 93999, No data", exact: true })).toHaveCount(
+			1
+		);
+		await closeFeatureList(map);
+
+		// The middle of the GL map (the county's framing) is inside ZIP 93722: its hover card says why.
+		const box = (await glMap(map).boundingBox())!;
+		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+		const tip = map.getByRole("tooltip");
+		await expect(tip).toBeVisible();
+		await expect(tip).toContainText("93722");
+		await expect(tip).toContainText("Not enough data");
+	});
+
+	test("on a month the legend names the figure, and a thin ZIP says how many days had one", async ({
+		context,
+		page
+	}) => {
+		await routeMapPeriods(context, { "2026-10-01": { figures: { [DRUMMOND]: 20 } } });
+		await routeMapFillPeriods(context, {
+			"2026-10-01": { "93721": 5, "93722": { thin: [3, 31] } }
+		});
+		const doc = fillDoc({ kind: "custom", start: "2026-09-01", end: "2026-10-31" });
+		Object.assign(doc.body.widgets[0].data, { resolution: "month" });
+		await openSharedDoc(page, doc);
+		const map = mapOf(page, FRESNO_MAP);
+		await expect(page.getByRole("slider", { name: "Month" })).toHaveAttribute(
+			"aria-valuetext",
+			"October 2026"
+		);
+		// One section for the monitors and the fill: the units and the scale's
+		// period_statistic_label on the line under the title, in place of "(µg/m³)".
+		const legend = legendOf(map);
+		const titles = legend.getByRole("heading", { level: 3 });
+		await expect(titles).toHaveCount(1);
+		await expect(titles).toHaveText("PM2.5");
+		await expect(
+			legend.getByText("µg/m³ · Average of 24-hour averages", { exact: true })
+		).toBeVisible();
+		await expect(legend.getByText("No data", { exact: true })).toBeVisible();
+		await expectNoViolationsInBothThemes(page);
+
+		// The thin ZIP's reason is in its accessible name; one with no row reads No data alone.
+		const list = await featureList(map);
+		await expect(list.getByRole("option", { name: "ZIP 93721, 5.0 µg/m³, Good" })).toHaveCount(1);
+		await expect(
+			list.getByRole("option", {
+				name: "ZIP 93722, No data, Only 3 of 31 days had a figure",
+				exact: true
+			})
+		).toHaveCount(1);
+		await expect(list.getByRole("option", { name: "ZIP 93999, No data", exact: true })).toHaveCount(
+			1
+		);
 		await page.keyboard.press("Escape");
 	});
 });

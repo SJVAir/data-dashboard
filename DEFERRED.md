@@ -1263,8 +1263,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   the rule, shown together, for example a change map on a diverging scale or two series on one
   chart. This includes the Pesticides Explorer's compare (its change map between two years).
   Why: it needs its own design (how two datasets are chosen, stored and drawn), and spec 6a
-  only set the rule. **Revisit after** step 5 spec 6b, or when an agency or researcher asks for
-  trends.
+  only set the rule. Step 5 spec 6b is built and didn't take it up; raised with the user at the
+  end of 6b (2026-11-20), who chose to look at it again after spec 7. **Revisit when** step 5
+  spec 7 (schools and child care) is done: the spec 7 session raises it with the user at the end
+  of spec 7, as 6b did. Sooner if an agency or researcher asks for trends.
 - **An hourly or finer Map.** _Deferred 2026-11-18 (step 5 spec 6a)._ The Map steps by day,
   month or year (`MAP_LEVELS`). Why: an hour's figures over the valley need their own snapshot
   and many more stops (a week is 168), and nobody has asked. **Revisit when** someone asks to
@@ -1297,14 +1299,44 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 - **`land_use` / `mtrs` region browsing ("progressive unlock").** _Deferred 2026-09-17
   (multi-region selector spec)._ These tables have roughly 66k and 28k rows. Browsing them
   only after narrowing to a small parent area needs its own design. **Revisit when**
-  pesticide analyses need parcel-level (MTRS) selection, or with step 5 spec 6b (trigger added
-  2026-11-16, step 5 spec 5; spec 6 was split into 6a and 6b on 2026-11-18).
+  pesticide analyses need parcel-level selection in the place picker (for example, a Chart of
+  several sections). _Step 5 spec 6b (2026-11-20, the user's option B) dropped itself as the
+  trigger: a pinned section card charts that one section without browsing._
 - **Readable names for MTRS sections.** _Deferred 2026-11-17 (the user, while planning step 5
   spec 6)._ A section's name is its PLSS code (for example `MDM-T14S-R20E-07`). The Map's section
-  card shows it, and so would any chart of a marked section. The user accepted the codes for now,
+  card shows it, and so does the Chart that a pinned section card opens (step 5 spec 6b,
+  2026-11-20; its title is the code). The user accepted the codes for now,
   since the Pesticides Explorer shows sections the same way. A readable name would come from the
   server, never be built in the dashboard. **Revisit when** people find the codes confusing (for
   example in the private preview), or the explorer gets readable section names.
+- **Show a township in a chart.** _Deferred 2026-11-20 (step 5 spec 6b)._ The township card has
+  no "Show in a chart" button, since townships aren't a chartable region type (only a pinned
+  section card has one). Why: charting a township's use needs the server to offer townships as a
+  region type, which is outside the Map spec. **Revisit when** someone asks to chart a
+  township's use.
+- **Show in a chart from a minimized Map.** _Deferred 2026-11-20 (step 5 spec 6b)._ A minimized
+  Map offers no "Show in a chart" or "Show in a table" (the spec had them in its taskbar menu).
+  Why: a minimized Map isn't mounted, so nothing is drawn and no marks are known; the items
+  list only while a mark would be sent. **Revisit when** someone asks, or when the Map's drawn
+  set is computed outside the tile.
+- **"Show in" stays busy while its request never settles.** _Deferred 2026-11-20 (step 5 spec
+  6b)._ One "Show in" runs at a time (a second click is ignored until the first finishes or
+  fails). A request that never answers, neither failing nor succeeding, leaves the items doing
+  nothing until the page reloads. Why: it's close to unreachable. "Show in" waits on the dataset
+  catalog and the Map's pollutant list, which are fetched once and shared, and the Map starts
+  both when it opens, so they have nearly always answered before a mark can be sent; if one is
+  still pending, the Map is waiting on that same request. The Data Portal's code fails rather
+  than hangs when the network drops (the reload notice covers it), and the navigation is local.
+  A failure already frees the items and says so. The data layer has no time limits anywhere, so
+  one just for "Show in" would be a one-off rule. **Revisit when** anyone sees "Show in" do
+  nothing, or the data requests get a shared time limit.
+- **The Data Portal's Back to the previous page doesn't restore its Discard guard if refused.**
+  _Deferred 2026-11-20 (step 5 spec 6b)._ Add, Save and Cancel put the "Discard changes?"
+  guard back when their navigation doesn't happen; Back to the previous history entry
+  (`history.back()` in `GetData.svelte`'s `goBack`) can't, since a history move can't be
+  awaited. Why: nothing can refuse it today; the Data Portal's own guard is the only navigation
+  blocker in the app, and it lets the page's own exits through. **Revisit when** a second
+  `blockNavigation` is added anywhere, or a route gets a `beforeLoad` that can refuse.
 - **`protected` / `custom` / `school_district` region data.** _Deferred 2026-09-17; re-checked
   2026-09-28 and 2026-10-13._ The `place` region type was **removed** from the server (migrations
   0009/0010); name lookup now tries city, then CDP, then urban area. New types exist: `air_district`
@@ -1471,11 +1503,9 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   `locationTypeLabel`, so what is left is the schools data set itself, an entry in
   `src/lib/widgets/map/data/` and its Layers row. The user moved the trigger to after spec 5
   (2026-11-16), then to after spec 6 (2026-11-17): it becomes its own small spec in step 5 (spec
-  7), since spec 6b decides how a Map's layers reach charts and tables. **Revisit after** spec 6b.
-
-- **Spec 6b charts only the drawn marks.** _Decided 2026-11-12 (step 5 spec 2; the user)._ Marks
-  kept but hidden (outside the places, or not reporting the pollutant showing) are not sent to a
-  chart or table. **Revisit with** spec 6b ("Show in a chart" / "Show in a table").
+  7), since spec 6b decides how a Map's layers reach charts and tables. Spec 6b is built
+  (2026-11-20): a `MapSend` kind and one case in `show-in.ts` take a new layer (see
+  `ARCHITECTURE.md` → "Widget catalog" → Map). **Revisit with** spec 7.
 
 - **More than 4 pollutants on one Map.** _Deferred 2026-11-12 (step 5 spec 2); lowered from 6 on
   2026-11-16 (step 5 spec 5)._ A tile holds at most `LAYERS_MAX` (8) less smoke, fire, spray
@@ -1565,8 +1595,9 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     label lookups move into `MapData` (every layer pollutant's label looked up up front).
   - **On a past day, a monitor that has left the current monitors list isn't drawn**, and its
     mark is counted as "outside the places" rather than "no figure for this day": a day's
-    figures are joined to the current list (`toDayFeatures`, `marks.ts`). Rare. **Revisit when**
-    spec 6b reads series for marked monitors, or when someone reports it.
+    figures are joined to the current list (`toDayFeatures`, `marks.ts`). Rare. Step 5 spec 6b
+    doesn't change it (an undrawn mark isn't sent to a chart). **Revisit when** someone reports
+    it, or when the Map reads a past day's monitors from that day's own list.
   - **A step can still fold into an unrelated edit** made within the 1 s `StepRun` window
     (`step-run.ts`): the run closes on time and on a drag's end, not on another kind of change.
     Rare (a person editing something else within a second of stepping). **Revisit if** someone
@@ -2037,15 +2068,6 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
 
 ## Map plugins
 
-- **map-sdk: list the two new `Scale` keys in `NO_SCALE`.** _Deferred 2026-11-18 (the
-  coordinator, from `@sjvair/sdk` `5.0.0-beta.15`'s approved shape, session `sdk-js-9f`)._
-  beta.15 adds the required `Scale` keys `period_statistic` and `period_statistic_label`, and
-  map-sdk's literal `NO_SCALE` (`src/lib/plugins/scale-resolution.svelte.ts`) lists every key,
-  so map-sdk's own type check fails once it builds against beta.15. Nothing breaks at runtime,
-  and the dashboard's pins are unaffected. **Why deferred:** a two-line change, too small for a
-  map-sdk release of its own. **Revisit when** map-sdk next moves its dev pin to `@sjvair/sdk`
-  `5.0.0-beta.15` or later: add both keys as `null` in that release.
-
 - **The regions meta doesn't say which types the server simplifies.** _Deferred 2026-11-15
   (step 5 spec 4, Task 12)._ `regions/geojson/?simplify=1` is accepted only for county,
   zipcode and tract (sjvair.com answers 400 for any other type), and no `regions/meta/` field
@@ -2245,16 +2267,12 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   (map-sdk #38, 2026-11-17). Remove this item when the dashboard pins beta.21 (step 5 spec 6).
   _The dashboard pins beta.21 since step 5 spec 6a (e78376a, 2026-11-18). The item stays until
   the user's hand check of the lens passes._
-- **The Map's legend doesn't name the month or year figure.** _Deferred 2026-11-19 (step 5 spec
-  6a, Task 12)._ The spec says a Monthly or Yearly Map's legend names the figure from
-  `period_statistic_label`. map-sdk's `monitorsPlugin` has no legend slot for a figure name, so
-  the dashboard names it in the tooltips (`figureLabel`) and the feature list's note instead, as
-  at Daily. Likewise a region fill with no period figure
-  reads "No data" with no reason, since `regionsPlugin` has no detail slot (monitors say "Only
-  {days} of {expected} days had a figure"). Why: it needs a map-sdk change, and the figure is
-  already named next to every value. **Revisit with** the next map-sdk release the dashboard
-  pins: name the figure in the monitors legend, and give a no-figure region its reason, if that
-  release offers them.
+- **The Monthly and Yearly legend line takes its units from the catalog.** _Deferred 2026-11-20
+  (step 5 spec 6b, Task 11 review)._ map-sdk's own "(units)" line reads the monitors meta's scale
+  units, while the Monthly or Yearly figure line that replaces it ("µg/m³ · Average of 24-hour
+  averages") reads the dataset catalog's `entry_types[].units`. Two server sources that match
+  today. Why: reading the scale's units needs a change in `MapWidget.svelte` beyond the pin.
+  **Revisit when** the two sources ever differ, or `MapWidget` next reads the scale's units.
 - **map-sdk's demo page doesn't show the newer opt-in features.** _Deferred 2026-11-15 (the user,
   in map-sdk `0.1.0-beta.15`'s session `map-sdk-42`, [#32](https://github.com/SJVAir/map-sdk/pull/32))._
   Missing from the demo: regions with no figure drawn as outlines, plus the legend's "No data"
@@ -2264,7 +2282,7 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   tooltip and ViewSummary for no-figure outlines, the unfilled list swatch, and the Legend's
   no-figure swatch on `--swatch-outline-*`. The trigger below fired with beta.16 and wasn't raised
   then (the prompt didn't carry it); the user set the new trigger on 2026-11-15. Why: the user wants the demo
-  updated, but not in that PR. The demo isn't shipped, so the package is unaffected. **Revisit when** the user asks, or before map-sdk's 1.0 release.
+  updated, but not in that PR. The demo isn't shipped, so the package is unaffected. `0.1.0-beta.22` (map-sdk #39) shows its own new options in the demo, and the older ones listed stay missing. **Revisit when** the user asks, or before map-sdk's 1.0 release.
 - **map-sdk: one frame of tint at a tile edge when the lens recentres.** _Deferred 2026-11-17 (the
   user, map-sdk `0.1.0-beta.21`, session `map-sdk-f0`)._ From beta.21 the lens hides its townships
   once the sections' source has loaded, so it no longer flashes them clear. But MapLibre swaps a
