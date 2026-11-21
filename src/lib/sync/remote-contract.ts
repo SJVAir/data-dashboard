@@ -482,6 +482,9 @@ export function runRemoteContract(
 				expect(list[0]).toMatchObject({ version, schemaVersion: 1, reason: "daily" });
 				expect(typeof list[0].createdAt).toBe("string");
 				expect(list[0]).not.toHaveProperty("body");
+				// Snapshot ids are opaque strings (sqids), never numbers.
+				expect(typeof list[0].id).toBe("string");
+				expect(list[0].id).not.toBe("");
 				const snapshot = await remote.getSnapshot(id, list[0].id);
 				expect(snapshot).toMatchObject({
 					id: list[0].id,
@@ -491,6 +494,7 @@ export function runRemoteContract(
 					body: { widgets: [1] }
 				});
 				expect(typeof snapshot.createdAt).toBe("string");
+				expect(typeof snapshot.id).toBe("string");
 			});
 
 			test("a second save the same day keeps no more", async () => {
@@ -521,13 +525,14 @@ export function runRemoteContract(
 					[second.version, "conflict"],
 					[version, "daily"]
 				]);
-				expect(list[0].id).toBeGreaterThan(list[1].id);
+				expect(list.every((s) => typeof s.id === "string")).toBe(true);
+				expect(list[0].id).not.toBe(list[1].id);
 			});
 
 			test("getSnapshot of a missing snapshot is not_found", async () => {
 				const id = newId();
 				await remote.save(id, input());
-				const error = await refusal(remote.getSnapshot(id, 2_000_000_000));
+				const error = await refusal(remote.getSnapshot(id, "missingSnapshot"));
 				expect([error.code, error.status]).toEqual(["not_found", 404]);
 			});
 
@@ -561,7 +566,7 @@ export function runRemoteContract(
 				await remote.save(id, input());
 				for (const call of [
 					() => signedOut.listSnapshots(id),
-					() => signedOut.getSnapshot(id, 1)
+					() => signedOut.getSnapshot(id, "k3Xa9")
 				]) {
 					const error = await refusal(call());
 					expect([error.code, error.status]).toEqual(["unauthorized", 401]);

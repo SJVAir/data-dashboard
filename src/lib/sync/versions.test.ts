@@ -30,7 +30,13 @@ describe("serverVersions", () => {
 		const list = await serverVersions(ctx, "d1");
 		expect(list.length).toBeGreaterThanOrEqual(2);
 		const ids = list.map((s) => s.id);
-		expect(ids).toEqual([...ids].sort((a, b) => b - a));
+		// Newest first: the reverse of the order they were kept in (ids are opaque, never sorted).
+		expect(ids).toEqual(
+			fake
+				.snapshots("d1")
+				.map((s) => s.id)
+				.reverse()
+		);
 		const one = await serverVersion(ctx, "d1", ids[0]);
 		expect(one.id).toBe(ids[0]);
 		expect(fake.snapshots("d1").length).toBe(list.length);

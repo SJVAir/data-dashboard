@@ -162,7 +162,7 @@ export class SyncWorker {
 		return serverVersions(this.#ctx, docId);
 	}
 
-	version(docId: string, snapshotId: number): Promise<RemoteSnapshot> {
+	version(docId: string, snapshotId: string): Promise<RemoteSnapshot> {
 		return serverVersion(this.#ctx, docId, snapshotId);
 	}
 

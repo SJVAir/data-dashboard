@@ -205,10 +205,13 @@ if (ENABLED) {
 				options
 			);
 			expect(kept.reason).toBe("conflict");
+			// Snapshot ids are opaque strings (sqids) everywhere they're served.
+			expect(typeof kept.id).toBe("string");
 			expect(kept.version).toBe(version);
 
 			expect((await listSnapshots(id, options)).some((s) => s.id === kept.id)).toBe(true);
 			const snapshot = await getSnapshot(id, kept.id, options);
+			expect(snapshot.id).toBe(kept.id);
 			expect(snapshot.name).toBe("Set aside");
 			expect(snapshot.body).toEqual({ widgets: ["mine"] });
 
