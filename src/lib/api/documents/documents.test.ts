@@ -161,7 +161,7 @@ const SNAPSHOT_FORM: CreateSnapshotForm = {
 };
 
 const SNAPSHOT_META = {
-	id: 8,
+	id: "k3Xa9",
 	version: 4,
 	schema_version: 1,
 	reason: "conflict" as const,
@@ -312,15 +312,16 @@ describe("requests", () => {
 	});
 
 	test("listSnapshots and getSnapshot: GET documents/<id>/snapshots/", async () => {
+		// A sqid can be all digits: it stays a string.
 		const meta = {
-			id: 7,
+			id: "0712",
 			version: 3,
 			schema_version: 1,
 			reason: "conflict",
 			created_at: "2026-10-28T12:00:00Z"
 		};
 		const snapshot = {
-			id: 7,
+			id: "0712",
 			version: 3,
 			schema_version: 1,
 			name: null,
@@ -331,9 +332,9 @@ describe("requests", () => {
 			(_url, _init, call) => jsonResponse({ data: call === 0 ? [meta] : snapshot }),
 			async (calls) => {
 				expect(await listSnapshots("abc")).toEqual([meta]);
-				expect(await getSnapshot("abc", 7)).toEqual(snapshot);
+				expect(await getSnapshot("abc", "0712")).toEqual(snapshot);
 				expect(calls[0].url.pathname).toBe("/api/2.0/documents/abc/snapshots/");
-				expect(calls[1].url.pathname).toBe("/api/2.0/documents/abc/snapshots/7/");
+				expect(calls[1].url.pathname).toBe("/api/2.0/documents/abc/snapshots/0712/");
 				expect(calls.map(method)).toEqual(["GET", "GET"]);
 			}
 		);
@@ -586,6 +587,43 @@ describe("refusals", () => {
 			async () => {
 				const error = await rejection(() => createSnapshot("abc", SNAPSHOT_FORM));
 				expect(error).toBeInstanceOf(DocumentResponseError);
+			}
+		);
+	});
+
+	test("a snapshot id that isn't a non-empty string is a DocumentResponseError", async () => {
+		const body = { version: 3, schema_version: 1, name: null, body: {}, created_at: "x" };
+		for (const id of [8, "", null]) {
+			await withStub(
+				() => json({ data: { ...SNAPSHOT_META, id } }, 201),
+				async () => {
+					const error = await rejection(() => createSnapshot("abc", SNAPSHOT_FORM));
+					expect(error).toBeInstanceOf(DocumentResponseError);
+				}
+			);
+			await withStub(
+				() => jsonResponse({ data: [{ ...SNAPSHOT_META, id }] }),
+				async () => {
+					const error = await rejection(() => listSnapshots("abc"));
+					expect(error).toBeInstanceOf(DocumentResponseError);
+				}
+			);
+			await withStub(
+				() => jsonResponse({ data: { ...body, id } }),
+				async () => {
+					const error = await rejection(() => getSnapshot("abc", "k3Xa9"));
+					expect(error).toBeInstanceOf(DocumentResponseError);
+				}
+			);
+		}
+	});
+
+	test("getSnapshot: the snapshot id is encoded as a path segment", async () => {
+		await withStub(
+			() => jsonResponse({ data: { ...SNAPSHOT_META, id: "a/b c" } }),
+			async (calls) => {
+				await getSnapshot("abc", "a/b c").catch(() => undefined);
+				expect(calls[0].url.pathname).toBe("/api/2.0/documents/abc/snapshots/a%2Fb%20c/");
 			}
 		);
 	});

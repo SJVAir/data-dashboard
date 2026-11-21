@@ -262,8 +262,15 @@ export const snapshotReasonSchema: SnapshotReasonSchema = z.enum([
 	"conflict"
 ] as const);
 
+/**
+ * A snapshot's id: an opaque string (a sqid, which can be all digits), never a
+ * number to parse, compare, or sort by.
+ */
+export const snapshotIdSchema: z.ZodString = z.string().min(1);
+
 export interface SnapshotMetaSchema extends z.ZodObject<{
-	id: z.ZodNumber;
+	/** The snapshot's id (opaque; see `snapshotIdSchema`) */
+	id: z.ZodString;
 	version: z.ZodNumber;
 	schema_version: z.ZodNumber;
 	reason: SnapshotReasonSchema;
@@ -271,7 +278,7 @@ export interface SnapshotMetaSchema extends z.ZodObject<{
 }> {}
 /** A snapshot without its body */
 export const snapshotMetaSchema: SnapshotMetaSchema = z.object({
-	id: z.number().int(),
+	id: snapshotIdSchema,
 	version: z.number().int(),
 	schema_version: z.number().int(),
 	reason: snapshotReasonSchema,
@@ -279,7 +286,8 @@ export const snapshotMetaSchema: SnapshotMetaSchema = z.object({
 });
 
 export interface SnapshotSchema extends z.ZodObject<{
-	id: z.ZodNumber;
+	/** The snapshot's id (opaque; see `snapshotIdSchema`) */
+	id: z.ZodString;
 	version: z.ZodNumber;
 	schema_version: z.ZodNumber;
 	name: z.ZodNullable<z.ZodString>;
@@ -290,7 +298,7 @@ export interface SnapshotSchema extends z.ZodObject<{
 }> {}
 /** A snapshot, with its body */
 export const snapshotSchema: SnapshotSchema = z.object({
-	id: z.number().int(),
+	id: snapshotIdSchema,
 	version: z.number().int(),
 	schema_version: z.number().int(),
 	name: z.string().nullable(),
