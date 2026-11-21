@@ -1330,6 +1330,13 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   A failure already frees the items and says so. The data layer has no time limits anywhere, so
   one just for "Show in" would be a one-off rule. **Revisit when** anyone sees "Show in" do
   nothing, or the data requests get a shared time limit.
+- **The Data Portal's Back to the previous page doesn't restore its Discard guard if refused.**
+  _Deferred 2026-11-20 (step 5 spec 6b)._ Add, Save and Cancel put the "Discard changes?"
+  guard back when their navigation doesn't happen; Back to the previous history entry
+  (`history.back()` in `GetData.svelte`'s `goBack`) can't, since a history move can't be
+  awaited. Why: nothing can refuse it today; the Data Portal's own guard is the only navigation
+  blocker in the app, and it lets the page's own exits through. **Revisit when** a second
+  `blockNavigation` is added anywhere, or a route gets a `beforeLoad` that can refuse.
 - **`protected` / `custom` / `school_district` region data.** _Deferred 2026-09-17; re-checked
   2026-09-28 and 2026-10-13._ The `place` region type was **removed** from the server (migrations
   0009/0010); name lookup now tries city, then CDP, then urban area. New types exist: `air_district`
