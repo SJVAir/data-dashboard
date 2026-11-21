@@ -248,6 +248,8 @@
 	const main = $derived(isNow ? placesLayer(plain.data, known) : mainLayer(plain.data, known));
 	const mainIndex = $derived(main ? plain.data.layers.indexOf(main) : -1);
 	const picks = $derived(main ? fromLayer(main) : []);
+	/** Whether the Where control renders; a Show as keep request needs it to open its dialog. */
+	const showsWhere = $derived(!!(main?.entryType || (isNow && main)));
 	/** Only level layers (smoke, burn status): nothing to chart, so no Add, Save or Download. */
 	const levelOnly = $derived(layers.levelOnly(plain.data, known));
 
@@ -795,7 +797,13 @@
 		// More places than a Chart or Table takes: the person chooses which to keep first, and
 		// Cancel changes nothing (D17). Kept within the cap, the conversion cuts none.
 		const cap = to.accepts?.maxPlaces;
-		if (keepsOnSwitch(to) && cap !== undefined && picks.length > cap && mainDraftLayer()) {
+		if (
+			keepsOnSwitch(to) &&
+			cap !== undefined &&
+			picks.length > cap &&
+			showsWhere &&
+			mainDraftLayer()
+		) {
 			keeping = keepRequest(
 				cap,
 				(kept) => {
@@ -1008,7 +1016,7 @@
 
 			<section class="flex flex-col gap-2" aria-labelledby="{uid}-where">
 				<h2 id="{uid}-where" class="text-primary text-sm font-semibold">{m.get_data_where()}</h2>
-				{#if main?.entryType || (isNow && main)}
+				{#if showsWhere && main}
 					{#key keepKey}
 						<WhereControl
 							{picks}
