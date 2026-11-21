@@ -1263,9 +1263,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   the rule, shown together, for example a change map on a diverging scale or two series on one
   chart. This includes the Pesticides Explorer's compare (its change map between two years).
   Why: it needs its own design (how two datasets are chosen, stored and drawn), and spec 6a
-  only set the rule. Step 5 spec 6b is built and didn't take it up; the user asked the 6b
-  session to raise it with them at the end of 6b (2026-11-20). **Revisit when** the user decides, or when an agency or researcher
-  asks for trends.
+  only set the rule. Step 5 spec 6b is built and didn't take it up; raised with the user at the
+  end of 6b (2026-11-20), who chose to look at it again after spec 7. **Revisit when** step 5
+  spec 7 (schools and child care) is done: the spec 7 session raises it with the user at the end
+  of spec 7, as 6b did. Sooner if an agency or researcher asks for trends.
 - **An hourly or finer Map.** _Deferred 2026-11-18 (step 5 spec 6a)._ The Map steps by day,
   month or year (`MAP_LEVELS`). Why: an hour's figures over the valley need their own snapshot
   and many more stops (a week is 168), and nobody has asked. **Revisit when** someone asks to
@@ -1318,6 +1319,17 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   Why: a minimized Map isn't mounted, so nothing is drawn and no marks are known; the items
   list only while a mark would be sent. **Revisit when** someone asks, or when the Map's drawn
   set is computed outside the tile.
+- **"Show in" stays busy while its request never settles.** _Deferred 2026-11-20 (step 5 spec
+  6b)._ One "Show in" runs at a time (a second click is ignored until the first finishes or
+  fails). A request that never answers, neither failing nor succeeding, leaves the items doing
+  nothing until the page reloads. Why: it's close to unreachable. "Show in" waits on the dataset
+  catalog and the Map's pollutant list, which are fetched once and shared, and the Map starts
+  both when it opens, so they have nearly always answered before a mark can be sent; if one is
+  still pending, the Map is waiting on that same request. The Data Portal's code fails rather
+  than hangs when the network drops (the reload notice covers it), and the navigation is local.
+  A failure already frees the items and says so. The data layer has no time limits anywhere, so
+  one just for "Show in" would be a one-off rule. **Revisit when** anyone sees "Show in" do
+  nothing, or the data requests get a shared time limit.
 - **`protected` / `custom` / `school_district` region data.** _Deferred 2026-09-17; re-checked
   2026-09-28 and 2026-10-13._ The `place` region type was **removed** from the server (migrations
   0009/0010); name lookup now tries city, then CDP, then urban area. New types exist: `air_district`
