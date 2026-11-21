@@ -204,9 +204,10 @@ const ROUTES: Array<[string, RegExp, Handler]> = [
 	],
 	[
 		"GET",
-		/^([^/]+)\/snapshots\/(\d+)\/$/,
-		async (fake, { params: [id, n] }) => {
-			const s = await fake.getSnapshot(id, Number(n));
+		// A snapshot id is an opaque string (a sqid, which can be all digits): passed on as is.
+		/^([^/]+)\/snapshots\/([^/]+)\/$/,
+		async (fake, { params: [id, snapshotId] }) => {
+			const s = await fake.getSnapshot(id, snapshotId);
 			return ok({
 				id: s.id,
 				version: s.version,
