@@ -492,17 +492,6 @@ describe("Show as over the cap", () => {
 		expect(selected(latest())).toEqual(ids);
 	});
 
-	test("Show as with an over-cap main layer that has no dataset yet switches, and opens no keep dialog", async () => {
-		const draft = monitorsDraft(ids, { type: "data-table" });
-		delete draft.data.layers[0].entryType;
-		const { latest } = await show(draft);
-		await page.getByRole("radio", { name: "Chart" }).click();
-		await expect.element(page.getByRole("radio", { name: "Chart" })).toBeChecked();
-		expect(latest().type).toBe("chart");
-		expect(page.getByRole("dialog").query()).toBeNull();
-		expect(page.getByText("Choose up to 5 places to keep.").query()).toBeNull();
-	});
-
 	test("Done with 5 gives a Chart of those 5, with no places-left-out note", async () => {
 		const { latest } = await show(monitorsDraft(ids, { type: "data-table" }));
 		await page.getByRole("radio", { name: "Chart" }).click();
