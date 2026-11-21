@@ -2280,7 +2280,26 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   the next frame. Hard to see; left for map-sdk._ **Fixed in `@sjvair/map-sdk` `0.1.0-beta.21`**
   (map-sdk #38, 2026-11-17). Remove this item when the dashboard pins beta.21 (step 5 spec 6).
   _The dashboard pins beta.21 since step 5 spec 6a (e78376a, 2026-11-18). The item stays until
-  the user's hand check of the lens passes._
+  the user's hand check of the lens passes._ _Scripted check 2026-11-20 (the user's choice): on
+  `0.1.0-beta.22`, 0 of 120 recentres hid a township before the lens data loaded; the
+  `0.1.0-beta.19` control did on 118 of 120. The item leaves after the user's quick look agrees.
+  The script is in map-sdk's git-ignored `.superpowers/lens-check/` (`run.sh`)._
+- **map-sdk: arriving townships go clear for 3–6 frames on a block's first visit.** _Deferred
+  2026-11-20 (the user; found by the scripted lens check on `@sjvair/map-sdk` `0.1.0-beta.22`)._ On
+  the first visit to a block (5 of 30 moves per run, 32–77 ms), map-sdk first draws the sections
+  it already holds for the new block. Those include a few edge sections of the arriving
+  townships, and one drawn section hides its whole township, so the interior shows clear until
+  the full block arrives (the dashboard's 50 ms `LENS_WAIT` plus the fetch). Real data does this
+  too: sjvair.com selects sections by bounding-box overlap (`bboverlaps`), which includes boxes
+  that only touch. Fix in map-sdk: hide a township only once its whole block has loaded. Short
+  and not urgent. **Revisit with** the next `@sjvair/map-sdk` beta that spec 7 or step 6 needs;
+  check it with `.superpowers/lens-check/` in map-sdk.
+- **map-sdk: a township the lens leaves goes clear for 1 frame.** _Deferred 2026-11-20 (the user;
+  found by the same check)._ New in `0.1.0-beta.21`/`beta.22` from map-sdk #38: a leaving
+  township's sections are gone from the drawn tiles, but it shows again only at `sourcedata` or
+  `idle`, a frame later (8–14 of 30 moves per run; `0.1.0-beta.19` didn't do this). Fix in
+  map-sdk: show it again on the same frame its sections go. **Revisit with** the next
+  `@sjvair/map-sdk` beta that spec 7 or step 6 needs, with the entry above.
 - **The Monthly and Yearly legend line takes its units from the catalog.** _Deferred 2026-11-20
   (step 5 spec 6b, Task 11 review)._ map-sdk's own "(units)" line reads the monitors meta's scale
   units, while the Monthly or Yearly figure line that replaces it ("µg/m³ · Average of 24-hour
