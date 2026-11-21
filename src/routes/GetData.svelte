@@ -60,15 +60,15 @@
 	let leaving = false;
 
 	/**
-	 * Navigates with the discard guard lifted. The router reports a refused move (another blocker,
+	 * Navigates (`move`) with the discard guard lifted. The router reports a refused move (another blocker,
 	 * a `beforeLoad` that says no) by resolving with the page unmoved, and a failed one by
 	 * throwing; either puts the guard back. Resolves true when the page moved.
 	 */
-	async function leaveTo(path: string, id: string): Promise<boolean> {
+	async function leaveTo(move: () => Promise<unknown>): Promise<boolean> {
 		const from = route.pathname;
 		leaving = true;
 		try {
-			await navigate(path as "/dashboards/:id", { params: { id } });
+			await move();
 		} catch (error) {
 			leaving = false;
 			throw error;
@@ -199,7 +199,10 @@
 		requestFocus({ kind: "added", id: added.widgetId });
 		// Still busy until the page has gone, so a second click can't add another.
 		try {
-			if ((await leaveTo("/dashboards/:id", added.dashboardId)) && added.copied) {
+			if (
+				(await leaveTo(() => navigate("/dashboards/:id", { params: { id: added.dashboardId } }))) &&
+				added.copied
+			) {
 				toast(m.starter_copied());
 			}
 		} finally {
@@ -245,11 +248,13 @@
 
 	/** Back, or (opened on a link) the dashboard the view is for, else home; without asking. */
 	function goBack(): void {
-		leaving = true;
 		const plan = cancelPlan(history.state, mode);
-		if (plan.kind === "back") history.back();
-		else if (plan.path === "/") void navigate("/");
-		else void navigate("/dashboards/:id", { params: { id: plan.id } });
+		if (plan.kind === "back") {
+			// A history move can't be awaited, so the guard stays down (the router reverts a refused one).
+			leaving = true;
+			history.back();
+		} else if (plan.path === "/") void leaveTo(() => navigate("/"));
+		else void leaveTo(() => navigate("/dashboards/:id", { params: { id: plan.id } }));
 	}
 
 	let saving = $state(false);
@@ -272,7 +277,12 @@
 		}
 		requestFocus({ kind: "title", id: widgetId });
 		try {
-			if ((await leaveTo("/dashboards/:id", landed.session.doc.id)) && landed.copied) {
+			if (
+				(await leaveTo(() =>
+					navigate("/dashboards/:id", { params: { id: landed.session.doc.id } })
+				)) &&
+				landed.copied
+			) {
 				toast(m.starter_copied());
 			}
 		} finally {

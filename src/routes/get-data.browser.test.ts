@@ -368,6 +368,25 @@ test("Save changes whose navigation is refused still asks before a later Back", 
 	await expect.poll(() => location.pathname).toBe(editPath);
 });
 
+test("Cancel whose navigation is refused still asks before a later Back", async () => {
+	await editAt({ id: "d1", widgetId: "w1" });
+	await expect.element(saveButton()).toBeVisible();
+	// Stands in for a tab whose earlier entry is another site: Cancel then navigates itself.
+	history.replaceState({ ...history.state, _routerIndex: 0 }, "");
+	const unblock = blockNavigation(() => false);
+	try {
+		await page.getByRole("button", { name: "Cancel" }).click();
+		await new Promise((r) => setTimeout(r, 100));
+		expect(location.pathname).toBe(editPath);
+	} finally {
+		unblock();
+	}
+	await page.getByRole("radio", { name: "Data table" }).click();
+	history.back();
+	await expect.element(discardDialog()).toBeVisible();
+	await page.getByRole("button", { name: "Keep editing" }).click();
+});
+
 test("a nav link or Cancel while dirty asks to discard; with no changes they just leave", async () => {
 	const { app, platform } = await editAt({ id: "d1", widgetId: "w1" });
 	// A Get data draft unlike both the widget (Last 30 days) and the edit (Data table).
