@@ -335,7 +335,7 @@ describe("restoreEarlierVersion", () => {
 	it("an older-format snapshot is upgraded", async () => {
 		const { app, session, worker } = await account();
 		// The fake server refuses a snapshot below schema 1, so the worker hands back an old one.
-		const id = 7;
+		const id = "0712";
 		vi.spyOn(worker, "version").mockResolvedValue({
 			id,
 			version: 1,
@@ -374,7 +374,7 @@ describe("restoreEarlierVersion", () => {
 	it("an oversized snapshot is unreadable", async () => {
 		const { app, session, worker } = await account();
 		vi.spyOn(worker, "version").mockResolvedValue({
-			id: 1,
+			id: "k3Xa9",
 			version: 1,
 			reason: "conflict",
 			schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -386,7 +386,7 @@ describe("restoreEarlierVersion", () => {
 		const result = await restoreEarlierVersion(app, session, {
 			source: "server",
 			at: NOW.toISOString(),
-			id: 1,
+			id: "k3Xa9",
 			reason: "conflict"
 		});
 		expect(result).toBe("unreadable");

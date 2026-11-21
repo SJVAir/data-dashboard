@@ -376,7 +376,7 @@ describe("createSdkRemote", () => {
 	test("keepSnapshot calls createSnapshot with the wire form", async () => {
 		respond(201, {
 			data: {
-				id: 1,
+				id: "k3Xa9",
 				version: 3,
 				schema_version: 1,
 				name: "Mine",

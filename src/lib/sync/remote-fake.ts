@@ -79,8 +79,18 @@ const SNAPSHOT_DAYS = 30;
 const DAY_MS = 86_400_000;
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
 
+/**
+ * A snapshot id like the server's sqids: an opaque string. Every other one is all digits, and
+ * those count down, so code that parses, compares, or sorts ids goes wrong here too.
+ */
+function fakeSqid(n: number): string {
+	return n % 2 === 1 ? String(90_000 - n) : `k${n}X`;
+}
+
 type StoredSnapshot = {
-	id: number;
+	id: string;
+	/** The counter the id was made from: orders snapshots kept at the same moment. */
+	seq: number;
 	version: number;
 	schemaVersion: number;
 	name: string | null;
@@ -200,7 +210,7 @@ export function createFakeRemote(options: FakeRemoteOptions): FakeRemote {
 	const displayNames = new Map<string, string>();
 	/** Accounts staff blocked from sharing. */
 	const blockedSharers = new Set<string>();
-	/** One counter for every snapshot's id, like the server's table. */
+	/** One counter for every snapshot, like the server's table; ids are made from it. */
 	let lastSnapshotId = 0;
 
 	/** Keeps `entry`'s current content as a snapshot. */
@@ -211,7 +221,8 @@ export function createFakeRemote(options: FakeRemoteOptions): FakeRemote {
 		content: { version: number; schemaVersion: number; name: string | null; body: unknown }
 	) {
 		entry.snapshots.push({
-			id: ++lastSnapshotId,
+			id: fakeSqid(++lastSnapshotId),
+			seq: lastSnapshotId,
 			version: content.version,
 			schemaVersion: content.schemaVersion,
 			name: content.name,
@@ -226,7 +237,7 @@ export function createFakeRemote(options: FakeRemoteOptions): FakeRemote {
 		const oldest = now().getTime() - SNAPSHOT_DAYS * DAY_MS;
 		return entry.snapshots
 			.filter((s) => Date.parse(s.createdAt) >= oldest)
-			.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || b.id - a.id);
+			.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || b.seq - a.seq);
 	}
 
 	/** The signed-in account (or `null`), after the checks every call shares. */
