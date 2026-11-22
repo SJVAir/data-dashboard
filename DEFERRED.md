@@ -781,17 +781,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   an import flow needs the new counts immediately (then invalidate the key from the import
   commands).
 
-- **sjvair.com: about half the CI runs stall on one test worker.** _Deferred 2026-11-20 (session
-  `sjvair-com-a7`, the user: a separate session)._ A normal run takes about 3 minutes for about
-  4,980 tests; a stalled run sits at 98–99% on one xdist worker for 280–733 s (total 400–940 s),
-  on identical code (runs 44845787867 slow, 44845875720 fast). The image build, Postgres JIT and
-  `BulkRegionTypeScopeScaleTests` are ruled out; the stalled test is unknown because CI prints
-  only dots, and it doesn't reproduce locally. The brief for the next session is
-  `sjvair.com/brief-slow-ci.md` (untracked). **Revisit when** that session starts, or the next
-  time a stall blocks a merge. **In progress** (session `sjvair-com-07`, started 2026-11-21): PR #348
-  (`ci/stall-diagnostics`, into `develop`) adds `-v --durations=25 -o faulthandler_timeout=180` to CI's
-  pytest so a stalled run names its test; CI is re-run until one stalls. Remove this entry when the
-  stall is fixed.
 - **sjvair.com: flaky `restamp_cimis` test (found 2026-11-09).** `camp/apps/monitors/cimis/test_restamp.py::test_command_restamps_and_prints_counts`
   failed once in a full run (sjvair-com-64) and passed alone and on a rerun. Suspected cause, not yet confirmed: the test
   calls `call_command('restamp_cimis', '--monitor', monitor.pk, ...)`, and a sqid starting with `-` reads as a flag. A fix
