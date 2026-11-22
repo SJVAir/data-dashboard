@@ -4,7 +4,7 @@ import type { WidgetType } from "../registry";
 
 export const CHART_TYPE = "chart";
 
-/** One pollutant for up to five places over the widget's date range. */
+/** One pollutant for its places over the widget's date range. */
 export const chartType: WidgetType = {
 	type: CHART_TYPE,
 	label: () => m.widget_chart_title(),

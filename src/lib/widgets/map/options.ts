@@ -22,7 +22,7 @@ export const PESTICIDE_USE = "pesticide-use";
  */
 export const MAP_MAX_STOPS = 366;
 
-const MapOptionsObject = z.strictObject({
+export const MapOptionsSchema = z.strictObject({
 	/** The monitors marked on the map. */
 	marks: z
 		.array(SafeIdSchema)
@@ -63,19 +63,6 @@ const MapOptionsObject = z.strictObject({
 		.optional()
 });
 
-/**
- * Drops a saved `showing` (the pollutant drawn, from when a Map held several): a Map holds one
- * pollutant now, so an older document still opens (spec 7 decision 30).
- */
-function withoutShowing(value: unknown): unknown {
-	if (value === null || typeof value !== "object" || Array.isArray(value)) return value;
-	if (!Object.hasOwn(value, "showing")) return value;
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropped
-	const { showing, ...rest } = value as Record<string, unknown>;
-	return rest;
-}
-
-export const MapOptionsSchema = z.preprocess(withoutShowing, MapOptionsObject);
 export type MapOptions = z.infer<typeof MapOptionsSchema>;
 
 /** The options the toolbar owns (everything but `marks`). */
@@ -100,7 +87,7 @@ export function mapOptions(widget: Pick<WidgetInstance, "options">): MapOptions 
 
 /**
  * The Map's pollutant: its air-quality layer (one whose kind the catalog doesn't know counts), or
- * none. A Map holds one pollutant or none; an older one with several draws the first.
+ * none. A Map holds one pollutant or none.
  */
 export function pollutantLayer(
 	data: WidgetDataConfig,

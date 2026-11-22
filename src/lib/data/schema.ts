@@ -153,9 +153,7 @@ function uniqueIds(message: string) {
 }
 
 /**
- * A layer: what data it is (Where is on the widget's data, `WidgetDataConfig`). An earlier
- * document's layer `place` or `selection` is dropped on read, as any unknown key (nothing was
- * live, so there is no migration: the widget opens with no Where).
+ * A layer: what data it is (Where is on the widget's data, `WidgetDataConfig`).
  */
 export const LayerSchema = z.object({
 	dataset: z.string().min(1).max(LIMITS.ID_MAX),
@@ -178,31 +176,13 @@ export const LayerSchema = z.object({
 });
 export type Layer = z.infer<typeof LayerSchema>;
 
-/** Whether `value` is an object whose `kind` is `kind`. */
-function hasKind(value: unknown, kind: string): boolean {
-	return typeof value === "object" && value !== null && (value as { kind?: unknown }).kind === kind;
-}
-
-/**
- * An earlier document's monitor Where (a `monitor` place or a `monitors` selection), dropped
- * so the document still opens with no Where (nothing was live, so there is no migration).
- */
-function dropMonitorWhere(value: unknown): unknown {
-	if (typeof value !== "object" || value === null || Array.isArray(value)) return value;
-	const data = { ...(value as Record<string, unknown>) };
-	if (hasKind(data.place, "monitor")) delete data.place;
-	if (hasKind(data.selection, "monitors")) delete data.selection;
-	return data;
-}
-
-const WidgetDataObjectSchema = z
+export const WidgetDataConfigSchema = z
 	.object({
 		dateRange: DateRangeSpecSchema.optional(),
 		timeSubRange: TimeSubRangeSchema.optional(),
 		/**
 		 * The one resolution every layer is fetched at (the dataset rules); missing means Automatic,
-		 * which is never stored. An earlier document's per-layer `resolution` is dropped by
-		 * `LayerSchema` (it opens as Automatic).
+		 * which is never stored.
 		 */
 		resolution: ResolutionSchema.optional(),
 		/** Where: one place, or several (`selection`); neither is everywhere. */
@@ -214,8 +194,7 @@ const WidgetDataObjectSchema = z
 		message: "A widget has a place or a selection, not both",
 		path: ["selection"]
 	});
-export const WidgetDataConfigSchema = z.preprocess(dropMonitorWhere, WidgetDataObjectSchema);
-export type WidgetDataConfig = z.infer<typeof WidgetDataObjectSchema>;
+export type WidgetDataConfig = z.infer<typeof WidgetDataConfigSchema>;
 
 /** Whether a widget's place is the starter-only `default-place`. */
 export function hasDefaultPlace(config: WidgetDataConfig): boolean {

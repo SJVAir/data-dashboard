@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { CatalogEntry } from "$lib/data/metadata";
 import type { WidgetDataConfig } from "$lib/data/schema";
-import { widgetOptionsValid } from "$lib/documents/schema";
 import {
 	MapOptionsSchema,
 	mapOptions,
@@ -20,13 +19,6 @@ const CATALOG = [
 const ids = (n: number) => Array.from({ length: n }, (_, i) => `m${i}`);
 
 describe("Map options", () => {
-	it("map options: a saved showing is dropped on read", () => {
-		const options = { showing: "o3", basemap: "x" };
-		expect(mapOptions({ options })).toEqual({ basemap: "x" });
-		// The document still opens.
-		expect(widgetOptionsValid("map", options)).toBe(true);
-	});
-
 	it("reads a spec 1 tile (no options) as nothing marked", () => {
 		expect(mapOptions({})).toEqual({});
 	});

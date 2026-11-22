@@ -55,21 +55,6 @@ describe("WidgetDataConfigSchema", () => {
 		expect(layer({ monitors: [], monitorTypes: [] })).toBe(true);
 	});
 
-	it("a saved monitor place or monitors selection is dropped on read", () => {
-		const place = WidgetDataConfigSchema.safeParse({
-			place: { kind: "monitor", id: "abc" },
-			layers: [{ dataset: "air-quality", entryType: "pm25" }]
-		});
-		expect(place.success).toBe(true);
-		expect(place.data).toEqual({ layers: [{ dataset: "air-quality", entryType: "pm25" }] });
-		const selection = WidgetDataConfigSchema.safeParse({
-			selection: { kind: "monitors", ids: ["a", "b"] },
-			layers: []
-		});
-		expect(selection.success).toBe(true);
-		expect(selection.data).toEqual({ layers: [] });
-	});
-
 	it("Where is saved on the data, not the layer", () => {
 		const r = WidgetDataConfigSchema.parse({
 			place: county,
@@ -77,19 +62,6 @@ describe("WidgetDataConfigSchema", () => {
 		});
 		expect(r.place).toEqual(county);
 		expect(r.layers[0]).toEqual({ dataset: "air-quality", entryType: "pm25" });
-	});
-
-	it("an old layer place is dropped on read", () => {
-		const r = WidgetDataConfigSchema.safeParse({
-			layers: [
-				{ dataset: "air-quality", entryType: "pm25", place: county },
-				{ dataset: "air-quality", entryType: "o3", selection: { kind: "regions", ids: ["a:b"] } }
-			]
-		});
-		expect(r.success).toBe(true);
-		expect(r.data!.layers[0]).not.toHaveProperty("place");
-		expect(r.data!.layers[1]).not.toHaveProperty("selection");
-		expect(r.data!.place).toBeUndefined();
 	});
 
 	it("a selection has no 500 limit", () => {
@@ -210,21 +182,14 @@ describe("default-place", () => {
 		expect(StarterDashboardSchema.safeParse(doc).success).toBe(true);
 	});
 
-	it("an earlier monitor in the place bar is dropped on read, and the dashboard opens", () => {
+	it("a county place bar is kept", () => {
 		const doc = starterDashboard(defaultStarterPlace());
-		(doc.body as { placeBar?: unknown }).placeBar = { place: { kind: "monitor", id: "a" } };
-		const parsed = DashboardSchema.safeParse(doc);
-		expect(parsed.success).toBe(true);
-		expect(parsed.data!.body).not.toHaveProperty("placeBar");
-		// A county bar is kept.
 		doc.body.placeBar = { place: county as never };
 		expect(DashboardSchema.parse(doc).body.placeBar).toEqual({ place: county });
 	});
 
 	it("leaves other places and the resolved starter valid; only the template holds it", () => {
 		expect(DashboardSchema.safeParse(withPlace(county)).success).toBe(true);
-		// An earlier monitor place is dropped, and the dashboard still opens.
-		expect(DashboardSchema.safeParse(withPlace({ kind: "monitor", id: "a" })).success).toBe(true);
 		const starter = starterDashboard(defaultStarterPlace());
 		expect(DashboardSchema.safeParse(starter).success).toBe(true);
 		expect(StarterDashboardSchema.safeParse(starter).success).toBe(true);

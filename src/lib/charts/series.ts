@@ -11,6 +11,8 @@ export type SeriesStyle = { color: string; dash: number[]; marker: Marker };
 const COLORS = 5;
 /** Dash patterns in CSS px; the first place is solid. */
 const DASHES: number[][] = [[], [6, 3], [2, 3], [9, 3, 2, 3], [4, 2]];
+/** Places before the dash and marker pattern repeats: colors times dashes (5 x 5). */
+const PATTERN_PLACES = 25;
 const MARKERS: Marker[] = ["circle", "square", "triangle", "diamond", "cross"];
 
 /**
@@ -21,7 +23,7 @@ const MARKERS: Marker[] = ["circle", "square", "triangle", "diamond", "cross"];
  */
 export function seriesShape(i: number): Omit<SeriesStyle, "color"> & { token: number } {
 	const c = i % COLORS;
-	const b = Math.floor(i / (COLORS * DASHES.length)) % MARKERS.length;
+	const b = Math.floor(i / PATTERN_PLACES) % MARKERS.length;
 	const a = (Math.floor(i / COLORS) + b) % DASHES.length;
 	return {
 		token: c + 1,

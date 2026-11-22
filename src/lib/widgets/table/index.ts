@@ -4,7 +4,7 @@ import type { WidgetType } from "../registry";
 
 export const DATA_TABLE_TYPE = "data-table";
 
-/** One pollutant for up to ten places over the widget's date range, as exact numbers. */
+/** One pollutant for its places over the widget's date range, as exact numbers. */
 export const dataTableType: WidgetType = {
 	type: DATA_TABLE_TYPE,
 	label: () => m.widget_data_table_title(),

@@ -43,21 +43,7 @@ export function widgetOptionsValid(type: string, options: unknown): boolean {
 	return true;
 }
 
-/**
- * An earlier document's monitor in the "Change place" bar, dropped on read so the dashboard still
- * opens (monitors are never a Where; nothing was live, so there is no migration).
- */
-function dropMonitorBar(value: unknown): unknown {
-	if (typeof value !== "object" || value === null || Array.isArray(value)) return value;
-	const body = value as Record<string, unknown>;
-	const bar = body.placeBar as { place?: { kind?: unknown } } | null | undefined;
-	if (bar?.place?.kind !== "monitor") return value;
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropped from the copy
-	const { placeBar, ...rest } = body;
-	return rest;
-}
-
-const DashboardBodyObject = z
+export const DashboardBodySchema = z
 	.object({
 		widgets: z.array(WidgetInstanceSchema),
 		defaultCollectionId: z.string().optional(),
@@ -77,8 +63,7 @@ const DashboardBodyObject = z
 				});
 		});
 	});
-export const DashboardBodySchema = z.preprocess(dropMonitorBar, DashboardBodyObject);
-export type DashboardBody = z.infer<typeof DashboardBodyObject>;
+export type DashboardBody = z.infer<typeof DashboardBodySchema>;
 
 function dashboardSchema(allowDefaultPlace: boolean) {
 	return z.object({

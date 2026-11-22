@@ -410,15 +410,6 @@ describe("converting to and from the Map", () => {
 		expect(again.dropped).toEqual([]);
 	});
 
-	it("an older Map with several pollutants keeps the first as a Map, the others left out", () => {
-		const draft = mapDraft(["pm25", "o3"], undefined, false);
-		expect(isMapShaped(draft)).toBe(false);
-		const c = toMapDraft(draft, CATALOG, ALLOWED);
-		expect(c.draft.data.layers).toEqual([{ dataset: "air-quality", entryType: "pm25" }]);
-		expect(c.dropped).toContain("overlays");
-		expect(isMapShaped(c.draft)).toBe(true);
-	});
-
 	it("a Map with no pollutant is in the Map's shape", () => {
 		const none = mapDraft(["pm25"], undefined, true);
 		none.data.layers.shift();

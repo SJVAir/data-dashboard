@@ -212,8 +212,8 @@ export function toNowDraft(
  * A now draft as `type` (a range type): its layer over the default range (a Forecast strip's
  * forecasts layer as a PM2.5 one, as a new widget's), its Where cut to `type`'s `maxPlaces` (a
  * Map's selection to a calendar's one, say; `dropped` then says so; a Chart or Table takes every
- * place). The alert level is kept only when
- * `type` has thresholds; otherwise `dropped` says it was left out.
+ * place). The alert level is kept only when `type` has thresholds; otherwise `dropped` says it
+ * was left out.
  */
 export function fromNowDraft(draft: Draft, type: WidgetType): NowConversion {
 	const cap = type.accepts?.maxPlaces;
