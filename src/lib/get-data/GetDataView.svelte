@@ -453,24 +453,6 @@
 	});
 	const data = new DataWidget(() => namesWidget, Infinity);
 
-	// The last data's names stay up while another range or type loads (a new query starts with
-	// no data); they're dropped once the places change.
-	const picksKey = $derived(JSON.stringify(picks));
-	let lastNames = $state.raw<{ key: string; names: string[] } | null>(null);
-	$effect(() => {
-		const shown = data.shown;
-		if (!("data" in shown) || !shown.data) return;
-		// Only the Where's own places: searched and ticked monitors are What, not Where.
-		const names = shown.data.places
-			.filter((p) => !p.place.startsWith("monitor:"))
-			.map((p) => placeLabel(p, "owner"));
-		const key = untrack(() => picksKey);
-		lastNames = { key, names };
-	});
-	const names = $derived(lastNames?.key === picksKey ? lastNames.names : null);
-	/** No names are coming: the query failed or can't run. */
-	const namesSettled = $derived(data.shown.status !== "loading");
-
 	/** "Overlay for": a Chart choice, only when the places' overlays differ (different zones). */
 	const overlayFor = $derived.by(() => {
 		if (plain.type !== CHART_TYPE || lines.length < 2) return null;
@@ -1019,8 +1001,6 @@
 				{#key keepKey}
 					<WhereControl
 						{picks}
-						{names}
-						{namesSettled}
 						max={type?.accepts?.maxPlaces ?? 1}
 						offer={plain.type === CHART_TYPE || plain.type === DATA_TABLE_TYPE ? "areas" : "where"}
 						purpose={wherePurpose(plain.data, known)}

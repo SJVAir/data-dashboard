@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { onMount } from "svelte";
+	import { onMount, untrack } from "svelte";
 	import { Button } from "$lib/components/ui/button";
 	import * as Dialog from "$lib/components/ui/dialog";
 	import { getMetadata, getResolvers } from "$lib/data";
 	import { formatList, formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
-	import { directoryFor, resolvePicks, type Resolvers } from "$lib/places/host";
+	import { directoryFor, resolveOption, resolvePicks, type Resolvers } from "$lib/places/host";
 	import type { PlaceDirectory } from "$lib/places/directory";
 	import PlacePicker from "$lib/places/PlacePicker.svelte";
 	import type { PickerOffer } from "$lib/places/picker-state.svelte";
@@ -17,8 +17,6 @@
 
 	let {
 		picks,
-		names,
-		namesSettled,
 		max,
 		offer,
 		purpose,
@@ -26,10 +24,6 @@
 		keep
 	}: {
 		picks: Picks;
-		/** The places' names from the preview's latest data; `null` before it has any. */
-		names: string[] | null;
-		/** No names are coming (the query failed or can't run): show the count instead. */
-		namesSettled: boolean;
 		/** The chosen widget type's `accepts.maxPlaces`. */
 		max: number;
 		/** `areas` for a Chart or Table (no schools or points), `where` for the other types. */
@@ -85,16 +79,48 @@
 				: { kind: "single" as const }
 	);
 
+	/**
+	 * The picks' own names (looked up as the picker names its chips), kept for the picks they name:
+	 * `undefined` while they load; `null` when any can't be named (a point, a failed lookup).
+	 */
+	let named = $state.raw<{ key: string; names: string[] | null } | undefined>(undefined);
+	const picksKey = $derived(JSON.stringify(picks));
+
+	$effect(() => {
+		const key = picksKey;
+		if (picks.length === 0) return;
+		const refs = untrack(() => [...picks]);
+		const abort = new AbortController();
+		void (async () => {
+			try {
+				const ctx = {
+					directory: directoryFor(getMetadata(), getResolvers().regions),
+					resolvers: getResolvers(),
+					entryType: purpose.entryType
+				};
+				const options = await Promise.all(
+					refs.map((ref) => resolveOption(ref, ctx, abort.signal).catch(() => null))
+				);
+				if (abort.signal.aborted) return;
+				const names = options.every((o) => o !== null) ? options.map((o) => o!.name) : null;
+				named = { key, names };
+			} catch (error) {
+				if (abort.signal.aborted) return;
+				report(error);
+				named = { key, names: null };
+			}
+		})();
+		return () => abort.abort();
+	});
+
 	const summary = $derived.by(() => {
 		if (picks.length === 0) return m.get_data_where_everywhere();
-		if (names && names.length > 0) return formatList(names);
-		if (picks.length > 1 || namesSettled) {
-			return m.get_data_places_count({
-				count: formatNumber(picks.length),
-				countValue: picks.length
-			});
-		}
-		return m.get_data_places_loading();
+		if (named?.key !== picksKey) return m.get_data_places_loading();
+		if (named.names) return formatList(named.names);
+		return m.get_data_places_count({
+			count: formatNumber(picks.length),
+			countValue: picks.length
+		});
 	});
 
 	async function load(signal: AbortSignal): Promise<void> {

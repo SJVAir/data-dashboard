@@ -67,7 +67,11 @@ const fake = vi.hoisted(() => ({
 	/** The pesticide meta's answer (default: `PESTICIDE_META`). */
 	pesticideMeta: undefined as (() => Promise<unknown>) | undefined,
 	/** The regions the resolver knows, by `type:code`, with their names (default: none). */
-	regionNames: {} as Record<string, string>
+	regionNames: {} as Record<string, string>,
+	/** The schools the resolver knows, by `source:code`, with their names (default: none). */
+	locations: {} as Record<string, string>,
+	/** The region resolver fails (a lookup that can't be made). */
+	regionFail: false
 }));
 const PESTICIDE_META = vi.hoisted(() => ({
 	categories: [
@@ -103,11 +107,23 @@ vi.mock("$lib/data", () => ({
 	getResolvers: () => ({
 		regions: {
 			resolve: async (type: string, code: string) => {
+				if (fake.regionFail) throw new Error("offline");
 				const name = fake.regionNames[`${type}:${code}`];
 				return name ? { id: `sq-${code}`, name } : null;
 			}
 		},
-		locations: { resolve: async () => null },
+		locations: {
+			resolve: async (source: string, code: string) => {
+				const name = fake.locations[`${source}:${code}`];
+				return name
+					? {
+							name,
+							keys: [],
+							details: { type: "school", city: "Fresno", zip: "93702", address: "1" }
+						}
+					: null;
+			}
+		},
 		points: { keys: async () => [] }
 	}),
 	placeRegion: async () => null
@@ -123,6 +139,9 @@ vi.mock("$lib/places/host", async (original) => {
 			return {
 				...real,
 				...(fake.regionTypes ? { regionTypes: fake.regionTypes } : {}),
+				...(Object.keys(fake.locations).length > 0
+					? { locationTypes: async () => [{ type: "school", label: "School", source: "schools" }] }
+					: {}),
 				...(known ? { regionTypeLabels: async () => new Map([["county", "County"]]) } : {})
 			};
 		}
@@ -284,6 +303,8 @@ beforeEach(async () => {
 	fake.regionTypes = async () => [];
 	fake.pesticideMeta = undefined;
 	fake.regionNames = {};
+	fake.locations = {};
+	fake.regionFail = false;
 	fake.metadata = fixtureMetadata({ catalog: async () => CATALOG });
 	makeClient();
 	fake.now = createNowClient({ activity: createMemoryPlatform().activity });
@@ -332,6 +353,8 @@ function monitorsDraft(ids: string[], extra: Partial<Draft> = {}, overlays: stri
 }
 
 async function show(initial: Draft = defaultDraft()) {
+	// The default draft's county, named by the region resolver (unless a test named it already).
+	fake.regionNames["county:06019"] ??= "Fresno County";
 	const platform = createMemoryPlatform();
 	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
 	const host = document.createElement("div");
@@ -857,7 +880,7 @@ test("Download CSV saves the draft's data", async () => {
 	expect(files.saved[0].contents).toContain("pm25");
 });
 
-test("a refetch keeps the place names; a failed query shows the count", async () => {
+test("a refetch keeps the place names; a place that can't be looked up shows the count", async () => {
 	const { host } = await show();
 	const summary = page.getByTestId("where-summary");
 	await expect.element(summary).toHaveTextContent("Fresno County");
@@ -869,10 +892,25 @@ test("a refetch keeps the place names; a failed query shows the count", async ()
 	await expect.element(summary).toHaveTextContent("Fresno County");
 	host.remove();
 
-	fetchMode = "fail";
+	fake.regionFail = true;
 	makeClient();
 	await show();
 	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("1 place");
+});
+
+test("get data view: a county Where with searched monitors names the county", async () => {
+	const draft = areasDraft(["06019"]);
+	draft.data.layers[0] = { dataset: "air-quality", entryType: "pm25", monitors: ["m1"] };
+	await show(draft);
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Area 06019");
+});
+
+test("get data view: a school Where names the school", async () => {
+	fake.locations = { "schools:s1": "Roosevelt High" };
+	const draft = areasDraft([]);
+	draft.data.place = { kind: "location", source: "schools", code: "s1" };
+	await show(draft);
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Roosevelt High");
 });
 
 test("a chosen level the new range can't serve stays, blocked, and Add waits", async () => {
@@ -1133,10 +1171,8 @@ test("choosing None for Air Quality keeps the places", async () => {
 	const where = { kind: "regions", ids: ["county:a1", "county:a2"] };
 	await page.getByRole("radio", { name: "None" }).click();
 	await expect.element(page.getByRole("radio", { name: "None" })).toBeChecked();
-	// Named by the weather layer's data now (its fake names regions by key).
-	await expect
-		.element(page.getByTestId("where-summary"))
-		.toHaveTextContent("Region county:a1 and Region county:a2");
+	// The Where names its own places, whatever the layers.
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Area a1 and Area a2");
 	expect((await current()).data.layers).toEqual([{ ...TEMPERATURE }]);
 	expect((await current()).data.selection).toEqual(where);
 	// Choosing a pollutant again makes it the main layer; Where stays.
@@ -2352,8 +2388,6 @@ describe("Where in keep mode", () => {
 			target: host,
 			props: {
 				picks,
-				names: null,
-				namesSettled: true,
 				max: 5,
 				offer: "areas",
 				purpose: { dataset: "air-quality", entryType: "pm25" },

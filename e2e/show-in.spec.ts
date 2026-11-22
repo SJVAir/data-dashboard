@@ -154,8 +154,8 @@ test.describe("from a Map's marks", () => {
 		await expect(page).toHaveURL(NEW_WIDGET_URL);
 		await expect(page.getByRole("heading", GET_DATA)).toBeVisible();
 		await expect(page.getByRole("radio", { name: "Chart" })).toBeChecked();
-		// The Where is the county's one place; the marked monitors are What, not named here.
-		await expect(whereSummary(page)).toHaveText("1 place");
+		// The Where is the county; the marked monitors are What, not named here.
+		await expect(whereSummary(page)).toHaveText("Fresno County");
 		// The Map's range.
 		await expect(page.getByTestId("resolved-range")).toHaveText("Nov 9 – 11, 2026");
 		// Nothing was over the cap or left out.
@@ -167,8 +167,8 @@ test.describe("from a Map's marks", () => {
 		await expect(page).toHaveURL(NEW_WIDGET_URL);
 		await expect(page.getByRole("heading", GET_DATA)).toBeVisible();
 		await expect(page.getByRole("radio", { name: "Chart" })).toBeChecked();
-		// The Where is the county's one place; the marked monitors are What, not named here.
-		await expect(whereSummary(page)).toHaveText("1 place");
+		// The Where is the county; the marked monitors are What, not named here.
+		await expect(whereSummary(page)).toHaveText("Fresno County");
 		await expect(page.getByTestId("resolved-range")).toHaveText("Nov 9 – 11, 2026");
 
 		await expect(addToButton(page)).toHaveText("Add to County map");
@@ -193,7 +193,7 @@ test.describe("from a Map's marks", () => {
 		await expect(page.getByRole("radio", { name: "Chart" })).toBeChecked();
 		// Searched monitors are never over a cap: no dialog asks which to keep.
 		await expect(keepDialog(page)).toHaveCount(0);
-		await expect(whereSummary(page)).toHaveText("1 place");
+		await expect(whereSummary(page)).toHaveText("Fresno County");
 		await expectNoViolations(page);
 	});
 
@@ -207,7 +207,7 @@ test.describe("from a Map's marks", () => {
 		await widgetMenuItem(page, FRESNO_MAP, "Show in a table");
 		await expect(page).toHaveURL(NEW_WIDGET_URL);
 		await expect(page.getByRole("radio", { name: "Data table" })).toBeChecked();
-		await expect(whereSummary(page)).toHaveText("1 place");
+		await expect(whereSummary(page)).toHaveText("Fresno County");
 		await expect(
 			page.getByText("1 marked monitor isn't shown on the map, so it was left out.")
 		).toBeVisible();
