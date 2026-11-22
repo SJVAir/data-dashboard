@@ -62,7 +62,7 @@
 			type="single"
 			bind:value={() => value, (v) => v && onchange(v)}
 			aria-labelledby={labelId}
-			class="border-input inline-flex rounded-(--radius-control) border p-0.5"
+			class="border-input inline-flex max-w-full min-w-0 flex-wrap rounded-(--radius-control) border p-0.5"
 		>
 			{#each types as { type, block } (type.type)}
 				<ToggleGroup.Item
@@ -70,7 +70,7 @@
 					data-show-as={type.type}
 					disabled={!!block}
 					aria-describedby={block ? `${uid}-${type.type}-reason` : undefined}
-					class="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground hover:not-data-[state=on]:bg-secondary data-disabled:text-muted-foreground flex h-7 min-w-6 items-center gap-1 rounded-(--radius-sm) px-2.5 text-sm font-medium data-disabled:cursor-not-allowed"
+					class="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground hover:not-data-[state=on]:bg-secondary data-disabled:text-muted-foreground flex h-7 min-w-6 items-center gap-1 rounded-(--radius-sm) px-2.5 text-sm font-medium whitespace-nowrap data-disabled:cursor-not-allowed"
 				>
 					<type.icon class="size-4" aria-hidden="true" />
 					{type.label()}

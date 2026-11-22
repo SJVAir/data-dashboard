@@ -361,3 +361,23 @@ test("on two columns the left column scrolls under the top nav; the preview and 
 	// The top nav is still there above the view.
 	await expect(nav(page)).toBeInViewport();
 });
+
+for (const width of [390, 320]) {
+	test(`at ${width} px the Data Portal fits the screen as a Chart and as a Map (no sideways scroll)`, async ({
+		page
+	}) => {
+		await page.setViewportSize({ width, height: 844 });
+		await page.goto("data");
+		await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
+		const scrollWidth = () => page.evaluate(() => document.documentElement.scrollWidth);
+		expect(await scrollWidth()).toBeLessThanOrEqual(width);
+		await page.getByRole("radio", { name: "Map" }).click();
+		await expect(page.getByRole("radio", { name: "Map" })).toBeChecked();
+		await expect(page.getByRole("button", { name: "Fill regions by" })).toBeEnabled();
+		expect(await scrollWidth()).toBeLessThanOrEqual(width);
+		// The choices still work from the keyboard: arrows move along the group.
+		await page.getByRole("radio", { name: "Map" }).focus();
+		await page.keyboard.press("ArrowLeft");
+		await expect(page.getByRole("radio", { name: "Data table" })).toBeFocused();
+	});
+}
