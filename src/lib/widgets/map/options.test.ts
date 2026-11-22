@@ -38,15 +38,6 @@ describe("Map options", () => {
 		};
 		expect(pollutantLayer(data, CATALOG)).toEqual({ dataset: "air-quality", entryType: "o3" });
 		expect(pollutantLayer({ place: FRESNO, layers: [] }, CATALOG)).toBeUndefined();
-		// An older Map with several: the first.
-		const two: WidgetDataConfig = {
-			place: FRESNO,
-			layers: [
-				{ dataset: "air-quality", entryType: "pm25" },
-				{ dataset: "air-quality", entryType: "o3" }
-			]
-		};
-		expect(pollutantLayer(two, CATALOG)?.entryType).toBe("pm25");
 	});
 
 	it("keeps a layer whose kind the catalog doesn't know, and drops a non-pollutant kind", () => {

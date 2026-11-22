@@ -1681,8 +1681,7 @@ const twoTypes = () => [reading("a"), { ...reading("b"), type: "airnow" }];
 
 test("the toolbar offers no pollutant choice: a Map holds one", async () => {
 	vi.mocked(getMonitors).mockImplementation(async (type) => [reading(String(type))] as never);
-	// An older Map with two pollutants draws the first, with no Pollutant group either.
-	const widget = { ...mapWidget({}), data: layers(region("019"), [{ entryType: "o3" }]) };
+	const widget = { ...mapWidget({}), data: layers(region("019"), []) };
 	const screen = await showLive(widget, editing());
 	const map = await madeMap();
 	map.ready = true;

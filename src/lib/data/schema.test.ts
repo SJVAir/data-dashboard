@@ -74,14 +74,6 @@ describe("WidgetDataConfigSchema", () => {
 		expect(LIMITS).not.toHaveProperty("SELECTION_MAX");
 	});
 
-	it("drops a layer's earlier per-layer resolution (it opens as Automatic)", () => {
-		const r = WidgetDataConfigSchema.parse({
-			layers: [{ dataset: "air-quality", entryType: "pm25", resolution: "day" }]
-		});
-		expect(r.layers[0]).toEqual({ dataset: "air-quality", entryType: "pm25" });
-		expect(r.resolution).toBeUndefined();
-	});
-
 	it("round-trips one data resolution and rejects an unknown one", () => {
 		const config = { resolution: "month", layers: [{ dataset: "air-quality", entryType: "pm25" }] };
 		expect(WidgetDataConfigSchema.parse(config)).toEqual(config);

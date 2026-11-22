@@ -179,13 +179,6 @@ describe("showInDraft: monitors", () => {
 		expect(table.draft.options).toBeUndefined();
 	});
 
-	it("the pollutant is the Map's one (an older Map with several: the first)", () => {
-		const at = (d: Draft) =>
-			showInDraft(d, send(["m1"]), chartType, CATALOG, NOW).draft.data.layers[0].entryType;
-		expect(at(mapDraft(["o3"]))).toBe("o3");
-		expect(at(mapDraft(["pm25", "o3"]))).toBe("pm25");
-	});
-
 	it("carries the conversion's notes, less the marks and places ones", () => {
 		const map = fullMap();
 		const converted = fromMapDraft(map, chartType, CATALOG, "unavailable", NOW);

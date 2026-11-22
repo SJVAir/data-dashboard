@@ -305,9 +305,8 @@ export function tickEveryTypeIfNone(data: WidgetDataConfig, catalog: CatalogEntr
  * (`chosenRange`, then `mapRange`: cut to the Map's 366 stops at its resolution with a
  * `"range-cut"` note and `cutAt`, the level; none,
  * or a default range, is Now). A day selection is dropped with
- * a `"selection"` note. A Map draft (one opened over its place cap, say) keeps its one pollutant
- * (an older one with several keeps the first, the others left out as `"overlays"`), its smoke and
- * fire, its notices and use, and its options.
+ * a `"selection"` note. A Map draft (one opened over its place cap, say) keeps its one pollutant,
+ * its smoke and fire, its notices and use, and its options.
  *
  * From another type, the first pesticide use layer becomes the Map's use: its filters are the
  * Map's filter set and its entry type the `useFigure` (unless it's the catalog's first, the
@@ -388,8 +387,7 @@ export function toMapDraft(
 
 /**
  * A Map draft cut to its pollutant (no layers with none), at its Where, over its range (if it has
- * one), with no options. `dropped` says when other layers (smoke and fire, notices, use, an older
- * Map's other pollutants) were left out (`"overlays"`), when marks were (`"marks"`) and when a
+ * one), with no options. `dropped` says when other layers (smoke and fire, notices, use) were left out (`"overlays"`), when marks were (`"marks"`) and when a
  * region fill was (`"fill"`).
  */
 export function mapShowingOnly(
