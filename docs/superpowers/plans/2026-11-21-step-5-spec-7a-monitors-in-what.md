@@ -47,9 +47,8 @@ Paraglide, `@sjvair/sdk` `5.0.0-beta.15` (→ `5.0.0-beta.16` in Task 14), `@sjv
 
 ## Review Focus
 
-1. **A saved Map or Chart from before this spec** (dev IndexedDB, fixtures, a share link):
-   opens without errors, removed fields dropped (`place`/`selection` on a layer, a `monitor`
-   place, `showing`). Test in Task 3.
+1. ~~A saved Map or Chart from before this spec~~ — dropped (the user, 2026-11-22: no
+   compatibility work for old dashboards; nobody has any).
 2. **Picking None with monitors chosen, then a pollutant again:** the ticks and searched monitors
    come back exactly as they were. Test in Task 10.
 3. **A monitor type ticked whose monitors don't measure the new pollutant** (PurpleAir, then

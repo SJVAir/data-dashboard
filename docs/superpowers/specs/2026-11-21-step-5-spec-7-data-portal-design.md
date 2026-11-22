@@ -327,9 +327,10 @@ of them.
 
 ## Settled after the builder check (my calls, 2026-11-21)
 
-30. **Shapes from before this spec** (dev data and fixtures only; nothing is live): removed fields
-    are dropped when a document is read, not rejected, so an old local document still opens. The
-    fixtures, the starter and the E2E fake move to the new shape.
+30. **Shapes from before this spec: no compatibility work** (the user, 2026-11-22: nobody has
+    dashboards; none of this is live). The fixtures, the starter and the E2E fake move to the new
+    shape. The small drop-on-read steps already built in Tasks 3–5 stay (they're done and keep
+    local test dashboards opening), but no later task or review spends effort on old documents.
 31. **None with monitors still chosen:** the ticks and searched monitors stay, greyed out with
     "Choose a pollutant to show monitors"; nothing is drawn for them; nothing is cleared.
 32. **A type or monitor that doesn't supply the chosen pollutant** is greyed out with its reason
