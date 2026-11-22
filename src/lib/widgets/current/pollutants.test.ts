@@ -7,8 +7,7 @@ import {
 	currentPollutants,
 	firstPollutantOnly,
 	onePollutant,
-	setCurrentPollutants,
-	watchedMarkKey
+	setCurrentPollutants
 } from "./pollutants";
 
 const COUNTY = { kind: "region", type: "county", code: "06019" } as const;
@@ -139,16 +138,5 @@ describe("firstPollutantOnly", () => {
 			thresholds: [{ level: "moderate" }]
 		};
 		expect(firstPollutantOnly(chart)).toBe(chart);
-	});
-});
-
-describe("watchedMarkKey", () => {
-	it("is Current conditions' first pollutant's key, and the widget id for other types", () => {
-		const layers = [
-			{ dataset: "air-quality", entryType: "o3", monitors: ["a"] },
-			{ dataset: "air-quality", entryType: "pm25" }
-		];
-		expect(watchedMarkKey({ id: "w1", type: CURRENT_TYPE, data: { layers } })).toBe("w1:o3");
-		expect(watchedMarkKey({ id: "w1", type: CHART_TYPE, data: { layers } })).toBe("w1");
 	});
 });

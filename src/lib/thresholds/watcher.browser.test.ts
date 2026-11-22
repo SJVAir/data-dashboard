@@ -162,7 +162,8 @@ beforeEach(async () => {
 		levels: async (entryType) => {
 			levelCalls++;
 			if (levelsFail) throw new Error("levels down");
-			return entryType === "pm25" ? PM25_LEVELS : [];
+			// Ozone shares the PM2.5 scale here, so one series crosses on both.
+			return entryType === "pm25" || entryType === "o3" ? PM25_LEVELS : [];
 		}
 	});
 	fake.client = createQueryClient({
@@ -249,7 +250,7 @@ test("the first reading at the level shows the mark but no toast", async () => {
 	series.values = [40];
 	series.step = 0;
 	const { app, platform, docId } = await seed([tile("w1")]);
-	await handled(platform, app, docId, "w1");
+	await handled(platform, app, docId, W1_MARK);
 	await expect.poll(() => thresholdMarks[W1_MARK]?.level.key).toBe("unhealthy_sensitive");
 	expect(thresholdMarks[W1_MARK].pulse).toBe(0);
 	await expect.element(page.getByText(m.current_alert_level_reached())).toBeVisible();
@@ -261,7 +262,7 @@ test("a crossing toasts once and announces politely", async () => {
 	series.values = [20, 40];
 	series.step = 0;
 	const { app, platform, docId } = await seed([tile("w1")]);
-	await handled(platform, app, docId, "w1", readingAt(0));
+	await handled(platform, app, docId, W1_MARK, readingAt(0));
 	expect(thresholdMarks[W1_MARK]).toBeUndefined();
 	nextPoll();
 	await expect.poll(toastTexts).toEqual([crossing]);
@@ -280,7 +281,7 @@ test("a minimized widget keeps watching and its taskbar entry shows the mark", a
 	series.values = [20, 40];
 	series.step = 0;
 	const { app, platform, docId } = await seed([tile("w1", { minimized: { order: 0 } })]);
-	await handled(platform, app, docId, "w1", readingAt(0));
+	await handled(platform, app, docId, W1_MARK, readingAt(0));
 	// Its entry still polls although no tile shows it.
 	expect(fake.client!.entries().map((e) => e.polling)).toEqual([true]);
 	const restore = page.getByRole("button", { name: "Restore Tile w1", exact: true });
@@ -315,9 +316,9 @@ test("two watchers for one dashboard (two tabs) fire once", async () => {
 			context: new Map([[APP_CONTEXT_KEY, app]])
 		});
 	}
-	await handled(platform, apps[0], docId, "w1", readingAt(0));
+	await handled(platform, apps[0], docId, W1_MARK, readingAt(0));
 	nextPoll();
-	await handled(platform, apps[0], docId, "w1", readingAt(1));
+	await handled(platform, apps[0], docId, W1_MARK, readingAt(1));
 	await expect.poll(toastTexts).toEqual([crossing]);
 	await new Promise((r) => setTimeout(r, 300));
 	expect(toasts()).toHaveLength(1);
@@ -327,7 +328,7 @@ test("turning the threshold Off clears the mark and never fires", async () => {
 	series.values = [40, 60];
 	series.step = 0;
 	const { app, platform, docId, session } = await seed([tile("w1"), tile("w2")]);
-	await handled(platform, app, docId, "w1");
+	await handled(platform, app, docId, W1_MARK);
 	await expect.poll(() => thresholdMarks[W1_MARK]?.level.key).toBe("unhealthy_sensitive");
 	const from = { name: session.doc.name, body: session.doc.body };
 	const to = {
@@ -351,14 +352,14 @@ test("turning the threshold Off clears the mark and never fires", async () => {
 	]);
 	await new Promise((r) => setTimeout(r, 200));
 	expect(toasts()).toHaveLength(1);
-	expect(Object.keys(await readTold(platform, app.space, docId))).toEqual(["w2"]);
+	expect(Object.keys(await readTold(platform, app.space, docId))).toEqual([markKey("w2", "pm25")]);
 });
 
 test("a threshold turned Off and back On while at the level starts afresh: no toast", async () => {
 	series.values = [20, 40];
 	series.step = 0;
 	const { app, platform, docId, session } = await seed([tile("w1")]);
-	await handled(platform, app, docId, "w1", readingAt(0));
+	await handled(platform, app, docId, W1_MARK, readingAt(0));
 	const setThreshold = (thresholds: WidgetInstance["thresholds"]) => {
 		const from = { name: session.doc.name, body: session.doc.body };
 		const widgets = session.doc.body.widgets.map((w) => ({ ...w, thresholds }));
@@ -375,7 +376,7 @@ test("a threshold turned Off and back On while at the level starts afresh: no to
 	nextPoll();
 	await expect.element(page.getByText("40.0")).toBeVisible();
 	setThreshold([{ level: "unhealthy_sensitive", entryType: "pm25" }]);
-	await handled(platform, app, docId, "w1", readingAt(1));
+	await handled(platform, app, docId, W1_MARK, readingAt(1));
 	await expect.poll(() => thresholdMarks[W1_MARK]?.level.key).toBe("unhealthy_sensitive");
 	await new Promise((r) => setTimeout(r, 200));
 	expect(toasts()).toHaveLength(0);
@@ -387,8 +388,8 @@ test("a new place starts afresh: its first reading seeds, a later rise toasts", 
 	series.values = values.a;
 	series.step = 0;
 	const { app, platform, docId, session } = await seed([tile("w1")]);
-	await handled(platform, app, docId, "w1", readingAt(0));
-	expect((await readTold(platform, app.space, docId)).w1.level).toBe("unhealthy");
+	await handled(platform, app, docId, W1_MARK, readingAt(0));
+	expect((await readTold(platform, app.space, docId))[W1_MARK].level).toBe("unhealthy");
 	series.values = values.b;
 	const from = { name: session.doc.name, body: session.doc.body };
 	const widgets = session.doc.body.widgets.map((w) => ({
@@ -405,7 +406,9 @@ test("a new place starts afresh: its first reading seeds, a later rise toasts", 
 	});
 	// The same hour at b: the mark, "last told" seeded from b, and no toast.
 	await expect
-		.poll(async () => (await readTold(platform, app.space, docId)).w1?.level, { timeout: 5000 })
+		.poll(async () => (await readTold(platform, app.space, docId))[W1_MARK]?.level, {
+			timeout: 5000
+		})
 		.toBe("unhealthy_sensitive");
 	await expect.poll(() => thresholdMarks[W1_MARK]?.level.key).toBe("unhealthy_sensitive");
 	expect(toasts()).toHaveLength(0);
@@ -423,7 +426,7 @@ test("a server key reorder of the layers is not a new place: no re-seeding, so a
 	series.values = [40, 60];
 	series.step = 0;
 	const { app, platform, docId, session } = await seed([tile("w1")]);
-	await handled(platform, app, docId, "w1", readingAt(0));
+	await handled(platform, app, docId, W1_MARK, readingAt(0));
 	const from = { name: session.doc.name, body: session.doc.body };
 	const widgets = session.doc.body.widgets.map((w) => ({
 		...w,
@@ -465,7 +468,7 @@ test("with the hourly query failed, the watcher fires on the alert value the til
 	series.fail = true;
 	fake.alertValue = 20;
 	const { app, platform, docId } = await seed([alertTile()]);
-	await handled(platform, app, docId, "w1");
+	await handled(platform, app, docId, W1_MARK);
 	expect(toastTexts()).not.toContain(crossingAtPa);
 	fake.alertValue = 40;
 	fake.now!.refetch("alert:pa");
@@ -477,7 +480,7 @@ test("with the hourly query still loading, the watcher fires on the alert value"
 	series.hang = true;
 	fake.alertValue = 20;
 	const { app, platform, docId } = await seed([alertTile()]);
-	await handled(platform, app, docId, "w1");
+	await handled(platform, app, docId, W1_MARK);
 	fake.alertValue = 40;
 	fake.now!.refetch("alert:pa");
 	await expect.poll(toastTexts, { timeout: 5000 }).toContain(crossingAtPa);
@@ -490,7 +493,7 @@ test("a crossing on the same latest reading, evaluated later, fires once and not
 	fake.alertEvaluated = Date.now() - 60_000;
 	fake.alertValue = 20;
 	const { app, platform, docId } = await seed([alertTile("pb")]);
-	await handled(platform, app, docId, "w1");
+	await handled(platform, app, docId, W1_MARK);
 	// The sensor stopped reporting: the same latest reading, a new evaluation, a higher average.
 	fake.alertValue = 40;
 	fake.alertEvaluated = Date.now() - 30_000;
@@ -522,7 +525,7 @@ test("when the tile shows an error or loading, the watcher fires nothing", async
 	await expect
 		.poll(() => toastTexts().filter((t) => t?.includes(" at PA ")), { timeout: 3000 })
 		.toEqual([]);
-	expect((await readTold(platform, app.space, docId)).w1).toBeUndefined();
+	expect((await readTold(platform, app.space, docId))[W1_MARK]).toBeUndefined();
 });
 
 test("a reading that ages past 3 hours loses its mark between polls", async () => {
@@ -531,7 +534,7 @@ test("a reading that ages past 3 hours loses its mark between polls", async () =
 	vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"], now: Date.now() });
 	try {
 		const { app, platform, docId } = await seed([tile("w1", { minimized: { order: 0 } })]);
-		await handled(platform, app, docId, "w1", readingAt(0));
+		await handled(platform, app, docId, W1_MARK, readingAt(0));
 		await expect.poll(() => thresholdMarks[W1_MARK]?.level.key).toBe("unhealthy_sensitive");
 		// No poll comes (an outage): only the clock moves. The hour ended 6 minutes before t0, so
 		// it is "recent" until t0 + 2 h 54 min.
@@ -549,7 +552,7 @@ test("a place with no current value clears the mark; a failed fetch keeps it", a
 	series.values = [40, null];
 	series.step = 0;
 	const { app, platform, docId } = await seed([tile("w1", { minimized: { order: 0 } })]);
-	await handled(platform, app, docId, "w1", readingAt(0));
+	await handled(platform, app, docId, W1_MARK, readingAt(0));
 	await expect.poll(() => thresholdMarks[W1_MARK]?.level.key).toBe("unhealthy_sensitive");
 	series.fail = true;
 	for (const e of fake.client!.entries()) fake.client!.refetch(e.key);
@@ -566,13 +569,13 @@ test("a notification is shown only when the switch is on and permission granted"
 	series.step = 0;
 	const platform = createMemoryPlatform();
 	const { app, docId } = await seed([tile("w1")], platform);
-	await handled(platform, app, docId, "w1", readingAt(0));
+	await handled(platform, app, docId, W1_MARK, readingAt(0));
 
 	// Granted, but the switch is off.
 	platform.notifications.script("granted");
 	await platform.notifications.request();
 	nextPoll();
-	await handled(platform, app, docId, "w1", readingAt(1));
+	await handled(platform, app, docId, W1_MARK, readingAt(1));
 	await expect.poll(() => toasts().length).toBe(1);
 	expect(platform.notifications.shown).toEqual([]);
 
@@ -583,7 +586,7 @@ test("a notification is shown only when the switch is on and permission granted"
 	await platform.notifications.request();
 	const show = vi.spyOn(platform.notifications, "show");
 	nextPoll(); // 60: Unhealthy, worse than told
-	await handled(platform, app, docId, "w1", readingAt(2));
+	await handled(platform, app, docId, W1_MARK, readingAt(2));
 	await expect.poll(() => toasts().length).toBe(2);
 	expect(show).not.toHaveBeenCalled();
 
@@ -591,7 +594,7 @@ test("a notification is shown only when the switch is on and permission granted"
 	platform.notifications.script("granted");
 	await platform.notifications.request();
 	nextPoll(); // 150: Very Unhealthy
-	await handled(platform, app, docId, "w1", readingAt(3));
+	await handled(platform, app, docId, W1_MARK, readingAt(3));
 	const body = m.alert_pollutant_at_place_is_now_level({
 		pollutant: "PM2.5",
 		place: "Monitor a",
@@ -599,8 +602,142 @@ test("a notification is shown only when the switch is on and permission granted"
 	});
 	await expect
 		.poll(() => platform.notifications.shown)
-		.toEqual([{ title: "Tile w1", body, tag: `${docId}:w1` }]);
+		.toEqual([{ title: "Tile w1", body, tag: `${docId}:${W1_MARK}` }]);
 	show.mockRestore();
+});
+
+// --- One watch per pollutant (Current conditions with several) ---
+
+const W1_O3 = markKey("w1", "o3");
+
+/** Tile w1 showing PM2.5 then ozone, each with its alert level (USG unless given). */
+function twoPollutants(
+	levels: { pm25?: string; o3?: string } = {},
+	extra: Partial<WidgetInstance> = {}
+) {
+	return tile("w1", {
+		data: {
+			layers: [
+				{ dataset: "air-quality", entryType: "pm25", monitors: ["a"] },
+				{ dataset: "air-quality", entryType: "o3" }
+			]
+		},
+		thresholds: [
+			{ level: levels.pm25 ?? "unhealthy_sensitive", entryType: "pm25" },
+			{ level: levels.o3 ?? "unhealthy_sensitive", entryType: "o3" }
+		],
+		...extra
+	});
+}
+
+const ozoneCrossing = m.alert_pollutant_at_place_is_now_level({
+	pollutant: "Ozone",
+	place: "Monitor a",
+	level: USG
+});
+
+/** Replaces the dashboard's widgets with `map(widgets)`, as one undoable change. */
+function replaceWidgets(session: DocumentSession, map: (ws: WidgetInstance[]) => WidgetInstance[]) {
+	const from = { name: session.doc.name, body: session.doc.body };
+	const to = { name: from.name, body: { widgets: map(session.doc.body.widgets) } };
+	session.apply({ op: "replaceDocument", target: {}, from, to });
+}
+
+test("a widget crossing on two pollutants toasts once for each, naming it, with a told entry each", async () => {
+	series.values = [20, 40];
+	series.step = 0;
+	const { app, platform, docId } = await seed([twoPollutants()]);
+	await handled(platform, app, docId, W1_MARK, readingAt(0));
+	await handled(platform, app, docId, W1_O3, readingAt(0));
+	nextPoll();
+	await expect.poll(() => [...toastTexts()].sort()).toEqual([ozoneCrossing, crossing].sort());
+	await handled(platform, app, docId, W1_MARK, readingAt(1));
+	await handled(platform, app, docId, W1_O3, readingAt(1));
+	const told = await readTold(platform, app.space, docId);
+	expect(Object.keys(told).sort()).toEqual([W1_MARK, W1_O3].sort());
+	expect(told[W1_MARK].level).toBe("unhealthy_sensitive");
+	expect(told[W1_O3].level).toBe("unhealthy_sensitive");
+	expect(thresholdMarks[W1_MARK].pulse).toBe(1);
+	expect(thresholdMarks[W1_O3].pulse).toBe(1);
+});
+
+test("changing ozone's alert level forgets only ozone's told entry", async () => {
+	series.values = [40];
+	series.step = 0;
+	const { app, platform, docId, session } = await seed([twoPollutants()]);
+	await handled(platform, app, docId, W1_MARK, readingAt(0));
+	await handled(platform, app, docId, W1_O3, readingAt(0));
+	const before = await readTold(platform, app.space, docId);
+	expect(before[W1_O3].level).toBe("unhealthy_sensitive");
+	replaceWidgets(session, (ws) =>
+		ws.map((w) => ({
+			...w,
+			thresholds: [
+				{ level: "unhealthy_sensitive", entryType: "pm25" },
+				{ level: "unhealthy", entryType: "o3" }
+			]
+		}))
+	);
+	// Ozone starts afresh: its reading (below its new level) seeds it again, armed.
+	await expect
+		.poll(async () => (await readTold(platform, app.space, docId))[W1_O3]?.level, {
+			timeout: 5000
+		})
+		.toBeNull();
+	await expect.poll(() => thresholdMarks[W1_O3]).toBeUndefined();
+	// PM2.5's is untouched.
+	expect((await readTold(platform, app.space, docId))[W1_MARK]).toEqual(before[W1_MARK]);
+	expect(thresholdMarks[W1_MARK]?.level.key).toBe("unhealthy_sensitive");
+});
+
+test("removing a two-pollutant widget prunes both told entries", async () => {
+	series.values = [40];
+	series.step = 0;
+	const { app, platform, docId, session } = await seed([twoPollutants(), tile("w2")]);
+	await handled(platform, app, docId, W1_MARK, readingAt(0));
+	await handled(platform, app, docId, W1_O3, readingAt(0));
+	replaceWidgets(session, (ws) => ws.filter((w) => w.id !== "w1"));
+	await expect
+		.poll(async () => Object.keys(await readTold(platform, app.space, docId)))
+		.toEqual([markKey("w2", "pm25")]);
+	await expect.poll(() => thresholdMarks[W1_MARK] ?? thresholdMarks[W1_O3]).toBeUndefined();
+});
+
+test("the taskbar entry is marked when either pollutant is, in its level's colour", async () => {
+	series.values = [20, 40];
+	series.step = 0;
+	// Only ozone can reach its level: PM2.5's is Hazardous.
+	const { app, platform, docId } = await seed([
+		twoPollutants({ pm25: "hazardous" }, { minimized: { order: 0 } })
+	]);
+	await handled(platform, app, docId, W1_O3, readingAt(0));
+	const entry = () => document.querySelector<HTMLElement>('[data-testid="taskbar-w1"]')!;
+	await expect.element(page.getByTestId("taskbar-w1")).toBeVisible();
+	expect(entry().hasAttribute("data-mark")).toBe(false);
+	nextPoll();
+	await expect.poll(toastTexts).toEqual([ozoneCrossing]);
+	expect(thresholdMarks[W1_MARK]).toBeUndefined();
+	await expect.poll(() => entry().hasAttribute("data-mark")).toBe(true);
+	await expect.poll(() => getComputedStyle(entry()).outlineColor).toBe("rgb(255, 126, 0)");
+});
+
+test("an Outside card saved with ozone is watched by ozone, under its widget id", async () => {
+	series.values = [20, 40];
+	series.step = 0;
+	const outside = tile(
+		"w1",
+		{
+			data: { layers: [{ dataset: "air-quality", entryType: "o3", monitors: ["a"] }] },
+			thresholds: [{ level: "unhealthy_sensitive" }]
+		},
+		"outside"
+	);
+	const { app, platform, docId } = await seed([outside]);
+	await handled(platform, app, docId, "w1", readingAt(0));
+	nextPoll();
+	await expect.poll(toastTexts).toEqual([ozoneCrossing]);
+	expect(Object.keys(await readTold(platform, app.space, docId))).toEqual(["w1"]);
+	expect(thresholdMarks.w1?.level.key).toBe("unhealthy_sensitive");
 });
 
 // --- CurrentConditions (the tiles' and the watcher's reading) ---

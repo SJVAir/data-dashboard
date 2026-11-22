@@ -14,6 +14,18 @@ export function markKey(widgetId: string, entryType?: string): string {
 /** The marks by `markKey`; the dashboard's watcher writes them, the tiles read them. */
 export const thresholdMarks = $state<Record<string, ThresholdMark>>({});
 
+/**
+ * A widget's mark when it has one per pollutant: the first of `keys` (its `markKey`s, in layer order)
+ * that is marked (decision C4), or with no keys the mark under its own id.
+ */
+export function widgetMark(widgetId: string, keys: string[]): ThresholdMark | undefined {
+	for (const key of keys.length ? keys : [markKey(widgetId)]) {
+		const mark = thresholdMarks[key];
+		if (mark) return mark;
+	}
+	return undefined;
+}
+
 export function setMark(widgetId: string, mark: ThresholdMark | null): void {
 	if (mark) thresholdMarks[widgetId] = mark;
 	else delete thresholdMarks[widgetId];

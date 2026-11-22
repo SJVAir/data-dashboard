@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { untrack } from "svelte";
+	import { widgetTitle } from "$lib/actions/widget";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import type { SpaceId } from "$lib/platform/types";
 	import { useApp } from "$lib/store/app.svelte";
-	import { watchesThresholds } from "./watched";
+	import { watchesOf, watchesThresholds } from "./watched";
 	import { ThresholdWatch } from "./watcher.svelte";
 	import WatchedWidget from "./WatchedWidget.svelte";
 
@@ -11,19 +12,24 @@
 		$props();
 
 	const app = useApp();
-	const watched = $derived(widgets.filter(watchesThresholds));
+	// One watch per watched widget and pollutant (Current conditions'), each under its `markKey`.
+	const watches = $derived(
+		widgets
+			.filter(watchesThresholds)
+			.flatMap((w) => watchesOf(w).map((one) => ({ ...one, title: widgetTitle(w) })))
+	);
 	const watch = new ThresholdWatch({
 		platform: app.platform,
 		space: () => space,
 		docId: () => docId,
-		watching: () => watched.map((w) => w.id)
+		watching: () => watches.map((w) => w.key)
 	});
 
-	// A widget no longer watched (removed, or switched Off) loses its "last told" at once, so
-	// turning it back on (or undoing) starts from its next reading instead of a stale entry.
+	// A watch that ends (its widget removed, its alert level switched Off) loses its "last told"
+	// at once, so turning it back on (or undoing) starts from its next reading, not a stale entry.
 	let previous: string[] = [];
 	$effect(() => {
-		const ids = watched.map((w) => w.id);
+		const ids = watches.map((w) => w.key);
 		untrack(() => {
 			const gone = previous.filter((id) => !ids.includes(id));
 			previous = ids;
@@ -33,8 +39,8 @@
 </script>
 
 <!-- The dashboard's threshold watching: minimized widgets aren't on the grid, so it runs here. -->
-{#each watched as widget (widget.id)}
-	<WatchedWidget {widget} {watch} />
+{#each watches as { key, widget, title } (key)}
+	<WatchedWidget {widget} markKey={key} {title} {watch} />
 {/each}
 <div role="status" aria-live="polite" class="sr-only" data-threshold-announcer>
 	{watch.announcement}

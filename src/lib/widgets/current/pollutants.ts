@@ -6,7 +6,6 @@
 import type { Layer, WidgetDataConfig } from "$lib/data/schema";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { thresholdFor } from "$lib/thresholds/levels";
-import { markKey } from "$lib/thresholds/marks.svelte";
 import type { Threshold } from "$lib/thresholds/schema";
 import { CURRENT_TYPE } from "./index";
 
@@ -17,16 +16,6 @@ export function currentPollutants(data: WidgetDataConfig): string[] {
 	return data.layers.flatMap((l) =>
 		l.dataset === AIR_QUALITY && l.entryType ? [l.entryType] : []
 	);
-}
-
-/**
- * The key a watched widget's one mark is written under: Current conditions' first pollutant's (the
- * one its watcher reads), the widget id for every other type.
- */
-export function watchedMarkKey(widget: Pick<WidgetInstance, "id" | "type" | "data">): string {
-	return widget.type === CURRENT_TYPE
-		? markKey(widget.id, currentPollutants(widget.data)[0])
-		: markKey(widget.id);
 }
 
 /** `entryType`'s saved alert level, as a one-pollutant widget saves it (no `entryType`). */
