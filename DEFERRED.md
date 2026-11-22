@@ -370,11 +370,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   the license check; sharp's install script is allowed, see the Task 7 commit, because it is
   dev-only through `@sveltejs/enhanced-img` and needs the script to fetch its binary.)
   **Revisit when** CI first flakes (retries).
-- **`npm run check` doesn't type-check `e2e/`.** _Deferred 2026-11-20 (#63)._ `tsconfig.json`
-  covers `src/` only, so a type error in the Playwright specs and fakes (#63's `Number(n)` in the
-  E2E fake server) shows up only when E2E fails. `e2e/map.spec.ts` already has 22 type errors.
-  Fix: type-check `e2e/` in `npm run check` (and so in CI) and fix the existing errors. **Revisit
-  when** spec 7 starts: the user scheduled it as an early spec 7 task (2026-11-20).
 - **sdk-js: no runtime validation of responses.** _Deferred 2026-10-19 (Alerts fix)._ SDK
   calls return API data without checking it against their Zod schemas, which is how the
   stale `airAlertSchema` went unnoticed when the server dropped `id`/`latest`. Adding

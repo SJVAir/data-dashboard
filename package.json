@@ -20,7 +20,7 @@
 		"check:build": "node scripts/check-build-output.mjs",
 		"check:budget": "node scripts/check-budget.mjs",
 		"preview": "vite preview",
-		"check": "npm run paraglide && svelte-check --tsconfig ./tsconfig.json",
+		"check": "npm run paraglide && svelte-check --tsconfig ./tsconfig.json && tsc -p e2e/tsconfig.json --noEmit",
 		"check:watch": "svelte-check --tsconfig ./tsconfig.json --watch",
 		"test": "npm run paraglide && vitest run",
 		"test:unit": "npm run paraglide && vitest run --project unit",

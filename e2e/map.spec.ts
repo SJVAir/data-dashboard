@@ -26,7 +26,8 @@ import {
 	openPicker,
 	openSharedDoc,
 	widgetMenuItem,
-	widgetTitles
+	widgetTitles,
+	type SharedDocument
 } from "./helpers";
 import {
 	NOTICE_COMMODITY,
@@ -180,7 +181,7 @@ const FRESNO_COUNTY = { kind: "region", type: "county", code: "06019" };
  * A shared dashboard holding one full-width Map of Fresno County's PM2.5 (wide enough for the
  * toolbar's dropdowns), with `more` layers after it.
  */
-function wideDoc(more: Array<Record<string, string>> = [], dateRange?: Record<string, unknown>) {
+function wideDoc(more: Array<Record<string, unknown>> = [], dateRange?: Record<string, unknown>) {
 	return {
 		kind: "dashboard",
 		schemaVersion: 1,
@@ -669,8 +670,8 @@ test.describe("shared by a live link", () => {
 	test.use({ account: maria });
 
 	/** Saves `doc` to Maria's account, shares it, and returns its live link. */
-	async function liveLinkTo(page: Page, doc: { name: string }): Promise<string> {
-		await openSharedDoc(page, doc as typeof monitorDoc);
+	async function liveLinkTo(page: Page, doc: SharedDocument): Promise<string> {
+		await openSharedDoc(page, doc);
 		await expect(nav(page).getByText("Saved to your account", { exact: true })).toBeVisible();
 		await openPicker(page, doc.name);
 		await page.getByRole("menuitem", { name: "Share…" }).click();
