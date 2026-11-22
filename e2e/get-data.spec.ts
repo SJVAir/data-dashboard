@@ -301,6 +301,49 @@ test("with no Where, a weather overlay on the valley's pesticide use says to add
 	expect(weather).toEqual([]);
 });
 
+test("with no Where, a pesticide overlay on every station says to add a place", async ({
+	page
+}) => {
+	const doc = {
+		kind: "dashboard",
+		schemaVersion: 1,
+		id: "no-where-3",
+		name: "Everywhere",
+		body: {
+			widgets: [
+				{
+					id: "w0",
+					type: "chart",
+					title: null,
+					rect: { x: 0, y: 0, w: 12, h: 8 },
+					data: {
+						dateRange: { kind: "trailing", amount: 12, unit: "month" },
+						resolution: "month",
+						layers: [
+							{ dataset: "weather", entryType: "temperature" },
+							{ dataset: "pesticide-use", entryType: "pounds-applied" }
+						]
+					}
+				}
+			]
+		}
+	};
+	const pesticides: string[] = [];
+	page.on("request", (r) => {
+		if (/\/pesticides\/place\//.test(r.url())) pesticides.push(r.url());
+	});
+	const stations = page.waitForRequest((r) =>
+		/\/monitors\/temperature\/summaries\/monthly\/\?.*type=cimis/.test(r.url())
+	);
+	await page.goto(shareLinkFor(doc));
+	await expect(page).toHaveURL(DASHBOARD_URL);
+	await stations;
+	// The main draws every station; the overlay isn't fetched and says why.
+	await expect(page.getByText(/CIMIS #15 - Stratford/).first()).toBeVisible();
+	await expect(page.getByText("Add a place to show Pounds Applied beside it.")).toBeVisible();
+	expect(pesticides).toEqual([]);
+});
+
 test("downloads a CSV with station and filter columns", async ({ page }) => {
 	await page.goto("data");
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
@@ -502,4 +545,44 @@ test("Show as keeps the ticked monitor types from a Map to a Chart, and a calend
 	).toBeVisible();
 	await expect(page.getByTestId("where-summary")).toHaveText("Fresno County");
 	await expect(page.getByRole("checkbox", { name: "PurpleAir" })).toHaveCount(0);
+});
+
+test("a Chart of Fresno County with PurpleAir ticked asks once per period for the county's PurpleAirs", async ({
+	page
+}) => {
+	await page.clock.install({ time: "2026-11-15T12:00:00-08:00" });
+	await page.goto("data");
+	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
+
+	const asked: URL[] = [];
+	page.on("request", (r) => {
+		const url = new URL(r.url());
+		if (/\/monitors\/pm25\/summaries\/(daily|hourly)\/$/.test(url.pathname)) asked.push(url);
+	});
+	const bulk = page.waitForRequest(
+		(r) => /\/monitors\/pm25\/summaries\/daily\/\?/.test(r.url()) && /type=purpleair/.test(r.url())
+	);
+	await page.getByRole("checkbox", { name: "PurpleAir" }).check();
+	const url = new URL((await bulk).url());
+	// Fresno County's server id, and the one type: one request holds every PurpleAir there.
+	expect(url.searchParams.getAll("region")).toEqual(["r6phe"]);
+	expect(url.searchParams.getAll("type")).toEqual(["purpleair"]);
+
+	// One line for the county's one PurpleAir: the Chart is named for it, not for the county.
+	await expect(
+		page.getByRole("group", { name: "Chart of Science Building Room 74" })
+	).toBeVisible();
+	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toHaveCount(0);
+	// Every request for the monitor set carried the county and the type: nothing unscoped.
+	const sets = asked.filter((u) => u.searchParams.has("type"));
+	expect(sets.length).toBeGreaterThan(0);
+	for (const set of sets) {
+		expect(set.searchParams.getAll("region")).toEqual(["r6phe"]);
+		expect(set.searchParams.getAll("type")).toEqual(["purpleair"]);
+	}
+	// One bulk request per period asked, never one per monitor.
+	const periods = sets.map(
+		(u) => `${u.pathname}|${u.searchParams.get("start")}|${u.searchParams.get("end")}`
+	);
+	expect(new Set(periods).size).toBe(periods.length);
 });
