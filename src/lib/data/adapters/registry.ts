@@ -2,7 +2,7 @@ import { getRegionsByCode, getRegionsMeta, type RegionType } from "@sjvair/sdk";
 import { regionDisplayName } from "@sjvair/sdk/regions";
 import type { ResolvedRange } from "$lib/format/range";
 import { untilAborted, type EntryTypeMeta, type MetadataSource } from "../metadata";
-import type { Layer, PesticideFilters, Resolution } from "../schema";
+import type { PesticideFilters, Resolution } from "../schema";
 import type { QueryData, QueryLayer, Target, UnavailableReason } from "../types";
 
 /** A region found on the server: its sqid, name, and (when retired) the retirement marker. */

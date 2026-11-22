@@ -1,6 +1,5 @@
 import { getWeatherStationsForPlace } from "@sjvair/sdk";
 import { untilAborted, type CatalogEntry } from "../metadata";
-import type { Layer } from "../schema";
 import type { PlaceInfo, QueryData, QueryLayer, Series } from "../types";
 import { summarySeries } from "./air-quality";
 import { offeredLevels } from "./offered";
