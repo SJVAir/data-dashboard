@@ -72,3 +72,28 @@ export async function pickedData(
 	const layers = opts.onePlace ? withoutMonitors(data.layers) : data.layers;
 	return { data: { ...rest, layers, ...toWhere(next) }, savedAsRegion };
 }
+
+/**
+ * The widget's new data with its first searched monitor in `gone` (no longer listed) replaced by
+ * `id` (the "no longer available" card's Choose another), or null when no saved monitor is gone. A
+ * single-place widget (`onePlace`) then holds just that monitor and no Where (spec decision 11);
+ * otherwise the pick takes the gone monitor's place in the list (never doubled).
+ */
+export function replacedMonitor(
+	data: WidgetDataConfig,
+	gone: readonly string[],
+	id: string,
+	onePlace: boolean
+): WidgetDataConfig | null {
+	const goneSet = new Set(gone);
+	const at = data.layers.findIndex((l) => l.monitors?.some((m) => goneSet.has(m)));
+	if (at < 0) return null;
+	const monitors = data.layers[at].monitors!;
+	const replaced = monitors.find((m) => goneSet.has(m))!;
+	const next = onePlace ? [id] : [...new Set(monitors.map((m) => (m === replaced ? id : m)))];
+	const layers = data.layers.map((l, i) => (i === at ? { ...l, monitors: next } : l));
+	if (!onePlace) return { ...data, layers };
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropped from the copy
+	const { place, selection, ...rest } = data;
+	return { ...rest, layers };
+}

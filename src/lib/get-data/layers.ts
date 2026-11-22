@@ -151,6 +151,62 @@ export function dropMonitorsForPlace(data: WidgetDataConfig, limit: number): voi
 	}
 }
 
+/** The air-quality layer holding the widget's monitors (its pollutant, or one kept with None). */
+function monitorsLayer(data: WidgetDataConfig, catalog: CatalogEntry[] | undefined) {
+	return data.layers.find((l) => isPollutantLayer(l, catalog));
+}
+
+/**
+ * Sets the field `key` (ticked types or searched monitors) of the air-quality layer to `ids`
+ * (duplicates dropped; none removes the field). A layer kept with None (no entry type) that is
+ * left holding nothing goes. With no air-quality layer nothing changes: monitors need a pollutant
+ * (Get data disables them until one is chosen).
+ */
+function setMonitorField(
+	data: WidgetDataConfig,
+	catalog: CatalogEntry[] | undefined,
+	key: "monitors" | "monitorTypes",
+	ids: string[]
+): void {
+	const layer = monitorsLayer(data, catalog);
+	if (!layer) return;
+	const unique = [...new Set(ids)];
+	if (unique.length > 0) layer[key] = unique;
+	else delete layer[key];
+	if (!layer.entryType && !layer.monitors?.length && !layer.monitorTypes?.length) {
+		removeLayer(data, data.layers.indexOf(layer));
+	}
+}
+
+/** Ticks exactly `types` (monitor types) on the air-quality layer (spec decision 7). */
+export function setMonitorTypes(
+	data: WidgetDataConfig,
+	catalog: CatalogEntry[] | undefined,
+	types: string[]
+): void {
+	setMonitorField(data, catalog, "monitorTypes", types);
+}
+
+/** Sets the air-quality layer's searched monitors to `ids`, in order (spec decision 7). */
+export function setMonitors(
+	data: WidgetDataConfig,
+	catalog: CatalogEntry[] | undefined,
+	ids: string[]
+): void {
+	setMonitorField(data, catalog, "monitors", ids);
+}
+
+/**
+ * A monitor was searched for a widget taking `limit` places (`placeLimit`): a single-place widget
+ * holds one place or one monitor (spec decision 11), so its Where goes. A Chart, Table or Map
+ * keeps it (searched monitors count wherever they are).
+ */
+export function dropWhereForMonitor(data: WidgetDataConfig, limit: number): void {
+	if (limit !== 1 || !data.layers.some((l) => l.monitors?.length)) return;
+	delete data.place;
+	delete data.selection;
+}
+
 /**
  * Whether `data` has only level layers (burn status, smoke): nothing to chart. False while the
  * catalog isn't known, and for an entry type it doesn't know (that layer says so itself).

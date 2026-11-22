@@ -4,6 +4,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { toast } from "svelte-sonner";
 import { render } from "vitest-browser-svelte";
 import { page } from "vitest/browser";
+import { placePicker } from "$lib/components/dialogs/lazy.svelte";
 import type { PlaceInfo, QueryData, QueryState, UnavailableReason } from "$lib/data/types";
 import { UNAVAILABLE_REASONS } from "$lib/data/types";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
@@ -193,7 +194,14 @@ test.each(["region-unresolved", "location-unresolved", "monitor-unlisted"] as co
 		const results = await axe.run(screen.container);
 		expect(results.violations).toEqual([]);
 		await screen.getByRole("button", { name: m.widget_state_choose_another() }).click();
-		expect(onchoose).toHaveBeenCalledOnce();
+		if (reason === "monitor-unlisted") {
+			// A gone searched monitor: the monitor search for this widget, not the place picker.
+			expect(onchoose).not.toHaveBeenCalled();
+			expect(placePicker).toMatchObject({ open: true, monitor: true, widgetId: "w1" });
+			placePicker.open = false;
+		} else {
+			expect(onchoose).toHaveBeenCalledOnce();
+		}
 	}
 );
 

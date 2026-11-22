@@ -375,6 +375,9 @@ describe("wherePurpose", () => {
 		expect(wherePurpose({ layers: [TEMP, O3] }, catalog)).toEqual(O3);
 		expect(wherePurpose({ layers: [{ dataset: "forecasts" }] }, catalog)).toEqual(PM);
 		expect(wherePurpose({ layers: [TEMP] }, catalog)).toEqual(PM);
+		// None with monitors kept (an air-quality layer with no entry type): Where's areas as PM2.5's.
+		const kept = { dataset: "air-quality", monitors: ["m1"], monitorTypes: ["airnow"] };
+		expect(wherePurpose({ layers: [kept, TEMP] }, catalog)).toEqual(PM);
 	});
 
 	it("with no catalog, is the first air-quality layer's entry type", () => {

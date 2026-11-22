@@ -32,7 +32,7 @@
 		widgetInputs,
 		widgetPlaceKind
 	} from "$lib/widgets/shared/input";
-	import { pickedData } from "./apply";
+	import { pickedData, replacedMonitor } from "./apply";
 	import type { PlaceDirectory } from "./directory";
 	import { directoryFor, resolvePicks, type Resolvers } from "./host";
 	import PlacePicker from "./PlacePicker.svelte";
@@ -53,8 +53,13 @@
 		max: number;
 		purpose: { dataset: string; entryType: string };
 		mode: PickerMode;
-		/** What the picker offers: areas only for a Chart or Table (decision 2), else the full Where. */
-		offer: "where" | "areas";
+		/**
+		 * What the picker offers: areas only for a Chart or Table (decision 2), else the full Where;
+		 * only monitors when it replaces a gone monitor (`gone`).
+		 */
+		offer: "where" | "areas" | "monitors";
+		/** The widget's searched monitors no longer listed: the pick replaces the first one. */
+		gone?: string[];
 		initial: Picks;
 		known: PlaceOption[];
 		recent: PlaceOption[];
@@ -84,9 +89,11 @@
 	const failed = $derived(phase === "failed");
 
 	const title = $derived(
-		ready?.mode.kind === "multiple"
-			? m.place_picker_dialog_title_multiple()
-			: m.place_picker_dialog_title()
+		ready?.offer === "monitors"
+			? m.get_data_monitors_dialog_title_single()
+			: ready?.mode.kind === "multiple"
+				? m.place_picker_dialog_title_multiple()
+				: m.place_picker_dialog_title()
 	);
 
 	// Each opening starts fresh; closing aborts whatever it was doing.
@@ -170,6 +177,10 @@
 			}
 			// A Forecast strip has no pollutant: its places are picked as PM2.5's are.
 			const purpose = wherePurpose(target.widget.data, catalog);
+			if (placePicker.monitor) {
+				await loadMonitor({ directory, resolvers, catalog }, target.widget, purpose, signal);
+				return;
+			}
 			const { entryType } = purpose;
 			const initial = fromWhere(target.widget.data);
 			const recentRefs = await readRecent(app.platform, app.space).catch((error: unknown) => {
@@ -202,6 +213,45 @@
 			report(error);
 			phase = "failed";
 		}
+	}
+
+	/**
+	 * Choose another for a widget's gone searched monitor: monitors only (those measuring its
+	 * pollutant), one pick, which replaces the gone monitor.
+	 */
+	async function loadMonitor(
+		ctx: Pick<Ready, "directory" | "resolvers" | "catalog">,
+		widget: WidgetInstance,
+		purpose: Ready["purpose"],
+		signal: AbortSignal
+	): Promise<void> {
+		const listed = new Set((await getMetadata().monitors(signal)).map((mon) => mon.id));
+		const saved = widget.data.layers.flatMap((l) => l.monitors ?? []);
+		const gone = saved.filter((id) => !listed.has(id));
+		const recentRefs = await readRecent(app.platform, app.space).catch((error: unknown) => {
+			report(error);
+			return [];
+		});
+		const picks = await resolvePicks(
+			[],
+			recentRefs,
+			{ directory: ctx.directory, resolvers: ctx.resolvers, entryType: purpose.entryType },
+			signal
+		);
+		if (signal.aborted) return;
+		ready = {
+			...ctx,
+			widgetId: widget.id,
+			max: 1,
+			purpose,
+			mode: { kind: "single" },
+			offer: "monitors",
+			gone,
+			others: 0,
+			pick: null,
+			...picks
+		};
+		phase = "ready";
 	}
 
 	/** The dashboard's place: one place, picked as PM2.5's are (as a new widget's). */
@@ -330,6 +380,10 @@
 	}
 
 	async function done(picked: Picks): Promise<void> {
+		if (ready?.offer === "monitors") {
+			doneMonitor(ready, picked);
+			return;
+		}
 		// This picker offers Where places only, never monitors.
 		const picks = picked.filter(isPlaceRef);
 		const ctx = ready;
@@ -410,6 +464,30 @@
 			// The toast's own region is cut off by this dialog until it has gone.
 			announce(text, { onlyInDialog: true });
 		}
+	}
+
+	/** A monitor picked for a gone one: it replaces it in one undoable edit. */
+	function doneMonitor(ctx: Ready, picked: Picks): void {
+		const ref = picked.find((p) => p.kind === "monitor");
+		const target = find();
+		if (ref?.kind === "monitor" && target) {
+			const next = replacedMonitor(
+				target.widget.data,
+				ctx.gone ?? [],
+				ref.id,
+				onePlace(target.widget.type)
+			);
+			if (next) {
+				target.session.apply({
+					op: "setWidgetData",
+					target: { widgetId: target.widget.id },
+					from: target.widget.data,
+					to: next
+				});
+			}
+			void remember([ref]);
+		}
+		close();
 	}
 
 	/**
@@ -562,7 +640,9 @@
 		<!-- One persistent status for loading and failure, so either is announced. -->
 		<div class={["flex flex-wrap items-center gap-2 text-sm", showPicker && "sr-only"]}>
 			<p role="status" data-place-picker-load-status class={[!failed && "text-muted-foreground"]}>
-				{#if failed}{m.place_picker_dialog_failed()}{:else if !showPicker}{m.place_picker_dialog_loading()}{/if}
+				{#if failed}{m.place_picker_dialog_failed()}{:else if !showPicker}{placePicker.monitor
+						? m.get_data_monitors_dialog_loading()
+						: m.place_picker_dialog_loading()}{/if}
 			</p>
 			{#if failed}
 				<Button

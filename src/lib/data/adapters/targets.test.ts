@@ -85,6 +85,31 @@ describe("layerTarget", () => {
 		});
 	});
 
+	it("ticked types and searched monitors that don't measure the pollutant aren't fetched", async () => {
+		// PurpleAir and the BAM measure PM2.5, not ozone; AirNow isn't in the meta (unknown: kept).
+		const ozone: QueryLayer = {
+			...base,
+			entryType: "o3",
+			monitorTypes: ["purpleair", "airnow"],
+			monitors: ["m-bam"]
+		};
+		expect(await layerTarget(ozone, ctx)).toEqual({
+			kind: "monitor-set",
+			ids: [],
+			types: ["airnow"],
+			regionKeys: null
+		});
+		// Every ticked type dropped: never an empty type list (the bulk endpoint would send every type).
+		expect(
+			await layerTarget({ ...ozone, monitorTypes: ["purpleair"], monitors: ["m-bam"] }, ctx)
+		).toEqual({ kind: "monitors", ids: [] });
+		expect(
+			await layerTarget({ ...ozone, monitorTypes: ["bam1022"], monitors: ["m-bam", "m-x"] }, ctx)
+		).toEqual({ unavailable: "monitor-unlisted" });
+		const pm25: QueryLayer = { ...base, monitorTypes: ["purpleair"], monitors: ["m-bam"] };
+		expect(await layerTarget(pm25, ctx)).toMatchObject({ types: ["purpleair"], ids: ["m-bam"] });
+	});
+
 	it("scopes ticked types by a school's first region", async () => {
 		const layer: QueryLayer = {
 			...base,

@@ -106,6 +106,44 @@ async function fallbackTarget(
 }
 
 /**
+ * The ticked types and searched monitors that measure the layer's pollutant (spec decision 32: a
+ * type or monitor that doesn't is kept in the document, greyed out, and not fetched). A type the
+ * monitors meta doesn't list, or a monitor whose type it doesn't, isn't known not to, so it stays;
+ * a meta or list that fails to load drops nothing.
+ */
+async function measuring(
+	layer: QueryLayer,
+	ids: string[],
+	types: string[],
+	metadata: AdapterContext["metadata"],
+	signal?: AbortSignal
+): Promise<{ ids: string[]; types: string[] }> {
+	const entryType = layer.entryType;
+	if (!entryType || (ids.length === 0 && types.length === 0)) return { ids, types };
+	let measures: (type: string | undefined) => boolean;
+	let typeOf: Map<string, string>;
+	try {
+		const [info, list] = await Promise.all([
+			metadata.monitorTypes(signal),
+			ids.length > 0 ? metadata.monitors(signal) : Promise.resolve([])
+		]);
+		const byType = new Map(info.map((t) => [t.type, t]));
+		measures = (type) => {
+			const known = type === undefined ? undefined : byType.get(type);
+			return !known || known.entryTypes.includes(entryType);
+		};
+		typeOf = new Map(list.map((mon) => [mon.id, mon.type]));
+	} catch (error) {
+		if (signal?.aborted) throw error;
+		return { ids, types };
+	}
+	return {
+		ids: ids.filter((id) => measures(typeOf.get(id))),
+		types: types.filter((type) => measures(type))
+	};
+}
+
+/**
  * What a layer asks for. Its monitors come first: ticked types make a `monitor-set` (those types
  * inside the Where's regions, or everywhere, plus the searched monitors); searched monitors alone
  * are those monitors, wherever they are (Where doesn't narrow them). With neither, its Where:
@@ -113,16 +151,23 @@ async function fallbackTarget(
  * never carry the server's per-database id; they are resolved here only to check that they can
  * be. A point or a school becomes its region keys to try in order, so its coordinates never reach
  * a cache key or a request beyond the point lookup. No Where and no monitors: the whole layer.
+ * Ticked types and searched monitors that don't measure the pollutant are left out (`measuring`);
+ * with none left, nothing is fetched.
  */
 export async function layerTarget(
 	layer: QueryLayer,
 	ctx: Pick<AdapterContext, "regions" | "locations" | "points" | "metadata">,
 	signal?: AbortSignal
 ): Promise<Target | { unavailable: UnavailableReason }> {
-	const ids = [...(layer.monitors ?? [])];
-	const types = [...(layer.monitorTypes ?? [])];
-	if (ids.length > 0 && (await anyUnlisted(ids, ctx.metadata, signal))) {
+	const saved = { ids: [...(layer.monitors ?? [])], types: [...(layer.monitorTypes ?? [])] };
+	if (saved.ids.length > 0 && (await anyUnlisted(saved.ids, ctx.metadata, signal))) {
 		return { unavailable: "monitor-unlisted" };
+	}
+	const { ids, types } = await measuring(layer, saved.ids, saved.types, ctx.metadata, signal);
+	// Monitors asked for, none measuring the pollutant: nothing to fetch (never an empty type
+	// list, which the bulk endpoints read as every type; never the Where's own figure).
+	if (ids.length === 0 && types.length === 0 && (saved.ids.length || saved.types.length)) {
+		return { kind: "monitors", ids: [] };
 	}
 	if (types.length > 0) {
 		const regionKeys = await whereRegionKeys(layer, ctx, signal);

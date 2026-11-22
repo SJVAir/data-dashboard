@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { getContext, type Snippet } from "svelte";
 	import { removeWidget } from "$lib/actions/widget";
+	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import type { WidgetDataConfig } from "$lib/data/schema";
 	import type { QueryData, QueryState } from "$lib/data/types";
@@ -33,7 +34,8 @@
 		/**
 		 * Opens the place picker; "Choose a place" (idle) and "Choose another" (for a place) show
 		 * only when this is given and editing. "Choose another" for a retired dataset or entry type
-		 * opens Edit data instead.
+		 * opens Edit data instead, and for a searched monitor no longer listed, the monitor search
+		 * (its pick replaces that monitor).
 		 */
 		onchoose?: () => void;
 		/** What the idle state says instead of "Choose a place to show data." */
@@ -204,7 +206,14 @@
 							</Button>
 						{/if}
 					{:else if onchoose}
-						<Button size="sm" variant="outline" onclick={onchoose}>
+						<!-- A gone searched monitor: the monitor search, whose pick replaces it. -->
+						<Button
+							size="sm"
+							variant="outline"
+							onclick={state.reason === "monitor-unlisted"
+								? () => openPlacePicker({ widgetId: widget.id, monitor: true })
+								: onchoose}
+						>
 							{m.widget_state_choose_another()}
 						</Button>
 					{/if}

@@ -288,28 +288,35 @@ export const placePicker = $state<{
 	widgetId: string | null;
 	/** A pick for a copy: Done hands the place here and changes nothing. */
 	pick: ((place: ChosenPlace) => void) | null;
+	/**
+	 * The widget's searched monitor that is no longer listed: the picker offers only monitors, and
+	 * the pick replaces it (the "no longer available" card's Choose another).
+	 */
+	monitor: boolean;
 	/** Counts the openings, so each one starts fresh. */
 	opening: number;
 	/** What had focus when it opened (focus returns there, or to the widget when it's gone). */
 	opener: HTMLElement | null;
-}>({ open: false, widgetId: null, pick: null, opening: 0, opener: null });
+}>({ open: false, widgetId: null, pick: null, monitor: false, opening: 0, opener: null });
 
 /**
  * Opens the place picker for a widget, with `dashboardPlace` for the dashboard's "Change place"
  * bar, or with `pick` for a place to use elsewhere ("Duplicate for another place"). Done changes
  * a widget's place in one undoable edit; the bar's place changes the starter (no copy, no undo)
  * or, on a copy, its widgets at that place (one undoable edit); a pick is handed to `pick` (one
- * place, picked as PM2.5's are; nothing is changed). `opener` is where focus returns, when what
+ * place, picked as PM2.5's are; nothing is changed); with `monitor`, a widget's searched monitor
+ * that is no longer listed is replaced by a monitor picked for it. `opener` is where focus returns, when what
  * has focus now is about to go (a dialog closing as this opens).
  */
 export function openPlacePicker(
 	opts:
-		| { widgetId: string }
+		| { widgetId: string; monitor?: boolean }
 		| { dashboardPlace: true }
 		| { pick: (place: ChosenPlace) => void; opener?: HTMLElement | null }
 ): void {
 	placePicker.widgetId = "widgetId" in opts ? opts.widgetId : null;
 	placePicker.pick = "pick" in opts ? opts.pick : null;
+	placePicker.monitor = "monitor" in opts && opts.monitor === true;
 	placePicker.opening++;
 	placePicker.opener =
 		"pick" in opts && opts.opener !== undefined

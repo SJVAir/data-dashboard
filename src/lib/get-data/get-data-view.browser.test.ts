@@ -643,6 +643,25 @@ test("Data resolution is its own section after What, with a help button; the lin
 	host.remove();
 });
 
+test("Air quality's monitor types and searched monitors edit the draft's air-quality layer", async () => {
+	const air = { ...CATALOG[0], monitorTypes: ["bam1022", "purpleair"] };
+	fake.metadata = fixtureMetadata({ catalog: async () => [air, ...CATALOG.slice(1)] });
+	makeClient();
+	const { host, latest } = await show(monitorsDraft(["m-pa"]));
+	await page.getByRole("checkbox", { name: "BAM 1022" }).click();
+	expect(latest().data.layers[0]).toEqual({
+		dataset: "air-quality",
+		entryType: "pm25",
+		monitors: ["m-pa"],
+		monitorTypes: ["bam1022"]
+	});
+	await page
+		.getByRole("button", { name: m.get_data_monitors_remove_label({ name: "Purple Air" }) })
+		.click();
+	expect(latest().data.layers[0]).not.toHaveProperty("monitors");
+	host.remove();
+});
+
 test("adding pesticide use on Automatic says Automatic moved to Monthly; removing it clears the note", async () => {
 	const { host, current } = await show(monitorsDraft(["m1"]));
 	const note = page.getByTestId("resolution-note");
@@ -672,7 +691,7 @@ test("adding pesticide use on Automatic says Automatic moved to Monthly; removin
 			end: formatDate(todayPacific())
 		})
 	);
-	await page.getByRole("button", { name: /^Remove/ }).click();
+	await page.getByRole("button", { name: /^Remove Pounds Applied/ }).click();
 	await expect.element(note).toHaveTextContent("");
 	await expect.element(daily).toBeEnabled();
 	await expect.element(page.getByTestId("range-widened-note")).toHaveTextContent("");
@@ -994,7 +1013,7 @@ test("a mixed draft on Automatic blocks Add, naming the dataset the main layer c
 			"Pesticide Use doesn't line up with the data resolution. Remove it or choose another data resolution."
 		);
 	await openSection(/^Pesticide Use/);
-	await page.getByRole("button", { name: /^Remove/ }).click();
+	await page.getByRole("button", { name: /^Remove Pounds Applied/ }).click();
 	await expect.element(add).toBeEnabled();
 });
 

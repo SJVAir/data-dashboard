@@ -95,6 +95,7 @@ beforeEach(async () => {
 					if (layer.place?.kind === "region" && layer.place.code === "gone") {
 						return { unavailable: "region-unresolved" };
 					}
+					if (layer.monitors?.includes("m-gone")) return { unavailable: "monitor-unlisted" };
 					return base.target(layer, ctx);
 				}
 			}
@@ -233,6 +234,24 @@ test("the no-longer-available card's Choose another opens the picker without the
 	await page.getByRole("option", { name: /City of Fresno/ }).click();
 	await page.getByRole("button", { name: m.place_picker_done() }).click();
 	expect(layerOf(session).place).toEqual({ kind: "region", type: "city", code: "0627000" });
+});
+
+test("a gone searched monitor's Choose another opens the monitor search; the pick replaces it", async () => {
+	const { session } = await show(widget({ place: COUNTY, monitors: ["m-pa", "m-gone"] }));
+	await page.getByRole("button", { name: m.widget_state_choose_another() }).click();
+	const search = page.getByRole("dialog", { name: m.get_data_monitors_dialog_title_single() });
+	await expect.element(search).toBeVisible();
+	await animationsSettled(search.element());
+	const box = page.getByRole("combobox");
+	await expect.element(box).toHaveAttribute("placeholder", m.place_picker_placeholder_monitors());
+	await userEvent.fill(box, "ba");
+	await page.getByRole("option", { name: /BAM/ }).click();
+	await expect.element(search).not.toBeInTheDocument();
+	// In the gone monitor's place; the Where stays (a Chart's monitors count wherever they are).
+	expect(layerOf(session).layers[0].monitors).toEqual(["m-pa", "m-bam"]);
+	expect(layerOf(session).place).toEqual(COUNTY);
+	session.undo();
+	expect(layerOf(session).layers[0].monitors).toEqual(["m-pa", "m-gone"]);
 });
 
 test("a place whose lookup fails stays picked (it may still exist)", async () => {

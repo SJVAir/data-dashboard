@@ -86,6 +86,7 @@
 		toMapDraft
 	} from "./map";
 	import { pesticideMeta } from "./sources";
+	import AirQualitySection from "./AirQualitySection.svelte";
 	import MapSections from "./MapSections.svelte";
 	import { isCalendarType } from "$lib/calendars/types";
 	import ThresholdLineControl from "./ThresholdLineControl.svelte";
@@ -557,6 +558,16 @@
 		layers.setPollutant(draft.data, known, pick);
 	}
 
+	function setMonitorTypes(types: string[]): void {
+		layers.setMonitorTypes(draft.data, known, types);
+	}
+
+	/** The searched monitors; a single-place widget's one monitor replaces its Where (decision 11). */
+	function setMonitors(ids: string[]): void {
+		layers.setMonitors(draft.data, known, ids);
+		layers.dropWhereForMonitor(draft.data, placeLimit(getWidgetType(draft.type)));
+	}
+
 	function toggleLayer(pick: layers.EntryPick, on: boolean): void {
 		layers.toggleLayer(draft.data, known, pick, on);
 	}
@@ -970,7 +981,10 @@
 							data={plain.data}
 							catalog={known}
 							offered={offeredPollutants(known, mapPollutants ?? [])}
+							limit={placeLimit(type)}
 							onpollutant={setPollutant}
+							onmonitortypes={setMonitorTypes}
+							onmonitors={setMonitors}
 							onsmoke={(on) => setSmokeAndFire(draft.data, on)}
 							onnotices={(on) => setNotices(draft.data, on)}
 							onfilters={(filters) => setMapPesticideFilters(draft.data, filters)}
@@ -1000,6 +1014,18 @@
 							onthreshold={setThreshold}
 							onretry={() => alertTry++}
 						/>
+						{#if main}
+							<!-- One monitor or one place (decision 33); the pollutant is chosen above. -->
+							<AirQualitySection
+								data={plain.data}
+								catalog={known}
+								limit={placeLimit(type)}
+								pollutants={null}
+								onpollutant={setPollutant}
+								ontypes={setMonitorTypes}
+								onmonitors={setMonitors}
+							/>
+						{/if}
 					</section>
 				{/if}
 			{:else}
@@ -1013,8 +1039,11 @@
 							data={plain.data}
 							catalog={known}
 							places={picks.length}
+							limit={placeLimit(type)}
 							maxOverlays={MAX_OVERLAYS}
 							onpollutant={setPollutant}
+							onmonitortypes={setMonitorTypes}
+							onmonitors={setMonitors}
 							ontoggle={toggleLayer}
 							onaddpesticide={addPesticideLayer}
 							onremove={removeLayer}

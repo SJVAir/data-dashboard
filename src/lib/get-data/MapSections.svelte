@@ -14,6 +14,7 @@
 		PESTICIDE_USE,
 		pollutantLayer
 	} from "$lib/widgets/map/options";
+	import AirQualitySection from "./AirQualitySection.svelte";
 	import { PESTICIDE_FILTER_NAMES } from "./filter-names";
 	import type { EntryPick } from "./layers";
 	import { hasNotices, hasSmokeAndFire, hasUse, mapPesticideFilters } from "./map";
@@ -27,7 +28,10 @@
 		data,
 		catalog,
 		offered,
+		limit,
 		onpollutant,
+		onmonitortypes,
+		onmonitors,
 		onsmoke,
 		onnotices,
 		onfilters,
@@ -44,8 +48,14 @@
 		catalog: CatalogEntry[];
 		/** The pollutants the Map offers, in order (the monitors meta's `available_pollutants`). */
 		offered: EntryTypeMeta[];
+		/** How many places the Map takes (`placeLimit`). */
+		limit: number;
 		/** A pollutant chosen, or `null` for None. */
 		onpollutant: (pick: EntryPick | null) => void;
+		/** The ticked monitor types after a change. */
+		onmonitortypes: (types: string[]) => void;
+		/** The searched monitors after a change. */
+		onmonitors: (ids: string[]) => void;
 		/** Smoke and fire on or off (both together). */
 		onsmoke: (on: boolean) => void;
 		/** Spray notices on or off. */
@@ -155,33 +165,15 @@
 			{#if airQuality?.description}
 				<p class="text-muted-foreground text-xs">{airQuality.description}</p>
 			{/if}
-			<fieldset class="flex flex-col gap-1">
-				<legend class="sr-only">{airQuality?.label ?? AIR_QUALITY}</legend>
-				<label class="flex min-h-6 items-center gap-2 text-sm">
-					<input
-						type="radio"
-						class="accent-primary size-4"
-						name="{uid}-pollutant"
-						value=""
-						checked={chosen === undefined}
-						onchange={() => onpollutant(null)}
-					/>
-					<span>{m.get_data_none()}</span>
-				</label>
-				{#each radios as entry (entry.id)}
-					<label class="flex min-h-6 items-center gap-2 text-sm">
-						<input
-							type="radio"
-							class="accent-primary size-4"
-							name="{uid}-pollutant"
-							value={entry.id}
-							checked={entry.id === chosen}
-							onchange={() => onpollutant({ dataset: AIR_QUALITY, entryType: entry.id })}
-						/>
-						<span>{entry.label}</span>
-					</label>
-				{/each}
-			</fieldset>
+			<AirQualitySection
+				{data}
+				{catalog}
+				{limit}
+				pollutants={radios}
+				{onpollutant}
+				ontypes={onmonitortypes}
+				{onmonitors}
+			/>
 		</Accordion.Content>
 	</Accordion.Item>
 	<Accordion.Item

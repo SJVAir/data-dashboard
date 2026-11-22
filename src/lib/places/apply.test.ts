@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { WidgetDataConfig } from "$lib/data/schema";
-import { pickedData, RegionLookupFailed } from "./apply";
+import { pickedData, RegionLookupFailed, replacedMonitor } from "./apply";
 import type { Picks } from "./selection";
 
 const RANGE = { kind: "trailing", amount: 30, unit: "day" } as const;
@@ -136,5 +136,44 @@ describe("pickedData", () => {
 
 	it("is null for data with no layer to change", async () => {
 		expect(await pickedData({ layers: [] }, [{ kind: "monitor", id: "a" }], off)).toBeNull();
+	});
+});
+
+describe("replacedMonitor", () => {
+	const county = { kind: "region" as const, type: "county", code: "06019" };
+	const chart = (): WidgetDataConfig => ({
+		dateRange: RANGE,
+		place: county,
+		layers: [
+			{ dataset: "air-quality", entryType: "pm25", monitors: ["a", "gone", "b"] },
+			{ dataset: "weather", entryType: "temperature" }
+		]
+	});
+
+	it("replaces the gone monitor in place; the Where and the other layers stay", () => {
+		expect(replacedMonitor(chart(), ["gone"], "c", false)).toEqual({
+			...chart(),
+			layers: [
+				{ dataset: "air-quality", entryType: "pm25", monitors: ["a", "c", "b"] },
+				{ dataset: "weather", entryType: "temperature" }
+			]
+		});
+		// A pick already listed isn't doubled.
+		expect(replacedMonitor(chart(), ["gone"], "b", false)?.layers[0].monitors).toEqual(["a", "b"]);
+	});
+
+	it("a single-place widget holds just the pick, with no Where", () => {
+		const tile: WidgetDataConfig = {
+			place: county,
+			layers: [{ dataset: "forecasts", monitors: ["gone"] }]
+		};
+		expect(replacedMonitor(tile, ["gone"], "c", true)).toEqual({
+			layers: [{ dataset: "forecasts", monitors: ["c"] }]
+		});
+	});
+
+	it("is null when no saved monitor is gone", () => {
+		expect(replacedMonitor(chart(), [], "c", false)).toBeNull();
+		expect(replacedMonitor(chart(), ["other"], "c", false)).toBeNull();
 	});
 });

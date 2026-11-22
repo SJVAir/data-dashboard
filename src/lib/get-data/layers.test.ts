@@ -10,9 +10,12 @@ import {
 	addPesticideLayer,
 	dropMonitorsForPlace,
 	dropStationOnPlaceChange,
+	dropWhereForMonitor,
 	levelOnly,
 	removeLayer,
 	setFilters,
+	setMonitors,
+	setMonitorTypes,
 	setPollutant,
 	setStation,
 	toggleLayer
@@ -229,5 +232,84 @@ describe("draft layers", () => {
 		toggleLayer(data, CATALOG, temperature, false);
 		expect(data.layers).toEqual([{ ...precipitation }]);
 		expect(data.place).toEqual(FRESNO);
+	});
+});
+
+describe("monitors on the air-quality layer", () => {
+	it("layers: None then PM2.5 again restores the ticks and monitors", () => {
+		const data = pm25With({ ...temperature });
+		data.layers[0] = { ...data.layers[0], monitorTypes: ["airnow", "purpleair"], monitors: ["m1"] };
+		setPollutant(data, CATALOG, null);
+		// Nothing is cleared (decision 31): the layer stays with no entry type.
+		expect(data.layers).toEqual([
+			{ dataset: "air-quality", monitorTypes: ["airnow", "purpleair"], monitors: ["m1"] },
+			{ ...temperature }
+		]);
+		setPollutant(data, CATALOG, { dataset: "air-quality", entryType: "pm25" });
+		expect(data.layers).toEqual([
+			{
+				dataset: "air-quality",
+				entryType: "pm25",
+				monitorTypes: ["airnow", "purpleair"],
+				monitors: ["m1"]
+			},
+			{ ...temperature }
+		]);
+	});
+
+	it("setMonitorTypes ticks types on the air-quality layer; none left removes the field", () => {
+		const data = pm25With({ ...temperature });
+		setMonitorTypes(data, CATALOG, ["purpleair", "airnow", "purpleair"]);
+		expect(data.layers[0]).toEqual({
+			dataset: "air-quality",
+			entryType: "pm25",
+			monitorTypes: ["purpleair", "airnow"]
+		});
+		setMonitorTypes(data, CATALOG, []);
+		expect(data.layers[0]).toEqual({ dataset: "air-quality", entryType: "pm25" });
+		expect(data.place).toEqual(FRESNO);
+	});
+
+	it("setMonitors lists searched monitors; none left removes the field", () => {
+		const data = pm25With();
+		setMonitors(data, CATALOG, ["m2", "m1", "m2"]);
+		expect(data.layers[0]).toEqual({
+			dataset: "air-quality",
+			entryType: "pm25",
+			monitors: ["m2", "m1"]
+		});
+		setMonitors(data, CATALOG, []);
+		expect(data.layers[0]).toEqual({ dataset: "air-quality", entryType: "pm25" });
+	});
+
+	it("with None, removing the last monitor removes the empty air-quality layer", () => {
+		const data = pm25With({ ...temperature });
+		data.layers[0] = { dataset: "air-quality", monitors: ["m1"] };
+		setMonitors(data, CATALOG, []);
+		expect(data.layers).toEqual([{ ...temperature }]);
+		const typed = pm25With();
+		typed.layers[0] = { dataset: "air-quality", monitors: ["m1"], monitorTypes: ["airnow"] };
+		setMonitors(typed, CATALOG, []);
+		expect(typed.layers).toEqual([{ dataset: "air-quality", monitorTypes: ["airnow"] }]);
+	});
+
+	it("no air-quality layer: nothing to put monitors on, nothing changes", () => {
+		const data: WidgetDataConfig = { place: FRESNO, layers: [{ ...temperature }] };
+		setMonitors(data, CATALOG, ["m1"]);
+		setMonitorTypes(data, CATALOG, ["airnow"]);
+		expect(data.layers).toEqual([{ ...temperature }]);
+	});
+
+	it("a single-place widget's searched monitor replaces its Where", () => {
+		const tile = pm25With();
+		dropWhereForMonitor(tile, 1);
+		expect(tile.place).toEqual(FRESNO);
+		setMonitors(tile, CATALOG, ["m1"]);
+		dropWhereForMonitor(tile, 1);
+		expect(tile).not.toHaveProperty("place");
+		const chart = pm25With();
+		setMonitors(chart, CATALOG, ["m1"]);
+		dropWhereForMonitor(chart, Infinity);
+		expect(chart.place).toEqual(FRESNO);
 	});
 });

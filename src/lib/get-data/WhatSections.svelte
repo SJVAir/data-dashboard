@@ -3,10 +3,11 @@
 	import type { CatalogEntry } from "$lib/data/metadata";
 	import type { Layer, PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
 	import Toggletip from "$lib/components/Toggletip.svelte";
-	import { isPollutantLayer } from "$lib/data/layer-kind";
+	import { AIR_QUALITY, isPollutantLayer } from "$lib/data/layer-kind";
 	import { formatList, formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import { mainLayer } from "$lib/widgets/shared/input";
+	import AirQualitySection from "./AirQualitySection.svelte";
 	import { canAddLayer, PESTICIDES, WEATHER, type EntryPick } from "./layers";
 	import type { OfferedDataset } from "./offer";
 	import PesticideLayers from "./PesticideLayers.svelte";
@@ -20,8 +21,11 @@
 		data,
 		catalog,
 		places,
+		limit,
 		maxOverlays,
 		onpollutant,
+		onmonitortypes,
+		onmonitors,
 		ontoggle,
 		onaddpesticide,
 		onremove,
@@ -36,9 +40,15 @@
 		catalog: CatalogEntry[];
 		/** How many places the widget has (the station choice shows for one). */
 		places: number;
+		/** How many places the widget type takes (`placeLimit`): 1 offers one monitor, no types. */
+		limit: number;
 		maxOverlays: number;
 		/** A pollutant, or `null` for None. */
 		onpollutant: (pick: EntryPick | null) => void;
+		/** The ticked monitor types after a change (Air quality). */
+		onmonitortypes: (types: string[]) => void;
+		/** The searched monitors after a change (Air quality). */
+		onmonitors: (ids: string[]) => void;
 		/** A weather, smoke or forecast layer on or off. */
 		ontoggle: (pick: EntryPick, on: boolean) => void;
 		onaddpesticide: (entryType: string) => void;
@@ -137,7 +147,20 @@
 						{/if}
 					</div>
 				{/if}
-				{#if pollutants.length}
+				{#if id === AIR_QUALITY}
+					<AirQualitySection
+						{data}
+						{catalog}
+						{limit}
+						{pollutants}
+						pollutantReason={(entry) =>
+							blocked?.([{ dataset: id, entryType: entry.id }], pollutant)}
+						capText={atCap ? limitText : undefined}
+						{onpollutant}
+						ontypes={onmonitortypes}
+						{onmonitors}
+					/>
+				{:else if pollutants.length}
 					{@const addBlocked = !pollutant && atCap}
 					{@const addReasonId = `${uid}-${id}-pollutant-reason`}
 					<fieldset class="flex flex-col gap-1">
