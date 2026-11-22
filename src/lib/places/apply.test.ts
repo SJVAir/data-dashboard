@@ -22,13 +22,13 @@ describe("pickedData", () => {
 		expect(
 			await pickedData(county, [{ kind: "region", type: "county", code: "06019" }], off)
 		).toBeNull();
-		const monitors = data({ selection: { kind: "monitors", ids: ["a", "b"] } });
+		const counties = data({ selection: { kind: "regions", ids: ["county:a", "county:b"] } });
 		expect(
 			await pickedData(
-				monitors,
+				counties,
 				[
-					{ kind: "monitor", id: "a" },
-					{ kind: "monitor", id: "b" }
+					{ kind: "region", type: "county", code: "a" },
+					{ kind: "region", type: "county", code: "b" }
 				],
 				off
 			)
@@ -37,7 +37,7 @@ describe("pickedData", () => {
 
 	it("one region becomes the widget's place, dropping any selection", async () => {
 		const result = await pickedData(
-			data({ selection: { kind: "monitors", ids: ["a", "b"] } }),
+			data({ selection: { kind: "regions", ids: ["county:a", "county:b"] } }),
 			[{ kind: "region", type: "city", code: "0627000" }],
 			off
 		);
@@ -48,26 +48,32 @@ describe("pickedData", () => {
 		expect(result!.data).not.toHaveProperty("selection");
 	});
 
-	it("three monitors become a selection, dropping the place", async () => {
-		const picks: Picks = ["a", "b", "c"].map((id) => ({ kind: "monitor", id }));
+	it("three regions become a selection, dropping the place", async () => {
+		const picks: Picks = ["a", "b", "c"].map((code) => ({ kind: "region", type: "county", code }));
 		const result = await pickedData(
 			data({ place: { kind: "region", type: "county", code: "06019" } }),
 			picks,
 			off
 		);
-		expect(result!.data).toEqual(data({ selection: { kind: "monitors", ids: ["a", "b", "c"] } }));
+		expect(result!.data).toEqual(
+			data({ selection: { kind: "regions", ids: ["county:a", "county:b", "county:c"] } })
+		);
 		expect(result!.data).not.toHaveProperty("place");
 	});
 
 	it("keeps the layers and other fields as they are", async () => {
 		const start: WidgetDataConfig = {
 			dateRange: RANGE,
-			place: { kind: "monitor", id: "y" },
-			layers: [{ dataset: "air-quality" }, { dataset: "air-quality", entryType: "pm25" }]
+			place: { kind: "region", type: "county", code: "y" },
+			layers: [
+				{ dataset: "air-quality" },
+				{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }
+			]
 		};
-		const result = await pickedData(start, [{ kind: "monitor", id: "z" }], off);
+		const z = { kind: "region" as const, type: "county", code: "z" };
+		const result = await pickedData(start, [z], off);
 		expect(result!.data.layers).toBe(start.layers);
-		expect(result!.data.place).toEqual({ kind: "monitor", id: "z" });
+		expect(result!.data.place).toEqual(z);
 		expect(result!.data.dateRange).toEqual(RANGE);
 	});
 

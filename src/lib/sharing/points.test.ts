@@ -265,7 +265,7 @@ describe("hasPoints and pointSwaps", () => {
 			title: null,
 			rect: { x: 0, y: 0, w: 6, h: 6 },
 			data: {
-				selection: { kind: "monitors", ids: ["a", "b"] },
+				selection: { kind: "regions", ids: ["county:a", "county:b"] },
 				layers: [PM25]
 			}
 		};
@@ -415,7 +415,8 @@ describe("withSwaps", () => {
 			point: { lat: POINT.lat, lon: POINT.lon },
 			region: { type: "zipcode", code: "93721" }
 		};
-		for (const place of [{ kind: "monitor", id: "m1" } as const, { ...POINT, lat: 36.8 }]) {
+		const county = { kind: "region", type: "county", code: "06019" } as const;
+		for (const place of [county, { ...POINT, lat: 36.8 }]) {
 			const doc = docWith(dataWidget("p", place));
 			expect(withSwaps(doc, [swap]).body.widgets[1]).toEqual(doc.body.widgets[1]);
 		}

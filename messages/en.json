@@ -910,7 +910,9 @@
 		}
 	],
 	"place_picker_label": "Search for a place",
-	"place_picker_placeholder": "Search for a city, ZIP, school, or monitor",
+	"place_picker_placeholder": "Search for a city, ZIP, or school",
+	"place_picker_placeholder_areas": "Search for a city, ZIP, or county",
+	"place_picker_placeholder_monitors": "Search for a monitor",
 	"place_picker_results": "Places found",
 	"place_picker_use_location": "Use my location",
 	"place_picker_locating": "Finding your location…",

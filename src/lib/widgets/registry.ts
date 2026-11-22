@@ -17,6 +17,9 @@ export type WidgetMenuEnv = { app: AppContext; widget: () => WidgetInstance | nu
  * A widget type's descriptor. It's in the initial bundle, so it imports neither the data layer
  * nor its component: those come with `load`.
  */
+/** What a direct add gives a new widget (`WidgetType.addable`). */
+export type Addable = { data: WidgetDataConfig; options?: Record<string, unknown> };
+
 export type WidgetType = {
 	type: string;
 	label: () => string;
@@ -57,9 +60,10 @@ export type WidgetType = {
 	 * A direct add: Add widget adds the type with this data. Data types (those with
 	 * `accepts.datasets`) go through Get data unless they're also `addable`, which adds them
 	 * directly. Gets the dashboard it's added to; returns the new widget's data and, if it has
-	 * any, its `options`.
+	 * any, its `options` (or a promise of them, when they need a lookup first: the Map's monitor
+	 * types).
 	 */
-	addable?: (doc: Dashboard) => { data: WidgetDataConfig; options?: Record<string, unknown> };
+	addable?: (doc: Dashboard) => Addable | Promise<Addable>;
 	/** Runs right after Add widget adds a widget of this type (e.g. opening its editor). */
 	onAdded?: (app: AppContext, widgetId: string) => void;
 };

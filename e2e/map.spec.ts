@@ -41,6 +41,7 @@ import {
 	routeMapReadings,
 	routeMapUse,
 	routeOneOutline,
+	EVERY_MONITOR_TYPE,
 	USE_CATALOG,
 	USE_FILE,
 	useFixtures,
@@ -70,7 +71,7 @@ test.beforeAll(async ({ browser, browserName }) => {
 });
 
 const FRESNO_MAP = "PM2.5 · Fresno County";
-const THREE_MAP = "PM2.5 · 3 places";
+const TWO_MAP = "PM2.5 · 2 places";
 /**
  * Drawn when the map shows Fresno County: Drummond Street only (Porterville is in view, just
  * outside the county, but isn't drawn; the Science Building is inactive and indoors).
@@ -78,8 +79,6 @@ const THREE_MAP = "PM2.5 · 3 places";
 const FRESNO_VIEW = "PM2.5: 1 Good";
 /** Drawn when it shows Fresno County with Inactive and Inside on: its two monitors. */
 const FRESNO_ALL_VIEW = "PM2.5: 2 Good";
-/** Drawn when it shows Drummond Street, Porterville and Bakersfield: those three only. */
-const THREE_VIEW = "PM2.5: 1 Good, 1 Moderate, 1 Unhealthy for Sensitive Groups";
 /** In view when zoomed in twice on the county: Drummond Street only. */
 const ZOOMED_VIEW = "PM2.5: 1 Good";
 
@@ -127,16 +126,6 @@ function picker(page: Page): Locator {
 	return page.getByRole("dialog", { name: /^Choose (a place|places)$/ });
 }
 
-/** Searches the open picker for `query` and picks the monitor named `name`. */
-async function pickMonitor(page: Page, query: string, name: string): Promise<void> {
-	await picker(page).getByRole("combobox", { name: "Search for a place" }).fill(query);
-	await picker(page)
-		.getByRole("listbox", { name: "Places found" })
-		.getByRole("group", { name: "Monitors" })
-		.getByRole("option", { name: new RegExp(`^${name}`) })
-		.click();
-}
-
 /** A new blank dashboard with a Map added from Add widget, drawn and framed. */
 async function addMap(page: Page): Promise<Locator> {
 	await newBlankDashboard(page);
@@ -148,7 +137,7 @@ async function addMap(page: Page): Promise<Locator> {
 	return map;
 }
 
-/** A shared dashboard holding one Map on the Drummond Street monitor. */
+/** A shared dashboard holding one Map of the Drummond Street monitor (searched, no Where). */
 const monitorDoc = {
 	kind: "dashboard",
 	schemaVersion: 1,
@@ -162,11 +151,11 @@ const monitorDoc = {
 				title: null,
 				rect: { x: 0, y: 0, w: 6, h: 6 },
 				data: {
-					place: { kind: "monitor", id: "4Mb0j33kTnS0qzeE4iDGWw" },
 					layers: [
 						{
 							dataset: "air-quality",
-							entryType: "pm25"
+							entryType: "pm25",
+							monitors: ["4Mb0j33kTnS0qzeE4iDGWw"]
 						}
 					]
 				}
@@ -196,7 +185,10 @@ function wideDoc(more: Array<Record<string, unknown>> = [], dateRange?: Record<s
 					rect: { x: 0, y: 0, w: 12, h: 8 },
 					data: {
 						place: FRESNO_COUNTY,
-						layers: [{ dataset: "air-quality", entryType: "pm25" }, ...more],
+						layers: [
+							{ dataset: "air-quality", entryType: "pm25", monitorTypes: EVERY_MONITOR_TYPE },
+							...more
+						],
 						...(dateRange && { dateRange })
 					}
 				}
@@ -220,20 +212,31 @@ test("adds a Map from Add widget at the dashboard's place", async ({ page, mapTi
 	expect(mapTiler.stubbed).toContain("api.maptiler.com/maps/streets-v4/style.json");
 });
 
-test("the picker frames three monitors, and undo brings the region back", async ({ page }) => {
+test("the picker frames two counties, offers no monitors, and undo brings the region back", async ({
+	page
+}) => {
 	await addMap(page);
 
 	await widgetMenuItem(page, FRESNO_MAP, "Change place");
 	await expect(picker(page)).toHaveAccessibleName("Choose places");
-	await picker(page).getByRole("button", { name: "Remove Fresno County" }).click();
-	await pickMonitor(page, "fre", "Fresno - Drummond Street");
-	await pickMonitor(page, "por", "Porterville-NFS");
-	await pickMonitor(page, "bak", "Bakersfield - California Avenue");
+	// Where holds areas, schools and "my location", never monitors.
+	await picker(page).getByRole("combobox", { name: "Search for a place" }).fill("fre");
+	const found = picker(page).getByRole("listbox", { name: "Places found" });
+	await expect(found.getByRole("option", { name: /^Fresno County/ })).toBeVisible();
+	await expect(found.getByRole("group", { name: "Monitors" })).toHaveCount(0);
+	await picker(page).getByRole("combobox", { name: "Search for a place" }).fill("");
+	await picker(page)
+		.getByRole("button", { name: /^Counties/ })
+		.click();
+	await picker(page)
+		.getByRole("grid", { name: "Places in this list" })
+		.getByRole("row", { name: /Tulare County/ })
+		.click();
 	await picker(page).getByRole("button", { name: "Done" }).click();
 	await expect(picker(page)).toBeHidden();
 
-	await expect(widgetTitles(page)).toHaveText([THREE_MAP]);
-	await expect(inView(mapOf(page, THREE_MAP))).toHaveText(THREE_VIEW);
+	await expect(widgetTitles(page)).toHaveText([TWO_MAP]);
+	await expect(inView(mapOf(page, TWO_MAP))).toHaveText(/^PM2\.5: \d/);
 
 	await nav(page).getByRole("button", { name: "Undo" }).click();
 	await expect(widgetTitles(page)).toHaveText([FRESNO_MAP]);
@@ -1071,7 +1074,8 @@ const tallDoc = {
 					layers: [
 						{
 							dataset: "air-quality",
-							entryType: "pm25"
+							entryType: "pm25",
+							monitorTypes: EVERY_MONITOR_TYPE
 						}
 					]
 				}

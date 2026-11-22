@@ -1,29 +1,49 @@
 import type { AdapterRequest, DatasetAdapter } from "$lib/data/adapters/registry";
 import type { CatalogEntry, Level } from "$lib/data/metadata";
-import type { Resolution } from "$lib/data/schema";
-import type { PlaceInfo, QueryData, UnavailableReason } from "$lib/data/types";
+import type { Layer, Resolution } from "$lib/data/schema";
+import type { PlaceInfo, QueryData, QueryLayer, Target, UnavailableReason } from "$lib/data/types";
 import { nextPeriodStart, periodStart } from "$lib/format/range";
 import type { Rect, WidgetInstance } from "$lib/documents/schema";
 
 const DAY = 86_400_000;
 
 /**
- * A fake air-quality adapter for monitors: three points per requested monitor, named
- * "Monitor <id>", a day apart (a month or a year apart at those resolutions, so a monthly
+ * The places a fake fetch answers for: each searched monitor (`monitor:<id>`, "Monitor <id>"),
+ * or each region key (`region:<key>`, "Region <key>").
+ */
+function fakePlaces(target: AdapterRequest["target"]): { place: string; name: string }[] {
+	if (target.kind === "monitors") {
+		return target.ids.map((id) => ({ place: `monitor:${id}`, name: `Monitor ${id}` }));
+	}
+	if (target.kind === "regions") {
+		return target.keys.map((key) => ({ place: `region:${key}`, name: `Region ${key}` }));
+	}
+	return [];
+}
+
+/** A fake target: the searched monitors, else the Where's regions, else unavailable. */
+async function fakeTarget(layer: QueryLayer): Promise<Target | { unavailable: UnavailableReason }> {
+	if (layer.monitors?.length) return { kind: "monitors", ids: [...layer.monitors] };
+	if (layer.place?.kind === "region") {
+		return { kind: "regions", keys: [`${layer.place.type}:${layer.place.code}`] };
+	}
+	if (layer.selection) return { kind: "regions", keys: [...layer.selection.ids] };
+	return { unavailable: "place-unsupported" };
+}
+
+/**
+ * A fake air-quality adapter for monitors (and regions, `fakePlaces`): three points per requested
+ * monitor, named "Monitor <id>", a day apart (a month or a year apart at those resolutions, so a monthly
  * dataset's layers line up). Each request is pushed onto `requests`.
  */
 export function fakeAdapter(requests: AdapterRequest[]): DatasetAdapter {
 	return {
 		id: "air-quality",
-		async target(layer) {
-			if (layer.selection) return { kind: "monitors", ids: [...layer.selection.ids] };
-			if (layer.place?.kind === "monitor") return { kind: "monitors", ids: [layer.place.id] };
-			return { unavailable: "place-unsupported" };
-		},
+		target: fakeTarget,
 		offered: (base) => base,
 		async fetch(req): Promise<QueryData> {
 			requests.push(req);
-			const ids = req.target.kind === "monitors" ? req.target.ids : [];
+			const ids = fakePlaces(req.target);
 			const start = req.range.start.getTime();
 			const coarse = req.resolution === "month" || req.resolution === "year";
 			const times = [0, 1, 2].map((i) => start + i * DAY);
@@ -35,8 +55,8 @@ export function fakeAdapter(requests: AdapterRequest[]): DatasetAdapter {
 				}
 			}
 			return {
-				series: ids.map((id, n) => ({
-					place: `monitor:${id}`,
+				series: ids.map(({ place }, n) => ({
+					place,
 					points: [0, 1, 2].map((i) => ({
 						t: times[i],
 						mean: 5 + i + n,
@@ -49,7 +69,7 @@ export function fakeAdapter(requests: AdapterRequest[]): DatasetAdapter {
 							: {})
 					}))
 				})),
-				places: ids.map((id) => ({ place: `monitor:${id}`, name: `Monitor ${id}` })),
+				places: ids.map(({ place, name }) => ({ place, name })),
 				resolution: req.resolution,
 				fromRaw: false,
 				processor: null,
@@ -59,7 +79,7 @@ export function fakeAdapter(requests: AdapterRequest[]): DatasetAdapter {
 	};
 }
 
-/** A Chart widget of PM2.5 at the monitors `ids` (a place for one, a selection for more). */
+/** A Chart widget of PM2.5 at the monitors `ids` (its air-quality layer's searched monitors). */
 export function chartWidget(
 	ids: string[],
 	extra: Partial<WidgetInstance> = {},
@@ -72,13 +92,27 @@ export function chartWidget(
 		rect,
 		data: {
 			dateRange: { kind: "trailing", amount: 30, unit: "day" },
-			...(ids.length === 1
-				? { place: { kind: "monitor" as const, id: ids[0] } }
-				: { selection: { kind: "monitors" as const, ids } }),
-			layers: [{ dataset: "air-quality", entryType: "pm25" }]
+			layers: [{ dataset: "air-quality", entryType: "pm25", monitors: [...ids] }]
 		},
 		...extra
 	};
+}
+
+/**
+ * Gives `widget` (a `chartWidget`) `layers` in place of its own: an air-quality layer keeps the
+ * widget's searched monitors; with no air-quality layer, the first monitor's id stands in as a
+ * county Where (`region:county:<id>`, named "Region county:<id>"), since only air quality holds
+ * monitors.
+ */
+export function setLayers(widget: WidgetInstance, layers: Layer[]): void {
+	const monitors = widget.data.layers.find((l) => l.dataset === "air-quality")?.monitors ?? [];
+	const next = layers.map((l) =>
+		l.dataset === "air-quality" && monitors.length > 0 ? { ...l, monitors: [...monitors] } : l
+	);
+	widget.data.layers = next;
+	if (!next.some((l) => l.dataset === "air-quality") && monitors.length > 0) {
+		widget.data.place = { kind: "region", type: "county", code: monitors[0] };
+	}
 }
 
 function level(
@@ -148,13 +182,13 @@ export function fakeForecastsAdapter(
 		offered: () => ["day"],
 		async fetch(req): Promise<QueryData> {
 			requests.push(req);
-			const ids = req.target.kind === "monitors" ? req.target.ids : [];
+			const ids = fakePlaces(req.target);
 			const start = req.range.start.getTime();
 			const levels = ["discouraged", "discouraged", "registered"];
 			return {
-				series: ids.map((id) => ({
-					place: `monitor:${id}`,
-					points: missing.includes(id)
+				series: ids.map(({ place }) => ({
+					place,
+					points: missing.includes(place.slice(place.indexOf(":") + 1))
 						? []
 						: levels.map((level, i) => ({
 								t: start + i * DAY,
@@ -166,7 +200,7 @@ export function fakeForecastsAdapter(
 								level
 							}))
 				})),
-				places: ids.map((id) => ({ place: `monitor:${id}`, name: `Monitor ${id}` })),
+				places: ids.map(({ place, name }) => ({ place, name })),
 				resolution: "day",
 				fromRaw: false,
 				processor: null,
@@ -203,7 +237,7 @@ export function fakeNumberAdapter(
 		offered: (base) => (opts.offered ? base.filter((r) => opts.offered!.includes(r)) : base),
 		async fetch(req): Promise<QueryData> {
 			requests.push(req);
-			const ids = req.target.kind === "monitors" ? req.target.ids : [];
+			const ids = fakePlaces(req.target);
 			const period = req.resolution === "raw" ? "hour" : req.resolution;
 			let t = periodStart(req.range.start, period);
 			const times = values.map(() => {
@@ -212,8 +246,8 @@ export function fakeNumberAdapter(
 				return at;
 			});
 			return {
-				series: ids.map((id) => ({
-					place: `monitor:${id}`,
+				series: ids.map(({ place }) => ({
+					place,
 					points: values.map((mean, i) => ({
 						t: times[i],
 						mean,
@@ -223,9 +257,9 @@ export function fakeNumberAdapter(
 						partial: false
 					}))
 				})),
-				places: ids.map((id) => ({
-					place: `monitor:${id}`,
-					name: `Monitor ${id}`,
+				places: ids.map(({ place, name }) => ({
+					place,
+					name,
 					...(opts.source && { source: opts.source }),
 					...(opts.filters && { filters: opts.filters })
 				})),

@@ -19,7 +19,8 @@ import {
 	chartWidget,
 	fakeAdapter,
 	fakeForecastsAdapter,
-	fakeNumberAdapter
+	fakeNumberAdapter,
+	setLayers
 } from "../shared/test-harness/fake-data";
 import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 import { generatedTitle } from "../titles.svelte";
@@ -125,10 +126,13 @@ test("narrow shows date, value and level; wide adds worst hour, lowest and highe
 });
 
 test("ten places at most, and the rest are counted", async () => {
-	const ids = Array.from({ length: 12 }, (_, i) => `m${i + 1}`);
-	const screen = await show(tableWidget(ids));
+	const ids = Array.from({ length: 12 }, (_, i) => `county:a${i + 1}`);
+	const widget = tableWidget([]);
+	widget.data.layers = [{ dataset: "air-quality", entryType: "pm25" }];
+	widget.data.selection = { kind: "regions", ids };
+	const screen = await show(widget);
 	await expect.element(screen.getByText("2 more places aren't shown.")).toBeVisible();
-	expect(requests.at(-1)!.target).toEqual({ kind: "monitors", ids: ids.slice(0, 10) });
+	expect(requests.at(-1)!.target).toEqual({ kind: "regions", keys: ids.slice(0, 10) });
 });
 
 test("the caption names the figure at the resolution", async () => {
@@ -443,12 +447,12 @@ test("a pesticide-only table names the filter and says the values are totals", a
 		regions: { resolve: async () => "unsupported" }
 	});
 	const widget = tableWidget(["m1"]);
-	widget.data.layers = [{ dataset: "pesticide-use", entryType: "pounds-applied" }];
+	setLayers(widget, [{ dataset: "pesticide-use", entryType: "pounds-applied" }]);
 	const screen = await show(widget);
 	await expect
 		.element(
 			screen.getByRole("columnheader", {
-				name: "Pounds Applied · Chlorpyrifos, Monitor m1 (lbs)"
+				name: "Pounds Applied · Chlorpyrifos, Region county:m1 (lbs)"
 			})
 		)
 		.toBeVisible();
@@ -470,7 +474,7 @@ test("a pesticide-only table with no use says so", async () => {
 		regions: { resolve: async () => "unsupported" }
 	});
 	const widget = tableWidget(["m1"]);
-	widget.data.layers = [{ dataset: "pesticide-use", entryType: "pounds-applied" }];
+	setLayers(widget, [{ dataset: "pesticide-use", entryType: "pounds-applied" }]);
 	const screen = await show(widget);
 	await expect.element(screen.getByText(m.data_none_pesticides(), { exact: true })).toBeVisible();
 	expect(screen.getByText(m.widget_state_empty()).query()).toBeNull();

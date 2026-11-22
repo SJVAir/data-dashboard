@@ -91,7 +91,8 @@ function copyFilters(filters: PesticideFilters): PesticideFilters {
 
 /**
  * Whether `layer` is the Map's own pesticide use layer: one with no entry type (its figure is the
- * `useFigure` option). A Chart's use layer has one.
+ * `useFigure` option). A Chart's use layer has one. An untrusted Chart pesticide layer with no
+ * entry type (from a share link or an import) counts as the Map's use too.
  */
 function isMapUse(layer: Layer): boolean {
 	return layer.dataset === PESTICIDE_USE && !layer.entryType;

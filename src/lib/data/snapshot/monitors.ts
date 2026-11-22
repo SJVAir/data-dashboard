@@ -12,8 +12,55 @@ import { periodEnd, periodFigure, periodHolds, type PeriodAt } from "./period";
 import { numberOf, rowDate } from "./rows";
 import type { MonitorScope, Snapshot, SnapshotFigure } from "./types";
 
+/** One bulk request a scope makes: its scoping fields, and the monitor ids it keeps (all: null). */
+type ScopeRequest = { scoping: { region?: string[]; type?: string[] }; wanted: Set<string> | null };
+
 /**
- * One day's figure for each monitor, from one daily bulk request. A monitor with no row that day
+ * The bulk requests for a scope: one for regions, monitors or everything; a monitor set's types
+ * inside its regions (everywhere with none, through the SDK's `type` filter), and one more
+ * valley-wide request kept to its searched monitors when it has any.
+ */
+function scopeRequests(scope: MonitorScope): ScopeRequest[] {
+	switch (scope.kind) {
+		case "regions":
+			return [{ scoping: { region: scope.ids }, wanted: null }];
+		case "monitors":
+			return [{ scoping: {}, wanted: new Set(scope.ids) }];
+		case "all":
+			return [{ scoping: {}, wanted: null }];
+		case "monitor-set": {
+			const typed: ScopeRequest = {
+				scoping: { ...(scope.regionIds && { region: scope.regionIds }), type: scope.types },
+				wanted: null
+			};
+			return scope.ids.length > 0 ? [typed, { scoping: {}, wanted: new Set(scope.ids) }] : [typed];
+		}
+	}
+}
+
+/** Every request's monitors, each monitor once (the first request that returns it wins). */
+async function scopeMonitors(
+	scope: MonitorScope,
+	fetch: (scoping: ScopeRequest["scoping"]) => Promise<MonitorWithSummaries[]>
+): Promise<MonitorWithSummaries[]> {
+	const requests = scopeRequests(scope);
+	const results = await Promise.all(requests.map((r) => fetch(r.scoping)));
+	const seen = new Set<string>();
+	const monitors: MonitorWithSummaries[] = [];
+	results.forEach((list, i) => {
+		const { wanted } = requests[i];
+		for (const monitor of list) {
+			if ((wanted && !wanted.has(monitor.id)) || seen.has(monitor.id)) continue;
+			seen.add(monitor.id);
+			monitors.push(monitor);
+		}
+	});
+	return monitors;
+}
+
+/**
+ * One day's figure for each monitor, from one daily bulk request (two for a monitor set with
+ * searched monitors). A monitor with no row that day
  * is absent from `figures`. Polled hourly until every figure is final.
  */
 export function monitorDaySource(args: {
@@ -31,21 +78,21 @@ export function monitorDaySource(args: {
 		cadence: "hour",
 		poll: (s) => !s?.final,
 		async fetch(signal) {
-			const config: Parameters<typeof getMonitorSummariesBulkDaily>[0] = {
-				entryType: entryType as Parameters<typeof getMonitorSummariesBulkDaily>[0]["entryType"],
-				start: day,
-				end: day,
-				...(scope.kind === "regions" && { region: scope.ids })
-			};
-			const monitors: MonitorWithSummaries[] = await getMonitorSummariesBulkDaily(config, {
-				signal
-			});
-			const wanted = scope.kind === "monitors" ? new Set(scope.ids) : null;
+			const monitors = await scopeMonitors(scope, (scoping) =>
+				getMonitorSummariesBulkDaily(
+					{
+						entryType: entryType as Parameters<typeof getMonitorSummariesBulkDaily>[0]["entryType"],
+						start: day,
+						end: day,
+						...scoping
+					},
+					{ signal }
+				)
+			);
 			const today = args.today();
 			const figures = new Map<string, SnapshotFigure>();
 			let final = true;
 			for (const monitor of monitors) {
-				if (wanted && !wanted.has(monitor.id)) continue;
 				const found = monitor.summaries.find((r) => rowDate(r) === day);
 				if (!found) continue;
 				const row = {
@@ -62,7 +109,8 @@ export function monitorDaySource(args: {
 }
 
 /**
- * One month's or year's figure for each monitor, from one bulk monthly or yearly request: the
+ * One month's or year's figure for each monitor, from one bulk monthly or yearly request (two for
+ * a monitor set with searched monitors): the
  * average of the daily figures (`figure`, the scale's `period_statistic`), coloured by the daily
  * levels. A monitor with no row for the period is absent from `figures`. Polled hourly until every
  * row is final; the current period (written nightly through yesterday, with no row before its
@@ -85,18 +133,20 @@ export function monitorPeriodSource(args: {
 		async fetch(signal) {
 			const bulk =
 				at.resolution === "year" ? getMonitorSummariesBulkYearly : getMonitorSummariesBulkMonthly;
-			const config: Parameters<typeof bulk>[0] = {
-				entryType: entryType as Parameters<typeof bulk>[0]["entryType"],
-				start: at.start,
-				end: periodEnd(at),
-				...(scope.kind === "regions" && { region: scope.ids })
-			};
-			const monitors: MonitorWithSummaries[] = await bulk(config, { signal });
-			const wanted = scope.kind === "monitors" ? new Set(scope.ids) : null;
+			const monitors = await scopeMonitors(scope, (scoping) =>
+				bulk(
+					{
+						entryType: entryType as Parameters<typeof bulk>[0]["entryType"],
+						start: at.start,
+						end: periodEnd(at),
+						...scoping
+					},
+					{ signal }
+				)
+			);
 			const figures = new Map<string, SnapshotFigure>();
 			let final = !periodHolds(at, args.today());
 			for (const monitor of monitors) {
-				if (wanted && !wanted.has(monitor.id)) continue;
 				const found = monitor.summaries.find((r) => rowDate(r) === at.start);
 				if (!found) continue;
 				if (!found.is_final) final = false;

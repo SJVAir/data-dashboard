@@ -35,7 +35,7 @@ function fakeAdapter(id = "air-quality") {
 	const adapter: DatasetAdapter = {
 		id,
 		async target(layer) {
-			if (layer.place?.kind === "monitor") return { kind: "monitors", ids: [layer.place.id] };
+			if (layer.monitors?.length) return { kind: "monitors", ids: [...layer.monitors] };
 			if (layer.place) return { unavailable: "place-unsupported" };
 			return { kind: "all" };
 		},
@@ -68,7 +68,7 @@ function setup(
 
 function input(monitor = "m-pa", entryType = "pm25"): QueryInput {
 	return {
-		layer: { dataset: "air-quality", entryType, place: { kind: "monitor", id: monitor } },
+		layer: { dataset: "air-quality", entryType, monitors: [monitor] },
 		dateRange: { kind: "trailing", amount: 7, unit: "day" },
 		resolution: "hour"
 	};
@@ -617,7 +617,7 @@ describe("createQueryClient", () => {
 			now: () => NOW
 		});
 		const overlay = (resolution: Resolution): QueryInput => ({
-			layer: { dataset: "pesticide-use", entryType: "pounds", place: { kind: "monitor", id: "m" } },
+			layer: { dataset: "pesticide-use", entryType: "pounds", monitors: ["m"] },
 			dateRange: { kind: "trailing", amount: 30, unit: "day" },
 			resolution
 		});
@@ -786,7 +786,7 @@ describe("createQueryClient", () => {
 			return { key: sub.key, req: calls[0].req };
 		}
 
-		const ONE: Partial<QueryLayer> = { place: { kind: "monitor", id: "m-pa" } };
+		const ONE: Partial<QueryLayer> = { monitors: ["m-pa"] };
 		const DAYS = (n: number) => ({ kind: "trailing", amount: n, unit: "day" }) as const;
 
 		it("is set for one place on a daily view of at most 92 days", async () => {
@@ -799,7 +799,7 @@ describe("createQueryClient", () => {
 		});
 
 		it("is dropped, with the same key, for two places", async () => {
-			const two: Partial<QueryLayer> = { selection: { kind: "monitors", ids: ["m-pa", "m-bam"] } };
+			const two: Partial<QueryLayer> = { monitors: ["m-pa", "m-bam"] };
 			const on = await run(two, DAYS(30), true);
 			const off = await run(two, DAYS(30));
 			expect(on.req.worstHour).toBe(false);

@@ -3,22 +3,22 @@
 	import XIcon from "@lucide/svelte/icons/x";
 	import { onDestroy, tick, untrack } from "svelte";
 	import { Button } from "$lib/components/ui/button";
-	import type { PlaceRef } from "$lib/data/schema";
 	import { formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import type { GeoResult } from "$lib/platform/types";
 	import BrowsePanel from "./BrowsePanel.svelte";
 	import type { PlaceDirectory } from "./directory";
-	import { errorText, PickerState, refKey } from "./picker-state.svelte";
+	import { errorText, PickerState, refKey, type PickerOffer } from "./picker-state.svelte";
 	import ResultList from "./ResultList.svelte";
 	import type { PickerMode, Picks } from "./selection";
-	import type { PlaceOption } from "./types";
+	import type { PickRef, PlaceOption } from "./types";
 
 	// eslint-disable-next-line svelte/no-unused-props -- `purpose.dataset` is part of the host contract; only the entry type filters today.
 	let {
 		directory,
 		purpose,
 		mode,
+		offer = "where",
 		activeOnly = false,
 		initial,
 		recent,
@@ -34,6 +34,11 @@
 		/** What the places are for; only the entry type filters monitors today (by monitor type). */
 		purpose: { dataset: string; entryType: string };
 		mode: PickerMode;
+		/**
+		 * What it offers: `where` (areas, schools, addresses, "my location"), `areas` (no schools or
+		 * points: a Chart's or Table's Where), or `monitors` (monitors supplying the entry type only).
+		 */
+		offer?: PickerOffer;
 		activeOnly?: boolean;
 		initial: Picks;
 		/** Resolved by the host; also names any of `initial` they hold. */
@@ -67,6 +72,7 @@
 			entryType: purpose.entryType,
 			activeOnly,
 			mode,
+			offer,
 			recent,
 			known,
 			locate,
@@ -120,7 +126,7 @@
 		}
 	}
 
-	async function remove(ref: PlaceRef, index: number) {
+	async function remove(ref: PickRef, index: number) {
 		picker.remove(ref);
 		await tick();
 		const buttons = chips?.querySelectorAll<HTMLButtonElement>("button") ?? [];
@@ -168,33 +174,39 @@
 		aria-controls={listboxId}
 		aria-describedby={keepMax !== null ? keepId : undefined}
 		aria-activedescendant={picker.active?.id}
-		placeholder={m.place_picker_placeholder()}
+		placeholder={offer === "monitors"
+			? m.place_picker_placeholder_monitors()
+			: offer === "areas"
+				? m.place_picker_placeholder_areas()
+				: m.place_picker_placeholder()}
 		value={picker.query}
 		oninput={(e) => picker.setQuery(e.currentTarget.value)}
 		{onkeydown}
 		class="border-input bg-card placeholder:text-muted-foreground focus-visible:border-ring focus-visible:outline-ring text-field h-9 w-full min-w-0 rounded-(--radius-control) border px-2.5 focus-visible:outline-2"
 	/>
 
-	<div class="flex flex-col items-start gap-1">
-		<Button
-			variant="outline"
-			size="sm"
-			aria-disabled={picker.locationReason ? "true" : undefined}
-			aria-describedby={picker.locationReason ? locationReasonId : undefined}
-			class="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-			onclick={() => picker.useLocation()}
-		>
-			<LocateFixedIcon aria-hidden="true" />
-			{m.place_picker_use_location()}
-		</Button>
-		{#if picker.locationReason}
-			<p id={locationReasonId} class="text-muted-foreground text-xs">{picker.locationReason}</p>
-		{/if}
-		<p data-picker-location-status role="status" class="text-sm">
-			{#if picker.geo.status === "locating"}{m.place_picker_locating()}{:else if picker.geo.status === "message"}{picker
-					.geo.text}{/if}
-		</p>
-	</div>
+	{#if offer === "where"}
+		<div class="flex flex-col items-start gap-1">
+			<Button
+				variant="outline"
+				size="sm"
+				aria-disabled={picker.locationReason ? "true" : undefined}
+				aria-describedby={picker.locationReason ? locationReasonId : undefined}
+				class="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+				onclick={() => picker.useLocation()}
+			>
+				<LocateFixedIcon aria-hidden="true" />
+				{m.place_picker_use_location()}
+			</Button>
+			{#if picker.locationReason}
+				<p id={locationReasonId} class="text-muted-foreground text-xs">{picker.locationReason}</p>
+			{/if}
+			<p data-picker-location-status role="status" class="text-sm">
+				{#if picker.geo.status === "locating"}{m.place_picker_locating()}{:else if picker.geo.status === "message"}{picker
+						.geo.text}{/if}
+			</p>
+		</div>
+	{/if}
 
 	<ResultList {picker} id={listboxId} label={m.place_picker_results()} {multiple} />
 
@@ -222,6 +234,7 @@
 				{picker}
 				{directory}
 				entryType={purpose.entryType}
+				{offer}
 				{activeOnly}
 				{multiple}
 				id={browseId}

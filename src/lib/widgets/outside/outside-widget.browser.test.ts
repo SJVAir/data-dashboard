@@ -90,7 +90,7 @@ function adapter(values: Record<string, number | null>): DatasetAdapter {
 	return {
 		id: "air-quality",
 		async target(layer) {
-			return { kind: "monitors", ids: [layer.place?.kind === "monitor" ? layer.place.id : ""] };
+			return { kind: "monitors", ids: [layer.monitors?.[0] ?? ""] };
 		},
 		offered: (base) => base,
 		async fetch(req) {
@@ -172,8 +172,7 @@ function outsideWidget(id: string, entryType = "pm25"): WidgetInstance {
 		title: null,
 		rect: { x: 0, y: 0, w: 3, h: 7 },
 		data: {
-			place: { kind: "monitor", id },
-			layers: [{ dataset: "air-quality", entryType }]
+			layers: [{ dataset: "air-quality", entryType, monitors: [id] }]
 		}
 	};
 }

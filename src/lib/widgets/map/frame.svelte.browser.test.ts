@@ -128,8 +128,13 @@ describe("MapFrame", () => {
 		expect(f.state).toEqual({ unavailable: "region-unresolved" });
 	});
 
-	it("a monitor is ready at once; nothing is idle", () => {
-		const f = track(() => ({ kind: "monitor", id: "m1" }));
+	it("a searched monitor is ready at once; nothing is idle", () => {
+		const layer = { ...base, monitors: ["m1"] };
+		const f = new MapFrame(
+			() => layer,
+			() => ({ layers: [layer] })
+		);
+		frames.push(f);
 		flushSync();
 		expect(f.state).toBe("ready");
 		expect(f.frame?.monitors).toEqual(["m1"]);

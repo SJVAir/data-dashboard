@@ -21,6 +21,7 @@
 	import { report } from "$lib/safety/report";
 	import { useApp } from "$lib/store/app.svelte";
 	import { CHART_TYPE } from "$lib/widgets/chart";
+	import { DATA_TABLE_TYPE } from "$lib/widgets/table";
 	import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
 	import { CURRENT_TYPE } from "$lib/widgets/current";
 	import { MAP_TYPE } from "$lib/widgets/map";
@@ -40,9 +41,15 @@
 		mainLayer,
 		wherePurpose,
 		widgetEffective,
+		widgetMonitors,
 		widgetPlaceKind
 	} from "$lib/widgets/shared/input";
-	import { MAX_OVERLAYS, overlayPlaceFor, sharedSource } from "$lib/widgets/shared/overlays";
+	import {
+		lineRefs,
+		MAX_OVERLAYS,
+		overlayPlaceFor,
+		sharedSource
+	} from "$lib/widgets/shared/overlays";
 	import * as layers from "./layers";
 	import { placeLabel } from "$lib/widgets/title";
 	import { generatedTitle } from "$lib/widgets/titles.svelte";
@@ -243,6 +250,14 @@
 	const range = $derived<DateRangeSpec>(plain.data.dateRange ?? DEFAULT_RANGE);
 	const main = $derived(mainLayer(plain.data, known));
 	const picks = $derived(fromWhere(plain.data));
+	/** The Chart's lines: its searched monitors, else its Where's places ("Overlay for"). */
+	const lines = $derived(
+		lineRefs({
+			place: plain.data.place,
+			selection: plain.data.selection,
+			monitors: widgetMonitors(plain.data).monitors
+		})
+	);
 	/**
 	 * Whether the Where control renders; a Show as keep request needs it to open its dialog. A
 	 * Forecast strip's one layer has no entry type, so isn't a `mainLayer`, but it has a Where.
@@ -456,7 +471,7 @@
 
 	/** "Overlay for": a Chart choice, only when the places' overlays differ (different zones). */
 	const overlayFor = $derived.by(() => {
-		if (plain.type !== CHART_TYPE || picks.length < 2) return null;
+		if (plain.type !== CHART_TYPE || lines.length < 2) return null;
 		const shown = data.shown;
 		if (shown.status !== "ready") return null;
 		const differ = data.overlays.some(
@@ -464,7 +479,7 @@
 		);
 		if (!differ) return null;
 		const places = shown.data.places;
-		const key = overlayPlaceFor(plain.options, places, picks);
+		const key = overlayPlaceFor(plain.options, places, lines);
 		return {
 			places,
 			index: Math.max(
@@ -945,7 +960,7 @@
 	}
 
 	function setOverlayFor(index: number): void {
-		const ref = picks[index];
+		const ref = lines[index];
 		if (ref) draft.options = { ...draft.options, overlayFor: ref };
 	}
 
@@ -1007,6 +1022,9 @@
 							{names}
 							{namesSettled}
 							max={type?.accepts?.maxPlaces ?? 1}
+							offer={plain.type === CHART_TYPE || plain.type === DATA_TABLE_TYPE
+								? "areas"
+								: "where"}
 							purpose={wherePurpose(plain.data, known)}
 							onchange={setPlaces}
 							keep={keeping}

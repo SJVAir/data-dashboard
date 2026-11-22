@@ -6,14 +6,13 @@
 	import { layerKind } from "$lib/data/layer-kind";
 	import { unavailableMessage } from "$lib/data/messages";
 	import type { QueryData } from "$lib/data/types";
-	import { fromWhere } from "$lib/places/selection";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
 	import { DataWidget, type WidgetOverlay } from "../shared/data-widget.svelte";
 	import { misfitNotes } from "../shared/misfit-notes";
-	import { overlayPlaceFor, sharedSource } from "../shared/overlays";
+	import { lineRefs, overlayPlaceFor, sharedSource } from "../shared/overlays";
 	import { sourceLabel } from "../shared/source-label";
 	import WidgetState from "../shared/WidgetState.svelte";
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
@@ -90,7 +89,7 @@
 			const { places, series } = s.data;
 			const key = sharedSource(series)
 				? (places[0]?.place ?? "")
-				: overlayPlaceFor(widget.options, places, fromWhere(input.layer));
+				: overlayPlaceFor(widget.options, places, lineRefs(input.layer));
 			const info = places.find((p) => p.place === key);
 			if (!info) continue;
 			const place = placeLabel(info, w.viewer);

@@ -9,6 +9,7 @@ import { todayPacific } from "$lib/format";
 import { mapMessages } from "../host/messages";
 import { monitorIds } from "../sources";
 import { filterMonitors, placeMonitors } from "../toolbar/values";
+import { singleMonitor } from "../../shared/input";
 import { AHEAD } from "./day-layer.svelte";
 import type { MapDataInput } from "./loaded.svelte";
 import {
@@ -87,11 +88,21 @@ export class MonitorsBlock {
 	/** Whether the map is worth drawing (on screen, the page visible). */
 	#polling = $state(true);
 
-	/** The places, as a key: the monitors' scope is resolved again only when they change. */
+	/**
+	 * The places, as a key (the Where and the layer's ticked types and searched monitors): the
+	 * monitors' scope is resolved again only when they change.
+	 */
 	readonly #placesKey = $derived.by(() => {
 		const { layer, widget } = this.#getInput();
 		const { place, selection } = widget.data;
-		return layer ? JSON.stringify([place ?? null, selection ?? null]) : "";
+		return layer
+			? JSON.stringify([
+					place ?? null,
+					selection ?? null,
+					layer.monitorTypes ?? null,
+					layer.monitors ?? null
+				])
+			: "";
 	});
 	/** Narrow deriveds, so an effect re-runs only when the one value it needs changes. */
 	readonly #entryType = $derived.by(() => this.#getInput().entryType);
@@ -194,8 +205,7 @@ export class MonitorsBlock {
 		// Keyed by the places, so a new layer object with the same places changes nothing.
 		void this.#placesKey;
 		return untrack(() => {
-			const { layer, widget } = this.#getInput();
-			return placeMonitors(layer ? widget.data : undefined);
+			return placeMonitors(this.#getInput().layer);
 		});
 	});
 	/** The monitors drawn: those loaded, after the toolbar's filters (the places' own kept). */
@@ -217,15 +227,16 @@ export class MonitorsBlock {
 	readonly monitorsRefreshFailed = $derived(
 		this.monitorsCurrent && this.monitorsState.status === "error" && this.monitorsData !== undefined
 	);
-	/** A monitor place the loaded readings don't list (retired, say): the map still draws. */
+	/**
+	 * A single-place Map's one searched monitor the loaded readings don't list (retired, say): the
+	 * map still draws.
+	 */
 	readonly unlisted = $derived.by(() => {
 		const { layer, widget } = this.#getInput();
-		const place = layer ? widget.data.place : undefined;
+		const id = layer ? singleMonitor(widget.data) : undefined;
 		const state = this.listState;
-		if (!this.monitorsCurrent || state.status !== "ready" || place?.kind !== "monitor") {
-			return false;
-		}
-		return !state.data.some((reading) => reading.id === place.id);
+		if (!this.monitorsCurrent || state.status !== "ready" || !id) return false;
+		return !state.data.some((reading) => reading.id === id);
 	});
 
 	constructor(getInput: () => MapDataInput, deps: { now: NowClient; rating: DayRating }) {

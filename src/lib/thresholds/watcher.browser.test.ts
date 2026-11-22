@@ -97,7 +97,7 @@ function adapter(): DatasetAdapter {
 	return {
 		id: "air-quality",
 		async target(layer) {
-			const id = layer.place?.kind === "monitor" ? layer.place.id : "";
+			const id = layer.monitors?.[0] ?? "";
 			return { kind: "monitors", ids: [id] };
 		},
 		offered: (base) => base,
@@ -195,8 +195,7 @@ function tile(
 		title: `Tile ${id}`,
 		rect: { x: 0, y: 0, w: 3, h: 5 },
 		data: {
-			place: { kind: "monitor", id: "a" },
-			layers: [{ dataset: "air-quality", entryType: "pm25" }]
+			layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["a"] }]
 		},
 		thresholds: [{ level: "unhealthy_sensitive" }],
 		...extra
@@ -393,8 +392,7 @@ test("a new place starts afresh: its first reading seeds, a later rise toasts", 
 	const widgets = session.doc.body.widgets.map((w) => ({
 		...w,
 		data: {
-			place: { kind: "monitor" as const, id: "b" },
-			layers: [{ dataset: "air-quality", entryType: "pm25" }]
+			layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["b"] }]
 		}
 	}));
 	session.apply({
@@ -429,8 +427,7 @@ test("a server key reorder of the layers is not a new place: no re-seeding, so a
 		...w,
 		// The same layer with its keys in another order.
 		data: {
-			place: { id: "a", kind: "monitor" as const },
-			layers: [{ entryType: "pm25", dataset: "air-quality" }]
+			layers: [{ entryType: "pm25", dataset: "air-quality", monitors: ["a"] }]
 		}
 	}));
 	session.apply({
@@ -453,8 +450,7 @@ test("a server key reorder of the layers is not a new place: no re-seeding, so a
 const alertTile = (monitor = "pa") =>
 	tile("w1", {
 		data: {
-			place: { kind: "monitor", id: monitor },
-			layers: [{ dataset: "air-quality", entryType: "pm25" }]
+			layers: [{ dataset: "air-quality", entryType: "pm25", monitors: [monitor] }]
 		}
 	});
 const crossingAtPa = m.alert_pollutant_at_place_is_now_level({

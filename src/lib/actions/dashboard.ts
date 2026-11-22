@@ -31,7 +31,12 @@ import { STARTER_ID, type HomeTarget } from "$lib/starter/starter";
 import { currentDashboardName, homeTarget, type AppContext } from "$lib/store/app.svelte";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
 import { placeNewWidget } from "$lib/layout/items";
-import { addWidgetEntries, getWidgetType } from "$lib/widgets/registry";
+import {
+	addWidgetEntries,
+	getWidgetType,
+	type Addable,
+	type WidgetType
+} from "$lib/widgets/registry";
 import { navigate } from "../../router";
 import type { MenuContext, MenuProvider } from "./types";
 
@@ -107,14 +112,23 @@ export function startGetData(app: AppContext, type: string): void {
 
 /**
  * Adds a widget of `type` below everything else on the current dashboard: at the type's default
- * size, with its `addable` data (one undo step).
+ * size, with its `addable` data (one undo step). When the data needs a lookup first (the Map's
+ * monitor types), the widget is added once it's done, and the returned promise settles then.
  */
-export function addWidget(app: AppContext, type: string): void {
+export function addWidget(app: AppContext, type: string): void | Promise<void> {
 	const session = editable(app);
 	const widgetType = getWidgetType(type);
 	if (!session || !widgetType) return;
-	const widgets = session.doc.body.widgets;
 	const added = widgetType.addable?.(session.doc) ?? { data: { layers: [] } };
+	if (added instanceof Promise) return added.then((a) => placeAdded(app, widgetType, type, a));
+	placeAdded(app, widgetType, type, added);
+}
+
+/** Adds the widget `addWidget` made, on the dashboard that's current now. */
+function placeAdded(app: AppContext, widgetType: WidgetType, type: string, added: Addable): void {
+	const session = editable(app);
+	if (!session) return;
+	const widgets = session.doc.body.widgets;
 	const widget: WidgetInstance = {
 		id: crypto.randomUUID(),
 		type,

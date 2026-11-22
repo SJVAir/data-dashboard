@@ -62,7 +62,7 @@ const renameWidget = (widgetId: string, to: string): Change => ({
 const FRESNO = DEFAULT_PLACE as ChosenPlace;
 const PLACES: ChosenPlace[] = [
 	{ kind: "region", type: "city", code: "0614218" },
-	{ kind: "monitor", id: "abc123" },
+	{ kind: "region", type: "zipcode", code: "93721" },
 	{ kind: "location", source: "schools", code: "123" },
 	{ kind: "point", lat: 36.7378, lon: -119.7871 }
 ];
@@ -183,9 +183,9 @@ describe("starter dashboard", () => {
 	});
 
 	it("starter with a gone place still builds", () => {
-		// A removed monitor, a closed school: the starter doesn't look them up.
+		// A retired region, a closed school: the starter doesn't look them up.
 		for (const place of [
-			{ kind: "monitor", id: "removed-monitor" },
+			{ kind: "region", type: "zipcode", code: "00000" },
 			{ kind: "location", source: "schools", code: "closed-1999" }
 		] as const) {
 			const starter = starterDashboard(place);

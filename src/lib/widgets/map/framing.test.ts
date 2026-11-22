@@ -41,9 +41,12 @@ const none = new Map<string, Feature>();
 const noPositions = new Map<string, [number, number]>();
 
 describe("frameOf and fitTarget", () => {
-	it("one monitor", () => {
-		const where: Where = { place: { kind: "monitor", id: "m1" } };
-		expect(frameOf(base, where)).toEqual({ monitors: ["m1"], focus: "monitor", needs: [] });
+	it("one searched monitor, with no Where", () => {
+		expect(frameOf({ ...base, monitors: ["m1"] }, {})).toEqual({
+			monitors: ["m1"],
+			focus: "monitor",
+			needs: []
+		});
 		const target = fitTarget(
 			frame({ monitors: ["m1"], focus: "monitor" }),
 			none,
@@ -108,9 +111,8 @@ describe("frameOf and fitTarget", () => {
 		expect(JSON.stringify(target)).not.toContain("-119.8");
 	});
 
-	it("monitor selection", () => {
-		const where: Where = { selection: { kind: "monitors", ids: ["a", "b", "c"] } };
-		expect(frameOf(base, where)).toEqual({
+	it("several searched monitors, with no Where", () => {
+		expect(frameOf({ ...base, monitors: ["a", "b", "c"] }, {})).toEqual({
 			monitors: ["a", "b", "c"],
 			focus: "monitor",
 			needs: []
@@ -165,7 +167,11 @@ describe("frameOf and fitTarget", () => {
 		expect(frameOf(base, { place: { kind: "default-place" } })).toEqual(none);
 		expect(frameOf(base, {})).toEqual(none);
 		// No layer (no pollutant) frames nothing, whatever the Where.
-		expect(frameOf(undefined, { place: { kind: "monitor", id: "m1" } })).toEqual(none);
+		expect(frameOf(undefined, { place: { kind: "region", type: "county", code: "1" } })).toEqual(
+			none
+		);
+		// Searched monitors with no pollutant (None) aren't drawn, so aren't framed.
+		expect(frameOf({ dataset: "air-quality", monitors: ["m1"] }, {})).toEqual(none);
 		expect(fitTarget(frame({}), new Map(), noPositions)).toBeNull();
 	});
 

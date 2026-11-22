@@ -98,38 +98,42 @@ const fullMap = (): Draft => {
 };
 
 describe("showInDraft: monitors", () => {
-	it("is fromMapDraft's Chart with its Where swapped for the ids, in order", () => {
+	it("is fromMapDraft's Chart with the ids as its air-quality layer's monitors, in order", () => {
 		const map = mapDraft(["pm25"]);
 		const shown = fromMapDraft(map, chartType, CATALOG, "unavailable", NOW).draft;
 		const h = showInDraft(map, send(["m3", "m1"]), chartType, CATALOG, NOW);
-		const { place, ...bare } = shown.data;
-		expect(place).toBeDefined();
 		expect(h.draft).toEqual({
 			...shown,
-			data: { ...bare, selection: { kind: "monitors", ids: ["m3", "m1"] } }
+			data: {
+				...shown.data,
+				layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m3", "m1"] }]
+			}
 		});
 		expect(h.draft.type).toBe(CHART_TYPE);
 	});
 
-	it("one id gives a place, several a monitors selection", () => {
-		const one = showInDraft(mapDraft(["pm25"]), send(["m7"]), chartType, CATALOG, NOW);
-		expect(one.draft.data.place).toEqual({ kind: "monitor", id: "m7" });
-		expect(one.draft.data.selection).toBeUndefined();
-		const two = showInDraft(mapDraft(["pm25"]), send(["a", "b"]), chartType, CATALOG, NOW);
-		expect(two.draft.data.place).toBeUndefined();
-		expect(two.draft.data.selection).toEqual({ kind: "monitors", ids: ["a", "b"] });
+	it("show in: marks arrive as the Chart's searched monitors with the Map's Where", () => {
+		const map = mapDraft(["pm25"]);
+		map.data.layers[0].monitorTypes = ["purpleair", "airnow"];
+		const h = showInDraft(map, send(["m7", "m2"]), chartType, CATALOG, NOW);
+		expect(h.draft.data.place).toEqual(FRESNO);
+		expect(h.draft.data.selection).toBeUndefined();
+		// The marks, not every monitor the Map's ticked types draw.
+		expect(h.draft.data.layers[0]).toEqual({
+			dataset: "air-quality",
+			entryType: "pm25",
+			monitors: ["m7", "m2"]
+		});
 	});
 
-	it("is over the cap past 5 for a Chart and 10 for a Table, keeping every id", () => {
+	it("keeps every id for a Chart or a Table: marks are never over a places cap", () => {
 		registerWidgetType(chartType);
 		registerWidgetType(dataTableType);
 		const at = (n: number, type = chartType) =>
 			showInDraft(mapDraft(["pm25"]), send(monitors(n)), type, CATALOG, NOW);
-		expect(overCap(at(5).draft)).toBe(false);
-		expect(overCap(at(6).draft)).toBe(true);
-		expect(at(6).draft.data.selection).toEqual({ kind: "monitors", ids: monitors(6) });
-		expect(overCap(at(10, dataTableType).draft)).toBe(false);
-		expect(overCap(at(11, dataTableType).draft)).toBe(true);
+		expect(overCap(at(6).draft)).toBe(false);
+		expect(at(6).draft.data.layers[0].monitors).toEqual(monitors(6));
+		expect(overCap(at(11, dataTableType).draft)).toBe(false);
 	});
 
 	it("carries the left-out count and no skip", () => {
@@ -352,17 +356,13 @@ describe("showInDraft: the new widget type checklist", () => {
 });
 
 describe("sendPlaces", () => {
-	it("gives monitor refs or one mtrs region, never a point", () => {
+	it("gives no Where for monitors (never a Where) or one mtrs region, never a point", () => {
 		const cases = [
 			sendPlaces(send(["m1"])),
 			sendPlaces(send(["m1", "m2"])),
 			sendPlaces({ kind: "section", code: "S" })
 		];
-		expect(cases).toEqual([
-			{ place: { kind: "monitor", id: "m1" } },
-			{ selection: { kind: "monitors", ids: ["m1", "m2"] } },
-			{ place: { kind: "region", type: "mtrs", code: "S" } }
-		]);
+		expect(cases).toEqual([{}, {}, { place: { kind: "region", type: "mtrs", code: "S" } }]);
 		for (const c of cases) expect(c.place?.kind).not.toBe("point");
 	});
 });

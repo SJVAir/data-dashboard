@@ -1,7 +1,7 @@
 import type { OptionValues } from "@sjvair/map-sdk";
 import { decodeRef, type MonitorFeatureProperties } from "@sjvair/map-sdk/data";
 import type { FeatureCollection, Geometry } from "geojson";
-import type { WidgetDataConfig } from "$lib/data/schema";
+import type { Layer } from "$lib/data/schema";
 import { MAP_TOOLBAR_KEYS, type MapOptions } from "../options";
 
 /** The toolbar value key of the spray notices row. */
@@ -137,15 +137,11 @@ export function groupsShown(
 }
 
 /**
- * The monitors that are the tile's own places: a monitor place, or a hand-picked monitors
- * selection. The toolbar's filters never hide them (ruling, 2026-11-13).
+ * The monitors that are the tile's own places: its air-quality layer's searched monitors. The
+ * toolbar's filters never hide them (ruling, 2026-11-13).
  */
-export function placeMonitors(
-	where: Pick<WidgetDataConfig, "place" | "selection"> | undefined
-): ReadonlySet<string> {
-	if (where?.place?.kind === "monitor") return new Set([where.place.id]);
-	if (where?.selection?.kind === "monitors") return new Set(where.selection.ids);
-	return new Set();
+export function placeMonitors(layer: Pick<Layer, "monitors"> | undefined): ReadonlySet<string> {
+	return new Set(layer?.monitors ?? []);
 }
 
 /**

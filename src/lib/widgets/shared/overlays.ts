@@ -1,7 +1,12 @@
 import type { CatalogEntry } from "$lib/data/metadata";
-import { PlaceRefSchema, type Layer, type WidgetDataConfig } from "$lib/data/schema";
+import {
+	MonitorRefSchema,
+	PlaceRefSchema,
+	type Layer,
+	type WidgetDataConfig
+} from "$lib/data/schema";
 import type { PlaceInfo, QueryInput, QueryLayer, Series } from "$lib/data/types";
-import type { Picks } from "$lib/places/selection";
+import { fromWhere, type Picks } from "$lib/places/selection";
 import { sameRef } from "$lib/places/types";
 import { z } from "$lib/zod";
 import { mainLayer } from "./input";
@@ -20,9 +25,9 @@ export function overlayLayers(
 
 /**
  * What an overlay asks for: its own dataset, entry type, station and filters at the main layer's
- * places (overlays store none), over the main's date range and sub-range, at the main's
- * resolution (the dataset's: every layer is fetched at it). No worst hour: that is about the main
- * layer's values.
+ * places (its Where, and its searched monitors: overlays store none), over the main's date range
+ * and sub-range, at the main's resolution (the dataset's: every layer is fetched at it). No worst
+ * hour: that is about the main layer's values.
  */
 export function overlayInput(main: QueryInput, overlay: QueryLayer): QueryInput {
 	const layer: QueryLayer = { dataset: overlay.dataset, entryType: overlay.entryType };
@@ -30,13 +35,29 @@ export function overlayInput(main: QueryInput, overlay: QueryLayer): QueryInput 
 	if (overlay.filters) layer.filters = overlay.filters;
 	if (main.layer.place) layer.place = main.layer.place;
 	if (main.layer.selection) layer.selection = main.layer.selection;
+	if (main.layer.monitors) layer.monitors = main.layer.monitors;
 	const input: QueryInput = { layer, dateRange: main.dateRange, resolution: main.resolution };
 	if (main.timeSubRange) input.timeSubRange = main.timeSubRange;
 	return input;
 }
 
-/** A Chart's own options (saved on the widget, not on a layer). */
-export const ChartOptionsSchema = z.object({ overlayFor: PlaceRefSchema.optional() });
+/**
+ * A Chart's own options (saved on the widget, not on a layer): `overlayFor` is one line's place
+ * or searched monitor.
+ */
+export const ChartOptionsSchema = z.object({
+	overlayFor: z.union([PlaceRefSchema, MonitorRefSchema]).optional()
+});
+
+/**
+ * The refs of a Chart's lines, in order: its searched monitors when it has any (one line each),
+ * else its Where's places.
+ */
+export function lineRefs(where: Pick<QueryLayer, "place" | "selection" | "monitors">): Picks {
+	const monitors = where.monitors ?? [];
+	if (monitors.length > 0) return monitors.map((id) => ({ kind: "monitor" as const, id }));
+	return fromWhere(where);
+}
 
 /**
  * The place whose overlay the Chart draws, as a `PlaceInfo.place` key of `places` (one per pick,

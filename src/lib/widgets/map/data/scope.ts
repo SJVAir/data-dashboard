@@ -3,35 +3,34 @@ import type { RegionResolver } from "$lib/data/adapters/registry";
 import type { QueryLayer, UnavailableReason } from "$lib/data/types";
 import type { placeRegion } from "$lib/data";
 
-/** Which monitors the places allow: server region ids, or explicit monitor ids. */
+/**
+ * Which monitors the Map draws: every monitor of `types` inside the regions `regionIds` (server
+ * ids; `null` for everywhere) plus the searched monitors `ids` wherever they are, or (no ticked
+ * types) exactly the searched monitors.
+ */
 export type MonitorScope =
-	| { kind: "regions"; ids: string[]; key: string }
+	| { kind: "monitor-set"; types: string[]; regionIds: string[] | null; ids: string[]; key: string }
 	| { kind: "monitors"; ids: string[]; key: string };
 
 export type ScopeContext = { regions: RegionResolver; placeRegion: typeof placeRegion };
 
-/** A scope of `kind` over `ids`, deduplicated and sorted so the key is stable. */
-function scopeOf(kind: MonitorScope["kind"], ids: string[]): MonitorScope {
-	const sorted = [...new Set(ids)].sort();
-	return { kind, ids: sorted, key: sorted.join(",") };
+/** Deduplicated and sorted, so a key made of it is stable. */
+function sorted(ids: string[]): string[] {
+	return [...new Set(ids)].sort();
 }
 
 /**
- * The monitors a layer's places allow. A region (or several) gives its server ids; a school or
- * point gives its `placeRegion` region (the one the frame uses); monitor places give exactly
- * those monitors. The key holds server ids or monitor ids, never coordinates.
+ * The server ids of the regions a Where stands for: its regions; a school or point's
+ * `placeRegion` region (the one the frame uses); `null` for no Where (everywhere).
  */
-export async function monitorScope(
+async function whereRegionIds(
 	layer: QueryLayer,
 	ctx: ScopeContext,
 	signal?: AbortSignal
-): Promise<MonitorScope | { unavailable: UnavailableReason }> {
+): Promise<string[] | null | { unavailable: UnavailableReason }> {
 	const { place, selection } = layer;
-	if (selection?.kind === "monitors") return scopeOf("monitors", selection.ids);
-	if (place?.kind === "monitor") return scopeOf("monitors", [place.id]);
-
 	let refs: { type: string; code: string }[];
-	if (selection?.kind === "regions") {
+	if (selection) {
 		refs = selection.ids.map((id) => {
 			const at = Math.max(id.indexOf(":"), 0);
 			return { type: id.slice(0, at), code: id.slice(at + 1) };
@@ -39,13 +38,16 @@ export async function monitorScope(
 	} else if (place?.kind === "region") {
 		refs = [{ type: place.type, code: place.code }];
 	} else if (place?.kind === "location" || place?.kind === "point") {
+		// The place's own region (`placeRegion` leaves the layer's monitors out).
 		const region = await ctx.placeRegion(currentInput(layer), signal);
 		if (!region) return { unavailable: "point-outside" };
 		refs = [region];
-	} else {
+	} else if (place) {
+		// The starter's unresolved `default-place` isn't fetched.
 		return { unavailable: "place-unsupported" };
+	} else {
+		return null;
 	}
-
 	const ids: string[] = [];
 	for (const ref of refs) {
 		const found = await ctx.regions.resolve(ref.type, ref.code, signal);
@@ -53,5 +55,29 @@ export async function monitorScope(
 		if (!found) return { unavailable: "region-unresolved" };
 		ids.push(found.id);
 	}
-	return scopeOf("regions", ids);
+	return ids;
+}
+
+/**
+ * The monitors a Map's air-quality layer asks for (spec decision 10): its ticked types inside the
+ * Where's regions (every monitor of them with no Where) plus its searched monitors; only the
+ * searched monitors with no ticked types; `null` (no monitors drawn) with neither, as for a
+ * layer whose `queryLayer` carries none (no pollutant chosen). The key holds server ids, types
+ * and monitor ids, never coordinates.
+ */
+export async function monitorScope(
+	layer: QueryLayer,
+	ctx: ScopeContext,
+	signal?: AbortSignal
+): Promise<MonitorScope | { unavailable: UnavailableReason } | null> {
+	const ids = sorted(layer.monitors ?? []);
+	const types = sorted(layer.monitorTypes ?? []);
+	if (types.length === 0) {
+		return ids.length > 0 ? { kind: "monitors", ids, key: ids.join(",") } : null;
+	}
+	const found = await whereRegionIds(layer, ctx, signal);
+	if (found && !Array.isArray(found)) return found;
+	const regionIds = found ? sorted(found) : null;
+	const key = [types.join(","), regionIds ? regionIds.join(",") : "*", ids.join(",")].join("|");
+	return { kind: "monitor-set", types, regionIds, ids, key };
 }

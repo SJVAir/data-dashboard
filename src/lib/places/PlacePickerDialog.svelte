@@ -12,7 +12,7 @@
 	import * as Dialog from "$lib/components/ui/dialog";
 	import { getMetadata, getResolvers, placeRegion } from "$lib/data";
 	import type { CatalogEntry } from "$lib/data/metadata";
-	import type { ChosenPlace, WidgetDataConfig } from "$lib/data/schema";
+	import type { ChosenPlace, PlaceRef, WidgetDataConfig } from "$lib/data/schema";
 	import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 	import { formatNumber } from "$lib/format";
 	import { requestFocus } from "$lib/layout/focus-request.svelte";
@@ -40,7 +40,7 @@
 	import { barChange, othersCount, widgetPlace } from "./replace";
 	import { regionName as nameOf } from "./region-name";
 	import { fromWhere, type PickerMode, type Picks } from "./selection";
-	import { sameRef, type PlaceOption, type PointPlace } from "./types";
+	import { isPlaceRef, sameRef, type PlaceOption, type PointPlace } from "./types";
 
 	const app = useApp();
 
@@ -312,7 +312,9 @@
 		}
 	}
 
-	async function done(picks: Picks): Promise<void> {
+	async function done(picked: Picks): Promise<void> {
+		// This picker offers Where places only, never monitors.
+		const picks = picked.filter(isPlaceRef);
 		const ctx = ready;
 		const signal = controller?.signal;
 		if (!ctx || !signal || signal.aborted) return;
@@ -400,7 +402,7 @@
 	 */
 	async function doneDashboard(
 		ctx: Ready,
-		picks: Picks,
+		picks: PlaceRef[],
 		signal: AbortSignal,
 		stale: () => boolean
 	): Promise<void> {

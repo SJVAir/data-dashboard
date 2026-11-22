@@ -34,7 +34,7 @@ function choices(
 ): ResolutionChoice[] | null {
 	const data: WidgetDataConfig = {
 		dateRange: range,
-		selection: { kind: "monitors", ids: ["m1"] },
+		// The place kind is given (`place`), so the data needs no Where or monitors.
 		layers
 	};
 	return resolutionChoices({

@@ -7,8 +7,10 @@ import {
 	WEATHER_DATASET
 } from "$lib/data/testing/dataset-catalog";
 import {
+	chartInput,
 	mainLayer,
 	queryLayer,
+	singleMonitor,
 	wherePurpose,
 	widgetEffective,
 	widgetInputs,
@@ -76,9 +78,19 @@ const FRESNO = { kind: "region", type: "county", code: "06019" } as const;
 
 describe("widgetPlaceKind", () => {
 	const kind = (where: Where) => widgetPlaceKind({ ...where, layers: [PM] });
-	it("monitors for a monitor place or selection", () => {
-		expect(kind({ place: { kind: "monitor", id: "m1" } })).toBe("monitors");
-		expect(kind({ selection: { kind: "monitors", ids: ["m1", "m2"] } })).toBe("monitors");
+	it("monitors for searched monitors alone; ticked types count as regions (no raw in bulk)", () => {
+		expect(widgetPlaceKind({ layers: [{ ...PM, monitors: ["m1"] }] })).toBe("monitors");
+		expect(widgetPlaceKind({ place: FRESNO, layers: [{ ...PM, monitorTypes: ["airnow"] }] })).toBe(
+			"regions"
+		);
+		expect(
+			widgetPlaceKind({ layers: [{ ...PM, monitors: ["m1"], monitorTypes: ["airnow"] }] })
+		).toBe("regions");
+		// Empty lists are none; with None chosen (no entry type) they fetch nothing.
+		expect(widgetPlaceKind({ place: FRESNO, layers: [{ ...PM, monitors: [] }] })).toBe("regions");
+		expect(widgetPlaceKind({ layers: [{ dataset: "air-quality", monitors: ["m1"] }] })).toBe(
+			"none"
+		);
 	});
 	it("regions for regions, and for points and schools (which resolve to regions)", () => {
 		expect(kind({ place: FRESNO })).toBe("regions");
@@ -194,11 +206,8 @@ describe("widgetInputs", () => {
 });
 
 describe("widgetEffective", () => {
-	const pm25: Layer = { dataset: "air-quality", entryType: "pm25" };
-	const chart = (data: WidgetDataConfig) => ({
-		type: "chart",
-		data: { place: { kind: "monitor", id: "m" } as const, ...data }
-	});
+	const pm25: Layer = { dataset: "air-quality", entryType: "pm25", monitors: ["m"] };
+	const chart = (data: WidgetDataConfig) => ({ type: "chart", data });
 
 	it("counts Pacific calendar days: 7 days across the fall-back day are hourly", () => {
 		const fall = new Date("2026-11-02T20:00:00Z");
@@ -256,12 +265,54 @@ describe("queryLayer", () => {
 		expect(result).not.toHaveProperty("place");
 		expect(result).not.toHaveProperty("selection");
 	});
+
+	it("the air-quality layer carries its monitors and ticked types", () => {
+		const layer: Layer = { ...PM, monitors: ["m1"], monitorTypes: ["purpleair"] };
+		const result = queryLayer({ place: FRESNO, layers: [layer] }, layer);
+		expect(result).toEqual({ ...layer, place: FRESNO });
+		expect(result.monitors).not.toBe(layer.monitors);
+	});
+
+	it("an air-quality layer with no entry type (None) passes no monitors", () => {
+		const layer: Layer = { dataset: "air-quality", monitors: ["m1"], monitorTypes: ["airnow"] };
+		expect(queryLayer({ layers: [layer] }, layer)).toEqual({ dataset: "air-quality" });
+	});
+
+	it("empty lists and other datasets' monitors aren't passed", () => {
+		const empty: Layer = { ...PM, monitors: [], monitorTypes: [] };
+		expect(queryLayer({ layers: [empty] }, empty)).toEqual(PM);
+		const weather: Layer = { ...TEMP, monitors: ["m1"] };
+		expect(queryLayer({ layers: [weather] }, weather)).toEqual(TEMP);
+	});
+});
+
+describe("chartInput", () => {
+	it("asks for searched monitors with no Where", () => {
+		const layer: Layer = { ...PM, monitors: ["m1", "m2"] };
+		const { input } = chartInput({ layers: [layer] }, CATALOG, Infinity, "day");
+		expect(input?.layer).toEqual(layer);
+	});
+
+	it("asks for nothing with no Where and no monitors", () => {
+		expect(chartInput({ layers: [PM] }, CATALOG, Infinity, "day").input).toBeNull();
+	});
+});
+
+describe("singleMonitor", () => {
+	it("is the one searched monitor with no ticked types", () => {
+		expect(singleMonitor({ layers: [{ ...PM, monitors: ["m1"] }] })).toBe("m1");
+		expect(singleMonitor({ layers: [{ ...PM, monitors: ["m1", "m2"] }] })).toBeUndefined();
+		expect(
+			singleMonitor({ layers: [{ ...PM, monitors: ["m1"], monitorTypes: ["airnow"] }] })
+		).toBeUndefined();
+		expect(singleMonitor({ place: FRESNO, layers: [PM] })).toBeUndefined();
+	});
 });
 
 describe("widgetWhere", () => {
 	it("is the place, else the selection, else nothing (everywhere)", () => {
 		expect(widgetWhere({ place: FRESNO, layers: [] })).toEqual({ place: FRESNO });
-		const selection = { kind: "monitors" as const, ids: ["a"] };
+		const selection = { kind: "regions" as const, ids: ["county:06019"] };
 		expect(widgetWhere({ selection, layers: [] })).toEqual({ selection });
 		expect(widgetWhere({ layers: [PM] })).toEqual({});
 	});
@@ -277,5 +328,11 @@ describe("wherePurpose", () => {
 		expect(wherePurpose({ layers: [TEMP, O3] }, catalog)).toEqual(O3);
 		expect(wherePurpose({ layers: [{ dataset: "forecasts" }] }, catalog)).toEqual(PM);
 		expect(wherePurpose({ layers: [TEMP] }, catalog)).toEqual(PM);
+	});
+
+	it("with no catalog, is the first air-quality layer's entry type", () => {
+		const O3 = { dataset: "air-quality", entryType: "o3" };
+		expect(wherePurpose({ layers: [TEMP, O3] }, undefined)).toEqual(O3);
+		expect(wherePurpose({ layers: [TEMP] }, undefined)).toEqual(PM);
 	});
 });

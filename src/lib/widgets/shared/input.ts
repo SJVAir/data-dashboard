@@ -6,7 +6,7 @@ import {
 	type PlaceKind
 } from "$lib/data/dataset-rules";
 import type { CatalogEntry, EntryTypeMeta, Figure } from "$lib/data/metadata";
-import { layerKind } from "$lib/data/layer-kind";
+import { AIR_QUALITY, layerKind } from "$lib/data/layer-kind";
 import { currentInput } from "$lib/data/now/current";
 import type {
 	DateRangeSpec,
@@ -51,15 +51,18 @@ export function mainLayer(
 }
 
 /**
- * What a widget's places are picked and looked up for: its pollutant layer's entry type, else
- * PM2.5 (`DEFAULT_LAYER`, as a new widget's): a Forecast strip, or a widget of weather alone,
- * picks any place PM2.5 is offered for.
+ * What a widget's places are picked and looked up for: its pollutant layer's entry type (with no
+ * catalog, its first air-quality layer's), else PM2.5 (`DEFAULT_LAYER`, as a new widget's): a
+ * Forecast strip, or a widget of weather alone, picks any place PM2.5 is offered for.
  */
 export function wherePurpose(
 	data: WidgetDataConfig,
 	catalog: CatalogEntry[] | undefined
 ): { dataset: string; entryType: string } {
-	const pollutant = data.layers.find((l) => l.entryType && layerKind(l, catalog) === "pollutant");
+	const pollutant = data.layers.find(
+		(l) =>
+			l.entryType && (catalog ? layerKind(l, catalog) === "pollutant" : l.dataset === AIR_QUALITY)
+	);
 	return pollutant?.entryType
 		? { dataset: pollutant.dataset, entryType: pollutant.entryType }
 		: { dataset: DEFAULT_LAYER.dataset, entryType: DEFAULT_LAYER.entryType! };
@@ -83,37 +86,72 @@ export function hasWhere(data: WidgetDataConfig): boolean {
 	return !!(data.place || data.selection);
 }
 
+/** Whether `layer` is an air-quality layer that can fetch its monitors (it has an entry type). */
+function fetchesMonitors(layer: Layer): boolean {
+	return layer.dataset === AIR_QUALITY && !!layer.entryType;
+}
+
 /**
  * The layer as the query client reads it: its own fields at the widget's Where (`widgetWhere`).
  * The one place a query layer is built, so the saved shape can change behind it. Every layer
  * built here is fetched by place; the Map's place-less layers (smoke, fire, spray notices, its
- * pesticide use) never come through here (its plugins fetch them), so they get no Where.
+ * pesticide use) never come through here (its plugins fetch them), so they get no Where. Only an
+ * air-quality layer with an entry type carries its `monitors` and `monitorTypes` (non-empty):
+ * with None chosen they stay saved but fetch nothing.
  */
 export function queryLayer(data: WidgetDataConfig, layer: Layer): QueryLayer {
-	return { ...layer, ...widgetWhere(data) };
+	const { monitors, monitorTypes, ...rest } = layer;
+	const out: QueryLayer = { ...rest, ...widgetWhere(data) };
+	if (fetchesMonitors(layer)) {
+		if (monitors && monitors.length > 0) out.monitors = [...monitors];
+		if (monitorTypes && monitorTypes.length > 0) out.monitorTypes = [...monitorTypes];
+	}
+	return out;
+}
+
+/** The widget's air-quality layer's searched monitors and ticked types (none when it has none). */
+export function widgetMonitors(data: WidgetDataConfig): { monitors: string[]; types: string[] } {
+	const layer = data.layers.find(fetchesMonitors);
+	return { monitors: layer?.monitors ?? [], types: layer?.monitorTypes ?? [] };
+}
+
+/**
+ * A single-place widget's monitor: its air-quality layer's one searched monitor when it has no
+ * ticked types (spec decision 11), else `undefined`.
+ */
+export function singleMonitor(data: WidgetDataConfig): string | undefined {
+	const { monitors, types } = widgetMonitors(data);
+	return monitors.length === 1 && types.length === 0 ? monitors[0] : undefined;
+}
+
+/** Whether a widget has a place to fetch: a Where, or monitors on its air-quality layer. */
+export function hasPlaces(data: WidgetDataConfig): boolean {
+	const { monitors, types } = widgetMonitors(data);
+	return hasWhere(data) || monitors.length > 0 || types.length > 0;
 }
 
 /**
  * What a "now" tile asks the query client for: the layer's hourly averages (`currentInput`) at the
- * widget's Where. A widget with no Where asks for nothing (null): a tile of every monitor isn't
- * offered.
+ * widget's Where or its monitor. A widget with neither asks for nothing (null): a tile of every
+ * monitor isn't offered.
  */
 export function nowInput(data: WidgetDataConfig, layer: Layer | undefined): QueryInput | null {
-	return layer && hasWhere(data) ? currentInput(queryLayer(data, layer)) : null;
+	return layer && hasPlaces(data) ? currentInput(queryLayer(data, layer)) : null;
 }
 
 /**
- * Where a widget's places are fetched for, as the dataset rules count it (`PlaceKind`), read from
- * its Where (`widgetWhere`): `monitors` for a monitor place or selection; `regions` for a
- * region place or selection, and for a point or a school, which the query client resolves to
- * regions; `none` when there is no place (or only the starter's unresolved `default-place`, which
- * isn't fetched).
+ * Where a widget's places are fetched for, as the dataset rules count it (`PlaceKind`): `regions`
+ * when its air-quality layer has ticked types (a monitor set is fetched through the bulk
+ * summaries, which, like regions, have no raw entries); `monitors` for searched monitors alone;
+ * else `regions` for any Where (a point or a school resolves to regions), else `none` (also for
+ * only the starter's unresolved `default-place`, which isn't fetched).
  */
 export function widgetPlaceKind(data: WidgetDataConfig): PlaceKind {
-	if (data.selection) return data.selection.kind;
+	const { monitors, types } = widgetMonitors(data);
+	if (types.length > 0) return "regions";
+	if (monitors.length > 0) return "monitors";
+	if (data.selection) return "regions";
 	switch (data.place?.kind) {
-		case "monitor":
-			return "monitors";
 		case "region":
 		case "point":
 		case "location":
@@ -154,8 +192,8 @@ export function widgetEffective(
 /**
  * What a Chart asks the query client for: its `mainLayer` over the widget's date range at
  * `resolution` (the dataset's), with each day's worst hour, and at most `maxPlaces` of a
- * selection's places. `hidden` counts the places cut. A widget with no Where asks for
- * nothing (`input` is null): a chart of every monitor isn't offered.
+ * selection's places. `hidden` counts the places cut. A widget with no Where and no monitors
+ * asks for nothing (`input` is null).
  */
 export function chartInput(
 	data: WidgetDataConfig,
@@ -164,7 +202,7 @@ export function chartInput(
 	resolution: Resolution
 ): { layer: Layer | undefined; input: QueryInput | null; hidden: number } {
 	const layer = mainLayer(data, catalog);
-	if (!layer || !hasWhere(data)) return { layer, input: null, hidden: 0 };
+	if (!layer || !hasPlaces(data)) return { layer, input: null, hidden: 0 };
 	let shown = queryLayer(data, layer);
 	let hidden = 0;
 	const { selection } = data;

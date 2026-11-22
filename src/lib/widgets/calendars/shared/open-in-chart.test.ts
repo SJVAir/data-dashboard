@@ -29,8 +29,7 @@ function calendar(selected: boolean): WidgetInstance {
 			...(selected ? { timeSubRange: { start: "2026-11-05", end: "2026-11-08" } } : {}),
 			// Not something a calendar stores, but a document could carry it: the Chart starts Automatic.
 			resolution: "day",
-			place: { kind: "monitor", id: "a" },
-			layers: [{ dataset: "air-quality", entryType: "pm25" }]
+			layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["a"] }]
 		},
 		thresholds: [{ level: "unhealthy" }]
 	};
@@ -78,8 +77,10 @@ describe("open days in a chart", () => {
 		});
 		expect(chart.data.timeSubRange).toBeUndefined();
 		expect(chart.data.resolution).toBeUndefined();
-		expect(chart.data.layers).toEqual([{ dataset: "air-quality", entryType: "pm25" }]);
-		expect(chart.data.place).toEqual({ kind: "monitor", id: "a" });
+		expect(chart.data.layers).toEqual([
+			{ dataset: "air-quality", entryType: "pm25", monitors: ["a"] }
+		]);
+		expect(chart.data.place).toBeUndefined();
 		expect(chart.thresholds).toEqual(widgets[0].thresholds);
 		expect(chart.id).not.toBe("cal");
 		expect(chart.minimized).toBeUndefined();

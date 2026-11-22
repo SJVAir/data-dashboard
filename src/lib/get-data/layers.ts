@@ -38,8 +38,11 @@ export function canAddLayer(data: WidgetDataConfig, catalog: CatalogEntry[] | un
 /**
  * Chooses the widget's pollutant, or (`null`) removes it. A pollutant chosen where there was
  * none becomes the main layer, unless the old main would then be one overlay too many. None
- * always removes it, even when it was the last layer. The pollutant is `isPollutantLayer`'s (an
- * air-quality layer the catalog doesn't know counts), so it's replaced or removed, never doubled.
+ * always removes it, even when it was the last layer, except that an air-quality layer holding
+ * monitors or ticked types keeps them with no entry type (spec decision 31: nothing is cleared;
+ * `queryLayer` fetches nothing for them). The pollutant is `isPollutantLayer`'s (an air-quality
+ * layer the catalog doesn't know counts), so it's replaced or removed, never doubled; another
+ * pollutant keeps the layer's monitors and types.
  */
 export function setPollutant(
 	data: WidgetDataConfig,
@@ -48,7 +51,10 @@ export function setPollutant(
 ): void {
 	const at = data.layers.findIndex((l) => isPollutantLayer(l, catalog));
 	if (pick === null) {
-		if (at >= 0) removeLayer(data, at);
+		if (at < 0) return;
+		const layer = data.layers[at];
+		if (layer.monitors?.length || layer.monitorTypes?.length) delete layer.entryType;
+		else removeLayer(data, at);
 		return;
 	}
 	if (at >= 0) {

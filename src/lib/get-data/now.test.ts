@@ -252,11 +252,11 @@ describe("fromNowDraft", () => {
 	});
 
 	it("fromNowDraft from a 25-place Map to Chart keeps 5 with a places note", () => {
-		const ids = Array.from({ length: 25 }, (_, i) => `m${i + 1}`);
+		const ids = Array.from({ length: 25 }, (_, i) => `county:m${i + 1}`);
 		const map: Draft = {
 			type: "map",
 			data: {
-				selection: { kind: "monitors", ids },
+				selection: { kind: "regions", ids },
 				layers: [{ dataset: "air-quality", entryType: "o3" }]
 			}
 		};
@@ -265,7 +265,7 @@ describe("fromNowDraft", () => {
 				type: CHART_TYPE,
 				data: {
 					dateRange: DEFAULT_RANGE,
-					selection: { kind: "monitors", ids: ids.slice(0, 5) },
+					selection: { kind: "regions", ids: ids.slice(0, 5) },
 					layers: [
 						{
 							dataset: "air-quality",
@@ -281,7 +281,11 @@ describe("fromNowDraft", () => {
 		expect(fromNowDraft(map, one).draft.data.layers).toEqual([
 			{ dataset: "air-quality", entryType: "o3" }
 		]);
-		expect(fromNowDraft(map, one).draft.data.place).toEqual({ kind: "monitor", id: "m1" });
+		expect(fromNowDraft(map, one).draft.data.place).toEqual({
+			kind: "region",
+			type: "county",
+			code: "m1"
+		});
 		// Data table's cap is 10.
 		const table = fromNowDraft(map, dataTableType);
 		expect(table.draft.data.selection?.ids).toEqual(ids.slice(0, 10));
@@ -413,13 +417,13 @@ describe("calendar conversions", () => {
 });
 
 describe("a Map: several places, the map's pollutants", () => {
-	const monitors = (n: number) => Array.from({ length: n }, (_, i) => `m${i + 1}`);
+	const monitors = (n: number) => Array.from({ length: n }, (_, i) => `county:m${i + 1}`);
 	const chartOf = (ids: string[]): Draft => ({
 		type: CHART_TYPE,
 		data: {
 			dateRange: { kind: "trailing", amount: 30, unit: "day" },
 			resolution: "day",
-			selection: { kind: "monitors", ids },
+			selection: { kind: "regions", ids },
 			layers: [
 				{
 					dataset: "air-quality",
@@ -435,7 +439,7 @@ describe("a Map: several places, the map's pollutants", () => {
 		expect(out.draft).toEqual({
 			type: "map",
 			data: {
-				selection: { kind: "monitors", ids: ["m1", "m2", "m3"] },
+				selection: { kind: "regions", ids: ["county:m1", "county:m2", "county:m3"] },
 				layers: [
 					{
 						dataset: "air-quality",
@@ -449,14 +453,14 @@ describe("a Map: several places, the map's pollutants", () => {
 
 	it("toNowDraft to Map cuts at 25 with a places note", () => {
 		const out = toNowDraft(chartOf(monitors(30)), mapType, CATALOG, [], chartType, ALLOWED);
-		expect(out.draft.data.selection).toEqual({ kind: "monitors", ids: monitors(25) });
+		expect(out.draft.data.selection).toEqual({ kind: "regions", ids: monitors(25) });
 		expect(out.dropped).toContain("places");
 	});
 
 	it("toNowDraft to Current conditions still keeps one", () => {
 		const out = toNowDraft(chartOf(monitors(3)), currentType, CATALOG, [], chartType);
 		expect(out.draft.data.layers).toEqual([{ dataset: "air-quality", entryType: "pm25" }]);
-		expect(out.draft.data.place).toEqual({ kind: "monitor", id: "m1" });
+		expect(out.draft.data.place).toEqual({ kind: "region", type: "county", code: "m1" });
 		expect(out.dropped).toContain("places");
 	});
 
@@ -466,8 +470,8 @@ describe("a Map: several places, the map's pollutants", () => {
 			data: { place: CLOVIS, layers: [{ dataset: "air-quality", entryType: "co" }] }
 		};
 		expect(nowPollutant(co, mapType, CATALOG, ALLOWED)).toBe("o3");
-		expect(nowPollutant(chartOf(["m1"]), mapType, CATALOG, ALLOWED)).toBe("pm25");
-		expect(nowPollutant(chartOf(["m1"]), mapType, CATALOG, ["o3"])).toBe("o3");
+		expect(nowPollutant(chartOf(["county:m1"]), mapType, CATALOG, ALLOWED)).toBe("pm25");
+		expect(nowPollutant(chartOf(["county:m1"]), mapType, CATALOG, ["o3"])).toBe("o3");
 		const out = toNowDraft(co, mapType, CATALOG, [], chartType, ALLOWED);
 		expect(out.draft.data.layers[0].entryType).toBe("o3");
 		expect(out.dropped).toContain("pollutant");

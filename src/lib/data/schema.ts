@@ -59,8 +59,14 @@ export const SafeIdSchema = IdSchema.regex(SAFE_ID);
 /** A region type, also the part of a selection's `type:code` id before the colon. */
 const REGION_TYPE = /^[a-z0-9_]+$/;
 
+/**
+ * A monitor picked by the Monitors search (the air-quality layer's `monitors`, a Chart's
+ * "Overlay for", a recent pick). Never a Where place: Where holds areas, schools and points.
+ */
+export const MonitorRefSchema = z.object({ kind: z.literal("monitor"), id: SafeIdSchema });
+export type MonitorRef = z.infer<typeof MonitorRefSchema>;
+
 const CHOSEN_PLACES = [
-	z.object({ kind: z.literal("monitor"), id: SafeIdSchema }),
 	z.object({ kind: z.literal("region"), type: CodeSchema.regex(REGION_TYPE), code: CodeSchema }),
 	z.object({ kind: z.literal("location"), source: CodeSchema, code: CodeSchema }),
 	z.object({
@@ -83,9 +89,10 @@ export type ChosenPlace = Exclude<PlaceRef, { kind: "default-place" }>;
 
 const REGION_ID = /^[a-z0-9_]+:[^:]+$/;
 
+/** Several areas (region ids `type:code`); monitors are never a Where selection. */
 export const SpatialSelectionSchema = z
 	.object({
-		kind: z.enum(["monitors", "regions"]),
+		kind: z.literal("regions"),
 		ids: z.array(IdSchema).min(1),
 		// A GeoJSON geometry the selection was drawn from; its size is bounded by the document
 		// size limit.
@@ -95,18 +102,11 @@ export const SpatialSelectionSchema = z
 		if (new Set(s.ids).size !== s.ids.length) {
 			ctx.addIssue({ code: "custom", path: ["ids"], message: "Selection ids must be unique" });
 		}
-		if (s.kind === "regions" && !s.ids.every((id) => REGION_ID.test(id))) {
+		if (!s.ids.every((id) => REGION_ID.test(id))) {
 			ctx.addIssue({
 				code: "custom",
 				path: ["ids"],
 				message: "Region ids must look like type:code"
-			});
-		}
-		if (s.kind === "monitors" && !s.ids.every((id) => SAFE_ID.test(id))) {
-			ctx.addIssue({
-				code: "custom",
-				path: ["ids"],
-				message: "Monitor ids may use only letters, digits, _ and -"
 			});
 		}
 	});
@@ -147,6 +147,11 @@ export const PesticideFiltersSchema = z.object({
 });
 export type PesticideFilters = z.infer<typeof PesticideFiltersSchema>;
 
+/** A list of distinct safe ids (monitor ids, monitor type keys). */
+function uniqueIds(message: string) {
+	return z.array(SafeIdSchema).refine((ids) => new Set(ids).size === ids.length, { message });
+}
+
 /**
  * A layer: what data it is (Where is on the widget's data, `WidgetDataConfig`). An earlier
  * document's layer `place` or `selection` is dropped on read, as any unknown key (nothing was
@@ -158,11 +163,35 @@ export const LayerSchema = z.object({
 	/** A weather layer's station (the catalog's station id). */
 	station: SafeIdSchema.optional(),
 	/** A pesticide layer's filters. */
-	filters: PesticideFiltersSchema.optional()
+	filters: PesticideFiltersSchema.optional(),
+	/** The air-quality layer's monitors picked by search (ids), counted wherever they are. */
+	monitors: uniqueIds("Monitor ids must be unique").optional(),
+	/**
+	 * The air-quality layer's ticked monitor types (the monitors meta's type keys): every monitor of
+	 * them inside the widget's Where, or everywhere with no Where.
+	 */
+	monitorTypes: uniqueIds("Monitor types must be unique").optional()
 });
 export type Layer = z.infer<typeof LayerSchema>;
 
-export const WidgetDataConfigSchema = z
+/** Whether `value` is an object whose `kind` is `kind`. */
+function hasKind(value: unknown, kind: string): boolean {
+	return typeof value === "object" && value !== null && (value as { kind?: unknown }).kind === kind;
+}
+
+/**
+ * An earlier document's monitor Where (a `monitor` place or a `monitors` selection), dropped
+ * so the document still opens with no Where (nothing was live, so there is no migration).
+ */
+function dropMonitorWhere(value: unknown): unknown {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return value;
+	const data = { ...(value as Record<string, unknown>) };
+	if (hasKind(data.place, "monitor")) delete data.place;
+	if (hasKind(data.selection, "monitors")) delete data.selection;
+	return data;
+}
+
+const WidgetDataObjectSchema = z
 	.object({
 		dateRange: DateRangeSpecSchema.optional(),
 		timeSubRange: TimeSubRangeSchema.optional(),
@@ -181,7 +210,8 @@ export const WidgetDataConfigSchema = z
 		message: "A widget has a place or a selection, not both",
 		path: ["selection"]
 	});
-export type WidgetDataConfig = z.infer<typeof WidgetDataConfigSchema>;
+export const WidgetDataConfigSchema = z.preprocess(dropMonitorWhere, WidgetDataObjectSchema);
+export type WidgetDataConfig = z.infer<typeof WidgetDataObjectSchema>;
 
 /** Whether a widget's place is the starter-only `default-place`. */
 export function hasDefaultPlace(config: WidgetDataConfig): boolean {

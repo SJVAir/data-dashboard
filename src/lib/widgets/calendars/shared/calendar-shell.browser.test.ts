@@ -66,8 +66,8 @@ function adapter(): DatasetAdapter {
 	return {
 		id: "air-quality",
 		async target(layer) {
-			return layer.place?.kind === "monitor"
-				? { kind: "monitors", ids: [layer.place.id] }
+			return layer.monitors?.length
+				? { kind: "monitors", ids: [...layer.monitors] }
 				: { unavailable: "place-unsupported" };
 		},
 		offered: (base) => base,
@@ -135,8 +135,7 @@ function calendar(extra: Partial<WidgetInstance> = {}, entryType = "pm25"): Widg
 		rect: { x: 0, y: 0, w: 4, h: 6 },
 		data: {
 			dateRange: { kind: "custom", start: "2026-10-01", end: "2026-11-30" },
-			place: { kind: "monitor", id: "a" },
-			layers: [{ dataset: "air-quality", entryType }]
+			layers: [{ dataset: "air-quality", entryType, monitors: ["a"] }]
 		},
 		...extra
 	};
@@ -417,6 +416,7 @@ test("a widget with no place asks for nothing and offers the place picker state"
 	const widget = calendar();
 	delete widget.data.place;
 	delete widget.data.selection;
+	delete widget.data.layers[0].monitors;
 	const app = await initApp(createMemoryPlatform(), {
 		channel: createMemoryTabHub().channel(),
 		tabId: "t1"

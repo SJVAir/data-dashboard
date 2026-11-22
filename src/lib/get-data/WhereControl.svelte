@@ -8,6 +8,7 @@
 	import { directoryFor, resolvePicks, type Resolvers } from "$lib/places/host";
 	import type { PlaceDirectory } from "$lib/places/directory";
 	import PlacePicker from "$lib/places/PlacePicker.svelte";
+	import type { PickerOffer } from "$lib/places/picker-state.svelte";
 	import { addRecent, readRecent } from "$lib/places/recent";
 	import type { Picks } from "$lib/places/selection";
 	import type { PlaceOption } from "$lib/places/types";
@@ -19,6 +20,7 @@
 		names,
 		namesSettled,
 		max,
+		offer,
 		purpose,
 		onchange,
 		keep
@@ -30,6 +32,8 @@
 		namesSettled: boolean;
 		/** The chosen widget type's `accepts.maxPlaces`. */
 		max: number;
+		/** `areas` for a Chart or Table (no schools or points), `where` for the other types. */
+		offer: Exclude<PickerOffer, "monitors">;
 		purpose: { dataset: string; entryType: string };
 		onchange: (picks: Picks) => void;
 		/**
@@ -217,6 +221,7 @@
 				directory={ready.directory}
 				{purpose}
 				mode={pickerMode}
+				{offer}
 				initial={ready.initial}
 				known={ready.known}
 				recent={ready.recent}

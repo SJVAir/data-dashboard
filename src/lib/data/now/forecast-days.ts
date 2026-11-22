@@ -47,6 +47,10 @@ export function targetKey(target: Target): string {
 			return "all";
 		case "regions":
 			return `regions:${target.keys.join(",")}`;
+		case "monitor-set": {
+			const regions = target.regionKeys ? target.regionKeys.join(",") : "everywhere";
+			return `monitor-set:${target.types.join(",")}:${regions}:${target.ids.join(",")}`;
+		}
 		default: {
 			// How the place was reached shows in the result, so it belongs in the key (no coordinates).
 			const via =

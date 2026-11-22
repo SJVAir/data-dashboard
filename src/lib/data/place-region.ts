@@ -25,14 +25,19 @@ function settled(client: QueryClient, input: QueryInput, signal?: AbortSignal) {
 /**
  * The region a point or school layer uses now: its widget's own query through `client` (so the
  * same resolution, fallback and cache as rendering), the last candidate when that query is
- * unavailable, and `null` for other places or a point or school with no region. Rejects when the
- * data can't be fetched, so a caller never falls back to the exact point silently.
+ * unavailable, and `null` for other places or a point or school with no region. The layer's
+ * monitors are left out (the region is the Where's). Rejects when the data can't be fetched, so a
+ * caller never falls back to the exact point silently.
  */
 export function createPlaceRegion(
 	client: QueryClient,
 	ctx: Pick<AdapterContext, "regions" | "locations" | "points" | "metadata">
 ): PlaceRegion {
-	return async (input, signal) => {
+	return async (given, signal) => {
+		// The place's own region: its layer's monitors (searched or ticked) play no part.
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars -- left out of the lookup
+		const { monitors, monitorTypes, ...layer } = given.layer;
+		const input = { ...given, layer };
 		const kind = input.layer.place?.kind;
 		if (kind !== "location" && kind !== "point") return null;
 		const target = await layerTarget(input.layer, ctx, signal);

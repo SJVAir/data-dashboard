@@ -205,9 +205,12 @@ const SHAPES: Record<string, Feature> = {
 /** A query client that names a layer's place, for the title. */
 function namingClient(): QueryClient {
 	const info = (layer: QueryLayer): PlaceInfo => {
+		// A query with ticked types reads every monitor of them, as the real client does: its first
+		// place is a monitor, never the Where.
+		if (layer.monitorTypes?.length) return { place: "monitor:any", name: "Some monitor" };
 		const place = layer.place ?? null;
-		if (place?.kind === "monitor")
-			return { place: `monitor:${place.id}`, name: `Monitor ${place.id}` };
+		const monitor = layer.monitors?.length === 1 ? layer.monitors[0] : undefined;
+		if (monitor && !place) return { place: `monitor:${monitor}`, name: `Monitor ${monitor}` };
 		if (place?.kind === "region") {
 			return { place: `region:${place.type}:${place.code}`, name: "Fresno County" };
 		}
@@ -451,6 +454,10 @@ afterEach(() => {
 /** A layer's fields with the widget's Where beside them (the helpers split them). */
 type LayerAt = Partial<Layer> & Pick<WidgetDataConfig, "place" | "selection">;
 
+/** Every monitor type (the local monitors meta's keys): a new Map ticks them all (decision 8). */
+const EVERY_TYPE = ["airgradient", "airnow", "aqlite", "aqview", "bam1022", "purpleair", "vozbox"];
+
+/** A Map of PM2.5 with `at`'s Where; every type ticked unless `at` gives its own monitors. */
 function mapWidget(at: LayerAt): WidgetInstance {
 	const { place, selection, ...layer } = at;
 	return {
@@ -461,7 +468,9 @@ function mapWidget(at: LayerAt): WidgetInstance {
 		data: {
 			...(place ? { place } : {}),
 			...(selection ? { selection } : {}),
-			layers: [{ dataset: "air-quality", entryType: "pm25", ...layer }]
+			layers: [
+				{ dataset: "air-quality", entryType: "pm25", monitorTypes: [...EVERY_TYPE], ...layer }
+			]
 		}
 	};
 }
@@ -525,7 +534,8 @@ async function madeMap(): Promise<FakeMap> {
 const region = (code: string) => ({ place: { kind: "region" as const, type: "county", code } });
 
 test("idle shows Choose a place and opens the picker", async () => {
-	const widget = mapWidget({});
+	// No Where and nothing ticked or searched: nothing to draw.
+	const widget = mapWidget({ monitorTypes: [] });
 	const screen = await show(widget);
 	const button = screen.getByRole("button", { name: m.widget_state_choose_place() });
 	await expect.element(button).toBeVisible();
@@ -545,7 +555,7 @@ test("a Map with no layers (None and nothing else) shows its empty state, loadin
 });
 
 test("an idle map creates no map and loads nothing", async () => {
-	const screen = await show(mapWidget({}));
+	const screen = await show(mapWidget({ monitorTypes: [] }));
 	await expect
 		.element(screen.getByRole("button", { name: m.widget_state_choose_place() }))
 		.toBeVisible();
@@ -629,14 +639,14 @@ test("several regions are one MultiPolygon focus area", async () => {
 });
 
 test("monitor places get no focus area", async () => {
-	await show(mapWidget({ place: { kind: "monitor", id: "a" } }));
+	await show(mapWidget({ monitors: ["a"], monitorTypes: [] }));
 	const map = await madeMap();
 	await expect.poll(() => map.plugins.map((p) => p.id)).toEqual(["focus", "monitors"]);
 	expect(focusOf(map).geometry).toBeNull();
 });
 
 test("the monitors plugin's selection is the marks, not the places", async () => {
-	await show(mapWidget({ selection: { kind: "monitors", ids: ["a", "b"] } }));
+	await show(mapWidget({ monitors: ["a", "b"], monitorTypes: [] }));
 	const map = await madeMap();
 	await expect.poll(() => map.plugins.find((p) => p.id === "monitors")).toBeTruthy();
 	const monitors = map.plugins.find((p) => p.id === "monitors")!;
@@ -653,7 +663,7 @@ test("the monitors plugin's selection is the marks, not the places", async () =>
 test("fits once the monitors are loaded", async () => {
 	let load: (value: unknown) => void = () => {};
 	vi.mocked(getMonitors).mockReturnValue(new Promise((r) => (load = r)) as never);
-	await show(mapWidget({ selection: { kind: "monitors", ids: ["a", "b", "gone"] } }));
+	await show(mapWidget({ monitors: ["a", "b", "gone"], monitorTypes: [] }));
 	const map = await madeMap();
 	map.ready = true;
 	await expect.poll(() => vi.mocked(getMonitors).mock.calls.length).toBe(1);
@@ -738,7 +748,9 @@ test("title for one place and several", async () => {
 	await expect.poll(() => generatedTitle(point.id)).toBe("PM2.5 · ZIP 93721 (shared location)");
 	await shared.unmount();
 
-	const several = mapWidget({ selection: { kind: "monitors", ids: ["a", "b", "c"] } });
+	const several = mapWidget({
+		selection: { kind: "regions", ids: ["county:019", "county:029", "county:107"] }
+	});
 	await show(several);
 	await expect.poll(() => generatedTitle(several.id)).toBe("PM2.5 · 3 places");
 });
@@ -851,7 +863,7 @@ test("a failed monitors load shows the error, and Retry loads them again", async
 
 test("a monitor the server doesn't list is no longer available, and the map still draws", async () => {
 	vi.mocked(getMonitors).mockResolvedValue([reading("a", -120, 36)] as never);
-	const screen = await show(mapWidget({ place: { kind: "monitor", id: "gone" } }));
+	const screen = await show(mapWidget({ monitors: ["gone"], monitorTypes: [] }));
 	const map = await madeMap();
 	await expect.element(screen.getByText(m.widget_state_gone_title())).toBeVisible();
 	expect(frame.querySelector(`[data-fake-map="${map.uid}"]`)).toBeTruthy();
@@ -902,7 +914,7 @@ test("passes axe in light and dark", async () => {
 });
 
 test("a click pins the card and never selects", async () => {
-	const widget = mapWidget({ place: { kind: "monitor", id: "a" } });
+	const widget = mapWidget({ monitors: ["a"], monitorTypes: [] });
 	await show(widget);
 	const map = await madeMap();
 	await expect.poll(() => map.view.card).toEqual({ actions: expect.any(Function) });
@@ -929,7 +941,7 @@ function layers(at: LayerAt, more: Partial<Layer>[] = [], smokeAndFire = false) 
 		...(place ? { place } : {}),
 		...(selection ? { selection } : {}),
 		layers: [
-			{ dataset: "air-quality", entryType: "pm25", ...first },
+			{ dataset: "air-quality", entryType: "pm25", monitorTypes: [...EVERY_TYPE], ...first },
 			...more.map((l) => ({ dataset: "air-quality", ...l })),
 			...(smokeAndFire ? [{ dataset: "hms-smoke" }, { dataset: "hms-fire" }] : [])
 		]
@@ -957,7 +969,7 @@ test("draws only the region's monitors", async () => {
 
 test("draws exactly the hand-picked monitors", async () => {
 	vi.mocked(getMonitors).mockResolvedValue([reading("a"), reading("b"), reading("c")] as never);
-	await show(mapWidget({ selection: { kind: "monitors", ids: ["a", "c"] } }));
+	await show(mapWidget({ monitors: ["a", "c"], monitorTypes: [] }));
 	const map = await madeMap();
 	await expect.poll(() => drawn(map)).toEqual(["a", "c"]);
 	// The current list for the Valley, with no region.
@@ -1891,7 +1903,7 @@ test("the toolbar's filters never hide the tile's own monitors, and offer no row
 	// A monitor place whose monitor is indoors: drawn with the defaults, and no Monitors group
 	// (its rows couldn't filter it).
 	vi.mocked(getMonitors).mockResolvedValue([{ ...reading("a"), location: "inside" }] as never);
-	const first = await show(mapWidget({ place: { kind: "monitor", id: "a" } }));
+	const first = await show(mapWidget({ monitors: ["a"], monitorTypes: [] }));
 	let map = await madeMap();
 	map.ready = true;
 	await expect.poll(() => drawn(map)).toEqual(["a"]);
@@ -1905,7 +1917,7 @@ test("the toolbar's filters never hide the tile's own monitors, and offer no row
 		{ ...reading("b"), type: "airnow" }
 	] as never);
 	await show({
-		...mapWidget({ selection: { kind: "monitors", ids: ["a", "b"] } }),
+		...mapWidget({ monitors: ["a", "b"], monitorTypes: [] }),
 		options: { hiddenTypes: ["airnow"], marks: ["b"] }
 	});
 	map = await madeMap();
@@ -2213,7 +2225,8 @@ test("on a past day, the monitors draw the day's figures: no row isn't drawn, th
 		entryType: "pm25",
 		start: "2026-09-09",
 		end: "2026-09-09",
-		region: ["r019"]
+		region: ["r019"],
+		type: EVERY_TYPE
 	});
 	await expect.element(screen.getByText(m.map_day_not_final())).not.toBeInTheDocument();
 });
@@ -2334,7 +2347,8 @@ test("a pollutant change on a day keeps the day, and draws nothing stale while i
 		entryType: "o3",
 		start: "2026-09-08",
 		end: "2026-09-08",
-		region: ["r019"]
+		region: ["r019"],
+		type: EVERY_TYPE
 	});
 	expect(dayLabel()).toBe("Tuesday, September 8, 2026");
 });
@@ -2370,7 +2384,8 @@ test("a place change on a day keeps the day, and draws nothing stale while it re
 		entryType: "pm25",
 		start: "2026-09-08",
 		end: "2026-09-08",
-		region: ["r029"]
+		region: ["r029"],
+		type: EVERY_TYPE
 	});
 	expect(dayLabel()).toBe("Tuesday, September 8, 2026");
 });
@@ -2972,7 +2987,7 @@ test("a step doesn't move the camera, even when a monitor place has no figure th
 		reading("b", -119, 37)
 	] as never);
 	dailyFigures({ "2026-09-08": { a: 8, b: 8 }, "2026-09-09": { a: 9 } });
-	await show(rangedMap({ selection: { kind: "monitors", ids: ["a", "b"] } }));
+	await show(rangedMap({ monitors: ["a", "b"], monitorTypes: [] }));
 	const map = await madeMap();
 	map.ready = true;
 	await expect.poll(() => drawnValues(map)).toEqual({ a: 9 });

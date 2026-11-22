@@ -1,21 +1,21 @@
 import { splitRegionKey } from "$lib/data/adapters/targets";
 import type { PlaceRef, SpatialSelection, WidgetDataConfig } from "$lib/data/schema";
-import { sameRef } from "./types";
+import { isPlaceRef, sameRef, type PickRef } from "./types";
 
 export type PickerMode = { kind: "single" } | { kind: "multiple"; max: number };
 /** Ordered; points and locations are only ever alone (choosing one replaces a single pick). */
-export type Picks = PlaceRef[];
+export type Picks = PickRef[];
 export type BlockReason =
 	"other-kind-regions" | "other-kind-monitors" | "single-only" | "alone-picked" | "at-cap";
 
-function isSingleOnly(ref: PlaceRef): boolean {
+function isSingleOnly(ref: PickRef): boolean {
 	return ref.kind === "location" || ref.kind === "point" || ref.kind === "default-place";
 }
 
 /** Why `candidate` can't be picked now, or `null` when it can (a picked one can always go). */
 export function blockReason(
 	picks: Picks,
-	candidate: PlaceRef,
+	candidate: PickRef,
 	mode: PickerMode
 ): BlockReason | null {
 	if (mode.kind === "single") return null;
@@ -34,7 +34,7 @@ export function blockReason(
 	return null;
 }
 
-export function toggle(picks: Picks, candidate: PlaceRef, mode: PickerMode): Picks {
+export function toggle(picks: Picks, candidate: PickRef, mode: PickerMode): Picks {
 	if (mode.kind === "single") return [candidate];
 	if (picks.some((p) => sameRef(p, candidate))) return picks.filter((p) => !sameRef(p, candidate));
 	if (blockReason(picks, candidate, mode)) return picks;
@@ -42,26 +42,23 @@ export function toggle(picks: Picks, candidate: PlaceRef, mode: PickerMode): Pic
 	return [...picks, candidate];
 }
 
-/** The Where for the picks: one → `place`, several → `selection`, none → neither (everywhere). */
+/**
+ * The Where for the picks: one → `place`, several → `selection` (regions), none → neither
+ * (everywhere). Monitors are never a Where: a monitor pick is left out.
+ */
 export function toWhere(picks: Picks): { place?: PlaceRef; selection?: SpatialSelection } {
-	if (picks.length === 0) return {};
-	if (picks.length === 1) return { place: picks[0] };
-	if (picks[0].kind === "region") {
-		const ids = picks.flatMap((p) => (p.kind === "region" ? [`${p.type}:${p.code}`] : []));
-		return { selection: { kind: "regions", ids } };
-	}
-	const ids = picks.flatMap((p) => (p.kind === "monitor" ? [p.id] : []));
-	return { selection: { kind: "monitors", ids } };
+	const places = picks.filter(isPlaceRef);
+	if (places.length === 0) return {};
+	if (places.length === 1) return { place: places[0] };
+	const ids = places.flatMap((p) => (p.kind === "region" ? [`${p.type}:${p.code}`] : []));
+	return { selection: { kind: "regions", ids } };
 }
 
 /** The picks a Where holds (a selection's region ids split back into refs; invalid ids dropped). */
-export function fromWhere(data: Pick<WidgetDataConfig, "place" | "selection">): Picks {
+export function fromWhere(data: Pick<WidgetDataConfig, "place" | "selection">): PlaceRef[] {
 	if (data.place) return data.place.kind === "default-place" ? [] : [data.place];
 	const selection = data.selection;
 	if (!selection) return [];
-	if (selection.kind === "monitors") {
-		return selection.ids.map((id) => ({ kind: "monitor" as const, id }));
-	}
 	return selection.ids.flatMap((id) => {
 		if (!id.includes(":")) return [];
 		const { type, code } = splitRegionKey(id);

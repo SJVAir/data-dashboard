@@ -12,7 +12,7 @@
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { m } from "$lib/paraglide/messages.js";
 	import { CurrentConditions } from "../shared/current.svelte";
-	import { hasWhere, queryLayer } from "../shared/input";
+	import { hasPlaces, queryLayer } from "../shared/input";
 	import LevelChip from "../shared/LevelChip.svelte";
 	import MarkFrame from "../shared/MarkFrame.svelte";
 	import { ReadingClock } from "../shared/reading-clock.svelte";
@@ -57,7 +57,7 @@
 	// --- Today's heat ---
 	const layer = $derived.by<QueryLayer | undefined>(() => {
 		const found = pm25Widget.data.layers.find((l) => l.dataset === "air-quality");
-		return found && hasWhere(pm25Widget.data) ? queryLayer(pm25Widget.data, found) : undefined;
+		return found && hasPlaces(pm25Widget.data) ? queryLayer(pm25Widget.data, found) : undefined;
 	});
 	// Equal layers (a re-render of the same widget) don't resolve the source again.
 	const layerKey = $derived(layer ? JSON.stringify(layer) : "");

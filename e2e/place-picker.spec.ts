@@ -139,7 +139,7 @@ test("Choose a place on an idle Data table: a school shows its ZIP's data", asyn
 	await expect(page.getByText("Choose a place to show data.")).toBeVisible();
 	await page.getByRole("button", { name: "Choose a place" }).click();
 
-	// One box searches schools, places and monitors at once, grouped by kind.
+	// One box searches schools and places at once, grouped by kind (Where holds no monitors).
 	await searchBox(page).fill("roo");
 	const results = picker(page).getByRole("listbox", { name: "Places found" });
 	await expect(results.getByRole("group", { name: "Schools & child care" })).toBeVisible();
@@ -163,19 +163,17 @@ test("Choose a place on an idle Data table: a school shows its ZIP's data", asyn
 	await expect(table.getByRole("rowheader")).toHaveCount(30);
 });
 
-test("Choose another on a monitor that's no longer available", async ({ page }) => {
-	await openDoc(page, dataDoc("chart", { kind: "monitor", id: "GoneMonitor1" }));
+test("Choose another on a place that's no longer available", async ({ page }) => {
+	// A county the server doesn't know (Where holds areas, never monitors).
+	await openDoc(page, dataDoc("chart", { kind: "region", type: "county", code: "06999" }));
 	await expect(page.getByText("This place is no longer available.")).toBeVisible();
 	await page.getByRole("button", { name: "Choose another" }).click();
 
-	// Monitors are searched in the browser over the monitors list; a county replaces the monitor.
+	// Where offers no monitors: a search finds places, and a county replaces the gone one.
 	await searchBox(page).fill("fre");
 	const results = picker(page).getByRole("listbox", { name: "Places found" });
-	await expect(
-		results.getByRole("group", { name: "Monitors" }).getByRole("option", {
-			name: /^Fresno - Drummond Street/
-		})
-	).toBeVisible();
+	await expect(results.getByRole("option", { name: /^Fresno County/ })).toBeVisible();
+	await expect(results.getByRole("group", { name: "Monitors" })).toHaveCount(0);
 	await results.getByRole("option", { name: /^Fresno County/ }).click();
 	await picker(page).getByRole("button", { name: "Done" }).click();
 	await expect(widgetTitles(page)).toHaveText([CHART_TITLE]);

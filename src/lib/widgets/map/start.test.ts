@@ -1,8 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+const types = vi.hoisted(() => ({ list: async () => [{ type: "airnow" }, { type: "purpleair" }] }));
+vi.mock("$lib/data", () => ({ getMetadata: () => ({ monitorTypes: () => types.list() }) }));
+vi.mock("$lib/safety/report", () => ({ report: vi.fn() }));
 import type { ChosenPlace } from "$lib/data/schema";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { DEFAULT_LAYER, DEFAULT_PLACE } from "../defaults";
-import { mapStartData } from "./start";
+import { mapStartData, mapStartDataWithTypes } from "./start";
 
 const TULARE: ChosenPlace = { kind: "region", type: "county", code: "06107" };
 const KERN: ChosenPlace = { kind: "region", type: "county", code: "06029" };
@@ -24,6 +28,21 @@ function doc(widgets: WidgetInstance[], bar?: ChosenPlace): Dashboard {
 		body: { widgets, ...(bar ? { placeBar: { place: bar } } : {}) }
 	} as unknown as Dashboard;
 }
+
+describe("mapStartDataWithTypes", () => {
+	it("new Map: every monitor type is ticked, from the monitors meta", async () => {
+		const data = await mapStartDataWithTypes(doc([]));
+		expect(data.layers[0].monitorTypes).toEqual(["airnow", "purpleair"]);
+	});
+
+	it("ticks none when the meta can't be read", async () => {
+		types.list = async () => {
+			throw new Error("down");
+		};
+		const data = await mapStartDataWithTypes(doc([]));
+		expect(data.layers[0]).not.toHaveProperty("monitorTypes");
+	});
+});
 
 describe("mapStartData", () => {
 	it("starts at the bar's place when the bar shows", () => {

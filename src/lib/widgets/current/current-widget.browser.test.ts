@@ -84,7 +84,7 @@ function adapter(values: Record<string, [number, number]>): DatasetAdapter {
 		async target(layer) {
 			const place = layer.place;
 			// A region stands in as the monitor named by its code.
-			const id = place?.kind === "monitor" ? place.id : place?.kind === "region" ? place.code : "";
+			const id = layer.monitors?.[0] ?? (place?.kind === "region" ? place.code : "");
 			if (id === "gone") return { unavailable: "monitor-unlisted" };
 			return { kind: "monitors", ids: [id] };
 		},
@@ -179,8 +179,7 @@ function currentWidget(id: string): WidgetInstance {
 		title: null,
 		rect: { x: 0, y: 0, w: 3, h: 4 },
 		data: {
-			place: { kind: "monitor", id },
-			layers: [{ dataset: "air-quality", entryType: "pm25" }]
+			layers: [{ dataset: "air-quality", entryType: "pm25", monitors: [id] }]
 		}
 	};
 }
@@ -527,7 +526,7 @@ test("a lookup that resolves after the place changed does not set the old monito
 	await screen.rerender({
 		widget: {
 			...first,
-			data: { place: { kind: "monitor", id: "voz" }, layers: [{ ...first.data.layers[0] }] }
+			data: { layers: [{ ...first.data.layers[0], monitors: ["voz"] }] }
 		}
 	});
 	await expect.element(screen.getByText("21.0", { exact: true }), { timeout: 5000 }).toBeVisible();

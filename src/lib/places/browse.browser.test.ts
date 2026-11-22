@@ -5,6 +5,7 @@ import { render } from "vitest-browser-svelte";
 import { page, userEvent } from "vitest/browser";
 import type { PlaceDirectory } from "./directory";
 import PlacePicker from "./PlacePicker.svelte";
+import type { PickerOffer } from "./picker-state.svelte";
 import type { PickerMode } from "./selection";
 import type { MonitorOption, RegionOption, RegionTypeInfo } from "./types";
 
@@ -56,13 +57,14 @@ function directory(): PlaceDirectory {
 	};
 }
 
-async function show(mode: PickerMode = { kind: "single" }) {
+async function show(mode: PickerMode = { kind: "single" }, offer: PickerOffer = "where") {
 	const dir = directory();
 	const ondone = vi.fn();
 	const screen = await render(PlacePicker, {
 		directory: dir,
 		purpose: { dataset: "air-quality", entryType: "pm25" },
 		mode,
+		offer,
 		initial: [],
 		recent: [],
 		locate: async () => ({ ok: false as const, reason: "denied" as const }),
@@ -78,12 +80,18 @@ beforeEach(async () => {
 });
 
 describe("Browse", () => {
-	test("lists each type with its count, plus Monitors", async () => {
+	test("lists each type with its count, and no Monitors (Where holds none)", async () => {
 		const { screen } = await show();
 		await expect.element(screen.getByRole("button", { name: /Counties.*8/ })).toBeVisible();
 		await expect.element(screen.getByRole("button", { name: /ZIP Codes.*1,161/ })).toBeVisible();
 		await expect.element(screen.getByRole("button", { name: /Cities.*62/ })).toBeVisible();
+		await expect.element(screen.getByRole("button", { name: /^Monitors/ })).not.toBeInTheDocument();
+	});
+
+	test("the monitors offer browses only Monitors", async () => {
+		const { screen } = await show({ kind: "single" }, "monitors");
 		await expect.element(screen.getByRole("button", { name: /^Monitors/ })).toBeVisible();
+		await expect.element(screen.getByRole("button", { name: /Counties/ })).not.toBeInTheDocument();
 	});
 
 	test("a type opens with In: (all counties) and a filter; choosing a county narrows", async () => {
@@ -162,8 +170,8 @@ describe("Browse", () => {
 		expect(ondone).toHaveBeenCalledWith([{ kind: "region", type: "county", code: "06029" }]);
 	});
 
-	test("multiple mode: checkbox rows in a multiselectable grid, blocked rows say why", async () => {
-		const { screen, ondone } = await show({ kind: "multiple", max: 5 });
+	test("multiple mode: checkbox rows in a multiselectable grid", async () => {
+		const { screen, ondone } = await show({ kind: "multiple", max: 5 }, "monitors");
 		await screen.getByRole("button", { name: /^Monitors/ }).click();
 		const list = screen.getByRole("grid", { name: "Places in this list" });
 		await expect.element(list).toHaveAttribute("aria-multiselectable", "true");
@@ -172,18 +180,10 @@ describe("Browse", () => {
 			.element(screen.getByRole("row", { name: /Fresno - Garland/ }))
 			.toHaveAttribute("aria-selected", "true");
 		expect(ondone).not.toHaveBeenCalled();
-		await screen.getByRole("button", { name: "Back" }).click();
-		await screen.getByRole("button", { name: /Counties/ }).click();
-		const kern = screen.getByRole("row", { name: /Kern County/ });
-		await expect.element(kern).toHaveAttribute("aria-disabled", "true");
-		const reason = document.getElementById(kern.element().getAttribute("aria-describedby")!)!;
-		expect(reason.textContent).toBe(
-			"This widget compares monitors. Remove the monitors to compare regions."
-		);
 	});
 
 	test("Monitors is a flat filterable list", async () => {
-		const { screen, dir } = await show();
+		const { screen, dir } = await show({ kind: "single" }, "monitors");
 		await screen.getByRole("button", { name: /^Monitors/ }).click();
 		expect(dir.monitors).toHaveBeenCalledWith("pm25", { activeOnly: false }, expect.anything());
 		await expect.element(screen.getByRole("row", { name: /Delano - Cecil/ })).toBeVisible();
@@ -192,7 +192,7 @@ describe("Browse", () => {
 	});
 
 	test("Monitors has an In: county control that narrows through the server", async () => {
-		const { screen, dir } = await show();
+		const { screen, dir } = await show({ kind: "single" }, "monitors");
 		await screen.getByRole("button", { name: /^Monitors/ }).click();
 		const select = screen.getByRole("combobox", { name: "In:" });
 		await expect.element(select).toHaveDisplayValue("All Counties");
@@ -207,21 +207,12 @@ describe("Browse", () => {
 		);
 	});
 
-	test("Inside a county lists Monitors, already narrowed to it", async () => {
-		const { screen, dir } = await show();
+	test("Inside a county lists no Monitors (Where holds none)", async () => {
+		const { screen } = await show();
 		await screen.getByRole("button", { name: /Counties/ }).click();
 		await screen.getByRole("button", { name: "Inside Tulare County" }).click();
-		await screen.getByRole("button", { name: /^Monitors/ }).click();
-		await expect.element(screen.getByRole("row", { name: /Fresno - Garland/ })).toBeVisible();
-		expect(dir.monitorsIn).toHaveBeenCalledWith(
-			"pm25",
-			{ type: "county", code: "06107" },
-			{ activeOnly: false },
-			expect.anything()
-		);
-		await expect
-			.element(screen.getByRole("combobox", { name: "In:" }))
-			.toHaveDisplayValue("Tulare County");
+		await expect.element(screen.getByRole("button", { name: /ZIP Codes/ })).toBeVisible();
+		await expect.element(screen.getByRole("button", { name: /^Monitors/ })).not.toBeInTheDocument();
 	});
 
 	test("arrow keys move between rows and into the Inside cell; Enter opens it", async () => {

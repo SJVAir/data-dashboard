@@ -25,10 +25,13 @@ export type SeriesPoint = {
 	level?: string;
 };
 
-export type QueryPlace = ChosenPlace | { kind: "default-place" } | { kind: "monitor"; id: string };
-export type QuerySelection = { kind: "regions" | "monitors"; ids: string[] };
+export type QueryPlace = ChosenPlace | { kind: "default-place" };
+export type QuerySelection = { kind: "regions"; ids: string[] };
 
-/** What one layer asks the query client for: its own fields plus where (never saved). */
+/**
+ * What one layer asks the query client for: its own fields plus where (never saved). Only an
+ * air-quality layer with an entry type carries `monitors` and `monitorTypes` (`queryLayer`).
+ */
 export type QueryLayer = Pick<Layer, "dataset" | "entryType" | "station" | "filters"> & {
 	place?: QueryPlace;
 	selection?: QuerySelection;
@@ -123,6 +126,11 @@ export type QueryState =
 
 export type Target =
 	| { kind: "monitors"; ids: string[] }
+	/**
+	 * Every monitor of `types` inside the regions of `regionKeys` (`null`: everywhere), fetched in
+	 * bulk, plus the searched monitors `ids` wherever they are (one by one when the bulk lacks them).
+	 */
+	| { kind: "monitor-set"; ids: string[]; types: string[]; regionKeys: string[] | null }
 	| { kind: "regions"; keys: string[] }
 	/** A point or a school: its region keys tried in order (ZIP, city, county); one series. */
 	| { kind: "fallback"; via: Via; keys: string[] }

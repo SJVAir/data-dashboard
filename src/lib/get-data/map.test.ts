@@ -165,7 +165,7 @@ describe("a Map with notices", () => {
 
 describe("converting to and from the Map", () => {
 	const ALLOWED = ["o3", "pm25"];
-	const monitors = (n: number) => Array.from({ length: n }, (_, i) => `m${i + 1}`);
+	const counties = (n: number) => Array.from({ length: n }, (_, i) => `county:c${i + 1}`);
 	/** A Chart of `layers` in Fresno (or at `where`) over the default 30 days. */
 	const chartOf = (
 		layers: Layer[],
@@ -362,13 +362,13 @@ describe("converting to and from the Map", () => {
 	it("keeps up to 25 places converting to a Map", () => {
 		const c = toMapDraft(
 			chartOf([{ dataset: "air-quality", entryType: "pm25" }], {
-				selection: { kind: "monitors", ids: monitors(30) }
+				selection: { kind: "regions", ids: counties(30) }
 			}),
 			CATALOG,
 			ALLOWED
 		);
 		expect(c.draft.data.layers).toEqual([{ dataset: "air-quality", entryType: "pm25" }]);
-		expect(c.draft.data.selection).toEqual({ kind: "monitors", ids: monitors(25) });
+		expect(c.draft.data.selection).toEqual({ kind: "regions", ids: counties(25) });
 		expect(c.dropped).toContain("places");
 		expect(hasSmokeAndFire(c.draft.data)).toBe(false);
 	});
@@ -376,14 +376,14 @@ describe("converting to and from the Map", () => {
 	it("a Map over its place cap keeps its pollutant, smoke and fire, and options", () => {
 		const draft = mapDraft(["o3"], { marks: ["a"] }, true);
 		delete draft.data.place;
-		draft.data.selection = { kind: "monitors", ids: monitors(30) };
+		draft.data.selection = { kind: "regions", ids: counties(30) };
 		const c = toMapDraft(draft, CATALOG, ALLOWED);
 		expect(c.draft.data.layers.map((l) => l.entryType ?? l.dataset)).toEqual([
 			"o3",
 			HMS_SMOKE,
 			HMS_FIRE
 		]);
-		expect(c.draft.data.selection).toEqual({ kind: "monitors", ids: monitors(25) });
+		expect(c.draft.data.selection).toEqual({ kind: "regions", ids: counties(25) });
 		expect(c.draft.options).toEqual({ marks: ["a"] });
 		expect(c.dropped).toEqual(["places"]);
 		expect(isMapShaped(c.draft)).toBe(true);
@@ -463,11 +463,11 @@ describe("converting to and from the Map", () => {
 	it("converts a Map to Current conditions with its pollutant and the first place", () => {
 		const draft = mapDraft(["o3"], undefined, true);
 		delete draft.data.place;
-		draft.data.selection = { kind: "monitors", ids: ["m1", "m2"] };
+		draft.data.selection = { kind: "regions", ids: ["county:c1", "county:c2"] };
 		const c = fromMapDraft(draft, currentType, CATALOG);
 		expect(c.draft.type).toBe("current-conditions");
 		expect(c.draft.data.layers).toEqual([{ dataset: "air-quality", entryType: "o3" }]);
-		expect(c.draft.data.place).toEqual({ kind: "monitor", id: "m1" });
+		expect(c.draft.data.place).toEqual({ kind: "region", type: "county", code: "c1" });
 		expect(c.dropped).toEqual(expect.arrayContaining(["overlays", "places"]));
 		expect(c.dropped).not.toContain("marks");
 		// The scale wasn't given, so the default alert level is still owed.

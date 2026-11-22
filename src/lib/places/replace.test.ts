@@ -14,7 +14,7 @@ import {
 
 const A: ChosenPlace = { kind: "region", type: "county", code: "fresno" };
 const B: ChosenPlace = { kind: "region", type: "county", code: "kern" };
-const C: ChosenPlace = { kind: "monitor", id: "m1" };
+const C: ChosenPlace = { kind: "region", type: "county", code: "tulare" };
 
 type Where = Pick<WidgetDataConfig, "place" | "selection">;
 const MONITORS: Layer = { dataset: "monitors" };
@@ -56,7 +56,9 @@ describe("widgetPlace", () => {
 		expect(widgetPlace(widget("w", {}, [{ dataset: "weather" }]))).toBeNull();
 	});
 	it("is mixed for a selection, a chosen weather station, or default-place", () => {
-		expect(widgetPlace(widget("w", { selection: { kind: "monitors", ids: ["a"] } }))).toBe("mixed");
+		expect(widgetPlace(widget("w", { selection: { kind: "regions", ids: ["county:a"] } }))).toBe(
+			"mixed"
+		);
 		expect(widgetPlace(widget("w", SEVERAL))).toBe("mixed");
 		expect(widgetPlace(widget("w", at(A), [{ dataset: "weather", station: "KFAT" }]))).toBe(
 			"mixed"
@@ -92,6 +94,16 @@ describe("replacePlace", () => {
 		expect(next.body.widgets[2]).toBe(d.body.widgets[2]);
 		expect(next.body.widgets[3]).toBe(d.body.widgets[3]);
 	});
+	it("leaves a widget with no Where alone (its monitors are on its layer)", () => {
+		const onMonitor = widget("mon", {}, [
+			{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }
+		]);
+		const e = doc([widget("a", at(A)), onMonitor], A);
+		for (const others of [false, true]) {
+			const next = replacePlace(e, A, C, { others });
+			expect(next.body.widgets[1]).toBe(onMonitor);
+		}
+	});
 	it("leaves the bar when it isn't at from, and keeps the layers", () => {
 		const layers = [MONITORS, { dataset: "hms" }];
 		const e = doc([widget("a", at(A), layers)], B);
@@ -107,7 +119,7 @@ describe("a Map and Change place", () => {
 		...widget(id, where, [AIR]),
 		type: MAP_TYPE
 	});
-	const several: Where = { selection: { kind: "monitors", ids: ["a", "b"] } };
+	const several: Where = { selection: { kind: "regions", ids: ["county:a", "county:b"] } };
 	it("a one-place Map moves with the bar", () => {
 		const d = doc([mapWidget("m", at(A))], A);
 		const next = replacePlace(d, A, C, { others: false });

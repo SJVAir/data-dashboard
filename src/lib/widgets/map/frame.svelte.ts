@@ -18,8 +18,12 @@ export type FrameState =
 /** No shapes. The frame's maps are replaced whole (`$state.raw`), never changed in place. */
 const noShapes = (): Map<string, Feature> => new Map();
 
-/** A Where, as a key (another tab's copy of the same places is the same key). */
-const placesKey = (where: Where) => JSON.stringify([where.place ?? null, where.selection ?? null]);
+/**
+ * A Where and the layer's searched monitors, as a key (another tab's copy of the same places is
+ * the same key).
+ */
+const placesKey = (where: Where, layer: Layer | undefined) =>
+	JSON.stringify([where.place ?? null, where.selection ?? null, layer?.monitors ?? null]);
 
 const isAbort = (e: unknown) => e instanceof DOMException && e.name === "AbortError";
 
@@ -70,7 +74,7 @@ export class MapFrame {
 	}
 
 	#load(layer: Layer | undefined, where: Where, data: WidgetDataConfig, signal: AbortSignal) {
-		const key = placesKey(where);
+		const key = placesKey(where, layer);
 		const { needs, ...rest } = frameOf(layer, where);
 		const frame: Frame = { ...rest, regions: [], pin: null };
 		if (needs.length === 0) {

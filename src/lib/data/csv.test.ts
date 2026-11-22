@@ -448,9 +448,8 @@ describe("downloadDataCsv", () => {
 	];
 	const config = {
 		dateRange: { kind: "trailing", amount: 30, unit: "day" },
-		place: { kind: "monitor", id: "m1" },
 		layers: [
-			{ dataset: "air-quality", entryType: "pm25" },
+			{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] },
 			{ dataset: "forecasts", entryType: "burn-status" }
 		]
 	} as const;
@@ -694,7 +693,7 @@ describe("downloadDataCsv for a pesticide-only widget", () => {
 		await downloadDataCsv(
 			{
 				dateRange: { kind: "trailing", amount: 90, unit: "day" },
-				place: { kind: "monitor", id: "m1" },
+				place: { kind: "region", type: "county", code: "06019" },
 				layers: [
 					{
 						dataset: "pesticide-use",
@@ -770,7 +769,7 @@ describe("a calendar's CSV", () => {
 			regions: { resolve: async () => "unsupported" }
 		});
 		const widget = chartWidget(["m1"]);
-		widget.data.layers[0] = { dataset: "air-quality", entryType: "o3" };
+		widget.data.layers[0] = { dataset: "air-quality", entryType: "o3", monitors: ["m1"] };
 		const seen: unknown[] = [];
 		const spy = vi.spyOn(fake.client, "subscribe");
 		const saved: string[] = [];
@@ -798,7 +797,7 @@ describe("a calendar's CSV", () => {
 			regions: { resolve: async () => "unsupported" }
 		});
 		const widget = chartWidget(["m1"]);
-		widget.data.layers[0] = { dataset: "air-quality", entryType: "o3" };
+		widget.data.layers[0] = { dataset: "air-quality", entryType: "o3", monitors: ["m1"] };
 		let out = "";
 		await downloadWidgetCsv({ ...widget, type: "calendar-month" }, (_n, contents) => {
 			out = contents;

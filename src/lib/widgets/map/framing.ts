@@ -39,7 +39,8 @@ const LOCATION_MIN_ZOOM = 13;
 /**
  * What a map's Where frames for its `layer` (its main one; none frames nothing), before any
  * lookups: the monitors to highlight, what the camera fits, and the lookups (`needs`) that fill in
- * the regions and the pin. A point frames its region (looked up for `layer`), never itself.
+ * the regions and the pin. A point frames its region (looked up for `layer`), never itself. With
+ * no Where, the layer's searched monitors are framed (when it has a pollutant to draw them).
  */
 export function frameOf(
 	layer: Layer | undefined,
@@ -48,8 +49,6 @@ export function frameOf(
 	const { place, selection } = where;
 	if (layer && place) {
 		switch (place.kind) {
-			case "monitor":
-				return { monitors: [place.id], focus: "monitor", needs: [] };
 			case "region":
 				return {
 					monitors: [],
@@ -72,15 +71,13 @@ export function frameOf(
 	}
 	if (layer && selection) {
 		const picks = fromWhere(where);
-		if (selection.kind === "monitors") {
-			const ids = picks.flatMap((p) => (p.kind === "monitor" ? [p.id] : []));
-			return { monitors: ids, focus: "monitor", needs: [] };
-		}
 		const refs = picks.flatMap((p) =>
 			p.kind === "region" ? [{ type: p.type, code: p.code }] : []
 		);
 		return { monitors: [], focus: "regions", needs: [{ kind: "regions", refs }] };
 	}
+	const searched = layer?.entryType ? (layer.monitors ?? []) : [];
+	if (searched.length > 0) return { monitors: [...searched], focus: "monitor", needs: [] };
 	return { monitors: [], focus: "none", needs: [] };
 }
 

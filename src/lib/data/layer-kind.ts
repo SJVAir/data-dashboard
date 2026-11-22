@@ -19,8 +19,8 @@ export function layerKind(
 	return drawsAsBands(layer.dataset) ? "level" : "number";
 }
 
-/** The air-quality dataset, whose layers are a widget's pollutant. */
-const AIR_QUALITY = "air-quality";
+/** The air-quality dataset, whose layers are a widget's pollutant (and hold its monitors). */
+export const AIR_QUALITY = "air-quality";
 
 /**
  * Whether `layer` is a widget's pollutant: a pollutant by the catalog's kind, or an air-quality

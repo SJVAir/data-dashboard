@@ -54,9 +54,8 @@ const RAW = JSON.stringify({
 				data: {
 					dateRange: { kind: "trailing", amount: 7, unit: "day" },
 					resolution: "hour",
-					place: { kind: "monitor", id: "m1" },
 					layers: [
-						{ dataset: "air-quality", entryType: "pm25" },
+						{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] },
 						{ dataset: "hms-smoke", entryType: "smoke-density" },
 						{ dataset: "pesticide-use", entryType: "pounds-applied" }
 					]

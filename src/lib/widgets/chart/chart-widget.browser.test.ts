@@ -24,7 +24,8 @@ import {
 	chartWidget,
 	fakeAdapter,
 	fakeForecastsAdapter,
-	fakeNumberAdapter
+	fakeNumberAdapter,
+	setLayers
 } from "../shared/test-harness/fake-data";
 import { animationsSettled } from "../../../test/animations";
 
@@ -102,20 +103,37 @@ test("renders the time chart and sets the generated title", async () => {
 	expect(requests[0].worstHour).toBe(true);
 });
 
-test("seven places draw five series and say two aren't shown", async () => {
-	const ids = ["m1", "m2", "m3", "m4", "m5", "m6", "m7"];
-	const widget = chartWidget(ids);
+/** A Chart of PM2.5 in the counties `codes` (a Where selection). */
+function areasChart(codes: string[]): WidgetInstance {
+	const widget = chartWidget([]);
+	widget.data.layers = [{ dataset: "air-quality", entryType: "pm25" }];
+	widget.data.selection = { kind: "regions", ids: codes.map((c) => `county:${c}`) };
+	return widget;
+}
+
+test("seven areas draw five series and say two aren't shown", async () => {
+	const codes = ["a1", "a2", "a3", "a4", "a5", "a6", "a7"];
+	const widget = areasChart(codes);
 	const screen = await show(widget);
 	const key = screen.getByRole("list", { name: m.chart_series_key() });
 	await expect.element(key).toBeVisible();
 	expect(key.getByRole("listitem").elements()).toHaveLength(5);
 	await expect.element(screen.getByText("2 more places aren't shown.")).toBeVisible();
-	expect(requests.at(-1)!.target).toEqual({ kind: "monitors", ids: ids.slice(0, 5) });
+	expect(requests.at(-1)!.target).toEqual({
+		kind: "regions",
+		keys: codes.slice(0, 5).map((c) => `county:${c}`)
+	});
 	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 · 5 places · Last 30 days");
 });
 
+test("searched monitors are never cut: all seven are asked for", async () => {
+	const ids = ["m1", "m2", "m3", "m4", "m5", "m6", "m7"];
+	await show(chartWidget(ids));
+	await expect.poll(() => requests.at(-1)?.target).toEqual({ kind: "monitors", ids });
+});
+
 test("one hidden place is worded singular", async () => {
-	const screen = await show(chartWidget(["m1", "m2", "m3", "m4", "m5", "m6"]));
+	const screen = await show(areasChart(["a1", "a2", "a3", "a4", "a5", "a6"]));
 	await expect.element(screen.getByText("1 more place isn't shown.")).toBeVisible();
 });
 
@@ -130,8 +148,7 @@ test("a minimized widget's query stops polling", async () => {
 });
 
 test("a widget with no Where asks for one", async () => {
-	const widget = chartWidget(["m1"]);
-	delete widget.data.place;
+	const widget = chartWidget([]);
 	const screen = await show(widget);
 	await expect.element(screen.getByText(m.widget_state_idle())).toBeVisible();
 	expect(requests).toEqual([]);
@@ -385,7 +402,7 @@ async function showLayers(
 	});
 	const widget = chartWidget(["m1"]);
 	const [first, ...rest] = layers;
-	widget.data.layers = [first, ...rest];
+	setLayers(widget, [first, ...rest]);
 	const screen = await show(widget);
 	return { widget, screen };
 }
@@ -418,7 +435,7 @@ test("a pesticide-only widget with no use says so, not an error", async () => {
 
 test("a pesticide-only widget draws its months as bars", async () => {
 	const { screen } = await showLayers([POUNDS], [pesticides({ values: [1200, 340] })]);
-	const chart = screen.getByRole("group", { name: "Chart of Monitor m1" });
+	const chart = screen.getByRole("group", { name: "Chart of Region county:m1" });
 	await expect.element(chart).toHaveAttribute("data-bars", "2");
 });
 
@@ -589,7 +606,7 @@ test("a stored level the main layer doesn't offer says it can't be drawn", async
 	});
 	const widget = chartWidget(["m1"]);
 	widget.data.resolution = "day";
-	widget.data.layers = [{ ...POUNDS }];
+	setLayers(widget, [{ ...POUNDS }]);
 	const screen = await show(widget);
 	await expect
 		.element(screen.getByText(m.widget_state_unavailable_no_resolution_view()))
@@ -607,7 +624,7 @@ test("a daily chart from an untrusted document draws without pesticide use and s
 	});
 	const widget = chartWidget(["m1"]);
 	widget.data.resolution = "day";
-	widget.data.layers = [{ ...PM25 }, { ...POUNDS }];
+	setLayers(widget, [{ ...PM25 }, { ...POUNDS }]);
 	const screen = await show(widget);
 	await expect
 		.element(
@@ -630,7 +647,8 @@ test("an overlay is fetched alongside the main, at the dataset's resolution", as
 	});
 	fake.client = createQueryClient({
 		adapters: [
-			fakeAdapter(requests),
+			// The air-quality fake refuses the county here.
+			{ ...fakeAdapter(requests), target: async () => ({ unavailable: "place-unsupported" }) },
 			// Weather would answer for the county (as a monitor's series, to keep the fake small).
 			{
 				...fakeNumberAdapter("weather", requests),
@@ -640,8 +658,7 @@ test("an overlay is fetched alongside the main, at the dataset's resolution", as
 		metadata: fake.metadata,
 		regions: { resolve: async () => "unsupported" }
 	});
-	const widget = chartWidget(["m1"]);
-	// The fake air-quality adapter serves monitors only: a county is unavailable.
+	const widget = chartWidget([]);
 	widget.data.place = { kind: "region", type: "county", code: "06019" };
 	widget.data.layers = [{ ...PM25 }, { ...RAIN }];
 	const screen = await show(widget);

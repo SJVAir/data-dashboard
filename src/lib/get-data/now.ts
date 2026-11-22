@@ -156,10 +156,20 @@ export function toNowDraft(
 		dataset: entryType === undefined ? FORECASTS : AIR_QUALITY,
 		...(entryType === undefined ? {} : { entryType })
 	};
+	// The air-quality layer's monitors go with it: a one-place type takes the first searched
+	// monitor only (its ticked types and the others are left out); a Map takes them all.
+	const searched = from?.dataset === AIR_QUALITY ? (from.monitors ?? []) : [];
+	const ticked = from?.dataset === AIR_QUALITY ? (from.monitorTypes ?? []) : [];
+	if (entryType !== undefined) {
+		const one = cap === 1;
+		const monitors = one ? searched.slice(0, 1) : searched;
+		if (monitors.length > 0) layer.monitors = [...monitors];
+		if (!one && ticked.length > 0) layer.monitorTypes = [...ticked];
+	}
 	const dropped: NowDropped[] = [];
 	if (draft.data.dateRange || draft.data.timeSubRange) dropped.push("dates");
 	if (draft.data.layers.some((l) => l !== from)) dropped.push("overlays");
-	if (picks.length > cap) dropped.push("places");
+	if (picks.length > cap || (cap === 1 && searched.length > 1)) dropped.push("places");
 	const changed =
 		entryType !== undefined && from?.entryType !== undefined && from.entryType !== entryType;
 	if (changed) dropped.push("pollutant");

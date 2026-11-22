@@ -3,7 +3,7 @@ import { m } from "$lib/paraglide/messages.js";
 import type { WidgetType } from "../registry";
 import { HMS_FIRE, HMS_SMOKE, MAP_MAX_STOPS, MAP_TYPE } from "./options";
 import { showInItems } from "./show-in-items";
-import { mapStartData } from "./start";
+import { mapStartDataWithTypes } from "./start";
 
 export { MAP_TYPE } from "./options";
 
@@ -30,6 +30,6 @@ export const mapType: WidgetType = {
 		maxPlaces: 25
 	},
 	menu: (_ctx, env) => showInItems(env),
-	addable: (doc) => ({ data: mapStartData(doc) }),
+	addable: async (doc) => ({ data: await mapStartDataWithTypes(doc) }),
 	load: () => import("./module")
 };

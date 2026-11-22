@@ -9,7 +9,7 @@ import type { CatalogEntry, Level } from "$lib/data/metadata";
 import type { PlaceInfo, QueryState, UnavailableReason } from "$lib/data/types";
 import { m } from "$lib/paraglide/messages.js";
 import type { WidgetInstance } from "$lib/documents/schema";
-import { entryMeta, mainLayer, nowInput } from "./input";
+import { entryMeta, mainLayer, nowInput, singleMonitor } from "./input";
 
 type Levels = Level[] | { error: unknown } | undefined;
 
@@ -81,10 +81,7 @@ export class CurrentConditions {
 		// `undefined` while the monitor's type and alert config are being looked up; `null` when
 		// the place is not a monitor the server evaluates for this pollutant.
 		let alertMode = $state.raw<AlertMode | null | undefined>();
-		const monitorId = $derived.by(() => {
-			const place = layer && widget().data.place;
-			return place?.kind === "monitor" ? place.id : undefined;
-		});
+		const monitorId = $derived(layer ? singleMonitor(widget().data) : undefined);
 		$effect(() => {
 			const id = monitorId;
 			const entryType = entryTypeId;

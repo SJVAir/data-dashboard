@@ -22,6 +22,7 @@ import {
 	widgetTitles
 } from "./helpers";
 import {
+	EVERY_MONITOR_TYPE,
 	routeMapMeta,
 	routeMapUse,
 	routeMoreMonitors,
@@ -85,7 +86,8 @@ function countyDoc(marks: string[], range: Record<string, unknown> | null = PAST
 						layers: [
 							{
 								dataset: "air-quality",
-								entryType: "pm25"
+								entryType: "pm25",
+								monitorTypes: EVERY_MONITOR_TYPE
 							}
 						],
 						...(range && { dateRange: range })
@@ -135,6 +137,11 @@ async function openCountyMap(page: Page, marks: string[]): Promise<Locator> {
 	return map;
 }
 
+/** The seven marked monitors' names, as the preview lists them. */
+const SEVEN_NAMES =
+	"Fresno - Drummond Street, Fresno - Test Site A, Fresno - Test Site B, Fresno - Test Site C, " +
+	"Fresno - Test Site D, Fresno - Test Site E, and Fresno - Test Site F";
+
 test.describe("from a Map's marks", () => {
 	test.beforeEach(async ({ context, page }) => {
 		await routeMoreMonitors(context, EXTRAS);
@@ -182,38 +189,19 @@ test.describe("from a Map's marks", () => {
 		await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
 	});
 
-	test("Show in a chart with seven marks asks which five to keep", async ({ page }) => {
+	test("Show in a chart takes seven marks without asking: they're its searched monitors", async ({
+		page
+	}) => {
 		const map = await openCountyMap(page, SEVEN);
 		await expect(selectionLine(map)).toHaveText("PM2.5: 7 selected");
 
 		await widgetMenuItem(page, FRESNO_MAP, "Show in a chart");
 		await expect(page).toHaveURL(NEW_WIDGET_URL);
-		const dialog = keepDialog(page);
-		await expect(dialog).toBeVisible();
-		await expect(dialog.getByText("Choose up to 5 places to keep.")).toBeVisible();
-		// Every mark is kept to start with; Done waits until no more than five are.
-		for (const name of ["Fresno - Drummond Street", ...EXTRAS.map((m) => m.name)]) {
-			await expect(dialog.getByRole("button", { name: `Remove ${name}` })).toBeVisible();
-		}
-		const done = dialog.getByRole("button", { name: "Done" });
-		await expect(done).toHaveAttribute("aria-disabled", "true");
-		await expectNoViolations(page);
-
-		await dialog.getByRole("button", { name: `Remove ${EXTRAS[4].name}` }).click();
-		await expect(done).toHaveAttribute("aria-disabled", "true");
-		await dialog.getByRole("button", { name: `Remove ${EXTRAS[5].name}` }).click();
-		await expect(done).not.toHaveAttribute("aria-disabled", "true");
-		await done.click();
-		await expect(dialog).toBeHidden();
 		await expect(page.getByRole("radio", { name: "Chart" })).toBeChecked();
-		// The two left out are gone.
-		await expect(whereSummary(page)).toHaveText(
-			"Fresno - Drummond Street, Fresno - Test Site A, Fresno - Test Site B, Fresno - Test Site C, and Fresno - Test Site D"
-		);
-
-		await addToButton(page).click();
-		await expect(page).toHaveURL(DASHBOARD_URL);
-		await expect(widgetTitles(page).last()).toHaveText(/^PM2\.5 · 5 places · /);
+		// Searched monitors are never over a cap: no dialog asks which to keep.
+		await expect(keepDialog(page)).toHaveCount(0);
+		await expect(whereSummary(page)).toHaveText(SEVEN_NAMES);
+		await expectNoViolations(page);
 	});
 
 	test("Show in a table takes seven marks without asking, and notes a hidden one", async ({
@@ -226,7 +214,7 @@ test.describe("from a Map's marks", () => {
 		await widgetMenuItem(page, FRESNO_MAP, "Show in a table");
 		await expect(page).toHaveURL(NEW_WIDGET_URL);
 		await expect(page.getByRole("radio", { name: "Data table" })).toBeChecked();
-		await expect(whereSummary(page)).toHaveText("7 places");
+		await expect(whereSummary(page)).toHaveText(SEVEN_NAMES);
 		await expect(
 			page.getByText("1 marked monitor isn't shown on the map, so it was left out.")
 		).toBeVisible();
@@ -243,7 +231,13 @@ test.describe("shared by a live link", () => {
 	}) => {
 		const doc = countyDoc([DRUMMOND], null);
 		doc.name = "Monitor map";
-		doc.body.widgets[0].data.place = { kind: "monitor", id: DRUMMOND } as never;
+		// A Map of the one searched monitor, with no Where.
+		delete (doc.body.widgets[0].data as { place?: unknown }).place;
+		doc.body.widgets[0].data.layers[0] = {
+			dataset: "air-quality",
+			entryType: "pm25",
+			monitors: [DRUMMOND]
+		} as never;
 		await openSharedDoc(page, doc);
 		await expect(nav(page).getByText("Saved to your account", { exact: true })).toBeVisible();
 		await openPicker(page, doc.name);

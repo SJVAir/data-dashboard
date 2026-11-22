@@ -30,13 +30,44 @@ describe("WidgetDataConfigSchema", () => {
 		expect(WidgetDataConfigSchema.safeParse(mapConfig).success).toBe(true);
 	});
 
-	it("accepts a chart config with a trailing range and a monitor place", () => {
-		const r = WidgetDataConfigSchema.safeParse({
+	it("monitors and types on the air-quality layer", () => {
+		const config = {
 			dateRange: { kind: "trailing", amount: 30, unit: "day" },
+			place: county,
+			layers: [
+				{
+					dataset: "air-quality",
+					entryType: "pm25",
+					monitors: ["abc", "Ab_9-z"],
+					monitorTypes: ["purpleair", "airnow"]
+				}
+			]
+		};
+		expect(WidgetDataConfigSchema.parse(config)).toEqual(config);
+	});
+
+	it("rejects repeated or unsafe monitors and types", () => {
+		const layer = (l: object) => LayerSchema.safeParse({ dataset: "air-quality", ...l }).success;
+		expect(layer({ monitors: ["a", "a"] })).toBe(false);
+		expect(layer({ monitors: ["../x"] })).toBe(false);
+		expect(layer({ monitorTypes: ["purpleair", "purpleair"] })).toBe(false);
+		expect(layer({ monitorTypes: ["a b"] })).toBe(false);
+		expect(layer({ monitors: [], monitorTypes: [] })).toBe(true);
+	});
+
+	it("a saved monitor place or monitors selection is dropped on read", () => {
+		const place = WidgetDataConfigSchema.safeParse({
 			place: { kind: "monitor", id: "abc" },
-			layers: [{ dataset: "monitors" }]
+			layers: [{ dataset: "air-quality", entryType: "pm25" }]
 		});
-		expect(r.success).toBe(true);
+		expect(place.success).toBe(true);
+		expect(place.data).toEqual({ layers: [{ dataset: "air-quality", entryType: "pm25" }] });
+		const selection = WidgetDataConfigSchema.safeParse({
+			selection: { kind: "monitors", ids: ["a", "b"] },
+			layers: []
+		});
+		expect(selection.success).toBe(true);
+		expect(selection.data).toEqual({ layers: [] });
 	});
 
 	it("Where is saved on the data, not the layer", () => {
@@ -102,23 +133,19 @@ describe("WidgetDataConfigSchema", () => {
 	});
 
 	it("rejects a Where with both a place and a selection", () => {
-		expect(
-			where({ place: { kind: "monitor", id: "a" }, selection: { kind: "monitors", ids: ["a"] } })
-		).toBe(false);
+		expect(where({ place: county, selection: { kind: "regions", ids: ["county:06019"] } })).toBe(
+			false
+		);
 	});
 
 	it("rejects bad selections", () => {
 		const sel = (kind: string, ids: string[]) => where({ selection: { kind, ids } });
 		expect(sel("regions", ["06019"])).toBe(false);
-		expect(sel("monitors", ["a", "a"])).toBe(false);
-		expect(sel("monitors", [])).toBe(false);
+		expect(sel("regions", ["county:1", "county:1"])).toBe(false);
+		expect(sel("regions", [])).toBe(false);
 	});
 
-	it("rejects monitor ids and entry types outside a safe character set", () => {
-		expect(where({ place: { kind: "monitor", id: "../x" } })).toBe(false);
-		expect(where({ place: { kind: "monitor", id: "a b" } })).toBe(false);
-		expect(where({ place: { kind: "monitor", id: "Ab_9-z" } })).toBe(true);
-		expect(where({ selection: { kind: "monitors", ids: ["ok", "../x"] } })).toBe(false);
+	it("rejects entry types outside a safe character set", () => {
 		expect(where({ selection: { kind: "regions", ids: ["county:06019"] } })).toBe(true);
 		const layer = (l: object) => LayerSchema.safeParse({ dataset: "d", ...l }).success;
 		expect(layer({ entryType: "pm25/../x" })).toBe(false);
@@ -134,7 +161,7 @@ describe("WidgetDataConfigSchema", () => {
 	});
 
 	it("accepts a drawn source geometry and rejects one without a type", () => {
-		const base = { kind: "monitors", ids: ["a"] };
+		const base = { kind: "regions", ids: ["county:06019"] };
 		const withSource = (source: unknown) => where({ selection: { ...base, source } });
 		expect(withSource({ type: "Polygon", coordinates: [] })).toBe(true);
 		expect(withSource({ coordinates: [] })).toBe(false);
@@ -184,6 +211,8 @@ describe("default-place", () => {
 	});
 
 	it("leaves other places and the resolved starter valid; only the template holds it", () => {
+		expect(DashboardSchema.safeParse(withPlace(county)).success).toBe(true);
+		// An earlier monitor place is dropped, and the dashboard still opens.
 		expect(DashboardSchema.safeParse(withPlace({ kind: "monitor", id: "a" })).success).toBe(true);
 		const starter = starterDashboard(defaultStarterPlace());
 		expect(DashboardSchema.safeParse(starter).success).toBe(true);

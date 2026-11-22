@@ -1,5 +1,5 @@
-import type { WidgetDataConfig } from "$lib/data/schema";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
+import type { PointPlace } from "$lib/places/types";
 
 /**
  * Finding exact locations (a `point` in a widget's Where or the Change place bar). Kept apart
@@ -7,8 +7,7 @@ import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
  * check a dashboard without loading the lookups.
  */
 
-/** A point in a widget's Where. */
-export type PointPlace = Extract<NonNullable<WidgetDataConfig["place"]>, { kind: "point" }>;
+/** A widget whose Where is a point (`PointPlace`, the places' own type). */
 export type PointWidget = { widget: WidgetInstance; point: PointPlace };
 
 /**

@@ -31,24 +31,79 @@ const ctx = { regions, locations, points, metadata: fixtureMetadata() };
 const base: QueryLayer = { dataset: "air-quality", entryType: "pm25" };
 
 describe("layerTarget", () => {
-	it("maps a monitor place to its id", async () => {
-		const layer: QueryLayer = { ...base, place: { kind: "monitor", id: "m-pa" } };
+	it("maps one searched monitor to its id", async () => {
+		const layer: QueryLayer = { ...base, monitors: ["m-pa"] };
 		expect(await layerTarget(layer, ctx)).toEqual({ kind: "monitors", ids: ["m-pa"] });
 	});
 
 	it("reports a monitor absent from a loaded monitors list as monitor-unlisted", async () => {
-		const layer: QueryLayer = { ...base, place: { kind: "monitor", id: "m-gone" } };
+		const layer: QueryLayer = { ...base, monitors: ["m-gone"] };
 		expect(await layerTarget(layer, ctx)).toEqual({ unavailable: "monitor-unlisted" });
 	});
 
-	it("reports a monitor selection with any absent id as monitor-unlisted", async () => {
-		const layer: QueryLayer = { ...base, selection: { kind: "monitors", ids: ["m-pa", "m-gone"] } };
+	it("reports searched monitors with any absent id as monitor-unlisted", async () => {
+		const layer: QueryLayer = { ...base, monitors: ["m-pa", "m-gone"] };
 		expect(await layerTarget(layer, ctx)).toEqual({ unavailable: "monitor-unlisted" });
 	});
 
-	it("keeps a monitor selection whose ids are all listed", async () => {
-		const layer: QueryLayer = { ...base, selection: { kind: "monitors", ids: ["m-pa", "m-bam"] } };
+	it("keeps searched monitors whose ids are all listed", async () => {
+		const layer: QueryLayer = { ...base, monitors: ["m-pa", "m-bam"] };
 		expect(await layerTarget(layer, ctx)).toEqual({ kind: "monitors", ids: ["m-pa", "m-bam"] });
+	});
+
+	it("takes searched monitors wherever they are: the Where doesn't narrow them", async () => {
+		const layer: QueryLayer = {
+			...base,
+			place: { kind: "region", type: "county", code: "06019" },
+			monitors: ["m-pa"]
+		};
+		expect(await layerTarget(layer, ctx)).toEqual({ kind: "monitors", ids: ["m-pa"] });
+	});
+
+	it("ticked types in a county give a monitor-set with its region key", async () => {
+		const layer: QueryLayer = {
+			...base,
+			place: { kind: "region", type: "county", code: "06019" },
+			monitorTypes: ["purpleair"],
+			monitors: ["m-bam"]
+		};
+		expect(await layerTarget(layer, ctx)).toEqual({
+			kind: "monitor-set",
+			ids: ["m-bam"],
+			types: ["purpleair"],
+			regionKeys: ["county:06019"]
+		});
+	});
+
+	it("no Where and types give a monitor-set with regionKeys null", async () => {
+		const layer: QueryLayer = { ...base, monitorTypes: ["purpleair", "airnow"] };
+		expect(await layerTarget(layer, ctx)).toEqual({
+			kind: "monitor-set",
+			ids: [],
+			types: ["purpleair", "airnow"],
+			regionKeys: null
+		});
+	});
+
+	it("scopes ticked types by a school's first region", async () => {
+		const layer: QueryLayer = {
+			...base,
+			place: { kind: "location", source: "cde-public", code: "10621661035023" },
+			monitorTypes: ["purpleair"]
+		};
+		expect(await layerTarget(layer, ctx)).toMatchObject({
+			kind: "monitor-set",
+			regionKeys: ["zipcode:93702"]
+		});
+	});
+
+	it("reports ticked types in an unknown region as region-unresolved", async () => {
+		const layer: QueryLayer = {
+			...base,
+			selection: { kind: "regions", ids: ["county:06019", "county:06039"] },
+			monitorTypes: ["purpleair"]
+		};
+		expect(await layerTarget(layer, ctx)).toEqual({ unavailable: "region-unresolved" });
 	});
 
 	it("runs the query as before when the monitors list fails to load", async () => {
@@ -60,7 +115,7 @@ describe("layerTarget", () => {
 				}
 			})
 		};
-		const layer: QueryLayer = { ...base, place: { kind: "monitor", id: "m-gone" } };
+		const layer: QueryLayer = { ...base, monitors: ["m-gone"] };
 		expect(await layerTarget(layer, failing)).toEqual({ kind: "monitors", ids: ["m-gone"] });
 	});
 
@@ -160,14 +215,6 @@ describe("layerTarget", () => {
 	it("reports a point in no region as point-outside", async () => {
 		const layer: QueryLayer = { ...base, place: { kind: "point", lat: 45, lon: -119.787 } };
 		expect(await layerTarget(layer, ctx)).toEqual({ unavailable: "point-outside" });
-	});
-
-	it("maps a monitor selection to its ids", async () => {
-		const layer: QueryLayer = { ...base, selection: { kind: "monitors", ids: ["m-pa", "m-bam"] } };
-		expect(await layerTarget(layer, ctx)).toEqual({
-			kind: "monitors",
-			ids: ["m-pa", "m-bam"]
-		});
 	});
 
 	it("maps a region selection when every region resolves", async () => {

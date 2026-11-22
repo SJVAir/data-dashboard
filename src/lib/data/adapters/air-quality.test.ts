@@ -138,9 +138,9 @@ beforeEach(() => {
 
 describe("airQualityAdapter.target", () => {
 	it("reports a monitor missing from the loaded list as monitor-unlisted", async () => {
-		const layer: QueryLayer = { dataset: "air-quality", place: { kind: "monitor", id: "m-gone" } };
+		const layer: QueryLayer = { dataset: "air-quality", monitors: ["m-gone"] };
 		expect(await airQualityAdapter.target(layer, ctx)).toEqual({ unavailable: "monitor-unlisted" });
-		const listed: QueryLayer = { dataset: "air-quality", place: { kind: "monitor", id: "m-pa" } };
+		const listed: QueryLayer = { dataset: "air-quality", monitors: ["m-pa"] };
 		expect(await airQualityAdapter.target(listed, ctx)).toEqual({
 			kind: "monitors",
 			ids: ["m-pa"]
@@ -157,6 +157,75 @@ describe("airQualityAdapter.offered", () => {
 			"day"
 		]);
 		expect(airQualityAdapter.offered(base, { kind: "all" })).toEqual(["hour", "day"]);
+		const set: Target = { kind: "monitor-set", ids: [], types: ["purpleair"], regionKeys: null };
+		expect(airQualityAdapter.offered(base, set)).toEqual(["hour", "day"]);
+	});
+});
+
+describe("airQualityAdapter.fetch monitor sets", () => {
+	it("a monitor-set makes one bulk request per period scoped by region", async () => {
+		vi.mocked(getMonitorSummariesBulkDaily).mockResolvedValue([
+			{ id: "m-pa", summaries: [row("2026-09-02T00:00:00-07:00", 4)] }
+		] as never);
+		const target: Target = {
+			kind: "monitor-set",
+			ids: [],
+			types: ["purpleair"],
+			regionKeys: ["county:06019"]
+		};
+		const data = await airQualityAdapter.fetch(request(target, "day", SEPTEMBER), ctx, signal);
+		expect(getMonitorSummariesBulkDaily).toHaveBeenCalledExactlyOnceWith(
+			{
+				entryType: "pm25",
+				start: "2026-09-01",
+				end: "2026-09-30",
+				region: ["sq1"],
+				type: ["purpleair"]
+			},
+			{ signal }
+		);
+		expect(getRegionSummariesBulkDaily).not.toHaveBeenCalled();
+		expect(getMonitorSummariesDaily).not.toHaveBeenCalled();
+		// Series only for the monitors the typed request returned, named from the list.
+		expect(data.series.map((s) => [s.place, s.points.length])).toEqual([["monitor:m-pa", 1]]);
+		expect(data.places).toEqual([{ place: "monitor:m-pa", name: "Purple Air" }]);
+	});
+
+	it("a monitor-set with no regions asks everywhere, with its types", async () => {
+		vi.mocked(getMonitorSummariesBulkDaily).mockResolvedValue([] as never);
+		const target: Target = {
+			kind: "monitor-set",
+			ids: [],
+			types: ["purpleair", "airnow"],
+			regionKeys: null
+		};
+		await airQualityAdapter.fetch(request(target, "day", SEPTEMBER), ctx, signal);
+		const [config] = vi.mocked(getMonitorSummariesBulkDaily).mock.calls[0];
+		expect("region" in config).toBe(false);
+		expect(config).toMatchObject({ type: ["purpleair", "airnow"] });
+	});
+
+	it("searched monitors outside the areas are fetched one by one", async () => {
+		vi.mocked(getMonitorSummariesBulkDaily).mockResolvedValue([
+			{ id: "m-pa", summaries: [row("2026-09-02T00:00:00-07:00", 4)] }
+		] as never);
+		vi.mocked(getMonitorSummariesDaily).mockResolvedValue([
+			row("2026-09-03T00:00:00-07:00", 7)
+		] as never);
+		const target: Target = {
+			kind: "monitor-set",
+			ids: ["m-pa", "m-bam"],
+			types: ["purpleair"],
+			regionKeys: ["county:06019"]
+		};
+		const data = await airQualityAdapter.fetch(request(target, "day", SEPTEMBER), ctx, signal);
+		// m-pa came with the bulk; only m-bam is fetched on its own.
+		const single = vi.mocked(getMonitorSummariesDaily).mock.calls.map(([c]) => c.monitorId);
+		expect(single).toEqual(["m-bam"]);
+		expect(data.series.map((s) => [s.place, s.points.map((p) => p.mean)])).toEqual([
+			["monitor:m-pa", [4]],
+			["monitor:m-bam", [7]]
+		]);
 	});
 });
 
@@ -1292,6 +1361,15 @@ describe("placeRegion", () => {
 				code: "0627000"
 			}
 		);
+	});
+
+	it("is the school's region when its layer also has ticked types or searched monitors", async () => {
+		withData(["sqc"]);
+		const layer: QueryLayer = { ...school, monitorTypes: ["purpleair"], monitors: ["m-pa"] };
+		expect(await placeRegion()({ layer, dateRange: SEPTEMBER, resolution: "day" })).toEqual({
+			type: "city",
+			code: "0627000"
+		});
 	});
 
 	it("is a point's last candidate when none has data", async () => {

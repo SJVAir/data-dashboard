@@ -73,7 +73,7 @@ describe("Add widget", () => {
 describe("Duplicate for another place", () => {
 	const A: ChosenPlace = { kind: "region", type: "county", code: "06019" };
 	const B: ChosenPlace = { kind: "location", source: "schools", code: "123" };
-	const C: ChosenPlace = { kind: "monitor", id: "m1" };
+	const C: ChosenPlace = { kind: "region", type: "county", code: "06039" };
 	const TO: ChosenPlace = { kind: "region", type: "county", code: "06029" };
 
 	function widget(id: string, places: ChosenPlace[], y: number): WidgetInstance {

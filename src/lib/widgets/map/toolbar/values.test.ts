@@ -244,17 +244,14 @@ describe("filterMonitors", () => {
 });
 
 describe("placeMonitors", () => {
-	it("is a monitor place's id, or a monitors selection's ids", () => {
-		expect([...placeMonitors({ place: { kind: "monitor", id: "x" } })]).toEqual(["x"]);
-		expect([...placeMonitors({ selection: { kind: "monitors", ids: ["a", "b"] } })]).toEqual([
-			"a",
-			"b"
-		]);
+	it("is the air-quality layer's searched monitors", () => {
+		expect([...placeMonitors({ monitors: ["x"] })]).toEqual(["x"]);
+		expect([...placeMonitors({ monitors: ["a", "b"] })]).toEqual(["a", "b"]);
 	});
-	it("is empty for regions, points and no places", () => {
+	it("is empty with no searched monitors (ticked types aren't exempt)", () => {
 		expect(placeMonitors(undefined).size).toBe(0);
-		expect(placeMonitors({ place: { kind: "region", type: "county", code: "019" } }).size).toBe(0);
-		expect(placeMonitors({ selection: { kind: "regions", ids: ["r019"] } }).size).toBe(0);
+		expect(placeMonitors({}).size).toBe(0);
+		expect(placeMonitors({ monitors: [] }).size).toBe(0);
 	});
 });
 

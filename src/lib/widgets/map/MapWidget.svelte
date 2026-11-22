@@ -26,7 +26,7 @@
 	import { useApp } from "$lib/store/app.svelte";
 	import {
 		entryMeta,
-		hasWhere,
+		hasPlaces,
 		mainLayer,
 		widgetEffective,
 		widgetPlaceKind
@@ -271,7 +271,7 @@
 		})
 	);
 	const idle = $derived(
-		!layer || !hasWhere(widget.data) || widget.data.place?.kind === "default-place"
+		!layer || !hasPlaces(widget.data) || widget.data.place?.kind === "default-place"
 	);
 	/**
 	 * Whether the map can show a pollutant of the tile: none the server's map offers is never drawn.

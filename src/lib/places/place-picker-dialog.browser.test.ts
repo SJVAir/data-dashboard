@@ -92,8 +92,8 @@ beforeEach(async () => {
 			{
 				...base,
 				async target(layer, ctx) {
-					if (layer.place?.kind === "monitor" && layer.place.id === "gone") {
-						return { unavailable: "monitor-unlisted" };
+					if (layer.place?.kind === "region" && layer.place.code === "gone") {
+						return { unavailable: "region-unresolved" };
 					}
 					return base.target(layer, ctx);
 				}
@@ -219,13 +219,14 @@ test("the idle state's Choose a place opens the picker", async () => {
 });
 
 test("the no-longer-available card's Choose another opens the picker without the gone place", async () => {
-	const { session } = await show(widget({ place: { kind: "monitor", id: "gone" } }), [
-		{ kind: "region", type: "city", code: "0627000" }
-	]);
+	const { session } = await show(
+		widget({ place: { kind: "region", type: "county", code: "gone" } }),
+		[{ kind: "region", type: "city", code: "0627000" }]
+	);
 	await page.getByRole("button", { name: m.widget_state_choose_another() }).click();
 	await expect.element(dialog()).toBeVisible();
 	await expect.element(page.getByRole("combobox", { name: m.place_picker_label() })).toBeVisible();
-	// The gone monitor isn't a chip, so it neither blocks regions nor stays beside the new pick.
+	// The gone region isn't a chip, so it doesn't stay beside the new pick.
 	await expect
 		.element(page.getByRole("list", { name: m.place_picker_chosen() }))
 		.not.toBeInTheDocument();
@@ -551,8 +552,8 @@ test("Recent shows current names and leaves out a place that no longer resolves"
 	await openFromMenu();
 	const recent = page.getByRole("group", { name: m.place_picker_recent() });
 	await expect.element(recent.getByRole("option", { name: /City of Fresno/ })).toBeVisible();
-	await expect.element(recent.getByRole("option", { name: /Purple Air/ })).toBeVisible();
-	expect(recent.getByRole("option").elements()).toHaveLength(2);
+	// A recent monitor isn't offered: Change place picks a Where, never a monitor.
+	expect(recent.getByRole("option").elements()).toHaveLength(1);
 });
 
 test("the dialog fills the screen on a phone", async () => {
@@ -576,21 +577,18 @@ test("a minimized widget's taskbar menu has Change place too", async () => {
 	await expect.element(page.getByRole("combobox", { name: m.place_picker_label() })).toBeVisible();
 });
 
-test("Change place on a Chart made from a Map's monitors opens with the monitors as chips", async () => {
-	const { session } = await show(
-		widget({ selection: { kind: "monitors", ids: ["m-pa", "m-bam"] } })
-	);
+test("Change place on a Chart of searched monitors offers no monitors and keeps them", async () => {
+	const { session } = await show(widget({ place: COUNTY, monitors: ["m-pa", "m-bam"] }));
 	await openFromMenu();
+	// The monitors are on the layer, never Where chips.
 	await expect
 		.element(page.getByRole("button", { name: m.place_picker_remove({ name: "Purple Air" }) }))
-		.toBeVisible();
-	await expect
-		.element(page.getByRole("button", { name: m.place_picker_remove({ name: "BAM" }) }))
-		.toBeVisible();
-	// No point, so no region lookup.
+		.not.toBeInTheDocument();
+	await page.getByRole("combobox", { name: m.place_picker_label() }).fill("Purple");
+	await expect.element(page.getByRole("option", { name: /Purple Air/ })).not.toBeInTheDocument();
 	expect(placeRegion).not.toHaveBeenCalled();
 	await page.getByRole("button", { name: m.place_picker_cancel() }).click();
-	expect(layerOf(session).selection).toEqual({ kind: "monitors", ids: ["m-pa", "m-bam"] });
+	expect(session.doc.body.widgets[0].data.layers[0].monitors).toEqual(["m-pa", "m-bam"]);
 });
 
 test("Change place on a Chart made from a section opens with the section as a chip", async () => {

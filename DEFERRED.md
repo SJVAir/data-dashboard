@@ -1149,6 +1149,28 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 
 ## Map & selection
 
+- **A gone searched monitor can't be swapped from its "no longer available" card.** _Deferred
+  2026-11-21 (step 5 spec 7a, Task 5)._ Monitors moved from Where onto the air-quality layer
+  (`monitors`), so the card's Choose another opens Change place, which picks a Where and leaves
+  the gone monitor in place (searched monitors win over Where), and the card stays. **Revisit
+  in** spec 7a Task 10 (the Monitors search, where a monitor is removed) or Task 9 (single-place
+  widgets take one monitor).
+- **The Forecast strip can't hold a monitor.** _Deferred 2026-11-21 (step 5 spec 7a, Task 5)._
+  Decision 11 says single-place widgets take one Where place or one monitor, but the Forecast
+  strip accepts only `forecasts`, so it has no air-quality layer to hold `monitors`; an earlier
+  strip on a monitor place opens with no place. **Revisit in** spec 7a Task 9, which settles
+  where a single-place widget's monitor is saved.
+- **No "Every measurement" for ticked monitor types.** _Deferred 2026-11-21 (step 5 spec 7a, Task
+  5)._ A ticked-type monitor set is fetched through the bulk monitor summaries, which have no raw
+  entries, so the dataset rules count it as regions (`widgetPlaceKind`) and Automatic picks
+  hourly for short ranges. Searched monitors alone still offer raw. **Revisit if** the server adds
+  bulk raw entries or people ask for raw across many monitors.
+- **Change place on a Chart or Table still offers schools and "my location".** _Deferred
+  2026-11-21 (step 5 spec 7a, Task 5)._ Decision 2's areas-only Where is in the Data Portal
+  (`WhereControl` passes `offer: "areas"`); the dashboard's Change place / Choose a place dialog
+  (`PlacePickerDialog`) still offers the full Where for every type. **Revisit in** spec 7a Task 6
+  or 11 (Where always shown), or when the dialog learns the widget's type.
+
 - **Comparing mixed kinds of place in one widget.** _Deferred 2026-11-04 (step 4 spec 2)._ A
   school, a monitor and a county side by side in one Chart: several places are one
   `SpatialSelection`, which is all monitors or all regions, so the picker greys out the other
