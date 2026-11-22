@@ -98,11 +98,18 @@
 					resolvers: getResolvers(),
 					entryType: purpose.entryType
 				};
-				const options = await Promise.all(
-					refs.map((ref) => resolveOption(ref, ctx, abort.signal).catch(() => null))
+				// A point is its own label, else "Your location" (as the picker's chips name it).
+				const found = await Promise.all(
+					refs.map((ref) =>
+						ref.kind === "point"
+							? Promise.resolve(ref.label ?? m.place_picker_your_location())
+							: resolveOption(ref, ctx, abort.signal)
+									.then((o) => o?.name ?? null)
+									.catch(() => null)
+					)
 				);
 				if (abort.signal.aborted) return;
-				const names = options.every((o) => o !== null) ? options.map((o) => o!.name) : null;
+				const names = found.every((n) => n !== null) ? (found as string[]) : null;
 				named = { key, names };
 			} catch (error) {
 				if (abort.signal.aborted) return;

@@ -905,6 +905,19 @@ test("get data view: a county Where with searched monitors names the county", as
 	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Area 06019");
 });
 
+test("get data view: a point Where reads its label, else Your location", async () => {
+	const draft = areasDraft([]);
+	draft.data.place = { kind: "point", lat: 36.7, lon: -119.8, label: "Home" };
+	const { screen, host } = await show(draft);
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Home");
+	screen.unmount();
+	host.remove();
+	const plain = areasDraft([]);
+	plain.data.place = { kind: "point", lat: 36.7, lon: -119.8 };
+	await show(plain);
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Your location");
+});
+
 test("get data view: a school Where names the school", async () => {
 	fake.locations = { "schools:s1": "Roosevelt High" };
 	const draft = areasDraft([]);
