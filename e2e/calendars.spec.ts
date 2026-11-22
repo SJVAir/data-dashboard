@@ -101,7 +101,7 @@ test("a calendar is greyed out with its reason for two places and for a weather 
 	for (const name of ["Month calendar", "Year calendar"]) {
 		await expect(page.getByRole("radio", { name })).toBeDisabled();
 	}
-	await expect(page.getByText(/Year calendar: Shows up to 1 place/)).toBeVisible();
+	await expect(page.getByText(/Year calendar: Shows 1 place or monitor/)).toBeVisible();
 });
 
 test("a share link with a point place gets its region for a calendar", async ({ page }) => {

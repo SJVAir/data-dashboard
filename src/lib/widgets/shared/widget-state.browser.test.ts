@@ -214,10 +214,10 @@ test("none-measure names the pollutant none of the chosen monitors measure", asy
 		{ pollutant: "Ozone" }
 	);
 	expect(m.widget_state_unavailable_none_measure({ pollutant: "Ozone" })).toBe(
-		"None of the chosen monitors measure Ozone"
+		"None of the chosen monitors measure Ozone."
 	);
 	await expect
-		.element(screen.getByText("None of the chosen monitors measure Ozone"))
+		.element(screen.getByText("None of the chosen monitors measure Ozone."))
 		.toBeInTheDocument();
 	await screen.unmount();
 	// The pollutant not known yet: still its own reason, never the generic "No data".

@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { m } from "$lib/paraglide/messages.js";
 import type { CatalogEntry } from "$lib/data/metadata";
 import type { Layer } from "$lib/data/schema";
 import { FIXTURE_CATALOG } from "$lib/data/testing/fixtures";
@@ -252,4 +253,9 @@ describe("Show as from a Map with None, smoke and a fill", () => {
 		expect(c.dropped).toEqual([]);
 		expect(c.draft.data.layers).toEqual([{ dataset: "air-quality", monitorTypes: TICKED }]);
 	});
+});
+
+it("a single-place type's greyed reason counts a monitor too (decision 11)", () => {
+	expect(m.get_data_block_places({ count: "1", countValue: 1 })).toBe("Shows 1 place or monitor");
+	expect(m.get_data_block_places({ count: "12", countValue: 12 })).toBe("Shows up to 12 places");
 });
