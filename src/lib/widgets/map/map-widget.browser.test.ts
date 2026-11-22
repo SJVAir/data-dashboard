@@ -660,14 +660,32 @@ test("no pollutant: spray notices draw alone", async () => {
 	expect(getMonitors).not.toHaveBeenCalled();
 });
 
-test("no pollutant: a fill alone makes the map, unfilled, and says why", async () => {
+test("no pollutant: a fill alone draws the region type's outlines, uncoloured, with no legend", async () => {
+	const figure = vi.fn(async () => null);
+	const levels = vi.fn(async () => []);
+	vi.mocked(getMetadata).mockReturnValue(
+		fixtureMetadata({ catalog: async () => CATALOG, figure, levels })
+	);
 	zipFill();
-	const screen = await show({ ...noPollutant(region("019")), options: { fill: "zipcode" } });
+	await show({ ...noPollutant(region("019")), options: { fill: "zipcode" } });
 	const map = await madeMap();
-	await expect.element(screen.getByText(m.map_fill_needs_pollutant())).toBeVisible();
-	expect(pluginIds(map)).not.toContain("fill");
-	expect(pluginIds(map)).not.toContain("monitors");
+	await expect.poll(() => pluginIds(map)).toEqual(["fill", "focus"]);
+	const fill = fillOf(map)!;
+	expect(fill.options).toMatchObject({ layerLabel: "ZIP Codes", noFigure: "outline" });
+	// Every region, with no figure: outlines.
+	await expect
+		.poll(() => fillValues(map))
+		.toEqual({
+			"region:zipcode:93721": null,
+			"region:zipcode:93722": null,
+			"region:zipcode:93723": null
+		});
+	// No scale: map-sdk gives it no legend section. No figure, levels or summaries are asked for.
+	expect(fill.options.source.scale).toBeNull();
+	expect(figure).not.toHaveBeenCalled();
+	expect(levels).not.toHaveBeenCalled();
 	expect(getRegionSummariesBulkDailyOpen).not.toHaveBeenCalled();
+	expect(getRegionSummariesBulkDaily).not.toHaveBeenCalled();
 	// The Where still frames the map.
 	await expect.poll(() => focusOf(map)?.geometry).toBeTruthy();
 });

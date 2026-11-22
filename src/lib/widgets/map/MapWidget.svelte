@@ -165,9 +165,8 @@
 		get onDay() {
 			return days.onDay;
 		},
-		// No fill row without a pollutant to fill by (a note says so).
 		get fillLabel() {
-			return hasPollutant ? fillInfo?.plural : undefined;
+			return fillInfo?.plural;
 		},
 		get notices() {
 			return data.notices;
@@ -568,12 +567,10 @@
 	const useSectionsFailed = $derived(useDrawn && data.useBlock.sectionsFailed);
 
 	/**
-	 * The fill is on the map: the tile has one the metadata lists, a pollutant colours it (the
-	 * regions' figure is the pollutant's), and its row hasn't hidden it.
+	 * The fill is on the map: the tile has one the metadata lists, and its row hasn't hidden it.
+	 * With no pollutant it is the regions' outlines alone, with no legend section.
 	 */
-	const fillDrawn = $derived(!!fillInfo && hasPollutant && wiring.fillShown);
-	/** A fill is chosen but no pollutant colours it: said, never an uncoloured layer. */
-	const fillNeedsPollutant = $derived(!!savedFill && !hasPollutant);
+	const fillDrawn = $derived(!!fillInfo && wiring.fillShown);
 	/**
 	 * The fill's layer label: on now it says the figure is today's so far, and on the current month
 	 * or year that it's the period's so far.
@@ -581,6 +578,8 @@
 	const fillLabel = $derived.by(() => {
 		if (!fillInfo) return undefined;
 		const regionType = fillInfo.plural;
+		// Outlines alone (no pollutant) have no figure to be "so far".
+		if (!hasPollutant) return regionType;
 		if (!days.onDay) return m.map_fill_today_so_far({ regionType });
 		if (!days.soFar) return regionType;
 		return days.resolution === "year"
@@ -909,13 +908,6 @@
 				message: m.map_smoke_fire_failed(),
 				hook: "map-hms-note",
 				action: { label: m.widget_state_retry(), onclick: () => data.retryHms() }
-			});
-		}
-		if (fillNeedsPollutant) {
-			notes.push({
-				message: m.map_fill_needs_pollutant(),
-				hook: "map-fill-needs-pollutant",
-				...(markable && { action: { label: m.widget_edit_data(), onclick: editData } })
 			});
 		}
 		if (fillFailed) {

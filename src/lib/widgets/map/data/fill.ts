@@ -51,6 +51,12 @@ export function fillPolls(source: FillSource | null, value: FillData | undefined
 
 export type FillEntry = {
 	/**
+	 * A region type's outlines alone, with no figures (a Map with no pollutant: spec decision 6,
+	 * "only outlines of counties"). The same on every stop; never polled. No figure or levels are
+	 * looked up.
+	 */
+	outlines(args: { regionType: RegionSummaryBulkType }): FillSource;
+	/**
 	 * A fill of `regionType` by `entryType`'s figure: the day's, month's or year's (the average of
 	 * the daily figures), or today's so far on now.
 	 */
@@ -78,7 +84,11 @@ export function fillScale(entryType: string): ScaleRef {
 	return { dataset: "air-quality", entryType };
 }
 
-/** The fill's source for the regions plugin, reading the loaded state as it is. */
+/**
+ * The fill's source for the regions plugin, reading the loaded state as it is. With no pollutant
+ * its scale is null: map-sdk draws every region as a no-figure outline and gives it no legend
+ * section.
+ */
 export function fillSourceOf(d: {
 	readonly fillState: NowState<FillData>;
 	/** The pollutant the fill loads (its scale); undefined with no fill. */
@@ -101,6 +111,9 @@ export function fillSourceOf(d: {
 		}
 	};
 }
+
+/** No region has a figure: an outlines-only fill. */
+const NO_FIGURES: Snapshot = { figures: new Map(), final: true, unrated: false };
 
 /**
  * A region's properties with its figure: none when the summaries leave it out; a thin row (too
@@ -146,6 +159,20 @@ function toFillFeatures(
 
 export function createFillEntry(ctx: FillContext): FillEntry {
 	return {
+		outlines({ regionType }) {
+			return {
+				key: `map-fill:outlines:${regionType}`,
+				cadence: "hour",
+				poll: () => false,
+				async fetch(signal) {
+					const [shapes, name] = await Promise.all([
+						ctx.shapes(regionType, signal),
+						ctx.names(signal)
+					]);
+					return { features: toFillFeatures(shapes, NO_FIGURES, regionType, name), final: true };
+				}
+			};
+		},
 		source({ regionType, entryType, at }) {
 			const now = at === "now";
 			return {

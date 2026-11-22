@@ -177,10 +177,14 @@ export class MapData {
 			polls: (at) => hmsPolls(at, this.#monitors.dayPolls)
 		});
 		this.#fill = new DayLayer<FillData>(deps.now, {
+			// With no pollutant, the region type's outlines alone (no figures fetched).
 			sourceFor: (at) => {
 				const entryType = this.#entryType;
 				const regionType = this.#regionType;
-				return entryType && regionType ? fillEntry.source({ regionType, entryType, at }) : null;
+				if (!regionType) return null;
+				return entryType
+					? fillEntry.source({ regionType, entryType, at })
+					: fillEntry.outlines({ regionType });
 			},
 			// Every source the fill holds is one `fillEntry` made.
 			polls: (_at, value, source) => fillPolls(source as FillSource | null, value)
@@ -242,7 +246,7 @@ export class MapData {
 			});
 			$effect(() => {
 				const type = this.#entryType;
-				const on = this.#loads && !!type && !!this.#regionType;
+				const on = this.#loads && !!this.#regionType;
 				this.#fillFor = on ? type : undefined;
 				this.#fill.update({ on, at: this.#at(), ahead: this.#ahead(), today: this.#today });
 			});

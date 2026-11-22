@@ -1330,7 +1330,6 @@
 	"map_fill_month_so_far": "{regionType}, this month so far",
 	"map_fill_year_so_far": "{regionType}, this year so far",
 	"map_fill_failed": "The region fill couldn't be loaded.",
-	"map_fill_needs_pollutant": "Regions aren't filled: choose a pollutant to fill them by.",
 	"map_notices_failed": "Spray notices couldn't be loaded.",
 	"map_notices_filter_gone": "Spray notices can't be shown: a filter they use is no longer available.",
 	"map_notices_legend_units": "Numbered: how many notices",
