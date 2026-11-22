@@ -164,11 +164,15 @@ export const LayerSchema = z.object({
 	station: SafeIdSchema.optional(),
 	/** A pesticide layer's filters. */
 	filters: PesticideFiltersSchema.optional(),
-	/** The air-quality layer's monitors picked by search (ids), counted wherever they are. */
+	/**
+	 * Monitors picked by search (ids), counted wherever they are: on the air-quality layer, or a
+	 * single-place widget's one layer when it has no air-quality layer (the Forecast strip).
+	 */
 	monitors: uniqueIds("Monitor ids must be unique").optional(),
 	/**
 	 * The air-quality layer's ticked monitor types (the monitors meta's type keys): every monitor of
-	 * them inside the widget's Where, or everywhere with no Where.
+	 * them inside the widget's Where, or everywhere with no Where. Meaningful only on the
+	 * air-quality layer.
 	 */
 	monitorTypes: uniqueIds("Monitor types must be unique").optional()
 });

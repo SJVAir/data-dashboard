@@ -140,15 +140,15 @@ export function nowInput(data: WidgetDataConfig, layer: Layer | undefined): Quer
 }
 
 /**
- * Where a widget's places are fetched for, as the dataset rules count it (`PlaceKind`): `regions`
- * when its air-quality layer has ticked types (a monitor set is fetched through the bulk
- * summaries, which, like regions, have no raw entries); `monitors` for searched monitors alone;
- * else `regions` for any Where (a point or a school resolves to regions), else `none` (also for
- * only the starter's unresolved `default-place`, which isn't fetched).
+ * Where a widget's places are fetched for, as the dataset rules count it (`PlaceKind`):
+ * `monitor-types` when its air-quality layer (with an entry type) has ticked types; `monitors`
+ * for searched monitors alone; else `regions` for any Where (a point or a school resolves to
+ * regions), else `none` (also for only the starter's unresolved `default-place`, which isn't
+ * fetched).
  */
 export function widgetPlaceKind(data: WidgetDataConfig): PlaceKind {
 	const { monitors, types } = widgetMonitors(data);
-	if (types.length > 0) return "regions";
+	if (types.length > 0) return "monitor-types";
 	if (monitors.length > 0) return "monitors";
 	if (data.selection) return "regions";
 	switch (data.place?.kind) {

@@ -1158,13 +1158,15 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 - **The Forecast strip can't hold a monitor.** _Deferred 2026-11-21 (step 5 spec 7a, Task 5)._
   Decision 11 says single-place widgets take one Where place or one monitor, but the Forecast
   strip accepts only `forecasts`, so it has no air-quality layer to hold `monitors`; an earlier
-  strip on a monitor place opens with no place. **Revisit in** spec 7a Task 9, which settles
-  where a single-place widget's monitor is saved.
-- **No "Every measurement" for ticked monitor types.** _Deferred 2026-11-21 (step 5 spec 7a, Task
+  strip on a monitor place opens with no place. Decided (session lead, 2026-11-21): such a
+  type keeps its one monitor as `monitors: [id]` on its own one layer (the schema allows
+  `monitors` on any layer). **Revisit in** spec 7a Task 9, which builds it.
+- **Every measurement (raw) for ticked monitor types.** _Deferred 2026-11-21 (step 5 spec 7a, Task
   5)._ A ticked-type monitor set is fetched through the bulk monitor summaries, which have no raw
-  entries, so the dataset rules count it as regions (`widgetPlaceKind`) and Automatic picks
-  hourly for short ranges. Searched monitors alone still offer raw. **Revisit if** the server adds
-  bulk raw entries or people ask for raw across many monitors.
+  entries, and fetching raw one by one for dozens of monitors is heavy. So the dataset rules count
+  it as its own place kind, `monitor-types`: like regions for air quality, no raw, and a raw-only
+  air-quality entry type offers nothing. Searched monitors alone still offer raw. **Revisit when**
+  someone asks for raw across ticked types, or the server offers bulk raw entries.
 - **Change place on a Chart or Table still offers schools and "my location".** _Deferred
   2026-11-21 (step 5 spec 7a, Task 5)._ Decision 2's areas-only Where is in the Data Portal
   (`WhereControl` passes `offer: "areas"`); the dashboard's Change place / Choose a place dialog

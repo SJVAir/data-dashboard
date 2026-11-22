@@ -494,6 +494,40 @@ describe("converting to and from the Map", () => {
 	});
 });
 
+describe("a new Map's monitor types", () => {
+	const TYPES = ["airnow", "purpleair"];
+	const withTypes = [{ ...CATALOG[0], monitorTypes: TYPES }] as CatalogEntry[];
+	const chart = (layer: Layer): Draft => ({
+		type: CHART_TYPE,
+		data: { place: FRESNO, layers: [layer] }
+	});
+
+	it("Show as Map from a Chart with no monitors ticks every type from the catalog", () => {
+		const c = toMapDraft(chart({ dataset: "air-quality", entryType: "pm25" }), withTypes, ["pm25"]);
+		expect(c.draft.data.layers[0].monitorTypes).toEqual(TYPES);
+	});
+
+	it("keeps a draft's own ticks or searched monitors", () => {
+		const ticked = chart({ dataset: "air-quality", entryType: "pm25", monitorTypes: ["airnow"] });
+		expect(toMapDraft(ticked, withTypes, ["pm25"]).draft.data.layers[0].monitorTypes).toEqual([
+			"airnow"
+		]);
+		const searched = chart({ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] });
+		const layer = toMapDraft(searched, withTypes, ["pm25"]).draft.data.layers[0];
+		expect(layer.monitors).toEqual(["m1"]);
+		expect(layer).not.toHaveProperty("monitorTypes");
+	});
+
+	it("a Map's own empty ticks stay empty, and a catalog without types ticks none", () => {
+		const map: Draft = { ...chart({ dataset: "air-quality", entryType: "pm25" }), type: MAP_TYPE };
+		expect(toMapDraft(map, withTypes, ["pm25"]).draft.data.layers[0]).not.toHaveProperty(
+			"monitorTypes"
+		);
+		const c = toMapDraft(chart({ dataset: "air-quality", entryType: "pm25" }), CATALOG, ["pm25"]);
+		expect(c.draft.data.layers[0]).not.toHaveProperty("monitorTypes");
+	});
+});
+
 describe("pesticide use on a Map", () => {
 	const ALLOWED = ["o3", "pm25"];
 	const USE_CATALOG = [

@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
-const types = vi.hoisted(() => ({ list: async () => [{ type: "airnow" }, { type: "purpleair" }] }));
-vi.mock("$lib/data", () => ({ getMetadata: () => ({ monitorTypes: () => types.list() }) }));
+const types = vi.hoisted(() => ({
+	catalog: async (): Promise<unknown> => [
+		{ id: "air-quality", monitorTypes: ["airnow", "purpleair"] },
+		{ id: "weather", monitorTypes: ["cimis"] }
+	]
+}));
+vi.mock("$lib/data", () => ({ getMetadata: () => ({ catalog: () => types.catalog() }) }));
 vi.mock("$lib/safety/report", () => ({ report: vi.fn() }));
 import type { ChosenPlace } from "$lib/data/schema";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
@@ -30,17 +35,18 @@ function doc(widgets: WidgetInstance[], bar?: ChosenPlace): Dashboard {
 }
 
 describe("mapStartDataWithTypes", () => {
-	it("new Map: every monitor type is ticked, from the monitors meta", async () => {
+	it("new Map: every monitor type is ticked, from the catalog's air-quality monitor_types", async () => {
 		const data = await mapStartDataWithTypes(doc([]));
 		expect(data.layers[0].monitorTypes).toEqual(["airnow", "purpleair"]);
 	});
 
-	it("ticks none when the meta can't be read", async () => {
-		types.list = async () => {
+	it("ticks none when the catalog can't be loaded", async () => {
+		types.catalog = async () => "unavailable";
+		expect((await mapStartDataWithTypes(doc([]))).layers[0]).not.toHaveProperty("monitorTypes");
+		types.catalog = async () => {
 			throw new Error("down");
 		};
-		const data = await mapStartDataWithTypes(doc([]));
-		expect(data.layers[0]).not.toHaveProperty("monitorTypes");
+		expect((await mapStartDataWithTypes(doc([]))).layers[0]).not.toHaveProperty("monitorTypes");
 	});
 });
 

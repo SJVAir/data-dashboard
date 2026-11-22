@@ -172,6 +172,7 @@ describe("createWebMetadata().catalog", () => {
 			source: "SJVAir sensors, AirNow, AQview, AQLite",
 			geographies: ["monitor", "region"],
 			metaUrl: "/api/2.0/monitors/meta/",
+			monitorTypes: ["airgradient", "airnow", "aqlite", "aqview", "bam1022", "purpleair", "vozbox"],
 			entryTypes: [
 				{
 					id: "humidity",

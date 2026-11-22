@@ -78,14 +78,16 @@ const FRESNO = { kind: "region", type: "county", code: "06019" } as const;
 
 describe("widgetPlaceKind", () => {
 	const kind = (where: Where) => widgetPlaceKind({ ...where, layers: [PM] });
-	it("monitors for searched monitors alone; ticked types count as regions (no raw in bulk)", () => {
+	it("monitor-types for ticked types; monitors for searched monitors alone", () => {
 		expect(widgetPlaceKind({ layers: [{ ...PM, monitors: ["m1"] }] })).toBe("monitors");
 		expect(widgetPlaceKind({ place: FRESNO, layers: [{ ...PM, monitorTypes: ["airnow"] }] })).toBe(
-			"regions"
+			"monitor-types"
 		);
 		expect(
 			widgetPlaceKind({ layers: [{ ...PM, monitors: ["m1"], monitorTypes: ["airnow"] }] })
-		).toBe("regions");
+		).toBe("monitor-types");
+		expect(widgetPlaceKind({ place: FRESNO, layers: [PM] })).toBe("regions");
+		expect(widgetPlaceKind({ layers: [PM] })).toBe("none");
 		// Empty lists are none; with None chosen (no entry type) they fetch nothing.
 		expect(widgetPlaceKind({ place: FRESNO, layers: [{ ...PM, monitors: [] }] })).toBe("regions");
 		expect(widgetPlaceKind({ layers: [{ dataset: "air-quality", monitors: ["m1"] }] })).toBe(

@@ -908,6 +908,15 @@
 				action: { label: m.widget_state_retry(), onclick: retryUse }
 			});
 		}
+		// A Map with a pollutant but no ticked types and no searched monitors (a new Map whose
+		// catalog couldn't be read, say) draws no monitors: say so, and how to choose some.
+		if (layer?.entryType && !layer.monitorTypes?.length && !layer.monitors?.length) {
+			notes.push({
+				message: m.map_no_monitors_chosen(),
+				hook: "map-no-monitors-chosen",
+				...(markable && { action: { label: m.widget_edit_data(), onclick: editData } })
+			});
+		}
 		if (useGone) {
 			notes.push({
 				message: m.map_use_filter_gone(),

@@ -2,6 +2,7 @@
  * Get data for the Map: its pollutants, smoke and fire, spray notices and pesticide use, and
  * converting a draft to and from it.
  */
+import { everyMonitorType } from "$lib/data/layer-kind";
 import type { CatalogEntry, Level } from "$lib/data/metadata";
 import type { DateRangeSpec, Layer, PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
 import { addDays, parseDateKey } from "$lib/format";
@@ -303,6 +304,18 @@ function mapRange(
  * gets the first offered pollutant. The Map's resolution (and so its cut) is
  * that of the layers it ends with.
  */
+/**
+ * A draft becoming a Map with no monitors of its own (no ticked types, no searched monitors) is a
+ * new Map: its air-quality layer ticks every monitor type (`everyMonitorType`, spec decision 8). A
+ * draft with ticks or searched monitors keeps them. Nothing is ticked when the catalog lacks them.
+ */
+export function tickEveryTypeIfNone(data: WidgetDataConfig, catalog: CatalogEntry[]): void {
+	const layer = data.layers.find((l) => l.dataset === AIR_QUALITY && l.entryType);
+	if (!layer || layer.monitors?.length || layer.monitorTypes?.length) return;
+	const types = everyMonitorType(catalog);
+	if (types.length > 0) layer.monitorTypes = types;
+}
+
 export function toMapDraft(
 	draft: Draft,
 	catalog: CatalogEntry[],
@@ -311,6 +324,8 @@ export function toMapDraft(
 ): NowConversion {
 	const converted = toNowDraft(draft, mapType, catalog, [], undefined, allowed);
 	const data = converted.draft.data;
+	// From another type it's a new Map; a Map's own ticks (or none) are kept.
+	if (draft.type !== MAP_TYPE) tickEveryTypeIfNone(data, catalog);
 	const selection = draft.data.timeSubRange;
 	const fromMap = draft.type === MAP_TYPE;
 	const kept = new Set<Layer>();

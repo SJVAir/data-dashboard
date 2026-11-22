@@ -554,6 +554,12 @@ test("a Map with no layers (None and nothing else) shows its empty state, loadin
 	expect(getMonitors).not.toHaveBeenCalled();
 });
 
+test("a Map with a place but no monitor types or monitors says why it draws none", async () => {
+	const screen = await show(mapWidget({ ...region("019"), monitorTypes: [] }));
+	await expect.element(screen.getByText(m.map_no_monitors_chosen())).toBeVisible();
+	expect(getMonitors).not.toHaveBeenCalled();
+});
+
 test("an idle map creates no map and loads nothing", async () => {
 	const screen = await show(mapWidget({ monitorTypes: [] }));
 	await expect

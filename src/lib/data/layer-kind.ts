@@ -34,3 +34,11 @@ export function isPollutantLayer(
 	const kind = layerKind(layer, catalog);
 	return kind === "pollutant" || (kind === undefined && layer.dataset === AIR_QUALITY);
 }
+
+/**
+ * Every monitor type a new Map ticks (spec decision 8): the catalog's air-quality
+ * `monitor_types`, the ids the bulk summaries' `type` takes. None when the catalog lacks them.
+ */
+export function everyMonitorType(catalog: CatalogEntry[] | undefined): string[] {
+	return [...(catalog?.find((d) => d.id === AIR_QUALITY)?.monitorTypes ?? [])];
+}

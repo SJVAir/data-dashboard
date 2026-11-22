@@ -1,4 +1,5 @@
 import { getMetadata } from "$lib/data";
+import { everyMonitorType } from "$lib/data/layer-kind";
 import type { WidgetDataConfig } from "$lib/data/schema";
 import type { Dashboard } from "$lib/documents/schema";
 import { placesToReplace } from "$lib/places/replace";
@@ -25,13 +26,15 @@ export function mapStartData(doc: Dashboard, types: string[] = []): WidgetDataCo
 }
 
 /**
- * A new Map's data with every monitor type the monitors meta lists ticked. A failed lookup ticks
- * none (the Map then draws no monitors, and its Air quality section can tick them).
+ * A new Map's data with every monitor type ticked (`everyMonitorType`, from the catalog). A catalog
+ * that can't be loaded ticks none: the Map then draws no monitors and says so (never an invented
+ * list).
  */
 export async function mapStartDataWithTypes(doc: Dashboard): Promise<WidgetDataConfig> {
 	let types: string[] = [];
 	try {
-		types = (await getMetadata().monitorTypes()).map((t) => t.type);
+		const catalog = await getMetadata().catalog();
+		if (catalog !== "unavailable") types = everyMonitorType(catalog);
 	} catch (error) {
 		report(error);
 	}

@@ -1297,6 +1297,7 @@
 	"map_label": "{title} map",
 	"map_label_marks_hidden": "{title} map. {notes}",
 	"map_layer_places": "Places",
+	"map_no_monitors_chosen": "This map shows no monitors: no monitor types are chosen.",
 	"map_no_monitors_here": "No monitors here report this pollutant right now.",
 	"map_no_monitors_here_day": "No monitors here report this pollutant on this day.",
 	"map_no_monitors_here_month": "No monitors here report this pollutant in this month.",

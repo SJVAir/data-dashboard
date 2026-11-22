@@ -48,6 +48,11 @@ export type CatalogEntry = {
 	entryTypes: EntryTypeMeta[];
 	geographies: string[];
 	metaUrl?: string;
+	/**
+	 * The monitor types the dataset's monitors are (the catalog's `monitor_types`: the ids the bulk
+	 * summaries' `type` takes); absent for a dataset with no monitors.
+	 */
+	monitorTypes?: string[];
 	retired?: Retirement;
 };
 
@@ -322,6 +327,7 @@ export function mapDatasetCatalog(catalog: DatasetCatalog): CatalogEntry[] {
 		setIfPresent(entry, "source", d.source);
 		setIfPresent(entry, "license", d.license);
 		setIfPresent(entry, "metaUrl", d.meta_url);
+		if (d.monitor_types) entry.monitorTypes = [...d.monitor_types];
 		setIfPresent(entry, "retired", retirement(d.retired));
 		return entry;
 	});
