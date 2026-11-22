@@ -1261,10 +1261,8 @@ test.describe("a Map's region fill", () => {
 		const summaries: string[] = [];
 		page.on("request", (request) => {
 			const url = new URL(request.url());
-			// The fill's figures (the place's own name is looked up as a title's always is).
-			if (url.pathname.includes("summar") && url.searchParams.get("type") === "zipcode") {
-				summaries.push(url.pathname);
-			}
+			// No figures for the fill, and none to name the place (looked up, not fetched).
+			if (url.pathname.includes("summar")) summaries.push(url.pathname);
 		});
 		const doc = fillDoc({ kind: "custom", start: "2026-11-09", end: "2026-11-15" });
 		const widget = doc.body.widgets[0] as Record<string, unknown> & {

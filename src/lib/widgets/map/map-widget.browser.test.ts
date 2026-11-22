@@ -891,13 +891,48 @@ test("title for one place and several", async () => {
 	await expect.poll(() => generatedTitle(several.id)).toBe("PM2.5 · 3 places");
 });
 
-test("a Map with no pollutant is titled by what it shows, so its map has a name", async () => {
+/** A query client that counts its subscriptions (each a data request). */
+function countingClient(): { client: QueryClient; inputs: QueryInput[] } {
+	const base = namingClient();
+	const inputs: QueryInput[] = [];
+	return {
+		inputs,
+		client: {
+			...base,
+			subscribe(input, listener) {
+				inputs.push(input);
+				return base.subscribe(input, listener);
+			}
+		}
+	};
+}
+
+/** The regions resolver naming a county "Fresno County"; with `fail`, it rejects. */
+function namedRegions(fail = false) {
+	vi.mocked(getResolvers).mockReturnValue({
+		locations: { resolve: async () => null },
+		regions: {
+			resolve: async (_type: string, code: string) => {
+				if (fail) throw new Error("offline");
+				return { id: `r${code}`, name: "Fresno County" };
+			}
+		}
+	} as never);
+}
+
+test("a Map with no pollutant is titled by what it shows and its area, with no data request", async () => {
+	const { getQueryClient } = await import("$lib/data");
+	const counting = countingClient();
+	vi.mocked(getQueryClient).mockReturnValue(counting.client);
+	namedRegions();
 	const smoke = noPollutant(region("019"), [{ dataset: "hms-smoke" }, { dataset: "hms-fire" }]);
 	const first = await show(smoke);
 	const title = `${m.get_data_smoke_and_fire()} · Fresno County`;
 	await expect.poll(() => generatedTitle(smoke.id)).toBe(title);
 	const map = await madeMap();
 	await expect.poll(() => map.view.label).toBe(m.map_label({ title }));
+	// The area is named by lookup: no PM2.5 (or any) data is asked for to name it.
+	expect(counting.inputs).toEqual([]);
 	await first.unmount();
 
 	// Several layers are a list; with no Where, what it shows alone.
@@ -910,6 +945,32 @@ test("a Map with no pollutant is titled by what it shows, so its map has a name"
 	await expect
 		.poll(() => generatedTitle(several.id))
 		.toBe("Spray Notices, Pesticide Use, and ZIP Codes");
+});
+
+test("a Map with no pollutant whose area can't be named is titled by what it shows", async () => {
+	namedRegions(true);
+	const smoke = noPollutant(region("019"), [{ dataset: "hms-smoke" }, { dataset: "hms-fire" }]);
+	await show(smoke);
+	await expect.poll(() => generatedTitle(smoke.id)).toBe(m.get_data_smoke_and_fire());
+	const map = await madeMap();
+	await expect.poll(() => map.view.label).toBe(m.map_label({ title: m.get_data_smoke_and_fire() }));
+});
+
+test("a Map with no pollutant names a point by its region, for the viewer", async () => {
+	const point = noPollutant({ place: { kind: "point", lat: 36.7, lon: -119.8 } }, [
+		{ dataset: "hms-smoke" },
+		{ dataset: "hms-fire" }
+	]);
+	await show(point, "shared");
+	await expect
+		.poll(() => generatedTitle(point.id))
+		.toBe(`${m.get_data_smoke_and_fire()} · ZIP 93721 (shared location)`);
+});
+
+test("a pollutant Map of several searched monitors and no Where counts them", async () => {
+	const widget = mapWidget({ monitors: ["a", "b", "c"], monitorTypes: [] });
+	await show(widget);
+	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 · 3 places");
 });
 
 test("a Map with a pollutant and no Where is titled by its pollutant alone", async () => {

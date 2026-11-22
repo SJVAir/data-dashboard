@@ -1156,6 +1156,15 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   air-quality entry type offers nothing. Searched monitors alone still offer raw. **Revisit when**
   someone asks for raw across ticked types, or the server offers bulk raw entries.
 
+- **Outlined regions read "No data" in a Map's feature list.** _Deferred 2026-11-22 (step 5 spec
+  7a, Task 8)._ A Map with no pollutant and a region fill draws the region type's outlines,
+  uncoloured, with no legend section: a null source scale under `regionsPlugin`'s
+  `noFigure: "outline"`. map-sdk's feature list then reads each region as "<name>, No data" (its
+  no-figure wording), though outlines alone mean no figure was asked for. @sjvair/map-sdk
+  `0.1.0-beta.22` has no outline-only mode without that wording, and the dashboard doesn't change
+  map-sdk. **Revisit when** map-sdk offers an outline-only (no-wording) mode for regions (raised
+  with the coordinator).
+
 - **Comparing mixed kinds of place in one widget.** _Deferred 2026-11-04 (step 4 spec 2)._ A
   school, a monitor and a county side by side in one Chart: several places are one
   `SpatialSelection`, which is all monitors or all regions, so the picker greys out the other
