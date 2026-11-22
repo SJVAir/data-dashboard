@@ -371,7 +371,12 @@ string`) now get the union return type. The mobile app passes a string token, so
   now wait on state instead of time. Resolved in spec 5a: the inlang plugin is a named exception in
   the license check; sharp's install script is allowed, see the Task 7 commit, because it is
   dev-only through `@sveltejs/enhanced-img` and needs the script to fetch its binary.)
-  **Revisit when** CI first flakes (retries).
+  Two more CI flakes were seen and left: "nothing animates across the phone breakpoint"
+  (`arranging.browser.test.ts`, run 42939425655: a stray animation found) and "on the routed page,
+  fullscreen then Escape goes back" (`shared-page.browser.test.ts`, run 42434218844: expected 50 to
+  be 51). Neither has recurred in the runs since, and a fix without a reproduction would be a
+  guess. **Revisit when** either fails in CI again (then make it wait on state, as the three fixed
+  in 7a Task 1 do), or when Playwright retries are considered.
 - **sdk-js: no runtime validation of responses.** _Deferred 2026-10-19 (Alerts fix)._ SDK
   calls return API data without checking it against their Zod schemas, which is how the
   stale `airAlertSchema` went unnoticed when the server dropped `id`/`latest`. Adding
