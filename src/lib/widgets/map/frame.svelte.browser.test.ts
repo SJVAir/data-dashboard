@@ -2,7 +2,7 @@ import type { Feature } from "geojson";
 import { flushSync } from "svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getResolvers, placeRegion } from "$lib/data";
-import type { Layer } from "$lib/data/schema";
+import type { Layer, WidgetDataConfig } from "$lib/data/schema";
 import { MapFrame } from "./frame.svelte";
 import { regionShapes } from "./regions";
 
@@ -25,7 +25,7 @@ const shape: Feature = {
 let frames: MapFrame[] = [];
 
 function track(layer: () => Layer | undefined) {
-	const f = new MapFrame(layer, () => ({ layers: [] }) as never);
+	const f = new MapFrame(layer, () => ({ layers: [] }) satisfies WidgetDataConfig);
 	frames.push(f);
 	return f;
 }

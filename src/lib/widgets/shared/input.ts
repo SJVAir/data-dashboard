@@ -87,6 +87,7 @@ export function placesQueryLayer(layer: Layer): Layer {
  * query layer is built, so the saved shape can change behind it.
  */
 export function queryLayer(data: WidgetDataConfig, layer: Layer): QueryLayer {
+	// `data` is unused until the saved shape moves (spec 7a, Task 3 fills it in).
 	void data;
 	return { ...layer };
 }

@@ -9,7 +9,7 @@ export type LayerKind = "pollutant" | "number" | "level";
  * dataset's adapter), or a `number`. `undefined` when the catalog doesn't know its entry type.
  */
 export function layerKind(
-	layer: Layer,
+	layer: Pick<Layer, "dataset" | "entryType">,
 	catalog: CatalogEntry[] | undefined
 ): LayerKind | undefined {
 	const dataset = catalog?.find((d) => d.id === layer.dataset);

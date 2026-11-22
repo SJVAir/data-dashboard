@@ -1,4 +1,3 @@
-import { queryLayer } from "../../shared/input";
 import { getMonitors, type MonitorEntryType, type MonitorLatest } from "@sjvair/sdk";
 import {
 	encodeRef,
@@ -19,6 +18,7 @@ import {
 	type SnapshotAt
 } from "$lib/data/snapshot";
 import type { UnavailableReason } from "$lib/data/types";
+import { queryLayer } from "../../shared/input";
 import { pollutantLayers } from "../options";
 import { monitorScope, type MonitorScope, type ScopeContext } from "./scope";
 import type { MapDataEntry, MapDataInput } from "./types";

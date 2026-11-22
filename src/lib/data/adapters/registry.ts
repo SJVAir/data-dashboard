@@ -3,7 +3,7 @@ import { regionDisplayName } from "@sjvair/sdk/regions";
 import type { ResolvedRange } from "$lib/format/range";
 import { untilAborted, type EntryTypeMeta, type MetadataSource } from "../metadata";
 import type { Layer, PesticideFilters, Resolution } from "../schema";
-import type { QueryData, Target, UnavailableReason } from "../types";
+import type { QueryData, QueryLayer, Target, UnavailableReason } from "../types";
 
 /** A region found on the server: its sqid, name, and (when retired) the retirement marker. */
 export type ResolvedRegion = {
@@ -81,7 +81,10 @@ export type AdapterRequest = {
 export interface DatasetAdapter {
 	/** The catalog dataset id this adapter serves. */
 	id: string;
-	target(layer: Layer, ctx: AdapterContext): Promise<Target | { unavailable: UnavailableReason }>;
+	target(
+		layer: QueryLayer,
+		ctx: AdapterContext
+	): Promise<Target | { unavailable: UnavailableReason }>;
 	/** The levels of the entry type's catalog `base` this adapter can actually fetch for `target`. */
 	offered(base: Resolution[], target: Target): Resolution[];
 	/**

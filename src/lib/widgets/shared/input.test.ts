@@ -227,6 +227,19 @@ describe("queryLayer", () => {
 			entryType: "pm25",
 			place: { kind: "region", type: "county", code: "06019" }
 		};
-		expect(queryLayer({ layers: [layer] } as WidgetDataConfig, layer)).toEqual(layer);
+		const result = queryLayer({ layers: [layer] } as WidgetDataConfig, layer);
+		expect(result).toEqual(layer);
+		expect(result).not.toBe(layer);
+	});
+
+	it("copies a selection and filters", () => {
+		const layer: Layer = {
+			dataset: "pesticides",
+			selection: { kind: "regions", ids: ["county:06019", "county:06029"] },
+			filters: { pesticides: ["a"] }
+		} as Layer;
+		const result = queryLayer({ layers: [layer] } as WidgetDataConfig, layer);
+		expect(result).toEqual(layer);
+		expect(result.selection).toEqual(layer.selection);
 	});
 });

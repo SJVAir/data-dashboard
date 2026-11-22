@@ -39,8 +39,7 @@ export async function monitorScope(
 	} else if (place?.kind === "region") {
 		refs = [{ type: place.type, code: place.code }];
 	} else if (place?.kind === "location" || place?.kind === "point") {
-		const input = layer.place || layer.selection ? currentInput(layer) : null;
-		const region = input ? await ctx.placeRegion(input, signal) : null;
+		const region = await ctx.placeRegion(currentInput(layer), signal);
 		if (!region) return { unavailable: "point-outside" };
 		refs = [region];
 	} else {

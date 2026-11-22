@@ -1,7 +1,7 @@
 import { getWeatherStationsForPlace } from "@sjvair/sdk";
 import { untilAborted, type CatalogEntry } from "../metadata";
 import type { Layer } from "../schema";
-import type { PlaceInfo, QueryData, Series } from "../types";
+import type { PlaceInfo, QueryData, QueryLayer, Series } from "../types";
 import { summarySeries } from "./air-quality";
 import { offeredLevels } from "./offered";
 import type { AdapterContext, AdapterRequest, DatasetAdapter } from "./registry";
@@ -77,11 +77,11 @@ export function stationChoice(
  * None for several places, for no place, or for a place that can't be looked up.
  */
 export async function layerStations(
-	layer: Pick<Layer, "dataset" | "place" | "selection">,
+	layer: Pick<QueryLayer, "dataset" | "place" | "selection">,
 	ctx: AdapterContext,
 	signal: AbortSignal
 ): Promise<WeatherStation[]> {
-	const target = await layerTarget(layer as Layer, ctx, signal);
+	const target = await layerTarget(layer, ctx, signal);
 	if ("unavailable" in target) return [];
 	const groups = await placeCandidates(target, ctx, signal);
 	if (groups.length !== 1) return [];
