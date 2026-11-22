@@ -2265,22 +2265,6 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   search width and the brand-blue `--primary`, but npm `next` stays `5.0.0-beta.2`. Why: nothing
   needs it yet; mobile stays on beta.2. **Revisit when** the next phone test, a mobile re-pin, or
   the parity review needs a published build.
-- **map-sdk: the lens flashes its newly covered townships clear for about a frame on each
-  recentre.** _Deferred 2026-11-16 (the user, map-sdk `0.1.0-beta.17`, session `map-sdk-d9`)._ The
-  townships' `lensHidden` feature state applies on the next frame, while the sections' `setData`
-  goes through MapLibre's worker, so for one frame the block is transparent before its sections
-  draw. A single frame is hard to see. Fix when needed: hide the townships only after the lens
-  source's `sourcedata`/load event for that data. Raised with map-sdk; the dashboard is where it
-  was seen. **Revisit when** map-sdk ships a fix. _Seen on the dashboard 2026-11-17 (step 5 spec
-  5b, Task 7's hand check, on `0.1.0-beta.19`): in the first frame after the lens moves to a
-  neighbour, about 60 ms in, the new block still shows township fill, and its sections draw from
-  the next frame. Hard to see; left for map-sdk._ **Fixed in `@sjvair/map-sdk` `0.1.0-beta.21`**
-  (map-sdk #38, 2026-11-17). Remove this item when the dashboard pins beta.21 (step 5 spec 6).
-  _The dashboard pins beta.21 since step 5 spec 6a (e78376a, 2026-11-18). The item stays until
-  the user's hand check of the lens passes._ _Scripted check 2026-11-20 (the user's choice): on
-  `0.1.0-beta.22`, 0 of 120 recentres hid a township before the lens data loaded; the
-  `0.1.0-beta.19` control did on 118 of 120. The item leaves after the user's quick look agrees.
-  The script is in map-sdk's git-ignored `.superpowers/lens-check/` (`run.sh`)._
 - **map-sdk: arriving townships go clear for 3–6 frames on a block's first visit.** _Deferred
   2026-11-20 (the user; found by the scripted lens check on `@sjvair/map-sdk` `0.1.0-beta.22`)._ On
   the first visit to a block (5 of 30 moves per run, 32–77 ms), map-sdk first draws the sections
