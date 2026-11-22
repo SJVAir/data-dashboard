@@ -11,7 +11,7 @@ vi.mock("$lib/safety/report", () => ({ report: vi.fn() }));
 import type { ChosenPlace } from "$lib/data/schema";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { DEFAULT_LAYER, DEFAULT_PLACE } from "../defaults";
-import { mapStartData, mapStartDataWithTypes } from "./start";
+import { CATALOG_WAIT_MS, mapStartData, mapStartDataWithTypes } from "./start";
 
 const TULARE: ChosenPlace = { kind: "region", type: "county", code: "06107" };
 const KERN: ChosenPlace = { kind: "region", type: "county", code: "06029" };
@@ -47,6 +47,20 @@ describe("mapStartDataWithTypes", () => {
 			throw new Error("down");
 		};
 		expect((await mapStartDataWithTypes(doc([]))).layers[0]).not.toHaveProperty("monitorTypes");
+	});
+});
+
+describe("mapStartDataWithTypes waits a bounded time", () => {
+	it("a catalog that never answers: no monitor types after CATALOG_WAIT_MS", async () => {
+		vi.useFakeTimers();
+		try {
+			types.catalog = () => new Promise(() => {});
+			const data = mapStartDataWithTypes(doc([]));
+			await vi.advanceTimersByTimeAsync(CATALOG_WAIT_MS);
+			expect((await data).layers[0]).not.toHaveProperty("monitorTypes");
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });
 

@@ -23,22 +23,33 @@ export function mapStartData(doc: Dashboard, types: string[] = []): WidgetDataCo
 	};
 }
 
+/** How long a new Map waits for the catalog before it's added with no monitor types. */
+export const CATALOG_WAIT_MS = 10_000;
+
 /**
  * A new Map's data with every monitor type ticked (`everyMonitorType`, from the catalog). A catalog
- * that can't be loaded ticks none: the Map then draws no monitors and says so (never an invented
- * list).
+ * that can't be loaded, or isn't in `CATALOG_WAIT_MS`, ticks none: the Map then draws no monitors
+ * and says so (never an invented list).
  */
 export async function mapStartDataWithTypes(doc: Dashboard): Promise<WidgetDataConfig> {
 	let types: string[] = [];
+	let timer: ReturnType<typeof setTimeout> | undefined;
 	try {
 		// Loaded here, not at the top: this module is part of the Map's descriptor, in the initial
 		// bundle, and the data layer stays out of it.
-		const { getMetadata } = await import("$lib/data");
-		const catalog = await getMetadata().catalog();
+		const late = new Promise<"unavailable">((resolve) => {
+			timer = setTimeout(() => resolve("unavailable"), CATALOG_WAIT_MS);
+		});
+		const catalog = await Promise.race([
+			import("$lib/data").then(({ getMetadata }) => getMetadata().catalog()),
+			late
+		]);
 		if (catalog !== "unavailable") types = everyMonitorType(catalog);
 	} catch (error) {
 		const { report } = await import("$lib/safety/report");
 		report(error);
+	} finally {
+		clearTimeout(timer);
 	}
 	return mapStartData(doc, types);
 }

@@ -118,6 +118,17 @@ describe("Add widget", () => {
 			await again;
 			expect(apply).toHaveBeenCalledTimes(2);
 		});
+
+		it("another type's Add proceeds while one waits", async () => {
+			const { a, apply } = appOn("d1");
+			const first = addWidget(a, "slow");
+			expect(addWidget(a, chartType.type)).toBeUndefined();
+			expect(apply).toHaveBeenCalledOnce();
+			expect(apply.mock.calls[0][0]).toMatchObject({ widget: { type: chartType.type } });
+			release(DATA);
+			await first;
+			expect(apply).toHaveBeenCalledTimes(2);
+		});
 	});
 
 	it("a locked dashboard disables Add widget", () => {
