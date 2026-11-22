@@ -10,11 +10,14 @@ import { forecastType } from "$lib/widgets/forecast";
 import { mapType } from "$lib/widgets/map";
 import { outsideType } from "$lib/widgets/outside";
 import { FORECASTS_ENTRY, PM25_LEVELS } from "$lib/widgets/shared/test-harness/fake-data";
+import { WidgetInstanceSchema } from "$lib/documents/schema";
+import { withThreshold } from "$lib/thresholds/levels";
 import type { Draft } from "./draft.svelte";
 import {
 	areaToLookUp,
 	fromNowDraft,
 	isNowShaped,
+	keptThreshold,
 	nowPollutant,
 	nowPollutants,
 	selectionFits,
@@ -608,5 +611,52 @@ describe("a school or point Where shown as a Chart or Table (areas only)", () =>
 	it("a type that shows schools keeps it", () => {
 		const converted = fromNowDraft(tile(SCHOOL), monthCalendarType);
 		expect(withArea(converted, FRESNO)).toBe(converted);
+	});
+});
+
+describe("alert levels per pollutant", () => {
+	it("keptThreshold keeps one pollutant's entry with its entryType", () => {
+		expect(
+			keptThreshold(
+				[{ level: "unhealthy_sensitive", entryType: "pm25" }],
+				PM25_LEVELS,
+				false,
+				"pm25"
+			)
+		).toEqual([{ level: "unhealthy_sensitive", entryType: "pm25" }]);
+	});
+	it("keptThreshold reads only the entry for the entryType", () => {
+		expect(
+			keptThreshold([{ level: "usg", entryType: "o3" }], PM25_LEVELS, false, "pm25")
+		).toBeUndefined();
+	});
+	const a = { level: "usg", entryType: "pm25" };
+	const b = { level: "unhealthy", entryType: "o3" };
+	it("withThreshold replaces, adds and removes one entry, keeping the others in order", () => {
+		expect(withThreshold([a, b], "pm25", { level: "good", entryType: "pm25" })).toEqual([
+			{ level: "good", entryType: "pm25" },
+			b
+		]);
+		expect(withThreshold([a], "o3", b)).toEqual([a, b]);
+		expect(withThreshold(undefined, "o3", b)).toEqual([b]);
+		expect(withThreshold([a, b], "pm25", undefined)).toEqual([b]);
+	});
+	it("withThreshold gives undefined when the last entry goes", () => {
+		expect(withThreshold([a], "pm25", undefined)).toBeUndefined();
+		expect(withThreshold(undefined, "pm25", undefined)).toBeUndefined();
+	});
+	it("the widget schema rejects two entries with the same entryType", () => {
+		const widget = {
+			id: "w",
+			type: "current",
+			title: null,
+			rect: { x: 0, y: 0, w: 4, h: 4 },
+			data: { layers: [], dateRange: DEFAULT_RANGE }
+		};
+		const parse = (thresholds: unknown) =>
+			WidgetInstanceSchema.safeParse({ ...widget, thresholds }).success;
+		expect(parse([a, { level: "good", entryType: "pm25" }])).toBe(false);
+		expect(parse([a, b])).toBe(true);
+		expect(parse([{ level: "usg" }, { level: "good" }])).toBe(true);
 	});
 });

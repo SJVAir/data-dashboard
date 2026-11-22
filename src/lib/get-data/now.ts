@@ -20,7 +20,7 @@ import { isCalendarType } from "$lib/calendars/types";
 import { resolveRange } from "$lib/format/range";
 import { areasOnly } from "$lib/places/replace";
 import { fromWhere, toWhere } from "$lib/places/selection";
-import { defaultThresholdLevel } from "$lib/thresholds/levels";
+import { defaultThresholdLevel, thresholdFor } from "$lib/thresholds/levels";
 import type { Threshold } from "$lib/thresholds/schema";
 import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
 import { FORECAST_TYPE } from "$lib/widgets/forecast";
@@ -160,13 +160,17 @@ export function nowPollutant(
 export function keptThreshold(
 	saved: Threshold[] | undefined,
 	levels: Level[],
-	defaultWhenOff: boolean
+	defaultWhenOff: boolean,
+	entryType?: string
 ): Threshold[] | undefined {
-	const key = saved?.[0]?.level;
+	const key = thresholdFor(saved, entryType)?.level;
+	const made = (level: string): Threshold[] => [
+		entryType === undefined ? { level } : { level, entryType }
+	];
 	if (key === undefined && !defaultWhenOff) return undefined;
-	if (key !== undefined && levels.some((l) => l.key === key)) return [{ level: key }];
+	if (key !== undefined && levels.some((l) => l.key === key)) return made(key);
 	const fallback = defaultThresholdLevel(levels);
-	return fallback ? [{ level: fallback }] : undefined;
+	return fallback ? made(fallback) : undefined;
 }
 
 /** What `toNowDraft` and `fromNowDraft` give: the new draft, and what it left out or changed. */

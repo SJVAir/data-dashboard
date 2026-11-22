@@ -302,8 +302,15 @@ describe("applyChange", () => {
 		expect("thresholds" in off.doc.body.widgets[0]).toBe(false);
 		expect(applyChange(off.doc, off.inverse).doc).toEqual(doc);
 		expect(
-			ChangeSchema.safeParse({ ...change, thresholds: { to: [{ level: "a" }, { level: "b" }] } })
-				.success
+			ChangeSchema.safeParse({
+				...change,
+				thresholds: {
+					to: [
+						{ level: "a", entryType: "x" },
+						{ level: "b", entryType: "x" }
+					]
+				}
+			}).success
 		).toBe(false);
 	});
 
