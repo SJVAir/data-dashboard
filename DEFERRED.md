@@ -781,6 +781,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   an import flow needs the new counts immediately (then invalidate the key from the import
   commands).
 
+- **sjvair.com `CLAUDE.md`: a doubled "the" in "Bulk monitor type".** _Found 2026-11-21 (session
+  `sjvair-com-07`, after #350 merged)._ Lines 424–425 read "the / the catalog's `monitor_types`", and line
+  425 runs past the wrapping width. A one-word docs fix. **Why deferred:** too small for its own PR (no
+  hotfix urgency). **Revisit with** the next sjvair.com PR that touches `CLAUDE.md`.
 - **sjvair.com: flaky `restamp_cimis` test (found 2026-11-09).** `camp/apps/monitors/cimis/test_restamp.py::test_command_restamps_and_prints_counts`
   failed once in a full run (sjvair-com-64) and passed alone and on a rerun. Suspected cause, not yet confirmed: the test
   calls `call_command('restamp_cimis', '--monitor', monitor.pk, ...)`, and a sqid starting with `-` reads as a flag. A fix
