@@ -19,7 +19,8 @@ export const HAND_OFF_DROPPED = [
 	"pollutant",
 	"selection",
 	"outside",
-	"fill"
+	"fill",
+	"area"
 ] as const satisfies readonly NowDropped[];
 
 /** What `noteConversion` reads from the Map → Chart (or Table) conversion. */

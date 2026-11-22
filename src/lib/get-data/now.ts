@@ -8,6 +8,7 @@
  */
 import type { CatalogEntry, EntryTypeMeta, Level } from "$lib/data/metadata";
 import type {
+	ChosenPlace,
 	DateRangeSpec,
 	Layer,
 	PlaceRef,
@@ -17,6 +18,7 @@ import type {
 import { fitsRange } from "$lib/calendars/selection";
 import { isCalendarType } from "$lib/calendars/types";
 import { resolveRange } from "$lib/format/range";
+import { areasOnly } from "$lib/places/replace";
 import { fromWhere, toWhere } from "$lib/places/selection";
 import { defaultThresholdLevel } from "$lib/thresholds/levels";
 import type { Threshold } from "$lib/thresholds/schema";
@@ -40,7 +42,8 @@ export type NowDropped =
 	| "outside"
 	| "marks"
 	| "range-cut"
-	| "fill";
+	| "fill"
+	| "area";
 
 const AIR_QUALITY = "air-quality";
 const FORECASTS = "forecasts";
@@ -439,5 +442,33 @@ export function fromRangeDraft(
 		},
 		dropped,
 		...(days ? { selection: structuredClone(days) } : {})
+	};
+}
+
+/**
+ * The school or point a draft's Where holds that `type` can't show (a Chart or Table holds areas
+ * only, decision 2), which the caller looks up as its area (`starterAreaOf`: ZIP, then city, then
+ * county) before converting; `null` when there's nothing to look up.
+ */
+export function areaToLookUp(draft: Draft, type: string): ChosenPlace | null {
+	const place = draft.data.place;
+	if (!areasOnly(type) || !place) return null;
+	return place.kind === "location" || place.kind === "point" ? place : null;
+}
+
+/**
+ * `converted` with its school or point Where (`areaToLookUp`) swapped for `area`, the area the
+ * caller looked up; with no area (the lookup failed, or the place has none) the Where is left out
+ * (`"area"`). Any other conversion is returned as it is.
+ */
+export function withArea(converted: NowConversion, area: ChosenPlace | null): NowConversion {
+	if (!areaToLookUp(converted.draft, converted.draft.type)) return converted;
+	const data = structuredClone(converted.draft.data);
+	delete data.place;
+	if (area) data.place = structuredClone(area);
+	return {
+		...converted,
+		draft: { ...converted.draft, data },
+		dropped: area ? converted.dropped : [...new Set([...converted.dropped, "area" as const])]
 	};
 }

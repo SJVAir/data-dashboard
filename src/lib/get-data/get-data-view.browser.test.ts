@@ -69,7 +69,9 @@ const fake = vi.hoisted(() => ({
 	/** The schools the resolver knows, by `source:code`, with their names (default: none). */
 	locations: {} as Record<string, string>,
 	/** The region resolver fails (a lookup that can't be made). */
-	regionFail: false
+	regionFail: false,
+	/** The area `placeRegion` finds for a school or point (default: none). */
+	area: null as { type: string; code: string } | null
 }));
 const PESTICIDE_META = vi.hoisted(() => ({
 	categories: [
@@ -124,7 +126,7 @@ vi.mock("$lib/data", () => ({
 		},
 		points: { keys: async () => [] }
 	}),
-	placeRegion: async () => null
+	placeRegion: async () => fake.area
 }));
 vi.mock("$lib/data/now", () => ({ getNowClient: () => fake.now }));
 vi.mock("$lib/places/host", async (original) => {
@@ -303,6 +305,7 @@ beforeEach(async () => {
 	fake.regionNames = {};
 	fake.locations = {};
 	fake.regionFail = false;
+	fake.area = null;
 	fake.metadata = fixtureMetadata({ catalog: async () => CATALOG });
 	makeClient();
 	fake.now = createNowClient({ activity: createMemoryPlatform().activity });
@@ -1078,6 +1081,41 @@ test("get data view: a school Where names the school", async () => {
 	draft.data.place = { kind: "location", source: "schools", code: "s1" };
 	await show(draft);
 	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Roosevelt High");
+});
+
+describe("Show as a Chart from a school (a Chart holds areas only)", () => {
+	const atSchool = (): Draft => ({
+		type: "current-conditions",
+		data: {
+			place: { kind: "location", source: "schools", code: "s1" },
+			layers: [{ dataset: "air-quality", entryType: "pm25" }]
+		}
+	});
+
+	test("the school's area takes its place", async () => {
+		fake.locations = { "schools:s1": "Roosevelt High" };
+		fake.regionNames["county:06019"] = "Fresno County";
+		fake.area = { type: "county", code: "06019" };
+		const { latest } = await show(atSchool());
+		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Roosevelt High");
+		await page.getByRole("radio", { name: "Chart" }).click();
+		await expect.element(page.getByRole("radio", { name: "Chart" })).toBeChecked();
+		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Fresno County");
+		expect(latest().data.place).toEqual({ kind: "region", type: "county", code: "06019" });
+		await expect
+			.element(page.getByText(m.get_data_school_point_left_out()))
+			.not.toBeInTheDocument();
+	});
+
+	test("with no area found, the school is left out with a note", async () => {
+		fake.locations = { "schools:s1": "Roosevelt High" };
+		const { latest } = await show(atSchool());
+		await page.getByRole("radio", { name: "Chart" }).click();
+		await expect.element(page.getByText(m.get_data_school_point_left_out())).toBeVisible();
+		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Everywhere");
+		expect(latest().type).toBe("chart");
+		expect(latest().data.place).toBeUndefined();
+	});
 });
 
 test("a chosen level the new range can't serve stays, blocked, and Add waits", async () => {

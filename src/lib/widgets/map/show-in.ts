@@ -5,9 +5,11 @@
  */
 import { getMetadata } from "$lib/data";
 import type { CatalogEntry } from "$lib/data/metadata";
-import type { Layer, PlaceRef, SpatialSelection } from "$lib/data/schema";
+import type { ChosenPlace, Layer, PlaceRef, SpatialSelection } from "$lib/data/schema";
 import { fromMapDraft, mapPesticideFilters } from "$lib/get-data/map";
-import type { NowConversion } from "$lib/get-data/now";
+import { areaToLookUp, withArea, type NowConversion } from "$lib/get-data/now";
+import { report } from "$lib/safety/report";
+import { starterAreaOf } from "$lib/starter/area";
 import type { Draft } from "$lib/get-data/draft.svelte";
 import { STARTER_ID } from "$lib/starter/starter";
 import type { AppContext } from "$lib/store/app.svelte";
@@ -23,7 +25,6 @@ import { mapSend } from "./send-registry";
 /** What a Map sends: its sent marks (in mark order), or one pinned section card. */
 export type MapSend =
 	{ kind: "monitors"; ids: string[]; leftOut: number } | { kind: "section"; code: string };
-// spec 7 adds a kind here and a case in sendPlaces; nothing else changes.
 
 /**
  * The Where for a send (the plug-in point). Never a `point`. Monitors are never a Where: their
@@ -90,7 +91,9 @@ function handOffNotes(converted: NowConversion): HandOffNotes {
  *
  * Monitors: exactly what Show as gives for this Map (`fromMapDraft`, with `"unavailable"` levels,
  * as `GetDataView`'s `setType` calls it), with the Map's Where, and the ids as its air-quality
- * layer's searched monitors in place of its ticked types (spec decision 13; D7, D19).
+ * layer's searched monitors in place of its ticked types (spec decision 13; D7, D19). A school or
+ * point Where becomes `area`, the caller's lookup of its area (`withArea`; with none it's left
+ * out, with a note).
  *
  * A section: always a Chart, whatever `type` says (D1, D15: the card offers only "Show in a
  * chart"), of the use figure the Map draws at that section, with the Map's use filters, over the
@@ -102,7 +105,8 @@ export function showInDraft(
 	send: MapSend,
 	type: WidgetType,
 	catalog: CatalogEntry[],
-	now: Date = new Date()
+	now: Date = new Date(),
+	area: ChosenPlace | null = null
 ): HandOff {
 	if (send.kind === "section") {
 		const figure = useFigureOf(mapOptions(map), catalog);
@@ -127,7 +131,7 @@ export function showInDraft(
 			leftOut: 0
 		};
 	}
-	const converted = fromMapDraft(map, type, catalog, "unavailable", now);
+	const converted = withArea(fromMapDraft(map, type, catalog, "unavailable", now), area);
 	const { draft } = converted;
 	const layers = draft.data.layers.map((l) =>
 		l.dataset === AIR_QUALITY ? withMarks(l, send.ids) : l
@@ -154,11 +158,23 @@ export async function showIn(
 	if (!entry) return;
 	const metadata = getMetadata();
 	const catalog = await metadata.catalog();
+	const map = entry.draft() as Draft;
+	const to = type === "chart" ? chartType : dataTableType;
+	// A Chart or Table holds areas only: a school or point Where's area, looked up as the starter's.
+	const school = send.kind === "monitors" ? areaToLookUp(map, to.type) : null;
+	const area = school
+		? await starterAreaOf(school).catch((error: unknown) => {
+				report(error, { operation: "show-in-area" });
+				return null;
+			})
+		: null;
 	const handOff = showInDraft(
-		entry.draft() as Draft,
+		map,
 		send,
-		type === "chart" ? chartType : dataTableType,
-		Array.isArray(catalog) ? catalog : []
+		to,
+		Array.isArray(catalog) ? catalog : [],
+		new Date(),
+		area
 	);
 	const { target, skip } = showInTarget(app, widgetId);
 	const getData: HandOff = { ...handOff, ...(skip ? { skip } : {}) };

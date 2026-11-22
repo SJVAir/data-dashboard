@@ -12,13 +12,15 @@ import { outsideType } from "$lib/widgets/outside";
 import { FORECASTS_ENTRY, PM25_LEVELS } from "$lib/widgets/shared/test-harness/fake-data";
 import type { Draft } from "./draft.svelte";
 import {
+	areaToLookUp,
 	fromNowDraft,
 	isNowShaped,
 	nowPollutant,
 	nowPollutants,
 	selectionFits,
 	switchRange,
-	toNowDraft
+	toNowDraft,
+	withArea
 } from "./now";
 
 const CATALOG = [FIXTURE_CATALOG[0], FORECASTS_ENTRY];
@@ -573,5 +575,38 @@ describe("a Map: several places, the map's pollutants", () => {
 		const map = toNowDraft(chartOf(monitors(3)), mapType, CATALOG, [], chartType, ALLOWED).draft;
 		expect(isNowShaped(map, mapType)).toBe(true);
 		expect(isNowShaped({ ...map, type: "current-conditions" }, currentType)).toBe(false);
+	});
+});
+
+describe("a school or point Where shown as a Chart or Table (areas only)", () => {
+	const SCHOOL = { kind: "location", source: "schools", code: "s1" } as const;
+	const POINT = { kind: "point", lat: 36.7, lon: -119.8 } as const;
+	const tile = (place: Draft["data"]["place"]): Draft => ({
+		type: currentType.type,
+		data: { place, layers: [{ dataset: "air-quality", entryType: "pm25" }] }
+	});
+
+	it("only a school or point, only for an areas-only type, is looked up", () => {
+		expect(areaToLookUp(tile(SCHOOL), CHART_TYPE)).toEqual(SCHOOL);
+		expect(areaToLookUp(tile(POINT), dataTableType.type)).toEqual(POINT);
+		expect(areaToLookUp(tile(FRESNO), CHART_TYPE)).toBeNull();
+		expect(areaToLookUp(tile(SCHOOL), monthCalendarType.type)).toBeNull();
+	});
+
+	it("the looked-up area takes the school's place", () => {
+		const converted = withArea(fromNowDraft(tile(SCHOOL), chartType), FRESNO);
+		expect(converted.draft.data.place).toEqual(FRESNO);
+		expect(converted.dropped).not.toContain("area");
+	});
+
+	it("with no area, the point is left out with a note", () => {
+		const converted = withArea(fromNowDraft(tile(POINT), dataTableType), null);
+		expect(converted.draft.data.place).toBeUndefined();
+		expect(converted.dropped).toContain("area");
+	});
+
+	it("a type that shows schools keeps it", () => {
+		const converted = fromNowDraft(tile(SCHOOL), monthCalendarType);
+		expect(withArea(converted, FRESNO)).toBe(converted);
 	});
 });

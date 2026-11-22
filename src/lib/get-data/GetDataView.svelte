@@ -13,7 +13,7 @@
 	import { csvPending, saveDataCsv } from "$lib/data/csv";
 	import type { CatalogEntry, Level } from "$lib/data/metadata";
 	import { fillableTypes } from "$lib/data/snapshot";
-	import type { DateRangeSpec, Layer, PesticideFilters } from "$lib/data/schema";
+	import type { ChosenPlace, DateRangeSpec, Layer, PesticideFilters } from "$lib/data/schema";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { PHONE_QUERY } from "$lib/layout/config";
 	import { m } from "$lib/paraglide/messages.js";
@@ -70,6 +70,8 @@
 		offeredPollutants,
 		selectionFits,
 		switchRange,
+		areaToLookUp,
+		withArea,
 		type NowConversion
 	} from "./now";
 	import { showAsDraft } from "./show-as";
@@ -629,6 +631,7 @@
 			);
 		}
 		if (what.includes("monitor-types")) out.push(m.get_data_monitor_types_left_out());
+		if (what.includes("area")) out.push(m.get_data_school_point_left_out());
 		if (pollutant) {
 			const label = (dataset: string, entryType: string) =>
 				entryMeta(known, { dataset, entryType })?.entryType.label ?? entryType;
@@ -774,28 +777,46 @@
 			void convertToNow(to, known);
 			return;
 		}
-		changeId++;
+		const id = ++changeId;
 		defaultOwed = false;
-		if (!offersNow(to) && isNow) {
-			const converted = showAsDraft(plain, to, {
-				catalog: known ?? [],
-				allowed: [],
-				levels: "unavailable",
-				now
-			});
-			replaceDraft(converted.draft);
-			noteConversion(converted);
-		} else if (!offersNow(to)) {
-			const converted = fromRangeDraft(plain, type, to, now);
-			replaceDraft(converted.draft);
-			if (converted.dropped.length) noteConversion(converted);
+		const school = areaToLookUp(plain, next);
+		if (school) {
+			// A Chart or Table holds areas only: the school or point's area first (as the starter
+			// looks it up), else it's left out with a note.
+			void (async () => {
+				const area = await import("$lib/starter/area")
+					.then(({ starterAreaOf }) => starterAreaOf(school))
+					.catch((error: unknown) => {
+						report(error, { operation: "show-as-area" });
+						return null;
+					});
+				if (id === changeId) convertRange(to, area);
+			})();
+			return;
 		}
+		if (!offersNow(to)) convertRange(to, null);
 		// A now type chosen before the catalog is known is converted once it is (below).
 		else {
 			const moved = switchRange($state.snapshot(draft.data), type, to, now);
 			if (moved.dateRange) draft.data.dateRange = moved.dateRange;
 			if (!moved.timeSubRange) delete draft.data.timeSubRange;
 			draft.type = next;
+		}
+	}
+
+	/** Show as a range type: `area` stands in for a school or point the type can't show. */
+	function convertRange(to: WidgetType, area: ChosenPlace | null): void {
+		if (isNow) {
+			const converted = withArea(
+				showAsDraft(plain, to, { catalog: known ?? [], allowed: [], levels: "unavailable", now }),
+				area
+			);
+			replaceDraft(converted.draft);
+			noteConversion(converted);
+		} else {
+			const converted = withArea(fromRangeDraft(plain, type, to, now), area);
+			replaceDraft(converted.draft);
+			if (converted.dropped.length) noteConversion(converted);
 		}
 	}
 

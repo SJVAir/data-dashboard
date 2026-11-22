@@ -40,6 +40,8 @@ vi.mock("$lib/data", async (original) => ({
 		mapPollutants: async () => DRAWABLE
 	})
 }));
+const areaOf = vi.fn(async (): Promise<unknown> => null);
+vi.mock("$lib/starter/area", () => ({ starterAreaOf: () => areaOf() }));
 const toastError = vi.fn();
 vi.mock("svelte-sonner", () => ({ toast: { error: (...a: unknown[]) => toastError(...a) } }));
 
@@ -455,6 +457,34 @@ describe("HandOffSchema", () => {
 	});
 });
 
+describe("showInDraft: a school or point Where (a Chart or Table holds areas only)", () => {
+	const SCHOOL = { kind: "location", source: "schools", code: "s1" } as const;
+	const COUNTY = { kind: "region", type: "county", code: "06019" } as const;
+	const atSchool = () => {
+		const map = mapDraft(["pm25"]);
+		map.data.place = { ...SCHOOL };
+		return map;
+	};
+
+	it("takes the area the caller looked up", () => {
+		const h = showInDraft(atSchool(), send(["m1"]), chartType, CATALOG, NOW, COUNTY);
+		expect(h.draft.data.place).toEqual(COUNTY);
+		expect(h.notes?.dropped).not.toContain("area");
+	});
+
+	it("with no area, leaves the school out with a note", () => {
+		const h = showInDraft(atSchool(), send(["m1"]), dataTableType, CATALOG, NOW, null);
+		expect(h.draft.data.place).toBeUndefined();
+		expect(h.notes?.dropped).toContain("area");
+		expect(HandOffSchema.safeParse(h).success).toBe(true);
+	});
+
+	it("an area Where is never looked up or changed", () => {
+		const h = showInDraft(mapDraft(["pm25"]), send(["m1"]), chartType, CATALOG, NOW, COUNTY);
+		expect(h.draft.data.place).toEqual(FRESNO);
+	});
+});
+
 describe("showIn", () => {
 	const app = {
 		current: {
@@ -480,6 +510,26 @@ describe("showIn", () => {
 		expect(getData.draft.type).toBe(DATA_TABLE_TYPE);
 		expect(getData.draft.data.layers[0].entryType).toBe("o3");
 		expect(getData.leftOut).toBe(1);
+	});
+
+	it("looks up a school Where's area before building the hand-off", async () => {
+		const county = { kind: "region", type: "county", code: "06019" };
+		areaOf.mockResolvedValueOnce(county);
+		const clear = setMapSend("w1", Symbol(), {
+			marks: ["m1"],
+			leftOut: 0,
+			draft: () => {
+				const map = mapDraft(["pm25"]);
+				map.data.place = { kind: "location", source: "schools", code: "s1" };
+				return map;
+			}
+		});
+		await showIn(app, "w1", send(["m1"]), "chart");
+		clear();
+		const [, opts] = vi.mocked(navigate).mock.calls.at(-1)!;
+		const getData = HandOffSchema.parse((opts as { state: { getData: unknown } }).state.getData);
+		expect(getData.draft.data.place).toEqual(county);
+		expect(areaOf).toHaveBeenCalledOnce();
 	});
 
 	it("opens /data with skip for a read-only dashboard", async () => {
