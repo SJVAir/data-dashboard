@@ -112,7 +112,8 @@ async function fallbackTarget(
  * monitors meta doesn't list, or a monitor whose type it doesn't, isn't known not to, so it stays;
  * a meta or list that fails to load drops nothing. Only an air-quality layer has a pollutant: any
  * other dataset's layer (a weather or forecasts overlay at a Chart's monitors) takes the monitors
- * as places, whatever they measure.
+ * as places, whatever they measure. The same rule greys them out in the Data Portal (`blockFor`
+ * in `$lib/get-data/monitor-choices`): change both together.
  */
 async function measuring(
 	layer: QueryLayer,

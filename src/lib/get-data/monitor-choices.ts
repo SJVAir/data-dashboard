@@ -25,7 +25,8 @@ export type MonitorGroupChoice = { key: string; label: string; types: MonitorTyp
 /**
  * Why a monitor of a type (`info`; undefined when the meta doesn't list it) is greyed out for
  * `entryType` (undefined: None), or undefined. A type the meta doesn't list isn't known not to
- * measure the pollutant, so it isn't greyed out for it.
+ * measure the pollutant, so it isn't greyed out for it. The same rule leaves it out of the fetch
+ * (`measuring` in `$lib/data/adapters/targets`): change both together.
  */
 export function blockFor(
 	info: MonitorTypeInfo | undefined,

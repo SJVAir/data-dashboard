@@ -2311,8 +2311,10 @@ for the data that tile holds.
   draws inactive or indoor monitors until someone turns them on). A monitor type with no monitor among the loaded ones for the Map's pollutant isn't offered. On a past stop (spec 4) the
   Inactive row isn't offered, and `at` isn't a toolbar key, so Reset leaves it (see "The Map's
   days and region fills").
-- **Left out on purpose:** a search slot (the place picker does that job), a "None" pollutant (a
-  Map tile always draws one), and Collocation Sites (the dashboard loads none).
+- **Left out on purpose:** a search slot (the place picker does that job) and Collocation Sites
+  (the dashboard loads none). A Map can have no pollutant ("None" in the Data Portal): it then
+  draws its other layers, and a region fill draws as outlines, uncoloured, with no legend section
+  (R19).
 - **Settings** keeps monitor-map's set: marker clusters, basemap, basemap theme (the variant), and
   Reset to defaults.
 - **Values are saved with the tile**, in its options.
@@ -2356,7 +2358,7 @@ for the data that tile holds.
   step darker than monitor-map's `#1e90ff`, to meet 3:1.
 - **The hidden-marks note gives its reasons.** A hidden mark's monitor type is looked up once
   (page-wide cache), so the note names each reason that applies, one line each: the type doesn't
-  report the pollutant showing; the mark is hidden by the map's options (its type switched off, or
+  report the Map's pollutant; the mark is hidden by the map's options (its type switched off, or
   inactive or indoor and those hidden); it is outside the map's places; or its reason can't be told
   ("aren't shown"). The same lines are the map's accessible name and map-sdk's feature-list note.
 
@@ -2664,18 +2666,18 @@ Decided 2026-09-23 (IDEA.md Open Question #8). All charts use uPlot. "SDK+" = ne
 
 **First widget set** (Release 1, except the Alerts feed, which ships with Release 2):
 
-| Widget                    | What it shows                                                                                          | Notes                        |
-| ------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------- |
-| Map                       | `map-sdk` `MapView` + plugins; one pollutant or none; Where plus searched monitors; selection          | See "Map SDK"                |
-| Calendar — day-colored    | Each day colored by its average; day-range selection                                                   | Replaces the v1 calendar     |
-| Calendar — contribution   | GitHub-style grid with adjustable range (≥ 1 week); day-range selection                                |                              |
-| Chart                     | uPlot time series: at most one pollutant plus any non-pollutant layers, over the widget's date range   |                              |
-| Current conditions tile   | Big current value, level color, trend arrow, "updated N min ago", level guidance from `monitors/meta/` | Any `PlaceRef`               |
-| "Can we go outside?" card | Plain-language outdoor-activity recommendation from current level + guidance + today's CalHeatScore    | Schools; SDK+ (CalHeatScore) |
-| Forecast strip            | Today and tomorrow's AQI category + burn-day status, plus any active Air Alert                         | SDK+ (forecasts)             |
-| Alerts feed               | Recently fired alerts from the user's alert inbox (pollutant, forecast, pesticide-notice rules)        | Requires login               |
-| Data table                | Exact numbers for researchers; sortable, CSV export; the accessibility fallback for maps/charts        |                              |
-| Notes                     | Markdown text for annotating shared dashboards (built in step 4 spec 6)                                | No data source; see below    |
+| Widget                    | What it shows                                                                                                       | Notes                        |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| Map                       | `map-sdk` `MapView` + plugins; one pollutant or none; Where (a place or a regions selection) plus searched monitors | See "Map SDK"                |
+| Calendar — day-colored    | Each day colored by its average; day-range selection                                                                | Replaces the v1 calendar     |
+| Calendar — contribution   | GitHub-style grid with adjustable range (≥ 1 week); day-range selection                                             |                              |
+| Chart                     | uPlot time series: at most one pollutant plus any non-pollutant layers, over the widget's date range                |                              |
+| Current conditions tile   | Big current value, level color, trend arrow, "updated N min ago", level guidance from `monitors/meta/`              | Any `PlaceRef`               |
+| "Can we go outside?" card | Plain-language outdoor-activity recommendation from current level + guidance + today's CalHeatScore                 | Schools; SDK+ (CalHeatScore) |
+| Forecast strip            | Today and tomorrow's AQI category + burn-day status, plus any active Air Alert                                      | SDK+ (forecasts)             |
+| Alerts feed               | Recently fired alerts from the user's alert inbox (pollutant, forecast, pesticide-notice rules)                     | Requires login               |
+| Data table                | Exact numbers for researchers; sortable, CSV export; the accessibility fallback for maps/charts                     |                              |
+| Notes                     | Markdown text for annotating shared dashboards (built in step 4 spec 6)                                             | No data source; see below    |
 
 **Notes as built (step 4 spec 6, 2026-11-10).** Spec:
 `docs/superpowers/specs/2026-11-10-step-4-spec-6-notes-and-starter-design.md`. A Note is a

@@ -376,7 +376,9 @@ string`) now get the union return type. The mobile app passes a string token, so
   fullscreen then Escape goes back" (`shared-page.browser.test.ts`, run 42434218844: expected 50 to
   be 51). Neither has recurred in the runs since, and a fix without a reproduction would be a
   guess. **Revisit when** either fails in CI again (then make it wait on state, as the three fixed
-  in 7a Task 1 do), or when Playwright retries are considered.
+  in 7a Task 1 do), or when Playwright retries are considered. One E2E flake was seen locally
+  (step 5 spec 7a, 2026-11-22): `backup.spec` "restoring twice keeps everything as it is" failed
+  once under machine load and passed 4 of 4 alone; same revisit.
 - **sdk-js: no runtime validation of responses.** _Deferred 2026-10-19 (Alerts fix)._ SDK
   calls return API data without checking it against their Zod schemas, which is how the
   stale `airAlertSchema` went unnoticed when the server dropped `id`/`latest`. Adding
@@ -1577,12 +1579,6 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   Retry button and status drop out of reach until the panel closes. **Revisit with** the next
   accessibility pass on the map, or if the panel stops inerting the overlays.
 
-- **"Show as" from a Map uses the saved pollutant while the map's pollutant list hasn't loaded.**
-  _Found 2026-11-13 (step 5 spec 3)._ Get data's "Show as" converts by the pollutant the map draws
-  (`drawableShowing`), but in a narrow window of its synchronous path the list isn't loaded yet
-  and the saved `showing` is used. **Revisit if** someone reports a converted chart showing the
-  wrong pollutant.
-
 - **Step 5 spec 3 review leftovers.** _Deferred 2026-11-13 (step 5 spec 3, per-task and final
   reviews)._ Small things the reviews let stay:
   - **Code:** `activeFilters`' unused `offer` parameter; the unique refine and the bare `max(32)`
@@ -1592,8 +1588,6 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     `expectStill` passes on its first sample. **Add with** the next change to each.
   - **From the final review** (2026-11-13), one line each; **add or fix with** the next change to
     each:
-    - `firstPollutant` (the first drawable layer) is the `showing` default, but `showingOf` falls
-      back to the first layer (they differ when the first layer isn't drawable).
     - The test-only `TILE_OPTIONS_PROBE_KEY` lookup in `DashboardGrid`, and its
       `as TileOptionsContext` cast.
     - The icon tokens' contrast is checked only against `--background`, not the menu surfaces or
@@ -2703,6 +2697,35 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   (the contribution calendar, `calendar-contribution`) was shown. Not investigated yet: the
   exact symptom and the cause are unknown. **Revisit when** the user picks it up (they said "we
   will revisit this later"): reproduce with that range on a year calendar in Get data first.
+- **Step 5 spec 7a review leftovers.** _Deferred 2026-11-22 (step 5 spec 7a, final review)._
+  Minor; none affects what ships. **Fix with** the next change to the code around each:
+  - E2E documents are hand-written types (`DocWidget`, `SharedDocument`): derive them from the
+    documents schema.
+  - The arranging test's `frame.animate` patch is never restored.
+  - Test-only `as Layer` casts (`input.test` selection and filters, `heat.test`).
+  - `replace.test` has no assertion that a widget with no Where is left alone.
+  - The toolbar's Pollutant group code path is dead: remove it with the next toolbar change.
+  - `snapshot/monitors.ts` `scopeRequests` makes a second valley-wide request for searched ids.
+  - The `air-quality.test` "series only for ticked types" test relies on the server's filtering.
+  - "Also change N" counts before the pick.
+  - The map-widget test's `setTimeout(100)` negative check.
+  - The Map title reads label-only briefly while the area name loads.
+  - `NamedKind` is declared after its use.
+  - `pickedData` drops a monitor with no note.
+  - `toNowDraft`'s air-quality-overlay monitors path is untested.
+  - `MonitorsControl` skips `addRecent` on an unchanged selection.
+  - The widget-state test's reset is incomplete.
+  - `fromRangeDraft` rebuilds the draft from four fields.
+  - The pre-catalog now-type "alert" note path is unverified.
+  - `show-as.test` depends on its `ranged` list.
+  - `toMapDraft`'s `noPollutant` checks the first air-quality layer only.
+  - ChartWidget's `drawn` comment wrap.
+  - An unreachable `throw` in the weather adapter's `fetchEveryStation`.
+  - `map.spec`'s `types.all()` could read a partial list.
+  - `get-data.spec`'s columnheader count is brittle.
+- **`getMonitors` has no type option.** _Deferred 2026-11-22 (step 5 spec 7a, final review)._ The
+  Map on Now filters monitor types in the dashboard (decision 35), after loading every monitor.
+  **Revisit when** the SDK adds a `type` option to `getMonitors`: filter on the server then.
 - **Get data review leftovers.** _Deferred 2026-11-05 (step 4 spec 3, final review)._ Small
   things the review let stay, each rare or harmless today:
   - **A forecasts 404 gives an empty series, not "unavailable"** (Task 5 ruling): `fetch` can't
