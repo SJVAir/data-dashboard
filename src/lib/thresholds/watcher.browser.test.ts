@@ -690,6 +690,30 @@ test("changing ozone's alert level forgets only ozone's told entry", async () =>
 	expect(thresholdMarks[W1_MARK]?.level.key).toBe("unhealthy_sensitive");
 });
 
+test("an untitled two-pollutant card's notification is titled with both pollutants", async () => {
+	series.values = [20, 40];
+	series.step = 0;
+	const platform = createMemoryPlatform();
+	const { app, docId } = await seed([twoPollutants({}, { title: null })], platform);
+	await handled(platform, app, docId, W1_MARK, readingAt(0));
+	await handled(platform, app, docId, W1_O3, readingAt(0));
+	// The saved widget's generated title (both pollutants), not one row's.
+	const title = m.label_join({ first: "PM2.5 and Ozone", second: "Monitor a" });
+	await expect.element(page.getByRole("heading", { name: title })).toBeVisible();
+	await setNotifyEnabled(platform, app.space, docId, true);
+	platform.notifications.script("granted");
+	await platform.notifications.request();
+	nextPoll();
+	await expect
+		.poll(() => [...platform.notifications.shown].sort((a, b) => a.tag.localeCompare(b.tag)))
+		.toEqual(
+			[
+				{ title, body: crossing, tag: `${docId}:${W1_MARK}` },
+				{ title, body: ozoneCrossing, tag: `${docId}:${W1_O3}` }
+			].sort((a, b) => a.tag.localeCompare(b.tag))
+		);
+});
+
 test("removing a two-pollutant widget prunes both told entries", async () => {
 	series.values = [40];
 	series.step = 0;
