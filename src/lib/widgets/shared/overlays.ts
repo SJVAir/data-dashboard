@@ -97,9 +97,11 @@ export function everywhereMain(main: QueryInput | null): boolean {
 /**
  * A widget's overlay inputs as fetched (`base`: `widgetInputs`' overlays at the main's places).
  * A monitor set's (ticked types) are fetched for one of its monitors (`overlayMonitor`), never
- * per monitor: a set can hold hundreds. `null` until the set has loaded. Areas and searched
- * monitors keep theirs (one per line, as today: "Overlay for" picks among them). An everywhere
- * main's (`everywhereMain`) are never fetched: the whole layer is for main layers only.
+ * per monitor: a set can hold hundreds. `null` until the set has loaded. Areas keep theirs, and
+ * searched monitors theirs (one per line: "Overlay for" picks among them), once the main has
+ * loaded only those it fetched (`places`: a searched monitor that doesn't measure the pollutant
+ * has no line, so no overlay). An everywhere main's (`everywhereMain`) are never fetched: the
+ * whole layer is for main layers only.
  */
 export function overlayInputsFor(
 	main: QueryInput | null,
@@ -108,7 +110,8 @@ export function overlayInputsFor(
 	places?: PlaceInfo[]
 ): (QueryInput | null)[] {
 	if (everywhereMain(main)) return base.map(() => null);
-	if (!main || !monitorSet(main.layer)) return base;
+	if (!main) return base;
+	if (!monitorSet(main.layer)) return searchedFetched(main, base, places);
 	const id = overlayMonitor(options, places);
 	return base.map((input) => {
 		if (!input || !id) return null;
@@ -119,11 +122,36 @@ export function overlayInputsFor(
 }
 
 /**
- * Whether an overlay's places pair with the main's by key (each is one of the main's: a monitor
- * set's overlay, fetched for one of its monitors) rather than by request index (a point's region
- * can differ by dataset).
+ * Searched monitors' overlay inputs, asking only for the monitors the main fetched (its loaded
+ * `places`, the same monitors `measuring` in the targets adapter keeps). Unchanged before the
+ * main loads, or when it fetched every searched monitor.
+ */
+function searchedFetched(
+	main: QueryInput,
+	base: (QueryInput | null)[],
+	places: PlaceInfo[] | undefined
+): (QueryInput | null)[] {
+	const searched = main.layer.monitors ?? [];
+	if (!places || searched.length === 0) return base;
+	const fetched = new Set(places.flatMap((p) => monitorOf(p.place) ?? []));
+	const kept = searched.filter((id) => fetched.has(id));
+	if (kept.length === searched.length) return base;
+	return base.map((input) => {
+		if (!input) return null;
+		if (kept.length === 0) return null;
+		return { ...input, layer: { ...input.layer, monitors: kept } };
+	});
+}
+
+/**
+ * Whether an overlay's places pair with the main's by key rather than by request index (a
+ * point's region can differ by dataset): the main's lines are all monitors (an overlay at a
+ * monitor keeps its key, so a monitor the overlay has and the main doesn't never takes another's
+ * column), or each overlay place is one of the main's (a monitor set's overlay, fetched for one
+ * of its monitors).
  */
 export function pairsByKey(main: PlaceInfo[], overlay: PlaceInfo[]): boolean {
+	if (main.length > 0 && main.every((p) => monitorOf(p.place) !== undefined)) return true;
 	const keys = new Set(main.map((p) => p.place));
 	return overlay.length > 0 && overlay.every((p) => keys.has(p.place));
 }

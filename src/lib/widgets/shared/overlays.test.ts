@@ -238,6 +238,25 @@ test("a monitor set's overlays are fetched for one monitor; others are unchanged
 	expect(overlayInputsFor(searched, area, options, MONITORS)).toBe(area);
 });
 
+test("searched monitors' overlays ask only for the monitors the main fetched", () => {
+	const searched: QueryInput = {
+		...MAIN,
+		layer: { dataset: "air-quality", entryType: "o3", monitors: ["x", "y"] }
+	};
+	const base = [overlayInput(searched, { dataset: "weather", entryType: "temperature" })];
+	// Before the main loads, and when it fetched every one, the overlay is unchanged.
+	expect(overlayInputsFor(searched, base, undefined)).toBe(base);
+	const both = [
+		{ place: "monitor:x", name: "X" },
+		{ place: "monitor:y", name: "Y" }
+	];
+	expect(overlayInputsFor(searched, base, undefined, both)).toBe(base);
+	// X doesn't measure ozone, so the main has Y alone: so does the overlay.
+	const [onlyY] = overlayInputsFor(searched, base, undefined, [both[1]]);
+	expect(onlyY?.layer.monitors).toEqual(["y"]);
+	expect(overlayInputsFor(searched, base, undefined, [])).toEqual([null]);
+});
+
 test("an everywhere main's overlays are never fetched", () => {
 	const valley: QueryInput = {
 		layer: { dataset: "pesticide-use", entryType: "pounds-applied" },
@@ -261,7 +280,10 @@ test("an everywhere main's overlays are never fetched", () => {
 test("an overlay of the main's own keys pairs by key, any other by index", () => {
 	expect(pairsByKey(MONITORS, [MONITORS[1]])).toBe(true);
 	expect(pairsByKey(places, [{ place: "region:city:clovis", name: "Clovis" }])).toBe(false);
-	expect(pairsByKey(MONITORS, [])).toBe(false);
+	// Monitor lines always pair by key, even with an overlay monitor the main hasn't.
+	expect(pairsByKey(MONITORS, [])).toBe(true);
+	expect(pairsByKey(MONITORS, [{ place: "monitor:x", name: "X" }, MONITORS[0]])).toBe(true);
+	expect(pairsByKey(places, [])).toBe(false);
 });
 
 test("Overlay for finds a saved monitor among a monitor set's lines, and saves one", () => {

@@ -40,8 +40,9 @@ export type OverlayColumn = {
 /**
  * One column per main place per overlay, overlay by overlay. An overlay's places come in the
  * same request order as the main's, so they pair by index (a point's region can differ by
- * dataset); a monitor set's overlay is fetched for one of its monitors, so it pairs by key
- * (`pairsByKey`) and gives that monitor's column alone. Every overlay is fetched at the main's
+ * dataset); a monitor main's pairs by key (`pairsByKey`): an overlay place the main has no line
+ * for gives no column, and a monitor set's overlay, fetched for one of its monitors, gives that
+ * monitor's column alone. Every overlay is fetched at the main's
  * resolution, so its periods are the main's.
  */
 export function overlayColumns(data: QueryData, overlays: OverlayRows[]): OverlayColumn[] {

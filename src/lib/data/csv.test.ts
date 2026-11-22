@@ -385,7 +385,12 @@ describe("toCsv overlay rows", () => {
 	});
 
 	it("every place's overlay rows are exported", () => {
-		const rows = parse(toCsv(main, META, "owner", [overlay])).slice(1);
+		// Two areas: their overlay's regions pair by request index.
+		const areas = data({
+			series: main.series.map((s, i) => ({ ...s, place: `region:${["a", "b"][i]}` })),
+			places: main.places.map((p, i) => ({ ...p, place: `region:${["a", "b"][i]}` }))
+		});
+		const rows = parse(toCsv(areas, META, "owner", [overlay])).slice(1);
 		const mine = rows.filter((r) => get(r, "entry_type") === "burn-status");
 		expect(mine.map((r) => get(r, "place_id"))).toEqual(["a", "b"]);
 		expect(mine.map((r) => get(r, "place_name"))).toEqual(["A", "B"]);

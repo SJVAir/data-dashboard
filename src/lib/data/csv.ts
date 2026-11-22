@@ -183,8 +183,8 @@ function dataRows(
  * missing value (or NaN) is empty. A raw reading's period ends where it starts. Each overlay's
  * rows follow the main rows, in the same long format with its own entry type; an overlay's
  * places pair with the main's by request index (a point's region can differ by dataset), or by
- * key for a monitor set's (fetched for one of its monitors: `pairsByKey`), and carry the main
- * place's columns. Every overlay is at the main's resolution (the dataset rules),
+ * key for a monitor main's (`pairsByKey`; a monitor set's is fetched for one of its monitors), and
+ * carry the main place's columns. Every overlay is at the main's resolution (the dataset rules),
  * and each row still carries its own `period_start`/`period_end` and `resolution`. A weather
  * overlay's rows carry the station (`source_id`, `source_name`) and a pesticide overlay's the
  * active filters (`filters`, joined with "; ").
