@@ -714,7 +714,7 @@ test("a Map with smoke and fire and a fill: the visit notes them, not the marks"
 	};
 	setSmokeAndFire(map.data, true);
 	const send = { kind: "monitors" as const, ids: SEVEN, leftOut: 0 };
-	const state = showInDraft(map, send, chartType, FIXTURE_CATALOG, ["pm25"]);
+	const state = showInDraft(map, send, chartType, FIXTURE_CATALOG);
 	expect(state.notes?.dropped).toEqual(expect.arrayContaining(["overlays", "fill"]));
 	await fromMap(toNewWidget(state));
 	await expect.element(keepLine()).toBeVisible();

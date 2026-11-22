@@ -137,6 +137,14 @@ test("a widget with no Where asks for one", async () => {
 	expect(requests).toEqual([]);
 });
 
+test("a widget with no layers (None and nothing else) shows its empty state", async () => {
+	const widget = chartWidget(["m1"]);
+	widget.data.layers = [];
+	const screen = await show(widget);
+	await expect.element(screen.getByText(m.widget_state_idle())).toBeVisible();
+	expect(requests).toEqual([]);
+});
+
 test("no data shows the empty state, never an unnamed chart", async () => {
 	fake.client = createQueryClient({
 		adapters: [

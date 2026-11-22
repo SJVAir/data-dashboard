@@ -7,14 +7,7 @@
 	import { formatList, formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import { mainLayer } from "$lib/widgets/shared/input";
-	import {
-		canAddLayer,
-		canRemoveLayer,
-		numberLayers,
-		PESTICIDES,
-		WEATHER,
-		type EntryPick
-	} from "./layers";
+	import { canAddLayer, PESTICIDES, WEATHER, type EntryPick } from "./layers";
 	import type { OfferedDataset } from "./offer";
 	import PesticideLayers from "./PesticideLayers.svelte";
 	import SectionTrigger from "./SectionTrigger.svelte";
@@ -73,14 +66,10 @@
 
 	const isOn = (p: EntryPick) =>
 		data.layers.some((l) => l.dataset === p.dataset && l.entryType === p.entryType);
-	const indexOf = (p: EntryPick) =>
-		data.layers.findIndex((l) => l.dataset === p.dataset && l.entryType === p.entryType);
 	const atCap = $derived(!canAddLayer(data, catalog));
 	const limitText = $derived(
 		m.get_data_overlay_limit({ count: formatNumber(maxOverlays), countValue: maxOverlays })
 	);
-	/** "None" would leave no number layer. */
-	const noneBlocked = $derived(pollutant !== undefined && numberLayers(data, catalog) <= 1);
 
 	const weatherLayers = $derived(data.layers.filter((l) => l.dataset === WEATHER));
 	const station = $derived(weatherLayers.find((l) => l.station)?.station);
@@ -160,15 +149,10 @@
 									name="{uid}-pollutant"
 									value=""
 									checked={!pollutant}
-									disabled={noneBlocked}
-									aria-describedby={noneBlocked ? `${uid}-none-reason` : undefined}
 									onchange={() => onpollutant(null)}
 								/>
-								<span class={[noneBlocked && "text-muted-foreground"]}>{m.get_data_none()}</span>
+								<span>{m.get_data_none()}</span>
 							</label>
-							{#if noneBlocked}
-								{@render reason(`${uid}-none-reason`, m.get_data_keep_one())}
-							{/if}
 						</div>
 						{#each pollutants as entry (entry.id)}
 							{@const checked = pollutant?.dataset === id && pollutant.entryType === entry.id}
@@ -211,7 +195,6 @@
 							{@const pick = { dataset: id, entryType: entry.id }}
 							{@const on = isOn(pick)}
 							{@const capped = !on && atCap}
-							{@const kept = on && !canRemoveLayer(data, catalog, indexOf(pick))}
 							{@const why = on || capped ? undefined : blocked?.([pick])}
 							{@const reasonId = `${uid}-${id}-${entry.id}-reason`}
 							<div class="flex min-h-6 flex-wrap items-center gap-x-2 text-sm">
@@ -220,18 +203,14 @@
 										type="checkbox"
 										class="accent-primary size-4"
 										checked={on}
-										disabled={capped || kept || !!why}
-										aria-describedby={capped || kept || why ? reasonId : undefined}
+										disabled={capped || !!why}
+										aria-describedby={capped || why ? reasonId : undefined}
 										onchange={(e) => ontoggle(pick, e.currentTarget.checked)}
 									/>
-									<span class={[(capped || kept || why) && "text-muted-foreground"]}
-										>{entry.label}</span
-									>
+									<span class={[(capped || why) && "text-muted-foreground"]}>{entry.label}</span>
 								</label>
 								{#if capped}
 									{@render reason(reasonId, limitText)}
-								{:else if kept}
-									{@render reason(reasonId, m.get_data_keep_one())}
 								{:else if why}
 									{@render reason(reasonId, why)}
 								{/if}
@@ -251,7 +230,6 @@
 							: blocked?.(
 									section.layerTypes.slice(0, 1).map((e) => ({ dataset: id, entryType: e.id }))
 								)}
-						canRemove={(index) => canRemoveLayer(data, catalog, index)}
 						onadd={onaddpesticide}
 						{onremove}
 						{onfilters}

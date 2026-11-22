@@ -34,7 +34,7 @@ import {
 
 export type MapToolbarInput = {
 	offer: MapOffer;
-	/** The pollutant drawn (the saved `showing`, or its fallback). */
+	/** The pollutant drawn (the Map's one). */
 	drawn: string | undefined;
 	options: MapOptions;
 	/** A viewer's toolbar: the owner's values are what Reset puts back (never what's shown). */

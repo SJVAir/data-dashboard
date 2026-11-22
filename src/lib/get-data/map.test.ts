@@ -21,10 +21,8 @@ import {
 	mapLevelOf,
 	mapPesticideFilters,
 	mapShowingOnly,
-	MAP_POLLUTANTS_MAX,
 	setMapFill,
 	setMapPesticideFilters,
-	setMapPollutant,
 	setNotices,
 	setSmokeAndFire,
 	setUse,
@@ -42,50 +40,6 @@ const tile = (entryType: string): WidgetDataConfig => ({
 });
 /** Mid-morning, Pacific, on 2026-11-15. */
 const NOW = new Date("2026-11-15T18:00:00Z");
-/** The pollutants, in order, and the Where (which no layer edit moves). */
-const shape = (d: WidgetDataConfig) => [d.layers.map((l) => l.entryType), d.place];
-
-describe("setMapPollutant", () => {
-	it("adds ozone after PM2.5; Where stays", () => {
-		const d = tile("pm25");
-		setMapPollutant(d, CATALOG, "o3", true);
-		expect(shape(d)).toEqual([["pm25", "o3"], FRESNO]);
-	});
-
-	it("removing the first pollutant keeps Where", () => {
-		const d = tile("pm25");
-		setMapPollutant(d, CATALOG, "o3", true);
-		setMapPollutant(d, CATALOG, "pm25", false);
-		expect(shape(d)).toEqual([["o3"], FRESNO]);
-	});
-
-	it("never removes the last pollutant", () => {
-		const d = tile("pm25");
-		setMapPollutant(d, CATALOG, "pm25", false);
-		expect(shape(d)).toEqual([["pm25"], FRESNO]);
-	});
-
-	it("stops at 4 pollutants", () => {
-		const d = tile("pm25");
-		for (const id of IDS.slice(1)) setMapPollutant(d, CATALOG, id, true);
-		expect(MAP_POLLUTANTS_MAX).toBe(4);
-		expect(d.layers).toHaveLength(4);
-		expect(d.layers.some((l) => l.entryType === "x1")).toBe(false);
-	});
-
-	it("adds a pollutant ahead of smoke and fire, and ignores a repeat", () => {
-		const d = tile("pm25");
-		setSmokeAndFire(d, true);
-		setMapPollutant(d, CATALOG, "o3", true);
-		setMapPollutant(d, CATALOG, "o3", true);
-		expect(d.layers.map((l) => l.entryType ?? l.dataset)).toEqual([
-			"pm25",
-			"o3",
-			HMS_SMOKE,
-			HMS_FIRE
-		]);
-	});
-});
 
 describe("setSmokeAndFire", () => {
 	it("adds and removes smoke and fire together, with no place", () => {
@@ -364,7 +318,7 @@ describe("converting to and from the Map", () => {
 		auto.data.dateRange = { kind: "set", unit: "year", start: "2025-01-01" };
 		expect(fromMapDraft(auto, chartType, CATALOG).draft.data).not.toHaveProperty("resolution");
 		// A calendar pins Daily, and a now type has no resolution.
-		const calendar = fromMapDraft(monthly, monthCalendarType, CATALOG, "unavailable", [], NOW);
+		const calendar = fromMapDraft(monthly, monthCalendarType, CATALOG, "unavailable", NOW);
 		expect(calendar.draft.data).not.toHaveProperty("resolution");
 		expect(fromMapDraft(monthly, currentType, CATALOG).draft.data).not.toHaveProperty("resolution");
 		// A Map on Now has no resolution: a stale one gives the Chart none.
@@ -387,7 +341,7 @@ describe("converting to and from the Map", () => {
 		// gives way to the target's default.
 		const day = mapDraft(["pm25"], undefined, false);
 		day.data.dateRange = { kind: "set", unit: "day", start: "2026-11-10" };
-		const calendar = fromMapDraft(day, contributionCalendarType, CATALOG, "unavailable", [], NOW);
+		const calendar = fromMapDraft(day, contributionCalendarType, CATALOG, "unavailable", NOW);
 		expect(calendar.draft.data.dateRange).toEqual(contributionCalendarType.defaultRange);
 	});
 
@@ -419,26 +373,25 @@ describe("converting to and from the Map", () => {
 		expect(hasSmokeAndFire(c.draft.data)).toBe(false);
 	});
 
-	it("a Map over its place cap keeps its pollutants, smoke and fire, and options", () => {
-		const draft = mapDraft(["pm25", "o3"], { showing: "o3", marks: ["a"] }, true);
+	it("a Map over its place cap keeps its pollutant, smoke and fire, and options", () => {
+		const draft = mapDraft(["o3"], { marks: ["a"] }, true);
 		delete draft.data.place;
 		draft.data.selection = { kind: "monitors", ids: monitors(30) };
 		const c = toMapDraft(draft, CATALOG, ALLOWED);
 		expect(c.draft.data.layers.map((l) => l.entryType ?? l.dataset)).toEqual([
-			"pm25",
 			"o3",
 			HMS_SMOKE,
 			HMS_FIRE
 		]);
 		expect(c.draft.data.selection).toEqual({ kind: "monitors", ids: monitors(25) });
-		expect(c.draft.options).toEqual({ showing: "o3", marks: ["a"] });
+		expect(c.draft.options).toEqual({ marks: ["a"] });
 		expect(c.dropped).toEqual(["places"]);
 		expect(isMapShaped(c.draft)).toBe(true);
 		expect(isMapShaped(draft)).toBe(false);
 	});
 
 	it("Map → Chart → Map keeps the place", () => {
-		const draft = mapDraft(["pm25", "o3"], { showing: "o3" }, true);
+		const draft = mapDraft(["o3"], undefined, true);
 		const there = fromMapDraft(draft, chartType, CATALOG);
 		expect(there.draft.data.layers).toHaveLength(1);
 		const back = toMapDraft(there.draft, CATALOG, ALLOWED);
@@ -446,10 +399,9 @@ describe("converting to and from the Map", () => {
 	});
 
 	it("Map → Map keeps every layer and drops nothing", () => {
-		const draft = mapDraft(["pm25", "o3"], { showing: "o3" }, true);
+		const draft = mapDraft(["o3"], undefined, true);
 		const again = toMapDraft(draft, CATALOG, ALLOWED);
 		expect(again.draft.data.layers.map((l) => l.entryType ?? l.dataset)).toEqual([
-			"pm25",
 			"o3",
 			HMS_SMOKE,
 			HMS_FIRE
@@ -458,12 +410,25 @@ describe("converting to and from the Map", () => {
 		expect(again.dropped).toEqual([]);
 	});
 
-	it("converts a Map with PM2.5, ozone (showing) and smoke and fire to a Chart with ozone only, noting what's left out", () => {
-		const c = fromMapDraft(
-			mapDraft(["pm25", "o3"], { showing: "o3", marks: ["a"] }, true),
-			chartType,
-			CATALOG
-		);
+	it("an older Map with several pollutants keeps the first as a Map, the others left out", () => {
+		const draft = mapDraft(["pm25", "o3"], undefined, false);
+		expect(isMapShaped(draft)).toBe(false);
+		const c = toMapDraft(draft, CATALOG, ALLOWED);
+		expect(c.draft.data.layers).toEqual([{ dataset: "air-quality", entryType: "pm25" }]);
+		expect(c.dropped).toContain("overlays");
+		expect(isMapShaped(c.draft)).toBe(true);
+	});
+
+	it("a Map with no pollutant is in the Map's shape", () => {
+		const none = mapDraft(["pm25"], undefined, true);
+		none.data.layers.shift();
+		expect(isMapShaped(none)).toBe(true);
+		none.data.layers = [];
+		expect(isMapShaped(none)).toBe(true);
+	});
+
+	it("converts a Map with ozone and smoke and fire to a Chart with ozone only, noting what's left out", () => {
+		const c = fromMapDraft(mapDraft(["o3"], { marks: ["a"] }, true), chartType, CATALOG);
 		expect(c.draft.data.layers).toEqual([{ dataset: "air-quality", entryType: "o3" }]);
 		expect(c.draft.data.place).toEqual(FRESNO);
 		expect(c.dropped).toEqual(expect.arrayContaining(["overlays", "marks"]));
@@ -471,13 +436,12 @@ describe("converting to and from the Map", () => {
 		expect(c.draft.options).toBeUndefined();
 	});
 
-	it("converts by the pollutant the Map draws when the saved showing isn't offered", () => {
-		const draft = mapDraft(["pm25", "no2"], { showing: "no2" }, false);
-		const one = mapShowingOnly(draft, CATALOG, ["pm25", "o3"]);
-		expect(one.draft.data.layers.map((l) => l.entryType)).toEqual(["pm25"]);
-		expect(mapShowingOnly(draft, CATALOG, undefined).draft.data.layers[0].entryType).toBe("no2");
-		const c = fromMapDraft(draft, chartType, CATALOG, "unavailable", ["pm25", "o3"]);
-		expect(c.draft.data.layers[0].entryType).toBe("pm25");
+	it("converts by the Map's pollutant, even one the server's map doesn't draw", () => {
+		const draft = mapDraft(["no2"], undefined, false);
+		const one = mapShowingOnly(draft, CATALOG);
+		expect(one.draft.data.layers).toEqual([{ dataset: "air-quality", entryType: "no2" }]);
+		const c = fromMapDraft(draft, chartType, CATALOG);
+		expect(c.draft.data.layers[0].entryType).toBe("no2");
 	});
 
 	it("says nothing was left out from a Map of one pollutant with no marks", () => {
@@ -485,8 +449,8 @@ describe("converting to and from the Map", () => {
 		expect(c.dropped).toEqual([]);
 	});
 
-	it("converts a Map to Current conditions with the pollutant showing and the first place", () => {
-		const draft = mapDraft(["pm25", "o3"], { showing: "o3" }, false);
+	it("converts a Map to Current conditions with its pollutant and the first place", () => {
+		const draft = mapDraft(["o3"], undefined, true);
 		delete draft.data.place;
 		draft.data.selection = { kind: "monitors", ids: ["m1", "m2"] };
 		const c = fromMapDraft(draft, currentType, CATALOG);
@@ -499,8 +463,9 @@ describe("converting to and from the Map", () => {
 		expect(c.defaultOwed).toBe(true);
 	});
 
-	it("isMapShaped: pollutants first, then smoke and fire, a range up to 366 days, no day selection", () => {
-		expect(isMapShaped(mapDraft(["pm25", "o3"], undefined, true))).toBe(true);
+	it("isMapShaped: a pollutant first, then smoke and fire, a range up to 366 days, no day selection", () => {
+		expect(isMapShaped(mapDraft(["pm25"], undefined, true))).toBe(true);
+		expect(isMapShaped(mapDraft(["pm25", "o3"], undefined, true))).toBe(false);
 		const ranged = mapDraft(["pm25"], undefined, true);
 		ranged.data.dateRange = { kind: "trailing", amount: 7, unit: "day" };
 		expect(isMapShaped(ranged, NOW)).toBe(true);
@@ -719,7 +684,7 @@ describe("pesticide use on a Map", () => {
 			return d;
 		};
 		const in2023 = map({ kind: "custom", start: "2023-01-01", end: "2023-12-31" });
-		const c = fromMapDraft(in2023, chartType, USE_CATALOG, "unavailable", undefined, NOW);
+		const c = fromMapDraft(in2023, chartType, USE_CATALOG, "unavailable", NOW);
 		expect(c.draft.data.layers).toEqual([
 			{ dataset: "air-quality", entryType: "pm25" },
 			{ dataset: "pesticide-use", entryType: "acres-treated", filters: { chemical: "c1" } }
@@ -727,18 +692,11 @@ describe("pesticide use on a Map", () => {
 		expect(c.dropped).toEqual([]);
 		expect(c.draft.options).toBeUndefined();
 		// A Map on Now (the use isn't drawn there) still hands its use to the chart.
-		const onNow = fromMapDraft(map(), chartType, USE_CATALOG, "unavailable", undefined, NOW);
+		const onNow = fromMapDraft(map(), chartType, USE_CATALOG, "unavailable", NOW);
 		expect(onNow.draft.data.layers.map((l) => l.dataset)).toEqual(["air-quality", "pesticide-use"]);
 		expect(onNow.dropped).toEqual([]);
 		// Any other type drops it with the overlays note.
-		const calendar = fromMapDraft(
-			in2023,
-			monthCalendarType,
-			USE_CATALOG,
-			"unavailable",
-			undefined,
-			NOW
-		);
+		const calendar = fromMapDraft(in2023, monthCalendarType, USE_CATALOG, "unavailable", NOW);
 		expect(calendar.dropped).toContain("overlays");
 		expect(calendar.draft.data.layers.some((l) => l.dataset === "pesticide-use")).toBe(false);
 	});

@@ -70,7 +70,6 @@
 		fromMapDraft,
 		isMapShaped,
 		mapShowingOnly,
-		setMapPollutant,
 		setMapFill,
 		setMapPesticideFilters,
 		setNotices,
@@ -258,12 +257,9 @@
 			: []
 	);
 	// A now type is never blocked: choosing it converts the draft (`toNowDraft`). A Map, in its
-	// shape or not, is checked as what `fromMapDraft` converts it to: the pollutant showing, at its
-	// places.
+	// shape or not, is checked as what `fromMapDraft` converts it to: its pollutant, at its places.
 	const blockData = $derived(
-		known && plain.type === MAP_TYPE
-			? mapShowingOnly(plain, known, mapPollutants).draft.data
-			: plain.data
+		known && plain.type === MAP_TYPE ? mapShowingOnly(plain, known).draft.data : plain.data
 	);
 	const showAs = $derived(
 		dataTypes().map((t) => {
@@ -615,7 +611,7 @@
 	}
 
 	function removeLayer(index: number): void {
-		layers.removeLayer(draft.data, known, index);
+		layers.removeLayer(draft.data, index);
 	}
 
 	function setFilters(index: number, filters: PesticideFilters): void {
@@ -764,10 +760,8 @@
 			noteConversion(converted);
 			return;
 		}
-		// From a Map, the pollutant showing is the one that converts.
-		const drawable = plain.type === MAP_TYPE ? await loadMapPollutants() : undefined;
-		const base = (d: Draft) =>
-			d.type === MAP_TYPE ? mapShowingOnly(d, catalog, drawable).draft : d;
+		// From a Map, its pollutant is the one that converts.
+		const base = (d: Draft) => (d.type === MAP_TYPE ? mapShowingOnly(d, catalog).draft : d);
 		const pollutant = nowPollutant(base($state.snapshot(draft) as Draft), next, catalog);
 		const levels = await levelsOf(pollutant);
 		if (id !== changeId) return;
@@ -779,7 +773,7 @@
 		}
 		const converted =
 			fresh.type === MAP_TYPE
-				? fromMapDraft(fresh, next, catalog, levels, drawable, now)
+				? fromMapDraft(fresh, next, catalog, levels, now)
 				: toNowDraft(fresh, next, catalog, levels, sourceType(fresh));
 		alertLevels = { entryType: nowEntryType(converted.draft), levels };
 		defaultOwed = !!converted.defaultOwed;
@@ -827,7 +821,7 @@
 		if (!offersNow(to) && isNow) {
 			const converted =
 				plain.type === MAP_TYPE
-					? fromMapDraft(plain, to, known ?? [], "unavailable", mapPollutants, now)
+					? fromMapDraft(plain, to, known ?? [], "unavailable", now)
 					: fromNowDraft(plain, to);
 			replaceDraft(converted.draft);
 			noteConversion(converted);
@@ -1046,7 +1040,7 @@
 							data={plain.data}
 							catalog={known}
 							offered={offeredPollutants(known, mapPollutants ?? [])}
-							onpollutant={(e, on) => setMapPollutant(draft.data, known, e, on)}
+							onpollutant={setPollutant}
 							onsmoke={(on) => setSmokeAndFire(draft.data, on)}
 							onnotices={(on) => setNotices(draft.data, on)}
 							onfilters={(filters) => setMapPesticideFilters(draft.data, filters)}

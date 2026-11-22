@@ -57,6 +57,13 @@ const precipitation = { dataset: "weather", entryType: "precipitation" };
 const smoke = { dataset: "hms-smoke", entryType: "smoke-density" };
 
 describe("draft layers", () => {
+	it("layers: None removes the last number layer", () => {
+		const data = pm25With();
+		setPollutant(data, CATALOG, null);
+		expect(data.layers).toEqual([]);
+		expect(data.place).toEqual(FRESNO);
+	});
+
 	it("removing the pollutant keeps Where", () => {
 		const data = pm25With({ ...smoke }, { ...temperature });
 		data.resolution = "day";
@@ -81,21 +88,19 @@ describe("draft layers", () => {
 		expect(data.resolution).toBe("raw");
 	});
 
-	it("the last number layer can't be removed", () => {
+	it("any layer can be removed, the last number layer too", () => {
 		const data = pm25With({ ...smoke });
-		const before = structuredClone(data);
 		setPollutant(data, CATALOG, null);
-		expect(data).toEqual(before);
-		removeLayer(data, CATALOG, 0);
-		expect(data).toEqual(before);
+		expect(data.layers).toEqual([{ ...smoke }]);
 
-		// Temperature alone (after the pollutant went): it stays.
 		const alone: WidgetDataConfig = { place: FRESNO, layers: [{ ...temperature }, { ...smoke }] };
-		removeLayer(alone, CATALOG, 0);
-		expect(alone.layers).toHaveLength(2);
-		// A level layer can go.
-		removeLayer(alone, CATALOG, 1);
-		expect(alone.layers).toEqual([{ ...temperature }]);
+		removeLayer(alone, 0);
+		expect(alone.layers).toEqual([{ ...smoke }]);
+		removeLayer(alone, 0);
+		expect(alone.layers).toEqual([]);
+		// Past the end: nothing.
+		removeLayer(alone, 0);
+		expect(alone.layers).toEqual([]);
 	});
 
 	it("a pollutant chosen again becomes the main layer; Where stays", () => {

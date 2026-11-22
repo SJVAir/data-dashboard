@@ -6,8 +6,8 @@ import { MAX_OVERLAYS } from "$lib/widgets/shared/overlays";
 
 /**
  * Get data's edits to a draft's layers, each mutating `data` in place (the view's draft). Where
- * is on the data, not a layer, so no edit here touches it. An edit that would break a rule (no
- * number layer left, too many overlays) changes nothing. The dataset's resolution
+ * is on the data, not a layer, so no edit here touches it. An edit that would break a rule (too
+ * many overlays) changes nothing; any layer can be removed (a widget may hold none). The dataset's resolution
  * (`data.resolution`) always stays: a specific resolution never changes by itself (Get data shows
  * it blocked, with its reason, when a layer doesn't offer it).
  *
@@ -21,16 +21,6 @@ export type EntryPick = { dataset: string; entryType: string };
 export const WEATHER = "weather";
 /** The pesticide use dataset, whose layers each carry their own filters. */
 export const PESTICIDES = "pesticide-use";
-
-const isNumber = (layer: Layer, catalog: CatalogEntry[] | undefined) => {
-	const kind = layerKind(layer, catalog);
-	return kind === "pollutant" || kind === "number";
-};
-
-/** How many number layers (a pollutant, a weather reading, a pesticide measure) `data` has. */
-export function numberLayers(data: WidgetDataConfig, catalog: CatalogEntry[] | undefined): number {
-	return data.layers.filter((l) => isNumber(l, catalog)).length;
-}
 
 /** The overlays `data` has: every layer with an entry type but the main one. */
 function overlayCount(data: WidgetDataConfig, catalog: CatalogEntry[] | undefined): number {
@@ -47,8 +37,8 @@ export function canAddLayer(data: WidgetDataConfig, catalog: CatalogEntry[] | un
 
 /**
  * Chooses the widget's pollutant, or (`null`) removes it. A pollutant chosen where there was
- * none becomes the main layer, unless the old main would then be one overlay too many. Removing
- * it is refused when no other number layer is left.
+ * none becomes the main layer, unless the old main would then be one overlay too many. None
+ * always removes it, even when it was the last layer.
  */
 export function setPollutant(
 	data: WidgetDataConfig,
@@ -57,7 +47,7 @@ export function setPollutant(
 ): void {
 	const at = data.layers.findIndex((l) => layerKind(l, catalog) === "pollutant");
 	if (pick === null) {
-		if (at >= 0) removeLayer(data, catalog, at);
+		if (at >= 0) removeLayer(data, at);
 		return;
 	}
 	if (at >= 0) {
@@ -92,7 +82,7 @@ export function toggleLayer(
 		(l) => l.dataset === pick.dataset && l.entryType === pick.entryType
 	);
 	if (on && at < 0) addLayer(data, catalog, { dataset: pick.dataset, entryType: pick.entryType });
-	else if (!on && at >= 0) removeLayer(data, catalog, at);
+	else if (!on && at >= 0) removeLayer(data, at);
 }
 
 /** Adds a pesticide use layer of `entryType` with no filters (all pesticides). */
@@ -104,24 +94,9 @@ export function addPesticideLayer(
 	addLayer(data, catalog, { dataset: PESTICIDES, entryType });
 }
 
-/** Whether the layer at `index` can be removed: not when it's the last number layer. */
-export function canRemoveLayer(
-	data: WidgetDataConfig,
-	catalog: CatalogEntry[] | undefined,
-	index: number
-): boolean {
-	const layer = data.layers[index];
-	if (!layer) return false;
-	return !isNumber(layer, catalog) || numberLayers(data, catalog) > 1;
-}
-
-/** Removes the layer at `index`. Refuses the last number layer. */
-export function removeLayer(
-	data: WidgetDataConfig,
-	catalog: CatalogEntry[] | undefined,
-	index: number
-): void {
-	if (!canRemoveLayer(data, catalog, index)) return;
+/** Removes the layer at `index` (the last one too: a widget may hold no layers). */
+export function removeLayer(data: WidgetDataConfig, index: number): void {
+	if (!data.layers[index]) return;
 	data.layers.splice(index, 1);
 }
 

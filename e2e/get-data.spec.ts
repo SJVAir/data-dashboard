@@ -191,8 +191,8 @@ test("adds a temperature-only chart", async ({ page }) => {
 	await page.getByRole("checkbox", { name: "Temperature", exact: true }).check();
 	await page.getByRole("radio", { name: "None" }).check();
 	await expect(page.getByRole("radio", { name: "None" })).toBeChecked();
-	// The last number layer can't be unchecked.
-	await expect(page.getByRole("checkbox", { name: "Temperature", exact: true })).toBeDisabled();
+	// The last number layer can be unchecked too (a widget may hold nothing); it stays on here.
+	await expect(page.getByRole("checkbox", { name: "Temperature", exact: true })).toBeEnabled();
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
 	await expect(page.getByRole("combobox", { name: "Station" })).toHaveValue(
 		"I3wADR9bR-2hfub3h3nsJA"

@@ -92,6 +92,14 @@ test("rows start newest first, with the level beside each value", async () => {
 	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 · Monitor m1 · Last 30 days");
 });
 
+test("a table with no layers (None and nothing else) shows its empty state", async () => {
+	const widget = tableWidget(["m1"]);
+	widget.data.layers = [];
+	const screen = await show(widget);
+	await expect.element(screen.getByText(m.widget_state_idle())).toBeVisible();
+	expect(frame.querySelectorAll("tbody tr")).toHaveLength(0);
+});
+
 test("headers sort by keyboard and aria-sort follows", async () => {
 	const screen = await show(tableWidget(["m1", "m2"]));
 	await expect.poll(() => frame.querySelectorAll("tbody tr").length).toBe(3);

@@ -5,23 +5,18 @@
 	import Toggletip from "$lib/components/Toggletip.svelte";
 	import type { CatalogEntry, EntryTypeMeta } from "$lib/data/metadata";
 	import type { WidgetDataConfig } from "$lib/data/schema";
-	import { formatList, formatNumber } from "$lib/format";
+	import { formatList } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import type { RegionTypeInfo } from "$lib/places/types";
 	import {
 		AIR_QUALITY,
 		PESTICIDE_NOTICES,
 		PESTICIDE_USE,
-		pollutantLayers
+		pollutantLayer
 	} from "$lib/widgets/map/options";
 	import { PESTICIDE_FILTER_NAMES } from "./filter-names";
-	import {
-		hasNotices,
-		hasSmokeAndFire,
-		hasUse,
-		MAP_POLLUTANTS_MAX,
-		mapPesticideFilters
-	} from "./map";
+	import type { EntryPick } from "./layers";
+	import { hasNotices, hasSmokeAndFire, hasUse, mapPesticideFilters } from "./map";
 	import { nowPollutants } from "./now";
 	import type { PesticideFilters as Filters } from "$lib/data/schema";
 	import PesticideFilters from "./PesticideFilters.svelte";
@@ -49,8 +44,8 @@
 		catalog: CatalogEntry[];
 		/** The pollutants the Map offers, in order (the monitors meta's `available_pollutants`). */
 		offered: EntryTypeMeta[];
-		/** A pollutant on or off. */
-		onpollutant: (entryType: string, on: boolean) => void;
+		/** A pollutant chosen, or `null` for None. */
+		onpollutant: (pick: EntryPick | null) => void;
 		/** Smoke and fire on or off (both together). */
 		onsmoke: (on: boolean) => void;
 		/** Spray notices on or off. */
@@ -86,22 +81,14 @@
 	const FILL = "fill";
 
 	const airQuality = $derived(catalog.find((c) => c.id === AIR_QUALITY));
-	const chosen = $derived(
-		pollutantLayers(data, catalog)
-			.map((l) => l.entryType)
-			.filter((e): e is string => e !== undefined)
-	);
-	/** The offered pollutants, plus any chosen that aren't (checked, so they can be removed). */
-	const boxes = $derived([
+	/** The Map's one pollutant (none: undefined). */
+	const chosen = $derived(pollutantLayer(data, catalog)?.entryType);
+	/** The offered pollutants, plus the chosen one when it isn't (checked, so it still shows). */
+	const radios = $derived([
 		...offered,
-		...nowPollutants(catalog).filter(
-			(e) => chosen.includes(e.id) && !offered.some((o) => o.id === e.id)
-		)
+		...nowPollutants(catalog).filter((e) => e.id === chosen && !offered.some((o) => o.id === e.id))
 	]);
-	const summary = $derived(
-		formatList(boxes.filter((e) => chosen.includes(e.id)).map((e) => e.label))
-	);
-	const atCap = $derived(chosen.length >= MAP_POLLUTANTS_MAX);
+	const summary = $derived(formatList(radios.filter((e) => e.id === chosen).map((e) => e.label)));
 	const smoke = $derived(hasSmokeAndFire(data));
 	const noticesEntry = $derived(catalog.find((c) => c.id === PESTICIDE_NOTICES));
 	const notices = $derived(hasNotices(data));
@@ -170,35 +157,29 @@
 			{/if}
 			<fieldset class="flex flex-col gap-1">
 				<legend class="sr-only">{airQuality?.label ?? AIR_QUALITY}</legend>
-				{#each boxes as entry (entry.id)}
-					{@const on = chosen.includes(entry.id)}
-					{@const kept = on && chosen.length <= 1}
-					{@const capped = !on && atCap}
-					{@const reasonId = `${uid}-${entry.id}-reason`}
-					<div class="flex min-h-6 flex-wrap items-center gap-x-2 text-sm">
-						<label class="flex items-center gap-2">
-							<input
-								type="checkbox"
-								class="accent-primary size-4"
-								checked={on}
-								disabled={kept || capped}
-								aria-describedby={kept || capped ? reasonId : undefined}
-								onchange={(e) => onpollutant(entry.id, e.currentTarget.checked)}
-							/>
-							<span class={[(kept || capped) && "text-muted-foreground"]}>{entry.label}</span>
-						</label>
-						{#if kept}
-							{@render reason(reasonId, m.get_data_map_keep_one())}
-						{:else if capped}
-							{@render reason(
-								reasonId,
-								m.get_data_map_pollutant_limit({
-									count: formatNumber(MAP_POLLUTANTS_MAX),
-									countValue: MAP_POLLUTANTS_MAX
-								})
-							)}
-						{/if}
-					</div>
+				<label class="flex min-h-6 items-center gap-2 text-sm">
+					<input
+						type="radio"
+						class="accent-primary size-4"
+						name="{uid}-pollutant"
+						value=""
+						checked={chosen === undefined}
+						onchange={() => onpollutant(null)}
+					/>
+					<span>{m.get_data_none()}</span>
+				</label>
+				{#each radios as entry (entry.id)}
+					<label class="flex min-h-6 items-center gap-2 text-sm">
+						<input
+							type="radio"
+							class="accent-primary size-4"
+							name="{uid}-pollutant"
+							value={entry.id}
+							checked={entry.id === chosen}
+							onchange={() => onpollutant({ dataset: AIR_QUALITY, entryType: entry.id })}
+						/>
+						<span>{entry.label}</span>
+					</label>
 				{/each}
 			</fieldset>
 		</Accordion.Content>

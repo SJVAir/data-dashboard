@@ -962,11 +962,16 @@ test.describe("with ozone and smoke and fire in the metadata", () => {
 		await routeMapMeta(context);
 	});
 
-	test("Get data adds ozone and smoke and fire to a Map, and both stay", async ({ page }) => {
+	test("Get data picks one pollutant for a Map and adds smoke and fire, and both stay", async ({
+		page
+	}) => {
 		const map = await addMap(page);
 		await widgetMenuItem(page, FRESNO_MAP, "Open in Data Portal");
 		await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeVisible();
-		await page.getByRole("checkbox", { name: "Ozone" }).check();
+		// One pollutant: Ozone replaces PM2.5, and PM2.5 comes back the same way.
+		await page.getByRole("radio", { name: "Ozone" }).check();
+		await expect(page.getByRole("radio", { name: "PM2.5" })).not.toBeChecked();
+		await page.getByRole("radio", { name: "PM2.5" }).check();
 		await page.getByRole("checkbox", { name: "Smoke and fire" }).check();
 		await page.getByRole("button", { name: "Save changes" }).click();
 		await expect(widgetTitles(page)).toHaveText([FRESNO_MAP]);
@@ -983,8 +988,8 @@ test.describe("with ozone and smoke and fire in the metadata", () => {
 
 		await widgetMenuItem(page, FRESNO_MAP, "Open in Data Portal");
 		await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeVisible();
-		await expect(page.getByRole("checkbox", { name: "PM2.5" })).toBeChecked();
-		await expect(page.getByRole("checkbox", { name: "Ozone" })).toBeChecked();
+		await expect(page.getByRole("radio", { name: "PM2.5" })).toBeChecked();
+		await expect(page.getByRole("radio", { name: "Ozone" })).not.toBeChecked();
 		await expect(page.getByRole("checkbox", { name: "Smoke and fire" })).toBeChecked();
 	});
 
@@ -992,16 +997,9 @@ test.describe("with ozone and smoke and fire in the metadata", () => {
 		page,
 		mapTiler
 	}) => {
-		await openSharedDoc(
-			page,
-			wideDoc([
-				{ dataset: "air-quality", entryType: "o3" },
-				{ dataset: "hms-smoke" },
-				{ dataset: "hms-fire" }
-			])
-		);
+		await openSharedDoc(page, wideDoc([{ dataset: "hms-smoke" }, { dataset: "hms-fire" }]));
 		await expect(widgetTitles(page)).toHaveText([FRESNO_MAP]);
-		// Named after its title, which follows the pollutant showing.
+		// Named after its title, which follows its pollutant.
 		const map = page.getByRole("region", { name: / · Fresno County map$/ });
 		await expect(inView(map)).toHaveText(FRESNO_VIEW);
 		const toolbar = toolbarOf(map);
@@ -1022,14 +1020,12 @@ test.describe("with ozone and smoke and fire in the metadata", () => {
 		await basemapSelect(map).selectOption({ label: "Satellite" });
 		await expect(basemapSelect(map)).toHaveValue("satellite-v4");
 		expect(mapTiler.stubbed).toContain("api.maptiler.com/maps/satellite-v4/style.json");
-		// The pollutant.
-		await openMenu(map, "PM2.5");
-		await toolbar.getByRole("radio", { name: /^Ozone/ }).click();
-		await expect(widgetTitles(page)).toHaveText(["Ozone · Fresno County"]);
+		// No pollutant choice: a Map holds one.
+		await expect(toolbar.getByRole("button", { name: "PM2.5", exact: true })).toHaveCount(0);
 		await expectSaved(page);
 
-		// Four changes, four undo steps, back to where it opened.
-		for (let i = 0; i < 4; i++) await undo.click();
+		// Three changes, three undo steps, back to where it opened.
+		for (let i = 0; i < 3; i++) await undo.click();
 		await expect(undo).toBeDisabled();
 		await expect(widgetTitles(page)).toHaveText([FRESNO_MAP]);
 		await expect(inView(map)).toHaveText(FRESNO_VIEW);
@@ -1041,20 +1037,16 @@ test.describe("with ozone and smoke and fire in the metadata", () => {
 		await expect(referenceGrade(map)).toBeChecked();
 
 		// Redone, saved, and kept after a reload.
-		for (let i = 0; i < 4; i++) await redo.click();
+		for (let i = 0; i < 3; i++) await redo.click();
 		await expect(redo).toBeDisabled();
-		await expect(widgetTitles(page)).toHaveText(["Ozone · Fresno County"]);
 		await expectSaved(page);
 		await page.reload();
-		await expect(widgetTitles(page)).toHaveText(["Ozone · Fresno County"]);
+		await expect(widgetTitles(page)).toHaveText([FRESNO_MAP]);
 		await openMenu(map, "Settings");
 		await expect(basemapSelect(map)).toHaveValue("satellite-v4");
 		await openMenu(map, "Layers");
 		await expect(fireAndSmoke).not.toBeChecked();
-		// Back on PM2.5, AirNow is still off.
-		await openMenu(map, "Ozone");
-		await toolbar.getByRole("radio", { name: /^PM2\.5/ }).click();
-		await expect(widgetTitles(page)).toHaveText([FRESNO_MAP]);
+		// AirNow is still off.
 		await openMenu(map, "Monitors");
 		await expect(referenceGrade(map)).not.toBeChecked();
 		await expect(inView(map)).toHaveCount(0);

@@ -75,7 +75,7 @@
 		mapOptions,
 		PESTICIDE_NOTICES,
 		PESTICIDE_USE,
-		pollutantLayers
+		pollutantLayer
 	} from "./options";
 	import type { NoticesDay } from "./section-links";
 	import { mapNotShown, notShownNotes } from "./not-shown";
@@ -229,17 +229,9 @@
 	/** The region type filled, when the metadata lists it; null for no fill. */
 	const fillType = $derived(fillTypes.type);
 	const fillInfo = $derived(fillTypes.info);
-	/**
-	 * The pollutant drawn now: the one showing, or (when the server's map no longer offers it) the
-	 * first layer pollutant it does. Never saved back into the options.
-	 */
+	/** The pollutant drawn: the Map's one (unavailable when the server's map doesn't offer it). */
 	const entryType: string | undefined = $derived(wiring.drawn);
-	const entryInfo = $derived(
-		entryMeta(
-			known,
-			pollutantLayers(widget.data, known).find((l) => l.entryType === entryType)
-		)?.entryType
-	);
+	const entryInfo = $derived(entryMeta(known, pollutantLayer(widget.data, known))?.entryType);
 	const entryLabel = $derived(entryInfo?.label);
 	const periodFigure = new MapPeriodFigure(
 		{

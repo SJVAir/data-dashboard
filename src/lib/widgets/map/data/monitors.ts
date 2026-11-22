@@ -19,7 +19,7 @@ import {
 } from "$lib/data/snapshot";
 import type { UnavailableReason } from "$lib/data/types";
 import { queryLayer } from "../../shared/input";
-import { pollutantLayers } from "../options";
+import { pollutantLayer } from "../options";
 import { monitorScope, type MonitorScope, type ScopeContext } from "./scope";
 import type { MapDataEntry, MapDataInput } from "./types";
 
@@ -169,8 +169,8 @@ export type DayRating = Pick<MetadataSource, "figure" | "levels">;
 export type DaySource = ReturnType<typeof monitorDaySource>;
 
 /**
- * The monitors entry: the pollutant showing's monitors and latest readings, limited by the places
- * (the first pollutant layer's). Regions go to the server's `at` endpoint; monitor places take the
+ * The monitors entry: the Map's pollutant's monitors and latest readings, limited by the places
+ * (the data's Where). Regions go to the server's `at` endpoint; monitor places take the
  * current list filtered to their ids. The list is the same on every stop (a stop's figures come
  * from `stopSource`, joined to it by id), so its key holds no day.
  */
@@ -178,7 +178,7 @@ export function createMonitorsEntry(ctx: MonitorsEntryContext): MonitorsEntry {
 	return {
 		id: "monitors",
 		async source({ data, entryType }, signal) {
-			const layer = pollutantLayers(data, undefined)[0];
+			const layer = pollutantLayer(data, undefined);
 			if (!layer) return null;
 			const scope = await monitorScope(queryLayer(data, layer), ctx, signal);
 			if ("unavailable" in scope) return scope;

@@ -76,8 +76,8 @@ function handOffNotes(converted: NowConversion): HandOffNotes {
  * The Data Portal's starting draft for `send` to `type` (Chart or Table), from `map` (the Map's
  * dataset as this person sees it).
  *
- * Monitors: exactly what Show as gives for this Map (`fromMapDraft`, with `"unavailable"` levels
- * and `drawable` the Map's pollutants, as `GetDataView`'s `setType` calls it), with its Where
+ * Monitors: exactly what Show as gives for this Map (`fromMapDraft`, with `"unavailable"` levels,
+ * as `GetDataView`'s `setType` calls it), with its Where
  * swapped for the ids (D7, D19). Over the type's cap every id is kept (the Data
  * Portal asks which to keep; `overCap`).
  *
@@ -91,7 +91,6 @@ export function showInDraft(
 	send: MapSend,
 	type: WidgetType,
 	catalog: CatalogEntry[],
-	drawable: readonly string[],
 	now: Date = new Date()
 ): HandOff {
 	if (send.kind === "section") {
@@ -117,7 +116,7 @@ export function showInDraft(
 			leftOut: 0
 		};
 	}
-	const converted = fromMapDraft(map, type, catalog, "unavailable", drawable, now);
+	const converted = fromMapDraft(map, type, catalog, "unavailable", now);
 	const { draft } = converted;
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars -- replaced in the copy
 	const { place, selection, ...rest } = draft.data;
@@ -130,7 +129,7 @@ export function showInDraft(
 }
 
 /**
- * Loads what the conversion needs (the catalog, the Map's pollutants), builds the hand-off from
+ * Loads what the conversion needs (the catalog), builds the hand-off from
  * the Map's registry entry, and opens the Data Portal with it in history state. Nothing happens
  * when the Map isn't mounted (its entry is gone).
  */
@@ -143,13 +142,12 @@ export async function showIn(
 	const entry = mapSend(widgetId);
 	if (!entry) return;
 	const metadata = getMetadata();
-	const [catalog, pollutants] = await Promise.all([metadata.catalog(), metadata.mapPollutants()]);
+	const catalog = await metadata.catalog();
 	const handOff = showInDraft(
 		entry.draft() as Draft,
 		send,
 		type === "chart" ? chartType : dataTableType,
-		Array.isArray(catalog) ? catalog : [],
-		pollutants === "unavailable" ? [] : pollutants
+		Array.isArray(catalog) ? catalog : []
 	);
 	const { target, skip } = showInTarget(app, widgetId);
 	const getData: HandOff = { ...handOff, ...(skip ? { skip } : {}) };

@@ -674,11 +674,44 @@ test("keyboard: the date list, accordion and Show as work without a mouse", asyn
 	await expect.element(current).toBeChecked();
 });
 
-test("the pollutant can't be cleared without a number layer; overlays can't stand alone", async () => {
+test("get data view: None is never disabled", async () => {
+	for (const type of ["chart", "map"]) {
+		const { current, host } = await show(monitorsDraft(["m1"], { type }));
+		// The Map's Fill regions by has a None of its own.
+		const scope = type === "map" ? page.getByRole("group", { name: "Air quality" }) : page;
+		const none = scope.getByRole("radio", { name: "None" });
+		await expect.element(none).toBeEnabled();
+		expect(none.element().getAttribute("aria-describedby")).toBeNull();
+		await none.click();
+		await expect.element(none).toBeChecked();
+		expect((await current()).data.layers).toEqual([]);
+		host.remove();
+	}
+});
+
+test("get data view: the Map offers radios, one pollutant", async () => {
+	fake.metadata = fixtureMetadata({
+		catalog: async () => CATALOG,
+		mapPollutants: async () => ["pm25", "o3"]
+	});
+	const { current } = await show(monitorsDraft(["m1"], { type: "map" }));
+	const group = page.getByRole("group", { name: "Air quality" });
+	const radios = group.getByRole("radio");
+	await expect.element(group.getByRole("radio", { name: "PM2.5" })).toBeChecked();
+	expect(radios.elements().map((r) => r.closest("label")?.textContent?.trim())).toEqual([
+		m.get_data_none(),
+		"PM2.5",
+		"Ozone"
+	]);
+	await expect.element(group.getByRole("checkbox")).not.toBeInTheDocument();
+	await group.getByRole("radio", { name: "Ozone" }).click();
+	await expect.element(group.getByRole("radio", { name: "PM2.5" })).not.toBeChecked();
+	expect((await current()).data.layers).toEqual([{ dataset: "air-quality", entryType: "o3" }]);
+	expect((await current()).data.selection).toEqual({ kind: "monitors", ids: ["m1"] });
+});
+
+test("the pollutant radios switch the pollutant; overlays follow the main layer", async () => {
 	const { current } = await show(monitorsDraft(["m1"], {}, ["burn-status"]));
-	const none = page.getByRole("radio", { name: "None" });
-	await expect.element(none).toBeDisabled();
-	await expect.element(none).toHaveAccessibleDescription(m.get_data_keep_one());
 	const pm25 = page.getByRole("radio", { name: "PM2.5" });
 	await pm25.click();
 	await expect.element(pm25).toBeChecked();
@@ -970,10 +1003,11 @@ test("a temperature-only chart can be added", async () => {
 	await page.getByRole("radio", { name: "None" }).click();
 	expect((await current()).data.layers).toEqual([{ ...TEMPERATURE }]);
 	expect((await current()).data.selection).toEqual({ kind: "monitors", ids: ["m1"] });
-	// The last number layer can't be unchecked.
+	// The last number layer can be unchecked too: a widget may hold nothing.
 	const box = page.getByRole("checkbox", { name: "Temperature", exact: true });
-	await expect.element(box).toBeDisabled();
-	await expect.element(box).toHaveAccessibleDescription(m.get_data_keep_one());
+	await expect.element(box).toBeEnabled();
+	await box.click();
+	expect((await current()).data.layers).toEqual([]);
 });
 
 test("choosing None for Air Quality keeps the places", async () => {
@@ -1353,34 +1387,6 @@ describe("now widgets", () => {
 		await expect.element(add).toBeEnabled();
 	});
 
-	test("shows the Map pollutant checkboxes, and the last one can't be unchecked", async () => {
-		const { current } = await show(monitorsDraft(["m1"]));
-		await page.getByRole("radio", { name: "Map" }).click();
-		// The map's pollutants only, in the monitors meta's order.
-		const group = page.getByRole("group", { name: "Air quality" });
-		const pm25 = group.getByRole("checkbox", { name: "PM2.5" });
-		const ozone = group.getByRole("checkbox", { name: "Ozone" });
-		await expect.element(pm25).toBeChecked();
-		await expect.element(pm25).toBeDisabled();
-		await expect.element(page.getByText(m.get_data_map_keep_one())).toBeVisible();
-		await expect.element(group.getByRole("checkbox", { name: "PM10" })).not.toBeInTheDocument();
-		await expect.element(group.getByRole("radio")).not.toBeInTheDocument();
-		const boxes = group.getByRole("checkbox").elements();
-		expect(boxes.map((b) => b.closest("label")?.textContent?.trim())).toEqual(["Ozone", "PM2.5"]);
-		await ozone.click();
-		await expect.element(pm25).toBeEnabled();
-		expect((await current()).data.layers).toEqual([
-			{ dataset: "air-quality", entryType: "pm25" },
-			{ dataset: "air-quality", entryType: "o3" }
-		]);
-		expect((await current()).data.place).toEqual({ kind: "monitor", id: "m1" });
-		// Unchecking the first keeps Where.
-		await pm25.click();
-		await expect.element(ozone).toBeDisabled();
-		expect((await current()).data.layers).toEqual([{ dataset: "air-quality", entryType: "o3" }]);
-		expect((await current()).data.place).toEqual({ kind: "monitor", id: "m1" });
-	});
-
 	test("turns smoke and fire on and off together", async () => {
 		const { current, host } = await show(monitorsDraft(["m1"], { type: "map" }));
 		const smoke = page.getByRole("checkbox", { name: m.get_data_smoke_and_fire() });
@@ -1603,29 +1609,30 @@ describe("now widgets", () => {
 			.element(page.getByRole("checkbox", { name: m.get_data_smoke_and_fire() }))
 			.toBeChecked();
 		await expect.element(page.getByText(m.get_data_overlays_left_out())).not.toBeInTheDocument();
-		await page.getByRole("checkbox", { name: "Ozone" }).click();
+		await page.getByRole("radio", { name: "Ozone" }).click();
 		await page.getByRole("radio", { name: "Chart" }).click();
 		await expect.element(page.getByRole("radio", { name: "Chart" })).toBeChecked();
 		await expect.element(page.getByText(m.get_data_overlays_left_out())).toBeVisible();
 		const out = await current();
 		expect(out.type).toBe("chart");
-		expect(out.data.layers).toEqual([{ dataset: "air-quality", entryType: "pm25" }]);
+		expect(out.data.layers).toEqual([{ dataset: "air-quality", entryType: "o3" }]);
 		expect(out.data.place).toEqual({ kind: "monitor", id: "m1" });
 	});
 
-	test("Show as Current conditions from a Map uses the pollutant showing and drops the marks", async () => {
+	test("Show as Current conditions from a Map uses its pollutant and drops the marks", async () => {
 		const { current } = await show({
 			type: "map",
 			data: {
 				place: { kind: "monitor", id: "m1" },
 				layers: [
-					{ dataset: "air-quality", entryType: "pm25" },
-					{ dataset: "air-quality", entryType: "o3" }
+					{ dataset: "air-quality", entryType: "o3" },
+					{ dataset: "hms-smoke" },
+					{ dataset: "hms-fire" }
 				]
 			},
-			options: { showing: "o3", marks: ["m1"] }
+			options: { marks: ["m1"] }
 		});
-		await expect.element(page.getByRole("checkbox", { name: "Ozone" })).toBeChecked();
+		await expect.element(page.getByRole("radio", { name: "Ozone" })).toBeChecked();
 		await page.getByRole("radio", { name: "Current conditions" }).click();
 		await expect.element(page.getByText(m.get_data_marks_left_out())).toBeVisible();
 		await expect.element(page.getByText(m.get_data_overlays_left_out())).toBeVisible();
@@ -1713,12 +1720,11 @@ describe("now widgets", () => {
 			},
 			context: new Map([[APP_CONTEXT_KEY, app]])
 		});
-		await page.getByRole("checkbox", { name: "Ozone" }).click();
+		await page.getByRole("radio", { name: "Ozone" }).click();
 		await page.getByRole("checkbox", { name: m.get_data_smoke_and_fire() }).click();
 		await page.getByRole("button", { name: "Save changes" }).click();
 		const saved = session.doc.body.widgets[0];
 		expect(saved.data.layers.map((l) => l.entryType ?? l.dataset)).toEqual([
-			"pm25",
 			"o3",
 			"hms-smoke",
 			"hms-fire"

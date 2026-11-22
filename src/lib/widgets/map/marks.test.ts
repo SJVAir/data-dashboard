@@ -58,7 +58,7 @@ describe("hiddenMarks", () => {
 
 describe("marksChange", () => {
 	it("saves marks as one setWidgetData change, and null when unchanged", () => {
-		const widget = mapWidget({ showing: "pm25", marks: ["a"] });
+		const widget = mapWidget({ basemap: "x", marks: ["a"] });
 		const change = marksChange(widget, ["a", "b"]);
 		expect(change).toEqual({
 			op: "setWidgetData",
@@ -66,8 +66,8 @@ describe("marksChange", () => {
 			from: widget.data,
 			to: widget.data,
 			options: {
-				from: { showing: "pm25", marks: ["a"] },
-				to: { showing: "pm25", marks: ["a", "b"] }
+				from: { basemap: "x", marks: ["a"] },
+				to: { basemap: "x", marks: ["a", "b"] }
 			}
 		});
 		expect(ChangeSchema.safeParse(change).success).toBe(true);
@@ -75,9 +75,9 @@ describe("marksChange", () => {
 	});
 
 	it("drops the marks key when the last mark goes, keeping the other options", () => {
-		const widget = mapWidget({ showing: "o3", marks: ["a"] });
+		const widget = mapWidget({ basemap: "x", marks: ["a"] });
 		expect(marksChange(widget, [])).toMatchObject({
-			options: { from: { showing: "o3", marks: ["a"] }, to: { showing: "o3" } }
+			options: { from: { basemap: "x", marks: ["a"] }, to: { basemap: "x" } }
 		});
 	});
 

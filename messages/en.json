@@ -1069,16 +1069,6 @@
 		}
 	],
 	"get_data_overlay_for": "Overlay for",
-	"get_data_map_pollutant_limit": [
-		{
-			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
-			"selectors": ["countPlural"],
-			"match": {
-				"countPlural=one": "Up to {count} pollutant",
-				"countPlural=other": "Up to {count} pollutants"
-			}
-		}
-	],
 	"get_data_smoke_and_fire": "Smoke and fire",
 	"getdata_note_fill_dropped": "Filled regions only apply to the map, so the fill was left out.",
 	"get_data_marks_left_out": "Marked monitors don't apply to this widget, so they were left out.",
@@ -1265,10 +1255,8 @@
 			}
 		}
 	],
-	"get_data_map_keep_one": "Keep at least one pollutant.",
 	"get_data_map_smoke_help_label": "About smoke and fire",
 	"get_data_map_smoke_help": "Shows the smoke plumes and fire detections seen by satellite on the day the map shows, everywhere on the map, not only at this map's places.",
-	"get_data_keep_one": "Keep at least one pollutant, weather or pesticide layer.",
 	"get_data_level_only": "Add a pollutant, weather or pesticide layer to chart this.",
 	"get_data_station": "Station",
 	"get_data_station_nearby": "{name} ({miles} mi away)",
