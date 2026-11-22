@@ -4,7 +4,7 @@ import type { WidgetType } from "../registry";
 
 export const OUTSIDE_TYPE = "outside";
 
-/** The school outdoor-activity guidance for the air right now, with today's heat. Always PM2.5. */
+/** The school outdoor-activity guidance for the air right now, with today's heat. */
 export const outsideType: WidgetType = {
 	type: OUTSIDE_TYPE,
 	label: () => m.widget_outside_title(),

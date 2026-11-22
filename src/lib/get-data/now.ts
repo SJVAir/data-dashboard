@@ -57,8 +57,6 @@ export type NowDropped =
 
 const AIR_QUALITY = "air-quality";
 const FORECASTS = "forecasts";
-/** "Can we go outside?" is always PM2.5, as the card reads it (`asPm25`). */
-const OUTSIDE_POLLUTANT = "pm25";
 
 /** The pollutants Current conditions offers: the air-quality ones that are available. */
 export function nowPollutants(catalog: CatalogEntry[]): EntryTypeMeta[] {
@@ -134,10 +132,10 @@ function sourceLayer(draft: Draft, catalog: CatalogEntry[] | undefined): Layer |
 }
 
 /**
- * The pollutant `draft` has once it's `type`: none for the Forecast strip, PM2.5 for "Can we go
- * outside?", else the main layer's when it's an offered pollutant, or the first offered one.
- * With `allowed` (the Map's: the monitors meta's `available_pollutants`), only those are offered,
- * in `allowed`'s order.
+ * The pollutant `draft` has once it's `type`: none for the Forecast strip, else the main layer's
+ * when it's an offered pollutant, or the first offered one. With `allowed` (the Map's: the
+ * monitors meta's `available_pollutants`; "Can we go outside?"'s: the ones with school guidelines),
+ * only those are offered, in `allowed`'s order. "Can we go outside?" with none offered has none.
  */
 export function nowPollutant(
 	draft: Draft,
@@ -146,8 +144,8 @@ export function nowPollutant(
 	allowed?: string[]
 ): string | undefined {
 	if (type.type === FORECAST_TYPE) return undefined;
-	if (type.type === OUTSIDE_TYPE) return OUTSIDE_POLLUTANT;
 	const offered = offeredPollutants(catalog, allowed);
+	if (type.type === OUTSIDE_TYPE && offered.length === 0) return undefined;
 	const main = mainLayer(draft.data, catalog);
 	if (main?.dataset === AIR_QUALITY && offered.some((e) => e.id === main.entryType)) {
 		return main.entryType;
@@ -262,7 +260,7 @@ function nowDraftOf(
 	let where = place ? widgetWhere(draft.data) : toWhere(picks.slice(0, cap));
 	const entryType = nowPollutant(draft, type, catalog, allowed);
 	let layer: Layer = {
-		dataset: entryType === undefined ? FORECASTS : AIR_QUALITY,
+		dataset: type.type === FORECAST_TYPE ? FORECASTS : AIR_QUALITY,
 		...(entryType === undefined ? {} : { entryType })
 	};
 	// The monitors go with the layer (a Forecast strip's on its forecasts layer): a one-place type
@@ -273,7 +271,8 @@ function nowDraftOf(
 	const one = cap === 1 ? onePlace(where, [layer]) : undefined;
 	if (one) {
 		where = one.where;
-		layer = one.layers[0];
+		// "Can we go outside?" with no pollutant to offer keeps its bare air-quality layer.
+		layer = one.layers[0] ?? layer;
 	} else if (entryType === undefined) {
 		delete layer.monitors;
 		delete layer.monitorTypes;

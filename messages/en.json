@@ -1595,7 +1595,7 @@
 	"outside_heat_load_failed": "Heat score couldn't be loaded",
 	"outside_no_guidance_for_level": "No guidance for this level",
 	"outside_no_activity_guidance": "No activity guidance is available",
-	"outside_no_pm25": "No PM2.5 data for this place",
+	"outside_no_guideline_pollutants": "No pollutant has school activity guidelines yet",
 	"alert_pollutant_at_place_is_now_level": "{pollutant} at {place} is now {level}",
 	"taskbar_restore_named_alert_reached": "Restore {title} (alert level reached)",
 	"widget_fullscreen_named_alert_reached": "Show {title} fullscreen (alert level reached)",

@@ -306,7 +306,10 @@ beforeEach(async () => {
 	fake.locations = {};
 	fake.regionFail = false;
 	fake.area = null;
-	fake.metadata = fixtureMetadata({ catalog: async () => CATALOG });
+	fake.metadata = fixtureMetadata({
+		catalog: async () => CATALOG,
+		guidelinePollutants: async () => ["pm25"]
+	});
 	makeClient();
 	fake.now = createNowClient({ activity: createMemoryPlatform().activity });
 });
@@ -2314,6 +2317,41 @@ describe("now widgets", () => {
 		await expect.element(page.getByText(m.get_data_extra_places_left_out())).toBeVisible();
 		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Area a1");
 		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
+	});
+
+	test("Outside offers radios over the pollutants with guidelines when there are two or more", async () => {
+		fake.metadata = fixtureMetadata({
+			catalog: async () => CATALOG,
+			guidelinePollutants: async () => ["o3", "pm25"]
+		});
+		const { current } = await show(areasDraft(["a1"]));
+		await page.getByRole("radio", { name: "Can we go outside?" }).click();
+		const group = page.getByRole("group", { name: "Air quality" });
+		await expect.element(group.getByRole("radio", { name: "Ozone" })).toBeVisible();
+		expect(
+			group
+				.getByRole("radio")
+				.elements()
+				.map((r) => r.closest("label")?.textContent?.trim())
+		).toEqual(["Ozone", "PM2.5"]);
+		await group.getByRole("radio", { name: "PM2.5" }).click();
+		await group.getByRole("radio", { name: "Ozone" }).click();
+		await expect.element(group.getByRole("radio", { name: "Ozone" })).toBeChecked();
+		expect((await current()).data.layers).toEqual([{ dataset: "air-quality", entryType: "o3" }]);
+	});
+
+	test("Outside with no guideline pollutants says so, and Show as isn't blocked", async () => {
+		fake.metadata = fixtureMetadata({
+			catalog: async () => CATALOG,
+			guidelinePollutants: async () => []
+		});
+		const { current } = await show(areasDraft(["a1"]));
+		await page.getByRole("radio", { name: "Can we go outside?" }).click();
+		// The note in Air quality, and the preview widget's own state.
+		await expect.poll(() => document.querySelectorAll("[data-no-guidelines]").length).toBe(1);
+		await expect.element(page.getByText(m.outside_no_guideline_pollutants()).first()).toBeVisible();
+		await expect.element(page.getByRole("radio", { name: "Can we go outside?" })).toBeChecked();
+		expect((await current()).type).toBe("outside");
 	});
 
 	test("an Off alert level stays Off from Can we go outside? to Current conditions", async () => {

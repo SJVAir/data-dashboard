@@ -26,6 +26,7 @@
 	import { CHART_TYPE } from "$lib/widgets/chart";
 	import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
 	import { CURRENT_TYPE } from "$lib/widgets/current";
+	import { OUTSIDE_TYPE } from "$lib/widgets/outside";
 	import { currentPollutants, firstPollutantOnly } from "$lib/widgets/current/pollutants";
 	import { MAP_TYPE } from "$lib/widgets/map";
 	import {
@@ -213,6 +214,25 @@
 		let active = true;
 		void loadUseYears().then((y) => {
 			if (active) useYears = y;
+		});
+		return () => {
+			active = false;
+		};
+	});
+	/**
+	 * The pollutants with school guidelines (what "Can we go outside?" offers), once loaded; `[]`
+	 * when they can't be loaded, the same as a server that lists none.
+	 */
+	let guidelinePollutants = $state.raw<string[] | undefined>();
+	const loadGuidelinePollutants = () =>
+		getMetadata()
+			.guidelinePollutants()
+			.catch(() => [] as string[]);
+	$effect(() => {
+		if (plain.type !== OUTSIDE_TYPE || guidelinePollutants) return;
+		let active = true;
+		void loadGuidelinePollutants().then((p) => {
+			if (active) guidelinePollutants = p;
 		});
 		return () => {
 			active = false;
@@ -763,16 +783,25 @@
 		}
 		// From a Map, its pollutant is the one that converts.
 		const base = (d: Draft) => (d.type === MAP_TYPE ? mapShowingOnly(d, catalog).draft : d);
-		const pollutant = nowPollutant(base($state.snapshot(draft) as Draft), next, catalog);
+		// "Can we go outside?" offers only the pollutants with school guidelines.
+		const offered = next.type === OUTSIDE_TYPE ? await loadGuidelinePollutants() : undefined;
+		if (id !== changeId) return;
+		if (offered) guidelinePollutants = offered;
+		const pollutant = nowPollutant(base($state.snapshot(draft) as Draft), next, catalog, offered);
 		const levels = await levelsOf(pollutant);
 		if (id !== changeId) return;
 		// An edit made while the scale loaded counts: convert the draft as it is now (again, when
 		// that edit changed the pollutant).
 		const fresh = $state.snapshot(draft) as Draft;
-		if (nowPollutant(base(fresh), next, catalog) !== pollutant) {
+		if (nowPollutant(base(fresh), next, catalog, offered) !== pollutant) {
 			return convertToNow(next, catalog);
 		}
-		const converted = showAsDraft(fresh, next, { catalog, allowed: [], levels, now });
+		const converted = showAsDraft(fresh, next, {
+			catalog,
+			allowed: offered ?? [],
+			levels,
+			now
+		});
 		alertLevels = { entryType: nowEntryType(converted.draft), levels };
 		defaultOwed = !!converted.defaultOwed;
 		replaceDraft(converted.draft);
@@ -843,11 +872,13 @@
 		if (!untrack(() => shaped(plain, to))) void convertToNow(to, known);
 	});
 
-	// The alert level: the pollutant's scale ("Can we go outside?" reads PM2.5 whatever's saved).
+	// The alert level: the pollutant's scale (the one on the draft's layer once it's shaped).
 	const nowEntryType = (d: Draft) =>
 		d.type === CURRENT_TYPE
 			? currentPollutants(d.data)[0]
-			: nowPollutant(d, getWidgetType(d.type)!, known ?? []);
+			: d.type === OUTSIDE_TYPE
+				? d.data.layers.find((l) => l.dataset === "air-quality")?.entryType
+				: nowPollutant(d, getWidgetType(d.type)!, known ?? []);
 	let alertLevels = $state.raw<{
 		entryType: string | undefined;
 		levels: Level[] | "unavailable";
@@ -1010,6 +1041,9 @@
 						onfilters={setFilters}
 						onstation={setStation}
 						blocked={datasetReason}
+						guidelines={guidelinePollutants && known
+							? offeredPollutants(known, guidelinePollutants)
+							: undefined}
 						map={{
 							pollutants: offeredPollutants(known, mapPollutants ?? []),
 							onsmoke: (on) => setSmokeAndFire(draft.data, on),

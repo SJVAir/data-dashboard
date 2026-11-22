@@ -61,7 +61,7 @@ describe("toNowDraft", () => {
 		});
 	});
 
-	it("keeps an ozone pick for Current conditions; Outside forces PM2.5", () => {
+	it("keeps an ozone pick for Current conditions; Outside takes a pollutant with guidelines", () => {
 		const ozone: Draft = {
 			type: CHART_TYPE,
 			data: { place: CLOVIS, layers: [{ dataset: "air-quality", entryType: "o3" }] }
@@ -71,8 +71,8 @@ describe("toNowDraft", () => {
 			{ dataset: "air-quality", entryType: "o3" }
 		]);
 		expect(toNowDraft(ozone, currentType, CATALOG, []).draft.data.place).toEqual(CLOVIS);
-		expect(nowPollutant(ozone, outsideType, CATALOG)).toBe("pm25");
-		const outside = toNowDraft(ozone, outsideType, CATALOG, PM25_LEVELS);
+		expect(nowPollutant(ozone, outsideType, CATALOG, ["pm25"])).toBe("pm25");
+		const outside = toNowDraft(ozone, outsideType, CATALOG, PM25_LEVELS, undefined, ["pm25"]);
 		expect(outside).toEqual({
 			draft: {
 				type: "outside",
@@ -82,6 +82,15 @@ describe("toNowDraft", () => {
 			dropped: ["pollutant"],
 			pollutant: { from: { dataset: "air-quality", entryType: "o3" }, to: "pm25" }
 		});
+	});
+
+	it("Outside keeps the main layer's pollutant when it has guidelines, else the first that does", () => {
+		const ozone: Draft = {
+			type: CHART_TYPE,
+			data: { place: CLOVIS, layers: [{ dataset: "air-quality", entryType: "o3" }] }
+		};
+		expect(nowPollutant(ozone, outsideType, CATALOG, ["pm25", "o3"])).toBe("o3");
+		expect(nowPollutant(ozone, outsideType, CATALOG, [])).toBeUndefined();
 	});
 
 	it("no levels (a scale without them) means no alert level", () => {

@@ -3,8 +3,6 @@
 	import { widgetTitle } from "$lib/actions/widget";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { canonicalJson } from "$lib/sync/merge";
-	import { OUTSIDE_TYPE } from "$lib/widgets/outside";
-	import { asPm25 } from "$lib/widgets/outside/pm25";
 	import { CurrentConditions } from "$lib/widgets/shared/current.svelte";
 	import { widgetWhere } from "$lib/widgets/shared/input";
 	import { ReadingClock } from "$lib/widgets/shared/reading-clock.svelte";
@@ -17,8 +15,7 @@
 	let { widget, watch }: { widget: WidgetInstance; watch: ThresholdWatch } = $props();
 
 	const viewer = getContext<PlaceViewer | undefined>(PLACE_VIEWER_KEY) ?? "owner";
-	// What the tile itself reads ("Can we go outside?" is always PM2.5).
-	const read = $derived(widget.type === OUTSIDE_TYPE ? asPm25(widget) : widget);
+	const read = $derived(widget);
 	// Polling even while minimized: a minimized widget isn't on the grid, but still watches.
 	const current = new CurrentConditions(() => read, { polling: () => true });
 	// Ticks each minute, so a reading that ages past "recent" loses its mark between polls.

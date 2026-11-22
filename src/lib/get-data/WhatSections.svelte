@@ -11,6 +11,7 @@
 	import { m } from "$lib/paraglide/messages.js";
 	import type { RegionTypeInfo } from "$lib/places/types";
 	import { CURRENT_TYPE } from "$lib/widgets/current";
+	import { OUTSIDE_TYPE } from "$lib/widgets/outside";
 	import { FORECAST_TYPE } from "$lib/widgets/forecast";
 	import {
 		HMS_SMOKE,
@@ -53,6 +54,7 @@
 		maxOverlays,
 		onpollutant,
 		onnowpollutant,
+		guidelines,
 		onmonitortypes,
 		onmonitors,
 		ontoggle,
@@ -96,6 +98,11 @@
 		 * is the layer it would replace (the pollutant chosen now).
 		 */
 		blocked?: (candidate: Layer[], without?: Layer) => string | undefined;
+		/**
+		 * The pollutants with school guidelines, in the meta's order (what "Can we go outside?"
+		 * offers); undefined while loading.
+		 */
+		guidelines?: EntryTypeMeta[];
 		/** The Map's own sections' state and edits. */
 		map: {
 			/** The pollutants the Map offers, in order (the monitors meta's `available_pollutants`). */
@@ -197,7 +204,9 @@
 			];
 		}
 		if (type.type === CURRENT_TYPE) return nowPollutants(catalog);
-		// "Can we go outside?" reads PM2.5; the Forecast strip has no pollutant of its own.
+		// "Can we go outside?" holds one pollutant with guidelines: radios from two up, none for one.
+		if (type.type === OUTSIDE_TYPE) return guidelines && guidelines.length >= 2 ? guidelines : null;
+		// The Forecast strip has no pollutant of its own.
 		if (type.time === "now") return null;
 		const offer = sections.find((s) => s.dataset.id === AIR_QUALITY);
 		return offer?.entryTypes.filter((e) => e.kind === "pollutant") ?? [];
@@ -370,17 +379,23 @@
 			{catalog}
 			{limit}
 			pollutants={radios}
-			none={type.type !== CURRENT_TYPE}
+			none={type.type !== CURRENT_TYPE && type.type !== OUTSIDE_TYPE}
 			pollutantReason={isMap
 				? undefined
 				: (entry) => blocked?.([{ dataset: AIR_QUALITY, entryType: entry.id }], pollutant)}
 			capText={!isMap && atCap ? limitText : undefined}
-			onpollutant={type.type === CURRENT_TYPE
+			onpollutant={type.type === CURRENT_TYPE || type.type === OUTSIDE_TYPE
 				? (pick) => pick && onnowpollutant(pick.entryType)
 				: onpollutant}
 			ontypes={onmonitortypes}
 			{onmonitors}
 		/>
+	{/if}
+	{#if type.type === OUTSIDE_TYPE && guidelines?.length === 0}
+		<!-- No pollutant has school guidelines: nothing to pick, and the widget says so too. -->
+		<p class="text-muted-foreground text-sm" data-no-guidelines>
+			{m.outside_no_guideline_pollutants()}
+		</p>
 	{/if}
 	{#if section.offered && !isMap && type.time !== "now"}
 		<!-- Air quality's other entry types (humidity), as overlays. -->

@@ -15,7 +15,6 @@ import { Toaster } from "$lib/components/ui/sonner";
 import { APP_CONTEXT_KEY, initApp, type AppContext } from "$lib/store/app.svelte";
 import { DocumentSession } from "$lib/store/document-session.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
-import { OUTSIDE_TYPE } from "$lib/widgets/outside";
 import { PM25_LEVELS } from "$lib/widgets/shared/test-harness/fake-data";
 import Harness from "$lib/components/dashboard/test-harness/Harness.svelte";
 import { thresholdMarks, setMark } from "./marks.svelte";
@@ -599,17 +598,6 @@ test("a notification is shown only when the switch is on and permission granted"
 		.poll(() => platform.notifications.shown)
 		.toEqual([{ title: "Tile w1", body, tag: `${docId}:w1` }]);
 	show.mockRestore();
-});
-
-test("a Can we go outside? card is watched as PM2.5 whatever its saved entry type", async () => {
-	series.values = [20, 40];
-	series.step = 0;
-	const w = tile("w1", { minimized: { order: 0 } }, OUTSIDE_TYPE);
-	w.data.layers[0].entryType = "o3";
-	const { app, platform, docId } = await seed([w]);
-	await handled(platform, app, docId, "w1", readingAt(0));
-	nextPoll();
-	await expect.poll(toastTexts).toEqual([crossing]);
 });
 
 // --- CurrentConditions (the tiles' and the watcher's reading) ---
