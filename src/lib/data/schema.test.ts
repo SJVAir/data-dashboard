@@ -210,6 +210,17 @@ describe("default-place", () => {
 		expect(StarterDashboardSchema.safeParse(doc).success).toBe(true);
 	});
 
+	it("an earlier monitor in the place bar is dropped on read, and the dashboard opens", () => {
+		const doc = starterDashboard(defaultStarterPlace());
+		(doc.body as { placeBar?: unknown }).placeBar = { place: { kind: "monitor", id: "a" } };
+		const parsed = DashboardSchema.safeParse(doc);
+		expect(parsed.success).toBe(true);
+		expect(parsed.data!.body).not.toHaveProperty("placeBar");
+		// A county bar is kept.
+		doc.body.placeBar = { place: county as never };
+		expect(DashboardSchema.parse(doc).body.placeBar).toEqual({ place: county });
+	});
+
 	it("leaves other places and the resolved starter valid; only the template holds it", () => {
 		expect(DashboardSchema.safeParse(withPlace(county)).success).toBe(true);
 		// An earlier monitor place is dropped, and the dashboard still opens.

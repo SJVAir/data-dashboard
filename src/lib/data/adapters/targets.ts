@@ -70,6 +70,8 @@ async function whereRegionKeys(
 	if (selection) return [...selection.ids];
 	if (!place) return null;
 	const fallback = await fallbackTarget(place, ctx, signal);
+	// Ticked types with a school or point Where use its first resolvable region only (ZIP, else
+	// city, else county), not the fallback chain a by-place query tries in turn.
 	if (fallback) return "unavailable" in fallback ? fallback : fallback.keys.slice(0, 1);
 	if (place.kind !== "region") return { unavailable: "place-unsupported" };
 	return [`${place.type}:${place.code}`];

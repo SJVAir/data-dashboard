@@ -9,9 +9,9 @@ import { toWhere } from "$lib/places/selection";
 import type { AppContext } from "$lib/store/app.svelte";
 import { STARTER_ID } from "$lib/starter/starter";
 import { chartType } from "$lib/widgets/chart";
-import { registerWidgetType } from "$lib/widgets/registry";
+import { registerWidgetType, type Addable, type WidgetType } from "$lib/widgets/registry";
 import { navigate } from "../../router";
-import { startGetData, dashboardActions } from "./dashboard";
+import { addWidget, startGetData, dashboardActions } from "./dashboard";
 import { isDisabled } from "./types";
 
 vi.mock("../../router", () => ({ navigate: vi.fn(async () => {}) }));
@@ -62,6 +62,62 @@ describe("Add widget", () => {
 	it("on a read-only dashboard it opens nothing", () => {
 		startGetData(app(false, "newer"), "chart");
 		expect(navigate).not.toHaveBeenCalled();
+	});
+
+	describe("a type whose data needs a lookup first (the Map's monitor types)", () => {
+		let release: (a: Addable) => void = () => {};
+		const slow = {
+			...chartType,
+			type: "slow",
+			addable: () => new Promise<Addable>((resolve) => (release = resolve))
+		} as WidgetType;
+		const DATA: Addable = { data: { layers: [{ dataset: "air-quality", entryType: "pm25" }] } };
+		const appOn = (id: string) => {
+			const apply = vi.fn();
+			const a = {
+				current: { session: { doc: { id, body: { widgets: [] } }, readOnly: false, apply } }
+			} as unknown as AppContext;
+			return { a, apply };
+		};
+		beforeEach(() => registerWidgetType(slow));
+
+		it("adds once the lookup is done, on the same dashboard", async () => {
+			const { a, apply } = appOn("d1");
+			const done = addWidget(a, "slow");
+			expect(apply).not.toHaveBeenCalled();
+			release(DATA);
+			await done;
+			expect(apply).toHaveBeenCalledOnce();
+			expect(apply.mock.calls[0][0]).toMatchObject({
+				op: "addWidget",
+				widget: { data: DATA.data }
+			});
+		});
+
+		it("adds nothing when another dashboard is current by then", async () => {
+			const { a, apply } = appOn("d1");
+			const done = addWidget(a, "slow");
+			const other = appOn("d2");
+			a.current = other.a.current;
+			release(DATA);
+			await done;
+			expect(apply).not.toHaveBeenCalled();
+			expect(other.apply).not.toHaveBeenCalled();
+		});
+
+		it("ignores a second Add while one waits", async () => {
+			const { a, apply } = appOn("d1");
+			const first = addWidget(a, "slow");
+			expect(addWidget(a, "slow")).toBeUndefined();
+			release(DATA);
+			await first;
+			expect(apply).toHaveBeenCalledOnce();
+			// Once it's done, Add works again.
+			const again = addWidget(a, "slow");
+			release(DATA);
+			await again;
+			expect(apply).toHaveBeenCalledTimes(2);
+		});
 	});
 
 	it("a locked dashboard disables Add widget", () => {

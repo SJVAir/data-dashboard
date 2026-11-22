@@ -313,7 +313,10 @@ describe("Change place on the starter", () => {
 		const copy = app.current.session!;
 		expect(copy.doc.name).toBe("Mine");
 		expect(copy.doc.body.placeBar).toEqual({ place: SCHOOL });
-		for (const p of places(copy.doc)) expect(p).toEqual(SCHOOL);
+		// A Chart's Where holds areas only: it keeps its place; every other widget moves.
+		for (const w of copy.doc.body.widgets.filter((w) => w.data.place)) {
+			expect(w.data.place).toEqual(w.type === "chart" ? DEFAULT_PLACE : SCHOOL);
+		}
 		// An ordinary edit on the copy: one undo step, the first edit kept.
 		copy.undo();
 		expect(copy.doc.name).toBe("Mine");

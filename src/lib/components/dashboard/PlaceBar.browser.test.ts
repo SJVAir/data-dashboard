@@ -285,6 +285,18 @@ test("on a live link, a point is saved as its region in the bar and its widgets"
 	});
 });
 
+test("your location in the bar leaves a Chart at its own Where; one-place tiles move", async () => {
+	const tile = { ...chart("b", at(COUNTY), 6), type: "current-conditions" };
+	const { platform, session } = await showCopy([chart("a", at(COUNTY), 0), tile]);
+	platform.geolocation.script({ ok: true, lat: 36.75, lon: -119.79 });
+	await openBar();
+	await page.getByRole("button", { name: m.place_picker_use_location() }).click();
+	await expect.element(dialog()).not.toBeInTheDocument();
+	const point = { kind: "point", lat: 36.75, lon: -119.79 };
+	expect(placesOf(session.doc)).toEqual([[COUNTY], [point]]);
+	expect(session.doc.body.placeBar).toEqual({ place: point });
+});
+
 test("a live-share viewer sees Showing … without Change place", async () => {
 	const { app } = await makeApp();
 	const view = {

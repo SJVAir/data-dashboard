@@ -31,8 +31,12 @@ const POINT_TITLE = "PM2.5 · ZIP 93721 (your location) · Last 30 days";
 
 type Place = Record<string, unknown>;
 
-/** A dashboard document with one data widget (`chart` or `data-table`) on `place` (none: idle). */
-function dataDoc(type: "chart" | "data-table", place?: Place) {
+/**
+ * A dashboard document with one data widget on `place` (none: idle): a `chart` or `data-table`
+ * (areas only in its Where), or a `calendar-month` (one place, which may be a school or "your
+ * location").
+ */
+function dataDoc(type: "chart" | "data-table" | "calendar-month", place?: Place) {
 	return {
 		kind: "dashboard",
 		schemaVersion: 1,
@@ -91,11 +95,12 @@ async function openShare(page: Page): Promise<Locator> {
 }
 
 /** On the Chart titled `title`: Change place, remove its place (`current`), and Use my location. */
-async function useMyLocation(page: Page, title = CHART_TITLE, current = "Fresno County") {
+/**
+ * Picks "your location" on the one-place widget titled `title` (a month calendar: a Chart's or
+ * Table's Where holds areas only).
+ */
+async function useMyLocation(page: Page, title = CHART_TITLE) {
 	await widgetMenuItem(page, title, "Change place");
-	await picker(page)
-		.getByRole("button", { name: `Remove ${current}` })
-		.click();
 	await picker(page).getByRole("button", { name: "Use my location" }).click();
 }
 
@@ -134,33 +139,40 @@ test("Change place on a Chart to two counties, then Undo", async ({ page }) => {
 	await expect(widgetTitles(page)).toHaveText([CHART_TITLE]);
 });
 
-test("Choose a place on an idle Data table: a school shows its ZIP's data", async ({ page }) => {
+test("Choose a place on an idle Data table offers areas only; a county shows its data", async ({
+	page
+}) => {
 	await openDoc(page, dataDoc("data-table"));
 	await expect(page.getByText("Choose a place to show data.")).toBeVisible();
 	await page.getByRole("button", { name: "Choose a place" }).click();
 
-	// One box searches schools and places at once, grouped by kind (Where holds no monitors).
+	// A Table's Where holds areas only: no schools, no "my location".
+	await expect(picker(page).getByRole("button", { name: "Use my location" })).toHaveCount(0);
+	await searchBox(page).fill("roo");
+	const results = picker(page).getByRole("listbox", { name: "Places found" });
+	await expect(results.getByRole("group", { name: "Places" })).toBeVisible();
+	await expect(results.getByRole("group", { name: "Schools & child care" })).toHaveCount(0);
+	await searchBox(page).fill("fre");
+	await results.getByRole("option", { name: /^Fresno County/ }).click();
+	await picker(page).getByRole("button", { name: "Done" }).click();
+	await expect(picker(page)).toBeHidden();
+	await expect(widgetTitles(page)).toHaveText([CHART_TITLE]);
+	const table = page.getByRole("region", { name: "Data table values" });
+	await expect(table.getByRole("columnheader", { name: /Fresno County/ })).toBeVisible();
+});
+
+test("Choose a place on an idle month calendar: a school shows its ZIP's data", async ({
+	page
+}) => {
+	await openDoc(page, dataDoc("calendar-month"));
+	await expect(page.getByText("Choose a place to show data.")).toBeVisible();
+	await page.getByRole("button", { name: "Choose a place" }).click();
 	await searchBox(page).fill("roo");
 	const results = picker(page).getByRole("listbox", { name: "Places found" });
 	await expect(results.getByRole("group", { name: "Schools & child care" })).toBeVisible();
-	await expect(results.getByRole("group", { name: "Places" })).toBeVisible();
-	const school = results.getByRole("option", { name: /^Roosevelt High/ });
-	await school.click();
-	// A school is the only pick it can be: everything else is greyed out with a reason.
-	await expect(results.getByRole("option", { name: /^Rosamond/ }).first()).toHaveAttribute(
-		"aria-disabled",
-		"true"
-	);
-	await picker(page).getByRole("button", { name: "Done" }).click();
+	await results.getByRole("option", { name: /^Roosevelt High/ }).click();
 	await expect(picker(page)).toBeHidden();
-
-	const title = "PM2.5 · ZIP 93702 (Roosevelt High) · Last 30 days";
-	await expect(widgetTitles(page)).toHaveText([title]);
-	const table = page.getByRole("region", { name: "Data table values" });
-	await expect(
-		table.getByRole("columnheader", { name: /ZIP 93702 \(Roosevelt High\)/ })
-	).toBeVisible();
-	await expect(table.getByRole("rowheader")).toHaveCount(30);
+	await expect(widgetTitles(page)).toHaveText([/^PM2\.5 · ZIP 93702 \(Roosevelt High\)/]);
 });
 
 test("Choose another on a place that's no longer available", async ({ page }) => {
@@ -183,7 +195,7 @@ test("Choose another on a place that's no longer available", async ({ page }) =>
 test("Use my location picks the point and names the ZIP it shows", async ({ page, context }) => {
 	await context.grantPermissions(["geolocation"]);
 	await context.setGeolocation(POSITION);
-	await openDoc(page, dataDoc("chart", FRESNO));
+	await openDoc(page, dataDoc("calendar-month", FRESNO));
 
 	await useMyLocation(page);
 	await expect(picker(page)).toBeHidden();
@@ -203,13 +215,15 @@ test("Use my location with location access off picks nothing", async ({
 				fail?.({ code: 1, message: "User denied geolocation" } as GeolocationPositionError);
 		});
 	}
-	await openDoc(page, dataDoc("chart", FRESNO));
+	await openDoc(page, dataDoc("calendar-month", FRESNO));
 
 	await useMyLocation(page);
 	await expect(
 		picker(page).getByText("Location access is off. Search for a place instead.")
 	).toBeVisible();
-	await picker(page).getByRole("button", { name: "Cancel" }).click();
+	// A one-place picker has no Cancel button: Escape closes it.
+	await searchBox(page).press("Escape");
+	await expect(picker(page)).toBeHidden();
 	await expect(widgetTitles(page)).toHaveText([CHART_TITLE]);
 });
 
@@ -230,7 +244,7 @@ test("a copy link shares the point as its ZIP unless the owner chooses exact", a
 }) => {
 	await context.grantPermissions(["geolocation"]);
 	await context.setGeolocation(POSITION);
-	await openDoc(page, dataDoc("chart", FRESNO));
+	await openDoc(page, dataDoc("calendar-month", FRESNO));
 	await useMyLocation(page);
 	await expect(widgetTitles(page)).toHaveText([POINT_TITLE]);
 	await expectSaved(page);
@@ -312,7 +326,7 @@ test.describe("signed in, with a live link", () => {
 
 	/** Opens the dashboard, saves it to Maria's account, and picks "your location" on it. */
 	async function pointOnAccount(page: Page): Promise<void> {
-		await openDoc(page, dataDoc("chart", FRESNO));
+		await openDoc(page, dataDoc("calendar-month", FRESNO));
 		await expect(nav(page).getByText("Saved to your account", { exact: true })).toBeVisible();
 		await useMyLocation(page);
 		await expect(widgetTitles(page)).toHaveText([POINT_TITLE]);
@@ -346,12 +360,11 @@ test.describe("signed in, with a live link", () => {
 
 		// With the link on, Use my location (from another place) saves the region and says so.
 		await widgetMenuItem(page, "PM2.5 · ZIP 93721 · Last 30 days", "Change place");
-		await picker(page).getByRole("button", { name: "Remove ZIP 93721" }).click();
 		await searchBox(page).fill("fre");
 		await picker(page)
 			.getByRole("option", { name: /^Fresno County/ })
 			.click();
-		await picker(page).getByRole("button", { name: "Done" }).click();
+		await expect(picker(page)).toBeHidden();
 		await expect(widgetTitles(page)).toHaveText([CHART_TITLE]);
 		await useMyLocation(page);
 		await expect(

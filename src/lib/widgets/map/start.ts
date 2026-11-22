@@ -1,9 +1,7 @@
-import { getMetadata } from "$lib/data";
 import { everyMonitorType } from "$lib/data/layer-kind";
 import type { WidgetDataConfig } from "$lib/data/schema";
 import type { Dashboard } from "$lib/documents/schema";
 import { placesToReplace } from "$lib/places/replace";
-import { report } from "$lib/safety/report";
 import { DEFAULT_LAYER, DEFAULT_PLACE } from "../defaults";
 
 /**
@@ -33,9 +31,13 @@ export function mapStartData(doc: Dashboard, types: string[] = []): WidgetDataCo
 export async function mapStartDataWithTypes(doc: Dashboard): Promise<WidgetDataConfig> {
 	let types: string[] = [];
 	try {
+		// Loaded here, not at the top: this module is part of the Map's descriptor, in the initial
+		// bundle, and the data layer stays out of it.
+		const { getMetadata } = await import("$lib/data");
 		const catalog = await getMetadata().catalog();
 		if (catalog !== "unavailable") types = everyMonitorType(catalog);
 	} catch (error) {
+		const { report } = await import("$lib/safety/report");
 		report(error);
 	}
 	return mapStartData(doc, types);

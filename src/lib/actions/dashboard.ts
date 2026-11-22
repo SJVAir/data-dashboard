@@ -110,18 +110,33 @@ export function startGetData(app: AppContext, type: string): void {
 	});
 }
 
+/** An add waiting on its lookup (the Map's monitor types): another Add is ignored meanwhile. */
+let pendingAdd = false;
+
 /**
  * Adds a widget of `type` below everything else on the current dashboard: at the type's default
  * size, with its `addable` data (one undo step). When the data needs a lookup first (the Map's
- * monitor types), the widget is added once it's done, and the returned promise settles then.
+ * monitor types), the widget is added once it's done, only if the same dashboard is still
+ * current, and the returned promise settles then; a second Add while one waits does nothing.
  */
 export function addWidget(app: AppContext, type: string): void | Promise<void> {
 	const session = editable(app);
 	const widgetType = getWidgetType(type);
-	if (!session || !widgetType) return;
+	if (!session || !widgetType || pendingAdd) return;
 	const added = widgetType.addable?.(session.doc) ?? { data: { layers: [] } };
-	if (added instanceof Promise) return added.then((a) => placeAdded(app, widgetType, type, a));
-	placeAdded(app, widgetType, type, added);
+	if (!(added instanceof Promise)) {
+		placeAdded(app, widgetType, type, added);
+		return;
+	}
+	const docId = session.doc.id;
+	pendingAdd = true;
+	return added
+		.then((a) => {
+			if (editable(app)?.doc.id === docId) placeAdded(app, widgetType, type, a);
+		})
+		.finally(() => {
+			pendingAdd = false;
+		});
 }
 
 /** Adds the widget `addWidget` made, on the dashboard that's current now. */

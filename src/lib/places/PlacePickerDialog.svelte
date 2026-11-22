@@ -37,7 +37,7 @@
 	import { directoryFor, resolvePicks, type Resolvers } from "./host";
 	import PlacePicker from "./PlacePicker.svelte";
 	import { addRecent, readRecent } from "./recent";
-	import { barChange, othersCount, widgetPlace } from "./replace";
+	import { areasOnly, barChange, othersCount, widgetPlace } from "./replace";
 	import { regionName as nameOf } from "./region-name";
 	import { fromWhere, type PickerMode, type Picks } from "./selection";
 	import { isPlaceRef, sameRef, type PlaceOption, type PointPlace } from "./types";
@@ -53,6 +53,8 @@
 		max: number;
 		purpose: { dataset: string; entryType: string };
 		mode: PickerMode;
+		/** What the picker offers: areas only for a Chart or Table (decision 2), else the full Where. */
+		offer: "where" | "areas";
 		initial: Picks;
 		known: PlaceOption[];
 		recent: PlaceOption[];
@@ -122,7 +124,10 @@
 		return bar ? { session, place: bar.place } : null;
 	}
 
-	/** The first widget the bar's change switches (at the bar's place), for a point's lookup. */
+	/**
+	 * The first widget the bar's change switches (at the bar's place), for a point's lookup on a
+	 * live link (saved as its region, which a Chart or Table can show too).
+	 */
 	function firstSwitching(doc: Dashboard, place: ChosenPlace): WidgetInstance | undefined {
 		return doc.body.widgets.find((w) => {
 			const at = widgetPlace(w);
@@ -186,6 +191,7 @@
 				max,
 				purpose,
 				mode: max > 1 ? { kind: "multiple", max } : { kind: "single" },
+				offer: areasOnly(target.widget.type) ? "areas" : "where",
 				others: 0,
 				pick: null,
 				...picks
@@ -226,6 +232,7 @@
 			max: 1,
 			purpose: { dataset: DEFAULT_LAYER.dataset, entryType },
 			mode: { kind: "single" },
+			offer: "where",
 			// The starter's widgets all show its place; only a copy can have others.
 			others: app.current.isStarter ? 0 : othersCount(target.session.doc, target.place),
 			pick: null,
@@ -258,6 +265,7 @@
 			max: 1,
 			purpose: { dataset: DEFAULT_LAYER.dataset, entryType },
 			mode: { kind: "single" },
+			offer: "where",
 			others: 0,
 			pick,
 			...picks
@@ -533,6 +541,7 @@
 				directory={ready.directory}
 				purpose={ready.purpose}
 				mode={ready.mode}
+				offer={ready.offer}
 				initial={ready.initial}
 				known={ready.known}
 				recent={ready.recent}

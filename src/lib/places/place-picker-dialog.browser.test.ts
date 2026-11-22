@@ -262,9 +262,10 @@ test("a point stays picked when the picker opens", async () => {
 		.toBeVisible();
 });
 
-// These start empty (with one place picked, "your location" would replace it).
+// These start empty (with one place picked, "your location" would replace it), on a month
+// calendar: a Chart's or Table's Where holds areas only, never "your location".
 test("Use my location without a live link saves the point, not as a recent place", async () => {
-	const { app, platform, session } = await show(widget({}));
+	const { app, platform, session } = await show(widget({}, "calendar-month"));
 	platform.geolocation.script({ ok: true, lat: 36.75, lon: -119.79 });
 	await openFromMenu();
 	await page.getByRole("button", { name: m.place_picker_use_location() }).click();
@@ -275,7 +276,7 @@ test("Use my location without a live link saves the point, not as a recent place
 });
 
 test("on a live-shared dashboard, Use my location saves the region and says so (checked at Done)", async () => {
-	const { app, platform, session } = await show(widget({}));
+	const { app, platform, session } = await show(widget({}, "calendar-month"));
 	platform.geolocation.script({ ok: true, lat: 36.75, lon: -119.79 });
 	await openFromMenu();
 	// The link is turned on after the dialog opened: Done still sees it.
@@ -440,7 +441,7 @@ test("a Forecast strip's location is looked up as the PM2.5 hourly input a now t
 test("no saved-as notice when an edit meanwhile already set that region", async () => {
 	announce("Start");
 	await expect.poll(() => announcer.text).toBe("Start");
-	const { app, platform, session } = await show(widget({}));
+	const { app, platform, session } = await show(widget({}, "calendar-month"));
 	platform.geolocation.script({ ok: true, lat: 36.75, lon: -119.79 });
 	shareByLink(app, session);
 	let finish: (region: Region) => void = () => {};
@@ -499,7 +500,7 @@ test("a load failure is announced in the status there while loading, and Retry l
 });
 
 test("on a live-shared dashboard, a failed lookup applies nothing and offers Retry", async () => {
-	const { app, platform, session } = await show(widget({}));
+	const { app, platform, session } = await show(widget({}, "calendar-month"));
 	platform.geolocation.script({ ok: true, lat: 36.75, lon: -119.79 });
 	shareByLink(app, session);
 	placeRegion.mockResolvedValueOnce(null);
@@ -517,7 +518,7 @@ test("closing the dialog during a lookup leaves no edit, toast or announcement a
 	// The announcer outlives each test's render: start from a message of this test's own.
 	announce("Start");
 	await expect.poll(() => announcer.text).toBe("Start");
-	const { app, platform, session } = await show(widget({}));
+	const { app, platform, session } = await show(widget({}, "calendar-month"));
 	platform.geolocation.script({ ok: true, lat: 36.75, lon: -119.79 });
 	shareByLink(app, session);
 	let finish: (region: Region) => void = () => {};
@@ -532,7 +533,9 @@ test("closing the dialog during a lookup leaves no edit, toast or announcement a
 	await openFromMenu();
 	await page.getByRole("button", { name: m.place_picker_use_location() }).click();
 	await expect.element(page.getByText(m.place_picker_dialog_looking_up())).toBeVisible();
-	await page.getByRole("button", { name: m.place_picker_cancel() }).click();
+	// A single-place picker has no Cancel button: Escape in the empty search box closes it.
+	(page.getByRole("combobox", { name: m.place_picker_label() }).element() as HTMLElement).focus();
+	await userEvent.keyboard("{Escape}");
 	await expect.element(dialog()).not.toBeInTheDocument();
 	expect(seen?.aborted).toBe(true);
 	finish({ type: "zipcode", code: "93721" });
@@ -575,6 +578,30 @@ test("a minimized widget's taskbar menu has Change place too", async () => {
 	await page.getByTestId("taskbar-w1").click({ button: "right" });
 	await page.getByRole("menuitem", { name: m.widget_change_place() }).click();
 	await expect.element(page.getByRole("combobox", { name: m.place_picker_label() })).toBeVisible();
+});
+
+for (const type of ["chart", "data-table"]) {
+	test(`Change place on a ${type} offers areas only: no schools or "my location"`, async () => {
+		await show(widget({ place: COUNTY }, type));
+		await openFromMenu();
+		await expect
+			.element(page.getByRole("combobox", { name: m.place_picker_label() }))
+			.toHaveAttribute("placeholder", m.place_picker_placeholder_areas());
+		await expect
+			.element(page.getByRole("button", { name: m.place_picker_use_location() }))
+			.not.toBeInTheDocument();
+	});
+}
+
+test("Change place on a one-place tile offers the full Where", async () => {
+	await show(widget({ place: COUNTY }, "current-conditions"));
+	await openFromMenu();
+	await expect
+		.element(page.getByRole("button", { name: m.place_picker_use_location() }))
+		.toBeVisible();
+	await expect
+		.element(page.getByRole("combobox", { name: m.place_picker_label() }))
+		.toHaveAttribute("placeholder", m.place_picker_placeholder());
 });
 
 test("Change place on a Chart of searched monitors offers no monitors and keeps them", async () => {

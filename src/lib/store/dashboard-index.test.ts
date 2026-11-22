@@ -146,6 +146,8 @@ describe("DashboardIndex", () => {
 			};
 		}
 
+		const sameAs = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
 		function places(doc: Dashboard) {
 			return doc.body.widgets.map((w) => fromWhere(w.data));
 		}
@@ -162,9 +164,9 @@ describe("DashboardIndex", () => {
 			};
 			await store(platform, source, "src");
 			const index = new DashboardIndex({ platform, space: SPACE, now });
-			const id = await index.duplicate("src", { from: FRESNO, to: SCHOOL });
+			const id = await index.duplicate("src", { from: FRESNO, to: KERN });
 			const copy = (await platform.documents.get(SPACE, id)) as Dashboard;
-			expect(places(copy)).toEqual([[SCHOOL], [FRESNO, KERN], [KERN]]);
+			expect(places(copy)).toEqual([[KERN], [FRESNO, KERN], [KERN]]);
 			expect(copy.copiedFrom).toBe("src");
 			// A dashboard without a bar doesn't gain one.
 			expect(copy.body.placeBar).toBeUndefined();
@@ -182,8 +184,12 @@ describe("DashboardIndex", () => {
 			const id = await index.duplicate(mine.id, { from: FRESNO, to: SCHOOL });
 			const copy = (await platform.documents.get(SPACE, id)) as Dashboard;
 			expect(copy.body.placeBar).toEqual({ place: SCHOOL });
-			expect(places(copy).flat()).not.toContainEqual(FRESNO);
 			expect(places(copy).flat()).toContainEqual(SCHOOL);
+			// A Chart's Where holds areas only: it keeps its own place; the other widgets move.
+			const left = copy.body.widgets.filter((w) =>
+				fromWhere(w.data).some((p) => sameAs(p, FRESNO))
+			);
+			expect(left.map((w) => w.type)).toEqual(["chart"]);
 		});
 
 		it("the starter duplicates with its chosen place replaced", async () => {
@@ -194,7 +200,11 @@ describe("DashboardIndex", () => {
 			const copy = (await platform.documents.get(SPACE, id)) as Dashboard;
 			expect(copy).toMatchObject({ copiedFrom: STARTER_ID, body: { placeBar: { place: SCHOOL } } });
 			expect(places(copy).flat()).toContainEqual(SCHOOL);
-			expect(places(copy).flat()).not.toContainEqual(FRESNO);
+			// Only the Chart (areas only) keeps the starter's place.
+			const left = copy.body.widgets.filter((w) =>
+				fromWhere(w.data).some((p) => sameAs(p, FRESNO))
+			);
+			expect(left.map((w) => w.type)).toEqual(["chart"]);
 		});
 
 		it("the starter's plain Duplicate keeps its place (the same place twice)", async () => {

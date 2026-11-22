@@ -113,6 +113,35 @@ describe("replacePlace", () => {
 	});
 });
 
+describe("a school or point bar place and areas-only widgets", () => {
+	const SCHOOL: ChosenPlace = { kind: "location", source: "cde-public", code: "1" };
+	const POINT: ChosenPlace = { kind: "point", lat: 36.7, lon: -119.8 };
+	const typed = (id: string, type: string): WidgetInstance => ({ ...widget(id, at(A)), type });
+	const d = doc(
+		[typed("chart", "chart"), typed("table", "data-table"), typed("now", "current-conditions")],
+		A
+	);
+	it("leaves Charts and Tables at their own Where; other widgets and the bar move", () => {
+		for (const to of [SCHOOL, POINT]) {
+			const next = replacePlace(d, A, to, { others: true });
+			expect(next.body.widgets[0]).toBe(d.body.widgets[0]);
+			expect(next.body.widgets[1]).toBe(d.body.widgets[1]);
+			expect(next.body.widgets[2].data.place).toEqual(to);
+			expect(next.body.placeBar).toEqual({ place: to });
+		}
+	});
+	it("an area moves them all", () => {
+		const next = replacePlace(d, A, B, { others: false });
+		expect(next.body.widgets.map((w) => w.data.place)).toEqual([B, B, B]);
+	});
+	it("othersCount with a school counts only the widgets it would change", () => {
+		const e = doc([typed("chart", "chart"), typed("now", "current-conditions")], B);
+		expect(othersCount(e, B)).toBe(2);
+		expect(othersCount(e, B, SCHOOL)).toBe(1);
+		expect(othersCount(e, B, C)).toBe(2);
+	});
+});
+
 describe("a Map and Change place", () => {
 	const AIR: Layer = { dataset: "air-quality" };
 	const mapWidget = (id: string, where: Where): WidgetInstance => ({
