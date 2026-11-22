@@ -7,6 +7,7 @@ import {
 	type PesticideUseFilters
 } from "@sjvair/sdk";
 import { todayPacific } from "$lib/format";
+import { m } from "$lib/paraglide/messages.js";
 import { nextPeriodStart, periodStart, type ResolvedRange } from "$lib/format/range";
 import {
 	codesKnown,
@@ -20,11 +21,14 @@ import type { PesticideFilters } from "../schema";
 import type { PlaceInfo, QueryData, Series, SeriesPoint } from "../types";
 import { offeredLevels } from "./offered";
 import type { AdapterContext, AdapterRequest, DatasetAdapter } from "./registry";
-import { isNotFound, layerTarget, placeCandidates } from "./targets";
+import { isNotFound, layerTarget, placeCandidates, type PlaceRef } from "./targets";
 
 export { FilterGone, filterLabels, pesticideMeta } from "../pesticide-meta";
 
 const DATASET = "pesticide-use";
+
+/** The series key of the valley-wide total (no Where). */
+export const VALLEY_PLACE = "valley";
 
 /** The catalog's entry type id to the field the server's rows carry it in. */
 const FIELDS = {
@@ -255,26 +259,42 @@ async function fetchPesticides(
 	const wire = toWire(filters, range);
 	const build = resolution === "year" ? yearPoints : monthPoints;
 
-	const answers = await Promise.all(
-		groups.map(async (group): Promise<{ info: PlaceInfo; points: SeriesPoint[] }> => {
-			for (const candidate of group) {
-				try {
-					const response = await getPesticidesForPlace(candidate.ref, wire, { signal });
-					return { info: candidate.info, points: build(response, field, range, covered) };
-				} catch (error) {
-					// "No such place": no use for it (a fallback tries its next key).
-					if (isNotFound(error)) continue;
-					// A saved id removed since `target()` looked: surfaced as an error, not retried.
-					const rejected = pesticidePlaceFilterErrors(error);
-					for (const kind of ["chemical", "commodity", "product"] as const) {
-						if (rejected?.[kind] === "not_found") throw new FilterGone(kind, filters[kind] ?? "");
-					}
-					throw error;
-				}
+	/**
+	 * The use of `ref` (`null`: the whole valley); `null` for a place the server doesn't know. A
+	 * saved id removed since `target()` looked is a `FilterGone`, surfaced as an error, not retried.
+	 */
+	const useOf = async (ref: PlaceRef | null): Promise<SeriesPoint[] | null> => {
+		try {
+			return build(await getPesticidesForPlace(ref, wire, { signal }), field, range, covered);
+		} catch (error) {
+			if (ref !== null && isNotFound(error)) return null;
+			const rejected = pesticidePlaceFilterErrors(error);
+			for (const kind of ["chemical", "commodity", "product"] as const) {
+				if (rejected?.[kind] === "not_found") throw new FilterGone(kind, filters[kind] ?? "");
 			}
-			return { info: group[group.length - 1].info, points: [] };
-		})
-	);
+			throw error;
+		}
+	};
+
+	// No Where: the valley-wide total, under one place of its own.
+	const answers: { info: PlaceInfo; points: SeriesPoint[] }[] =
+		target.kind === "all"
+			? [
+					{
+						info: { place: VALLEY_PLACE, name: m.data_place_valley() },
+						points: (await useOf(null)) ?? []
+					}
+				]
+			: await Promise.all(
+					groups.map(async (group) => {
+						// "No such place": no use for it (a fallback tries its next key).
+						for (const candidate of group) {
+							const points = await useOf(candidate.ref);
+							if (points) return { info: candidate.info, points };
+						}
+						return { info: group[group.length - 1].info, points: [] };
+					})
+				);
 	const series: Series[] = answers.map((a) => ({ place: a.info.place, points: a.points }));
 	const places = answers.map((a): PlaceInfo => {
 		const info = target.kind === "fallback" ? { ...a.info, via: target.via } : a.info;
@@ -291,17 +311,17 @@ async function fetchPesticides(
 }
 
 /**
- * Reported agricultural pesticide use per place (DPR PUR): monthly totals from the server's
- * `months`, yearly totals from its `years` (undated records sit only in year rows), narrowed by
- * the layer's own filters. A saved chemical, commodity or product that the server no longer has,
- * or a saved code its pesticide meta no longer lists, makes the layer unavailable. The totals are sums (the catalog's `aggregate`).
+ * Reported agricultural pesticide use per place, or valley-wide with no Where (DPR PUR): monthly
+ * totals from the server's `months`, yearly totals from its `years` (undated records sit only in
+ * year rows), narrowed by the layer's own filters. A saved chemical, commodity or product that the
+ * server no longer has, or a saved code its pesticide meta no longer lists, makes the layer
+ * unavailable. The totals are sums (the catalog's `aggregate`).
  */
 export const pesticidesAdapter: DatasetAdapter = {
 	id: DATASET,
 	async target(layer, ctx) {
 		const target = await layerTarget(layer, ctx);
 		if ("unavailable" in target) return target;
-		if (target.kind === "all") return { unavailable: "place-unsupported" };
 		if (layer.filters) {
 			try {
 				const [, known] = await Promise.all([

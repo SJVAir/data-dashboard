@@ -699,6 +699,7 @@
 	"chart_strip_station": "{station} ({distance} mi away)",
 	"chart_strip_value": "{layer}: {value}",
 	"data_none_pesticides": "No pesticide use reported for these dates.",
+	"data_place_valley": "Whole valley",
 	"data_not_enough": "Not enough data",
 	"table_overlay_place": "{layer}, {place}",
 	"table_overlay_place_unit": "{layer}, {place} ({unit})",

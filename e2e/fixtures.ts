@@ -69,6 +69,24 @@ async function routeApiFixtures(context: BrowserContext, unmatched: string[]): P
 	});
 }
 
+/**
+ * The valley-wide pesticide use (`pesticides/place/` with no region and no monitor): the
+ * server's shape, `place: null`, with the Fresno County fixture's months and years. A request
+ * naming a place falls back to the fixture file.
+ */
+async function routePesticideValley(context: BrowserContext): Promise<void> {
+	await context.route(/\/api\/2\.0\/pesticides\/place\/(\?|$)/, async (route) => {
+		const url = new URL(route.request().url());
+		if (url.searchParams.has("region_type") || url.searchParams.has("monitor")) {
+			await route.fallback();
+			return;
+		}
+		const file = `${API_FIXTURES}2.0/pesticides/place.json`;
+		const { data } = JSON.parse(await readFile(file, "utf8"));
+		await route.fulfill({ json: { data: { ...data, place: null } } });
+	});
+}
+
 /** The session account (`api/2.0/account/`) and the site's logout, which signs this context out. */
 async function routeAccount(
 	context: BrowserContext,
@@ -175,6 +193,7 @@ export const test = base.extend<{
 			await routeHeat(context);
 			await routePlaces(context);
 			await routeMapData(context);
+			await routePesticideValley(context);
 			await use(unmatched);
 			expect(unmatched, "API requests with no fixture file").toEqual([]);
 		},

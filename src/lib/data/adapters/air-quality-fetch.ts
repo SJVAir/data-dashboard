@@ -33,7 +33,8 @@ import type { Segment } from "../periods";
 import type { SeriesPoint } from "../types";
 
 /** The rows of one place (a monitor id or a region sqid) from one SDK call. */
-export type Fetched = { id: string; points: SeriesPoint[] };
+/** A place's points; `name` is the bulk monitor response's own name for it, when it has one. */
+export type Fetched = { id: string; points: SeriesPoint[]; name?: string };
 export type FetchTask = () => Promise<Fetched[]>;
 
 /** The summary fields the adapter reads. */
@@ -54,7 +55,7 @@ export type SummaryOptions = {
 	/** A summary field read by name into `figure` (with `is_final` into `final`). */
 	figure?: string;
 };
-type Bulk = { id: string; summaries: SummaryRow[] };
+type Bulk = { id: string; name?: string; summaries: SummaryRow[] };
 /** Open-day rows, fetched at most once per query and shared by the units that reach them. */
 export type OpenDays<T> = () => Promise<T>;
 type Options = { signal: AbortSignal };
@@ -306,7 +307,8 @@ export function bulkSummaryTasks(
 		const places = withOpen ? mergeBulkOpenDays(stored, openPlaces) : stored;
 		return places.map((p) => ({
 			id: p.id,
-			points: toPoints(p.summaries, res, unit.start, unit.end, now, opts)
+			points: toPoints(p.summaries, res, unit.start, unit.end, now, opts),
+			...(typeof p.name === "string" && { name: p.name })
 		}));
 	});
 }

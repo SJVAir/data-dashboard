@@ -5,6 +5,7 @@ import {
 	type Level,
 	type PlaceKind
 } from "$lib/data/dataset-rules";
+import { drawnWithNoWhere } from "$lib/data/adapters/offered";
 import type { CatalogEntry, EntryTypeMeta, Figure } from "$lib/data/metadata";
 import { AIR_QUALITY, layerKind } from "$lib/data/layer-kind";
 import { currentInput } from "$lib/data/now/current";
@@ -222,7 +223,8 @@ export type ChartEmpty = "add-where-or-monitors" | "add-layers";
  * `resolution` (the dataset's), with each day's worst hour, at every place of its Where (there is
  * no cap on a Chart's lines or a Table's columns). A widget with no Where and no monitors
  * asks for nothing (`input` is null) and says what to add (`empty`): monitors or a Where, or, with
- * no layers at all, what to show.
+ * no layers at all, what to show; unless its main is drawn everywhere (`drawnWithNoWhere`: every
+ * weather station, the valley's pesticide use).
  */
 export function chartInput(
 	data: WidgetDataConfig,
@@ -231,7 +233,9 @@ export function chartInput(
 ): { layer: Layer | undefined; input: QueryInput | null; empty?: ChartEmpty } {
 	const layer = mainLayer(data, catalog);
 	if (data.layers.length === 0) return { layer, input: null, empty: "add-layers" };
-	if (!hasPlaces(data)) return { layer, input: null, empty: "add-where-or-monitors" };
+	if (!hasPlaces(data) && !(layer && drawnWithNoWhere(layer.dataset))) {
+		return { layer, input: null, empty: "add-where-or-monitors" };
+	}
 	if (!layer) return { layer, input: null };
 	const input: QueryInput = {
 		layer: queryLayer(data, layer),

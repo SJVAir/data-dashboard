@@ -335,6 +335,17 @@ describe("chartInput", () => {
 		expect(chartInput({ layers: [PM], place: FRESNO }, CATALOG, "day").empty).toBe(undefined);
 	});
 
+	it("weather or pesticide use with no Where asks for the whole layer", () => {
+		// Every station; the valley's total (the adapters read no Where as the whole layer).
+		const weather = chartInput({ layers: [TEMP] }, CATALOG, "day");
+		expect(weather.input?.layer).toEqual(TEMP);
+		expect(weather.empty).toBeUndefined();
+		const use = { dataset: "pesticide-use", entryType: "pounds-applied" };
+		expect(chartInput({ layers: [use] }, CATALOG, "month").input?.layer).toEqual(use);
+		// Under a pollutant, the main is the pollutant: it still asks for a Where or monitors.
+		expect(chartInput({ layers: [PM, TEMP] }, CATALOG, "day").empty).toBe("add-where-or-monitors");
+	});
+
 	it("a Chart with Reference-grade ticked and no Where asks for every reference monitor", () => {
 		const layer: Layer = { ...PM, monitorTypes: ["airnow"] };
 		const { input, empty } = chartInput({ layers: [layer] }, CATALOG, "day");

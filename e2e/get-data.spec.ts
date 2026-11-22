@@ -207,6 +207,52 @@ test("adds a temperature-only chart", async ({ page }) => {
 	await expect(added.getByText(/PM2\.5/)).toHaveCount(0);
 });
 
+test("with no Where, weather draws every station and pesticide use the whole valley", async ({
+	page
+}) => {
+	const range = { kind: "trailing", amount: 12, unit: "month" };
+	const widget = (id: string, x: number, layer: object) => ({
+		id,
+		type: "data-table",
+		title: null,
+		rect: { x, y: 0, w: 6, h: 6 },
+		data: { dateRange: range, resolution: "month", layers: [layer] }
+	});
+	const doc = {
+		kind: "dashboard",
+		schemaVersion: 1,
+		id: "no-where-1",
+		name: "Everywhere",
+		body: {
+			widgets: [
+				widget("w0", 0, { dataset: "weather", entryType: "temperature" }),
+				widget("w1", 6, { dataset: "pesticide-use", entryType: "pounds-applied" })
+			]
+		}
+	};
+	// Every station from bulk requests naming the catalog's weather type; the valley's use from
+	// a request naming no place.
+	const stations = page.waitForRequest((r) =>
+		/\/monitors\/temperature\/summaries\/monthly\/\?.*type=cimis/.test(r.url())
+	);
+	const valley = page.waitForRequest(
+		(r) =>
+			/\/pesticides\/place\/\?/.test(r.url()) && !new URL(r.url()).searchParams.has("region_type")
+	);
+	await page.goto(shareLinkFor(doc));
+	await expect(page).toHaveURL(DASHBOARD_URL);
+	await Promise.all([stations, valley]);
+	const tables = page.getByRole("table");
+	// One column per station, named from the response; one for the valley.
+	await expect(
+		tables.getByRole("columnheader", { name: /CIMIS #80 - Fresno State/ }).first()
+	).toBeVisible();
+	await expect(
+		tables.getByRole("columnheader", { name: /CIMIS #15 - Stratford/ }).first()
+	).toBeVisible();
+	await expect(tables.getByRole("columnheader", { name: /Whole valley/ }).first()).toBeVisible();
+});
+
 test("downloads a CSV with station and filter columns", async ({ page }) => {
 	await page.goto("data");
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();

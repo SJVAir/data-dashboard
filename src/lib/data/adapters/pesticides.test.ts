@@ -348,12 +348,46 @@ describe("pesticidesAdapter", () => {
 		await expect(pesticidesAdapter.fetch(request(county), ctx, signal)).rejects.toBe(boom);
 	});
 
-	it("whole-layer and unsupported places are unavailable", async () => {
+	it("no Where is the whole layer", async () => {
 		expect(await pesticidesAdapter.target({ dataset: "pesticide-use" } as QueryLayer, ctx)).toEqual(
-			{
-				unavailable: "place-unsupported"
-			}
+			{ kind: "all" }
 		);
+	});
+
+	it("no Where asks for the valley, with the filters", async () => {
+		vi.mocked(getPesticidesForPlace).mockResolvedValue({
+			place: null,
+			months: [month(2023, 12, 900)],
+			years: []
+		} as never);
+		const data = await pesticidesAdapter.fetch(
+			request({ kind: "all" }, { filters: { category: ["carcinogen"] } }),
+			ctx,
+			signal
+		);
+		expect(getPesticidesForPlace).toHaveBeenCalledExactlyOnceWith(
+			null,
+			{ category: ["carcinogen"], year__gte: 2023, year__lte: 2024 },
+			{ signal }
+		);
+		expect(data.places).toEqual([
+			{ place: "valley", name: "Whole valley", filters: ["Carcinogen"] }
+		]);
+		expect(data.series[0].points.map((p) => p.mean)).toEqual([0, 900]);
+	});
+
+	it("a not_found filter on the valley is an error, not an empty series", async () => {
+		vi.mocked(getPesticidesForPlace).mockRejectedValue(
+			badRequest({ chemical: [{ code: "not_found" }] })
+		);
+		vi.mocked(getChemicalDetails).mockResolvedValue({ display_name: "Glyphosate" } as never);
+		await expect(
+			pesticidesAdapter.fetch(
+				request({ kind: "all" }, { filters: { chemical: "c1" } }),
+				ctx,
+				signal
+			)
+		).rejects.toBeInstanceOf(FilterGone);
 	});
 });
 

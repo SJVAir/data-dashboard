@@ -27,3 +27,12 @@ export function offeredLevels(dataset: string, base: readonly Resolution[]): Res
 			return [...base];
 	}
 }
+
+/**
+ * Whether a Chart's or Table's main layer of `dataset` is drawn with no Where and no monitors:
+ * weather draws every station, pesticide use the valley-wide total. An air-quality layer asks for
+ * a Where or monitors instead (every monitor of every type isn't offered).
+ */
+export function drawnWithNoWhere(dataset: string): boolean {
+	return dataset === "weather" || dataset === "pesticide-use";
+}
