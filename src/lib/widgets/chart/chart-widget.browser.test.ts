@@ -15,6 +15,7 @@ import type { WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
+import { DocumentSession } from "$lib/store/document-session.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 import { generatedTitle } from "../titles.svelte";
@@ -196,6 +197,33 @@ test("a widget with no layers (None and nothing else) shows its empty state", as
 	const screen = await show(widget);
 	await expect.element(screen.getByText(m.widget_empty_add_layers())).toBeVisible();
 	expect(requests).toEqual([]);
+});
+
+test("an editor's no-layers state offers no Choose a place (a place can't fix it)", async () => {
+	const platform = createMemoryPlatform();
+	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	const id = await app.index.createBlank();
+	app.current = {
+		session: (await DocumentSession.open(platform, app.space, id, "t2"))!,
+		isStarter: false
+	};
+	const render_ = (widget: WidgetInstance) =>
+		render(ChartWidget, {
+			target: frame,
+			props: { widget },
+			context: new Map<unknown, unknown>([[APP_CONTEXT_KEY, app]])
+		});
+	const none = chartWidget(["m1"]);
+	none.data.layers = [];
+	const screen = await render_(none);
+	await expect.element(screen.getByText(m.widget_empty_add_layers())).toBeVisible();
+	expect(screen.getByRole("button", { name: m.widget_state_choose_place() }).query()).toBeNull();
+	screen.unmount();
+	// With layers but no place, it still offers one.
+	const placeless = await render_(chartWidget([]));
+	await expect
+		.element(placeless.getByRole("button", { name: m.widget_state_choose_place() }))
+		.toBeVisible();
 });
 
 test("no data shows the empty state, never an unnamed chart", async () => {

@@ -7,3 +7,11 @@ export function idleText(empty: ChartEmpty | undefined): string | undefined {
 	if (empty === "add-where-or-monitors") return m.widget_empty_add_where_or_monitors();
 	return undefined;
 }
+
+/**
+ * Whether a Chart or Table's idle state offers "Choose a place": not when it has nothing to show
+ * (`add-layers`), which a place can't fix (as the Map's empty state, it says to use Edit data).
+ */
+export function offersChoosePlace(empty: ChartEmpty | undefined): boolean {
+	return empty !== "add-layers";
+}

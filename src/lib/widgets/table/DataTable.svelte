@@ -17,7 +17,7 @@
 	import { m } from "$lib/paraglide/messages.js";
 	import { DataWidget } from "../shared/data-widget.svelte";
 	import WidgetState from "../shared/WidgetState.svelte";
-	import { idleText } from "../shared/idle-text";
+	import { idleText, offersChoosePlace } from "../shared/idle-text";
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 	import { sourceLabel } from "../shared/source-label";
 	import { placeLabel } from "../title";
@@ -163,7 +163,9 @@
 			retired={w.retired}
 			pollutant={w.meta?.entryType.label}
 			onretry={w.retry}
-			onchoose={() => openPlacePicker({ widgetId: widget.id })}
+			onchoose={offersChoosePlace(w.picked.empty)
+				? () => openPlacePicker({ widgetId: widget.id })
+				: undefined}
 			emptyText={pesticideMain ? m.data_none_pesticides() : undefined}
 			idleText={idleText(w.picked.empty)}
 		>
