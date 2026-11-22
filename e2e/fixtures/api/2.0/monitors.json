@@ -87,6 +87,34 @@
 			"purple_id": 106002
 		},
 		{
+			"id": "PaSecondFresno0000000AA",
+			"name": "Clovis Library Room 3",
+			"type": "purpleair",
+			"device": "PA-II",
+			"grade": "lcs",
+			"is_active": false,
+			"is_sjvair": false,
+			"position": {
+				"type": "Point",
+				"coordinates": [-119.7, 36.8]
+			},
+			"last_active_limit": 3600,
+			"location": "inside",
+			"county": "Fresno",
+			"data_source": {
+				"name": "PurpleAir",
+				"url": "https://www2.purpleair.com/"
+			},
+			"data_providers": [
+				{
+					"name": "PurpleAir",
+					"url": "https://www2.purpleair.com/"
+				}
+			],
+			"sensor_id": 106003,
+			"purple_id": 106003
+		},
+		{
 			"id": "bK9rQe2mTqWv7xYz1aB3cD",
 			"name": "Bakersfield - California Avenue",
 			"type": "airnow",

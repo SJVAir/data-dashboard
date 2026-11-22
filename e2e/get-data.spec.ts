@@ -568,11 +568,15 @@ test("a Chart of Fresno County with PurpleAir ticked asks once per period for th
 	expect(url.searchParams.getAll("region")).toEqual(["r6phe"]);
 	expect(url.searchParams.getAll("type")).toEqual(["purpleair"]);
 
-	// One line for the county's one PurpleAir: the Chart is named for it, not for the county.
-	await expect(
-		page.getByRole("group", { name: "Chart of Science Building Room 74" })
-	).toBeVisible();
-	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toHaveCount(0);
+	// One line per PurpleAir in the county, each named for its monitor (the table has a column
+	// for each line).
+	await page.locator('[data-show-as="data-table"]').click();
+	const table = page.getByRole("region", { name: "Data table values" });
+	await expect(table.getByRole("columnheader", { name: /Science Building Room 74/ })).toHaveCount(
+		1
+	);
+	await expect(table.getByRole("columnheader", { name: /Clovis Library Room 3/ })).toHaveCount(1);
+	await expect(table.getByRole("columnheader", { name: /Fresno County/ })).toHaveCount(0);
 	// Every request for the monitor set carried the county and the type: nothing unscoped.
 	const sets = asked.filter((u) => u.searchParams.has("type"));
 	expect(sets.length).toBeGreaterThan(0);

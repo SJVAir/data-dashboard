@@ -15,7 +15,7 @@ const CATALOG = /\/api\/2\.0\/meta\/datasets\/$/;
  * Fresno and in ZIP 93721 (where the point lookup puts any point). Bakersfield is in none.
  */
 const REGION_MONITORS: Record<string, string[]> = {
-	r6phe: ["4Mb0j33kTnS0qzeE4iDGWw", "Tt5ixZRKSH-rVKJtwVh-bw"],
+	r6phe: ["4Mb0j33kTnS0qzeE4iDGWw", "Tt5ixZRKSH-rVKJtwVh-bw", "PaSecondFresno0000000AA"],
 	dn3sk: ["6qEHS0fITHOQYHLN4c9GKA"],
 	njyup: ["4Mb0j33kTnS0qzeE4iDGWw"],
 	yd7ru: ["4Mb0j33kTnS0qzeE4iDGWw"]
