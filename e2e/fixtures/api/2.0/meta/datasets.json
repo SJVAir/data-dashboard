@@ -10,6 +10,15 @@
 				"geographies": ["monitor", "region"],
 				"meta_url": "/api/2.0/monitors/meta/",
 				"places_url": "/api/2.0/monitors/?dataset=air-quality",
+				"monitor_types": [
+					"airgradient",
+					"airnow",
+					"aqlite",
+					"aqview",
+					"bam1022",
+					"purpleair",
+					"vozbox"
+				],
 				"entry_types": [
 					{
 						"id": "pm25",
@@ -38,6 +47,7 @@
 				"geographies": ["zone"],
 				"meta_url": "/api/2.0/forecasts/meta/",
 				"places_url": "",
+				"monitor_types": null,
 				"entry_types": [
 					{
 						"id": "aqi-forecast",
@@ -79,6 +89,7 @@
 				"geographies": ["monitor"],
 				"meta_url": "/api/2.0/monitors/meta/",
 				"places_url": "/api/2.0/monitors/?dataset=weather",
+				"monitor_types": ["cimis"],
 				"entry_types": [
 					{
 						"id": "eto",
@@ -148,6 +159,7 @@
 				"geographies": ["region"],
 				"meta_url": "/api/2.0/pesticides/meta/",
 				"places_url": "",
+				"monitor_types": null,
 				"entry_types": [
 					{
 						"id": "pounds-applied",

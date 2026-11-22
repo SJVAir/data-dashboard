@@ -241,6 +241,7 @@ describe("createWebMetadata().catalog", () => {
 					geographies: ["monitor", "watershed"],
 					meta_url: "",
 					places_url: "",
+					monitor_types: null,
 					entry_types: [
 						{
 							id: "pm25-old",

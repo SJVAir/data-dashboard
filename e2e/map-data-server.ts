@@ -523,6 +523,7 @@ export async function routeMapNotices(
 				geographies: ["point"],
 				meta_url: "/api/2.0/pesticides/meta/",
 				places_url: "",
+				monitor_types: null,
 				entry_types: [
 					{
 						id: "spray-notice",
@@ -824,6 +825,7 @@ export async function routeMapUse(
 				geographies: ["region"],
 				meta_url: "/api/2.0/pesticides/meta/",
 				places_url: "",
+				monitor_types: null,
 				entry_types: USE_CATALOG.figures.map((figure) => ({
 					...figure,
 					kind: "other",
