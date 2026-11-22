@@ -21,7 +21,7 @@
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 	import { sourceLabel } from "../shared/source-label";
 	import { placeLabel } from "../title";
-	import { misfitNotes } from "../shared/misfit-notes";
+	import { misfitNotes, noWhereNotes } from "../shared/misfit-notes";
 	import { overlayColumns, sortRows, wideRows, type OverlayColumn } from "./rows";
 
 	let { widget }: { widget: WidgetInstance } = $props();
@@ -122,7 +122,8 @@
 
 	/**
 	 * Why an overlay has no columns, so the Table never drops one the Chart shows or explains:
-	 * it failed, or it doesn't offer the table's resolution (`misfitNotes`).
+	 * it failed, it doesn't offer the table's resolution (`misfitNotes`), or the main has no Where
+	 * (`noWhereNotes`).
 	 */
 	function overlayNotes(): string[] {
 		const failed = w.overlays.flatMap((o) => {
@@ -137,7 +138,11 @@
 			}
 			return [];
 		});
-		return [...misfitNotes(w.overlays, w.picked.effective, editable), ...failed];
+		return [
+			...misfitNotes(w.overlays, w.picked.effective, editable),
+			...noWhereNotes(w.overlays, w.picked.input),
+			...failed
+		];
 	}
 
 	/** Extra columns apply to one place only, and worst hour only when the points carry it. */

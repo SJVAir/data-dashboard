@@ -1772,6 +1772,14 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
 
 ## Analysis & data
 
+- **Overlays with no Where.** _Deferred 2026-11-22 (step 5 spec 7a, Task 14; the session
+  lead's ruling)._ A Chart's or Table's weather or pesticide-use main draws with no Where (every
+  station, the valley-wide total), but its overlays aren't fetched: the whole layer is for main
+  layers only (`everywhereMain` and `overlayInputsFor` in `src/lib/widgets/shared/overlays.ts`),
+  and the widget says "Add a place to show {layer} beside it." Why: an everywhere main and an
+  everywhere overlay have no meaningful pairing, and overlays pair by index, so the valley's use
+  would sit beside the first station only (or one station's weather beside the valley), which
+  would mislead. **Revisit when** someone asks for overlays with no Where.
 - **A weekly data resolution.** _Deferred 2026-11-18 (step 5 spec 6a)._ Get data offers
   Every measurement, Hourly, Daily, Monthly and Yearly. Why: the server has no weekly summaries;
   it would need server work, with weeks starting Sunday in Pacific time, and the dashboard

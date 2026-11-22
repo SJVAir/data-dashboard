@@ -10,7 +10,7 @@
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
 	import { DataWidget, type WidgetOverlay } from "../shared/data-widget.svelte";
-	import { misfitNotes } from "../shared/misfit-notes";
+	import { misfitNotes, noWhereNotes } from "../shared/misfit-notes";
 	import { lineRefs, overlayPlaceFor, sharedSource } from "../shared/overlays";
 	import { sourceLabel } from "../shared/source-label";
 	import WidgetState from "../shared/WidgetState.svelte";
@@ -50,7 +50,8 @@
 	 * overlay as one place's strip (the saved "Overlay for" place, or the first, when the places'
 	 * overlays differ), every one at the dataset's resolution. A level overlay with none or that
 	 * failed gets a note; a number overlay shows why in its strip's place, so the main chart is
-	 * never affected. Overlays still loading, not fetched (a misfit: `misfitNotes` says why), or
+	 * never affected. Overlays still loading, not fetched (a misfit or a main with no Where:
+	 * `misfitNotes` and `noWhereNotes` say why), or
 	 * whose dataset the catalog doesn't list, show nothing yet.
 	 */
 	function drawn(overlays: WidgetOverlay[], main: QueryData) {
@@ -145,6 +146,7 @@
 					overlays={overlays.bands}
 					notes={[
 						...misfitNotes(w.overlays, w.picked.effective, editable),
+						...noWhereNotes(w.overlays, w.picked.input),
 						...overlays.notes,
 						...(threshold.missing ? [m.chart_level_line_missing()] : [])
 					]}

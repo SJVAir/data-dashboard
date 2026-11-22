@@ -7,6 +7,7 @@ import {
 	ChartOptionsSchema,
 	MAX_OVERLAYS,
 	overlayInput,
+	everywhereMain,
 	overlayInputsFor,
 	overlayLayers,
 	overlayMonitor,
@@ -235,6 +236,26 @@ test("a monitor set's overlays are fetched for one monitor; others are unchanged
 	expect(overlayInputsFor(MAIN, area, options, places)).toBe(area);
 	const searched = { ...MAIN, layer: { ...MAIN.layer, monitors: ["p1", "p2"] } };
 	expect(overlayInputsFor(searched, area, options, MONITORS)).toBe(area);
+});
+
+test("an everywhere main's overlays are never fetched", () => {
+	const valley: QueryInput = {
+		layer: { dataset: "pesticide-use", entryType: "pounds-applied" },
+		dateRange: MAIN.dateRange,
+		resolution: "month"
+	};
+	const base = [overlayInput(valley, { dataset: "weather", entryType: "temperature" })];
+	// The overlay alone would be the whole layer (every station): never fetched.
+	expect(base[0]?.layer).toEqual({ dataset: "weather", entryType: "temperature" });
+	expect(everywhereMain(valley)).toBe(true);
+	expect(overlayInputsFor(valley, base, undefined, [])).toEqual([null]);
+	// A Where, searched monitors or ticked types are places to pair with.
+	expect(everywhereMain(MAIN)).toBe(false);
+	expect(everywhereMain({ ...valley, layer: { ...valley.layer, monitors: ["p1"] } })).toBe(false);
+	expect(everywhereMain({ ...valley, layer: { ...valley.layer, monitorTypes: ["airnow"] } })).toBe(
+		false
+	);
+	expect(everywhereMain(null)).toBe(false);
 });
 
 test("an overlay of the main's own keys pairs by key, any other by index", () => {

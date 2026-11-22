@@ -703,6 +703,7 @@
 	"data_not_enough": "Not enough data",
 	"table_overlay_place": "{layer}, {place}",
 	"table_overlay_place_unit": "{layer}, {place} ({unit})",
+	"widget_overlay_needs_place": "Add a place to show {layer} beside it.",
 	"widget_layer_not_lined_up": "{dataset} isn't shown: it isn't reported {level}. Change the data resolution in the Data Portal.",
 	"widget_layer_not_lined_up_raw": "{dataset} isn't shown: it has no individual measurements. Change the data resolution in the Data Portal.",
 	"widget_layer_not_lined_up_view": "{dataset} isn't shown: it isn't reported {level}.",

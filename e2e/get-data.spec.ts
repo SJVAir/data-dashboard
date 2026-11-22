@@ -253,6 +253,54 @@ test("with no Where, weather draws every station and pesticide use the whole val
 	await expect(tables.getByRole("columnheader", { name: /Whole valley/ }).first()).toBeVisible();
 });
 
+test("with no Where, a weather overlay on the valley's pesticide use says to add a place", async ({
+	page
+}) => {
+	const doc = {
+		kind: "dashboard",
+		schemaVersion: 1,
+		id: "no-where-2",
+		name: "Everywhere",
+		body: {
+			widgets: [
+				{
+					id: "w0",
+					type: "chart",
+					title: null,
+					rect: { x: 0, y: 0, w: 12, h: 8 },
+					data: {
+						dateRange: { kind: "trailing", amount: 12, unit: "month" },
+						resolution: "month",
+						layers: [
+							{ dataset: "pesticide-use", entryType: "pounds-applied" },
+							{ dataset: "weather", entryType: "temperature" }
+						]
+					}
+				}
+			]
+		}
+	};
+	const weather: string[] = [];
+	page.on("request", (r) => {
+		if (
+			/\/monitors\/(weather\/place|temperature\/summaries)|\/summaries\/temperature\//.test(r.url())
+		) {
+			weather.push(r.url());
+		}
+	});
+	const valley = page.waitForRequest(
+		(r) =>
+			/\/pesticides\/place\/\?/.test(r.url()) && !new URL(r.url()).searchParams.has("region_type")
+	);
+	await page.goto(shareLinkFor(doc));
+	await expect(page).toHaveURL(DASHBOARD_URL);
+	await valley;
+	// The main draws the valley; the overlay isn't fetched and says why.
+	await expect(page.getByText(/Whole valley/).first()).toBeVisible();
+	await expect(page.getByText("Add a place to show Temperature beside it.")).toBeVisible();
+	expect(weather).toEqual([]);
+});
+
 test("downloads a CSV with station and filter columns", async ({ page }) => {
 	await page.goto("data");
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
