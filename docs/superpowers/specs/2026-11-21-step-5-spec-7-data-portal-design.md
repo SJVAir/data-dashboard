@@ -186,8 +186,12 @@ of them.
     are still fetched one by one (today's path, `data/adapters/air-quality.ts:210-222`).
 20. **A monitor-type filter on the bulk endpoints** is asked of the server and SDK (the user;
     sent to the coordinator 2026-11-21; the coordinator passed it to the server session, every
-    resolution plus open days, several types per request). The request carries the types. The
-    parameter's name and shape come from the coordinator when the server PR opens (see 12c).
+    resolution plus open days, several types per request). The request carries the types. Decided
+    server-side with the user: `type`, repeatable, the monitors meta's `monitors[*]` keys
+    (`?type=purpleair&type=airnow`); an unknown type is a 400; it combines with `region`, `bbox`
+    and `processor`. The SDK option comes in `@sjvair/sdk` `5.0.0-beta.16` (see 12c). CIMIS
+    stations are monitors on the server, so bulk summaries with `type=cimis` may answer "every
+    station" (12a); the server session is checking.
 
 ## 7b: Current conditions as an overview (decided; its own plan)
 
