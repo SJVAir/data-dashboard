@@ -3326,6 +3326,27 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   checks (sizes after layout, an animation), not wrong behaviour. **Revisit when** one fails in
   CI, or when touching the test: wait on the settled state (a poll on the final size, or the
   animation's end) instead of a fixed moment.
+- **"The submenu by keyboard: Enter repeats, focus leaves an item that turns disabled" flaked in
+  CI.** _Noted 2026-11-22 (step 5 spec 7b, PR #65)._
+  `src/lib/components/dashboard/arranging.browser.test.ts` failed in `focusItem` ("expected
+  'Size' / 'Move' to be 'Right'"): CI's screenshot shows the Move submenu had opened (the poll saw
+  two menus with focus inside the newest) and then closed again, so the ArrowDowns moved focus in
+  the parent menu. It is not 7b's: it failed on `step-5` itself too (1 of 4 CI runs; 2 of 5 on the
+  7b branch). It never failed locally (alone, the whole file, or a full `npm test` pinned to 4
+  cores under `TZ=America/New_York`), and a pointer resting where the menu opens didn't trigger
+  it. What closes the submenu wasn't found. **Revisit when** it fails in CI again, or when
+  touching the arrange submenu: find what closes the submenu (log bits-ui's `onOpenChange` with a
+  stack), then wait on the submenu staying open rather than one poll.
+- **WebKit E2E tests flake on CI.** _Noted 2026-11-22 (step 5 spec 7b, PR #65)._ In six manual
+  `ci.yml` runs (three on `step-5`, three on `step-5-spec-7b`), the WebKit job failed four times,
+  on both branches, on one or two tests each time, never the same set; a rerun passed. Neither
+  branch changed these areas: `e2e/recovery.spec.ts` "restore an
+  earlier version from the account", `e2e/safety.spec.ts` "Delete now moves focus to the next
+  row's Restore button", `e2e/place-picker.spec.ts` "the Share dialog asks before a live link
+  carries the point" (its text matched two elements) and `e2e/map.spec.ts` "the view summary
+  follows a refresh while the view stays still" (moved 0.095 against < 0.02). The full
+  three-engine job runs only on manual runs, not on PRs. **Revisit before** relying on the
+  WebKit job as a merge gate, or if one of these fails twice in a row.
 - **"A resize animation redraws once, after it ends" flaked in CI.** _Noted 2026-11-12 (step 5
   spec 2, PR #56)._ `src/lib/charts/time-chart.browser.test.ts` failed once with "expected 640 to
   be less than 640" (the frame's width read before the 640 → 400 px animation's first frame had
