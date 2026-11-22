@@ -460,7 +460,10 @@
 	$effect(() => {
 		const shown = data.shown;
 		if (!("data" in shown) || !shown.data) return;
-		const names = shown.data.places.map((p) => placeLabel(p, "owner"));
+		// Only the Where's own places: searched and ticked monitors are What, not Where.
+		const names = shown.data.places
+			.filter((p) => !p.place.startsWith("monitor:"))
+			.map((p) => placeLabel(p, "owner"));
 		const key = untrack(() => picksKey);
 		lastNames = { key, names };
 	});

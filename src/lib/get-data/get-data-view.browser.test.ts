@@ -196,6 +196,16 @@ function airQuality(requests: AdapterRequest[]): DatasetAdapter {
 		id: "air-quality",
 		async target(layer) {
 			if (layer.monitors?.length) return { kind: "monitors", ids: [...layer.monitors] };
+			// Ticked types: the types' monitors (t1, t2), alongside a county's own place.
+			if (layer.monitorTypes?.length) {
+				if (layer.place?.kind === "region") {
+					return {
+						kind: "regions",
+						keys: [`${layer.place.type}:${layer.place.code}`, "monitor:t1", "monitor:t2"]
+					};
+				}
+				return { kind: "monitors", ids: ["t1", "t2"] };
+			}
 			if (layer.place?.kind === "region") {
 				return { kind: "regions", keys: [`${layer.place.type}:${layer.place.code}`] };
 			}
@@ -208,7 +218,9 @@ function airQuality(requests: AdapterRequest[]): DatasetAdapter {
 			if (fetchMode === "fail") throw new Error("offline");
 			if (fetchMode === "hang") await new Promise(() => {});
 			const keys =
-				req.target.kind === "monitors" ? req.target.ids : (req.target as { keys: string[] }).keys;
+				req.target.kind === "monitors"
+					? req.target.ids.map((id) => `monitor:${id}`)
+					: (req.target as { keys: string[] }).keys;
 			const start = req.range.start.getTime();
 			return {
 				series: keys.map((key, n) => ({
@@ -225,7 +237,8 @@ function airQuality(requests: AdapterRequest[]): DatasetAdapter {
 				places: keys.map((key) => ({
 					place: key,
 					name:
-						fake.regionNames[key] ?? (key === "county:06019" ? "Fresno County" : `Monitor ${key}`)
+						fake.regionNames[key] ??
+						(key === "county:06019" ? "Fresno County" : `Monitor ${key.replace("monitor:", "")}`)
 				})),
 				resolution: req.resolution,
 				fromRaw: false,
@@ -732,6 +745,32 @@ test("get data view: Where shows with no pollutant and reads Everywhere", async 
 	await show(draft);
 	await expect.element(page.getByRole("heading", { name: "Where" })).toBeVisible();
 	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Everywhere");
+});
+
+test("get data view: searched monitors with no Where read Everywhere", async () => {
+	await show(monitorsDraft(["m1", "m2"]));
+	await expect.poll(() => requests.length).toBeGreaterThan(0);
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Everywhere");
+	await expect.poll(() => requests.length).toBeGreaterThan(0);
+	await expect.element(page.getByTestId("where-summary")).not.toHaveTextContent("Monitor");
+});
+
+test("get data view: Reference-grade ticked with no Where reads Everywhere", async () => {
+	const draft = areasDraft([]);
+	draft.data.layers[0] = { dataset: "air-quality", entryType: "pm25", monitorTypes: ["airnow"] };
+	await show(draft);
+	await expect.poll(() => requests.length).toBeGreaterThan(0);
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Everywhere");
+	await expect.element(page.getByTestId("where-summary")).not.toHaveTextContent("Monitor");
+});
+
+test("get data view: a county Where with ticked types names the county, not the monitors", async () => {
+	const draft = areasDraft(["06019"]);
+	draft.data.layers[0] = { dataset: "air-quality", entryType: "pm25", monitorTypes: ["airnow"] };
+	await show(draft);
+	await expect.poll(() => requests.length).toBeGreaterThan(0);
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Area 06019");
+	await expect.element(page.getByTestId("where-summary")).not.toHaveTextContent("Monitor");
 });
 
 test("get data view: the Map offers radios, one pollutant", async () => {

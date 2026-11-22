@@ -137,11 +137,6 @@ async function openCountyMap(page: Page, marks: string[]): Promise<Locator> {
 	return map;
 }
 
-/** The seven marked monitors' names, as the preview lists them. */
-const SEVEN_NAMES =
-	"Fresno - Drummond Street, Fresno - Test Site A, Fresno - Test Site B, Fresno - Test Site C, " +
-	"Fresno - Test Site D, Fresno - Test Site E, and Fresno - Test Site F";
-
 test.describe("from a Map's marks", () => {
 	test.beforeEach(async ({ context, page }) => {
 		await routeMoreMonitors(context, EXTRAS);
@@ -159,9 +154,8 @@ test.describe("from a Map's marks", () => {
 		await expect(page).toHaveURL(NEW_WIDGET_URL);
 		await expect(page.getByRole("heading", GET_DATA)).toBeVisible();
 		await expect(page.getByRole("radio", { name: "Chart" })).toBeChecked();
-		await expect(whereSummary(page)).toHaveText(
-			"Fresno - Drummond Street, Fresno - Test Site A, and Fresno - Test Site B"
-		);
+		// The Where is the county's one place; the marked monitors are What, not named here.
+		await expect(whereSummary(page)).toHaveText("1 place");
 		// The Map's range.
 		await expect(page.getByTestId("resolved-range")).toHaveText("Nov 9 – 11, 2026");
 		// Nothing was over the cap or left out.
@@ -173,9 +167,8 @@ test.describe("from a Map's marks", () => {
 		await expect(page).toHaveURL(NEW_WIDGET_URL);
 		await expect(page.getByRole("heading", GET_DATA)).toBeVisible();
 		await expect(page.getByRole("radio", { name: "Chart" })).toBeChecked();
-		await expect(whereSummary(page)).toHaveText(
-			"Fresno - Drummond Street, Fresno - Test Site A, and Fresno - Test Site B"
-		);
+		// The Where is the county's one place; the marked monitors are What, not named here.
+		await expect(whereSummary(page)).toHaveText("1 place");
 		await expect(page.getByTestId("resolved-range")).toHaveText("Nov 9 – 11, 2026");
 
 		await expect(addToButton(page)).toHaveText("Add to County map");
@@ -200,7 +193,7 @@ test.describe("from a Map's marks", () => {
 		await expect(page.getByRole("radio", { name: "Chart" })).toBeChecked();
 		// Searched monitors are never over a cap: no dialog asks which to keep.
 		await expect(keepDialog(page)).toHaveCount(0);
-		await expect(whereSummary(page)).toHaveText(SEVEN_NAMES);
+		await expect(whereSummary(page)).toHaveText("1 place");
 		await expectNoViolations(page);
 	});
 
@@ -214,7 +207,7 @@ test.describe("from a Map's marks", () => {
 		await widgetMenuItem(page, FRESNO_MAP, "Show in a table");
 		await expect(page).toHaveURL(NEW_WIDGET_URL);
 		await expect(page.getByRole("radio", { name: "Data table" })).toBeChecked();
-		await expect(whereSummary(page)).toHaveText(SEVEN_NAMES);
+		await expect(whereSummary(page)).toHaveText("1 place");
 		await expect(
 			page.getByText("1 marked monitor isn't shown on the map, so it was left out.")
 		).toBeVisible();
@@ -262,7 +255,7 @@ test.describe("shared by a live link", () => {
 		await widgetMenuItem(viewer.page, DRUMMOND_MAP, "Show in a chart");
 		await expect(viewer.page).toHaveURL(/\/workspace\/data$/);
 		await expect(viewer.page.getByRole("radio", { name: "Chart" })).toBeChecked();
-		await expect(whereSummary(viewer.page)).toHaveText("Fresno - Drummond Street");
+		await expect(whereSummary(viewer.page)).toHaveText("Everywhere");
 		await expect(addToButton(viewer.page)).toHaveText("Add to My dashboard");
 		await addToButton(viewer.page).click();
 		await expect(viewer.page).toHaveURL(own);

@@ -15,6 +15,7 @@
 	import { lineRefs, overlayPlaceFor, sharedSource } from "../shared/overlays";
 	import { sourceLabel } from "../shared/source-label";
 	import WidgetState from "../shared/WidgetState.svelte";
+	import { idleText } from "../shared/idle-text";
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 	import { placeLabel } from "../title";
 	import { chartType } from "./index";
@@ -136,11 +137,7 @@
 			onretry={w.retry}
 			onchoose={() => openPlacePicker({ widgetId: widget.id })}
 			emptyText={pesticideMain ? m.data_none_pesticides() : undefined}
-			idleText={w.picked.empty === "add-layers"
-				? m.widget_empty_add_layers()
-				: w.picked.empty === "add-where-or-monitors"
-					? m.widget_empty_add_where_or_monitors()
-					: undefined}
+			idleText={idleText(w.picked.empty)}
 		>
 			{#snippet children(data)}
 				{@const overlays = drawn(w.overlays, data)}

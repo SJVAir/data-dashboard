@@ -93,6 +93,12 @@ test("rows start newest first, with the level beside each value", async () => {
 	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 · Monitor m1 · Last 30 days");
 });
 
+test("a table with no Where and no monitors says what to add", async () => {
+	const screen = await show(tableWidget([]));
+	await expect.element(screen.getByText(m.widget_empty_add_where_or_monitors())).toBeVisible();
+	expect(requests).toEqual([]);
+});
+
 test("a table with no layers (None and nothing else) shows its empty state", async () => {
 	const widget = tableWidget(["m1"]);
 	widget.data.layers = [];

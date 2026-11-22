@@ -86,8 +86,8 @@
 	);
 
 	const summary = $derived.by(() => {
-		if (names && names.length > 0) return formatList(names);
 		if (picks.length === 0) return m.get_data_where_everywhere();
+		if (names && names.length > 0) return formatList(names);
 		if (picks.length > 1 || namesSettled) {
 			return m.get_data_places_count({
 				count: formatNumber(picks.length),
