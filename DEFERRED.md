@@ -2335,6 +2335,14 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
 
 ## Widgets
 
+- **"Can we go outside?" with several pollutants: combining their guidelines.** _Deferred
+  2026-11-22 (spec 7b plan, the user's choice)._ The widget holds one pollutant, chosen from those
+  whose monitors meta has `school_guidelines` (PM2.5 alone today). Giving one answer from two
+  pollutants' guidelines needs a rule nobody has decided (the strictest one, say). **Why
+  deferred:** only PM2.5 has guidelines, so it can't be built against real data or tried. **Revisit
+  when** the server adds guidelines for a second pollutant: decide the combining rule with the
+  user, then let the widget hold several, as Current conditions does.
+
 - **Share opens its dialog only after the link is built.** _Noted 2026-11-11 (the WebKit share
   test fix, #54); left as it is by the user._ With no exact points, `shareDashboard`
   (`src/lib/sharing/actions.ts`) awaits `copyOf` (building and compressing the link) before

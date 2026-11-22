@@ -40,12 +40,12 @@ over a one-pollutant view of the widget (`onePollutant`). Thresholds gain an opt
 - Bundle: report the initial bundle (214.5 KB after 7a; soft budget 250 KB).
 - Commits GPG-signed, no AI attribution lines. Subagents never run `git stash`.
 
-## My calls (for the user to check)
+## Decided (proposed as my calls; the user chose each, 2026-11-22; not to be reopened)
 
 - **C1. "Can we go outside?" stays one pollutant** (a radio when more than one has guidelines).
   One answer from two pollutants' guidelines needs a rule for combining them, which nobody has
   decided, so building it now would be guesswork. The choice still appears with no code change
-  when the server adds guidelines (decision 22). Combining them goes in `DEFERRED.md`.
+  when the server adds guidelines (decision 22). Combining them is in `DEFERRED.md` (added with this plan).
 - **C2. Unticking the last pollutant is allowed.** The preview then says "Choose a pollutant", and
   Save is blocked with that reason. Nothing greys out the checkbox (the user: None is never
   blocked).
@@ -377,8 +377,8 @@ over a one-pollutant view of the widget (`onePollutant`). Thresholds gain an opt
   - Show it as a Chart: one PM2.5 line and the "Ozone was left out" note.
   - Pin noon Pacific, and also run under `TZ=America/New_York`.
 - [ ] **Step 2:** `DEFERRED.md`:
-  - add "'Can we go outside?' with several pollutants: combining guidelines" (C1; trigger: the
-    server adds guidelines for a second pollutant);
+  - C1's entry ("'Can we go outside?' with several pollutants: combining their guidelines") is
+    already there (added with this plan); check it still matches what was built;
   - add anything else this build defers.
 - [ ] **Step 3:** `ARCHITECTURE.md`: per-pollutant thresholds (`entryType`), marks and told keyed
   by `markKey`, the card's rows, Outside reading `guidelinePollutants`.

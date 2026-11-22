@@ -205,6 +205,18 @@ of them.
 23. **Show as from Current conditions to a one-pollutant type** keeps the first pollutant and notes
     the others were left out (the conversions' `dropped` notes).
 
+Settled at the 7b plan (the user, 2026-11-22; plan
+`docs/superpowers/plans/2026-11-22-step-5-spec-7b-current-conditions-overview.md`, C1–C5):
+
+- **"Can we go outside?" holds one pollutant at a time**: radios once two or more have
+  guidelines. Combining two pollutants' guidelines into one answer is deferred (`DEFERRED.md`).
+- **Unticking the last pollutant is allowed**: the preview says "Choose a pollutant" and Save is
+  blocked with that reason; no checkbox is greyed out.
+- **A newly ticked pollutant gets its scale's default alert level**; unticking drops its level.
+- **The card has one row per pollutant**, each with its own mark; the taskbar marks the widget
+  when any pollutant is at its level. The title lists the pollutants, then the place ("PM2.5 and
+  Ozone · Fresno").
+
 ## 7c: schools and child care on the Map (decided; its own plan)
 
 24. **A "Schools and child care" section in What**, offered only for the Map (they're points with
