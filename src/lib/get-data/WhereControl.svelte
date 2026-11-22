@@ -21,6 +21,7 @@
 		offer,
 		purpose,
 		emptyText,
+		clearable = false,
 		onchange
 	}: {
 		picks: Picks;
@@ -34,6 +35,12 @@
 		 * monitor asks for one; with its one monitor it says so).
 		 */
 		emptyText?: string;
+		/**
+		 * Whether a "Clear" action goes back to no places (a type whose empty Where means
+		 * everywhere; not a single-place type, whose empty Where asks for one). It calls `onchange`
+		 * with no picks.
+		 */
+		clearable?: boolean;
 		onchange: (picks: Picks) => void;
 	} = $props();
 
@@ -166,6 +173,12 @@
 		})();
 	}
 
+	/** Clear: no places; focus goes to Change places (the Clear button goes away). */
+	function clear(): void {
+		onchange([]);
+		opener?.focus();
+	}
+
 	$effect(() => () => controller?.abort());
 </script>
 
@@ -180,6 +193,11 @@
 	>
 		{m.get_data_places_change()}
 	</Button>
+	{#if clearable && picks.length > 0}
+		<Button variant="ghost" size="sm" aria-label={m.get_data_places_clear_label()} onclick={clear}>
+			{m.get_data_places_clear()}
+		</Button>
+	{/if}
 </div>
 
 <Dialog.Root

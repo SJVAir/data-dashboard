@@ -18,12 +18,12 @@
 	import { PHONE_QUERY } from "$lib/layout/config";
 	import { m } from "$lib/paraglide/messages.js";
 	import { directoryFor } from "$lib/places/host";
+	import { areasOnly } from "$lib/places/replace";
 	import { fromWhere, toWhere, type Picks } from "$lib/places/selection";
 	import type { RegionTypeInfo } from "$lib/places/types";
 	import { report } from "$lib/safety/report";
 	import { useApp } from "$lib/store/app.svelte";
 	import { CHART_TYPE } from "$lib/widgets/chart";
-	import { DATA_TABLE_TYPE } from "$lib/widgets/table";
 	import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
 	import { CURRENT_TYPE } from "$lib/widgets/current";
 	import { MAP_TYPE } from "$lib/widgets/map";
@@ -562,6 +562,8 @@
 
 	/** Change places' Done: the places the person chose (the hidden-marks note goes with them). */
 	function setPlaces(next: Picks): void {
+		// Clear (no places): said once, in the view's polite status region.
+		if (next.length === 0) announcement = m.get_data_places_cleared();
 		leftOutShown = false;
 		delete draft.data.place;
 		delete draft.data.selection;
@@ -1032,9 +1034,10 @@
 				<WhereControl
 					{picks}
 					max={placeLimit(type)}
-					offer={plain.type === CHART_TYPE || plain.type === DATA_TABLE_TYPE ? "areas" : "where"}
+					offer={areasOnly(plain.type) ? "areas" : "where"}
 					purpose={wherePurpose(plain.data, known)}
 					emptyText={whereEmptyText}
+					clearable={placeLimit(type) !== 1}
 					onchange={setPlaces}
 				/>
 			</section>

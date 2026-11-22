@@ -875,6 +875,34 @@ test("get data view: Where shows with no pollutant and reads Everywhere", async 
 	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Everywhere");
 });
 
+test("get data view: Clear goes back to Everywhere, focuses Change places, says so", async () => {
+	const { latest } = await show(areasDraft(["06019", "06029"]));
+	const clear = page.getByRole("button", { name: "Clear places" });
+	await clear.click();
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Everywhere");
+	await expect.element(clear).not.toBeInTheDocument();
+	await expect.element(page.getByRole("button", { name: "Change places" })).toHaveFocus();
+	await expect
+		.element(page.getByTestId("get-data-announcement"))
+		.toHaveTextContent(m.get_data_places_cleared());
+	const data = latest().data;
+	expect(data.place).toBeUndefined();
+	expect(data.selection).toBeUndefined();
+});
+
+test("get data view: a single-place widget has no Clear (its empty Where asks for one)", async () => {
+	await show({
+		type: "current-conditions",
+		data: {
+			layers: [{ dataset: "air-quality", entryType: "pm25" }],
+			place: { kind: "region", type: "county", code: "06019" }
+		}
+	});
+	await expect.element(page.getByTestId("where-summary")).not.toHaveTextContent("Choose");
+	await expect.element(page.getByRole("button", { name: "Change places" })).toBeVisible();
+	expect(page.getByRole("button", { name: "Clear places" }).elements()).toHaveLength(0);
+});
+
 test("get data view: searched monitors with no Where read Everywhere", async () => {
 	await show(monitorsDraft(["m1", "m2"]));
 	await expect.poll(() => requests.length).toBeGreaterThan(0);
