@@ -98,7 +98,7 @@ function fetchesMonitors(layer: Layer): boolean {
  * layer), which holds its one monitor as `monitors` (it has no air-quality layer). Read by shape,
  * not identity, so a copy of the layer counts too.
  */
-function isStripLayer(data: WidgetDataConfig, layer: Layer): boolean {
+export function isStripLayer(data: WidgetDataConfig, layer: Layer): boolean {
 	return data.layers.length === 1 && layer.dataset === FORECASTS && !layer.entryType;
 }
 

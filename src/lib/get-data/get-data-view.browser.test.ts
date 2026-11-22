@@ -662,6 +662,31 @@ test("Air quality's monitor types and searched monitors edit the draft's air-qua
 	host.remove();
 });
 
+test("a Forecast strip searches one monitor, saved on its forecasts layer; it replaces the Where", async () => {
+	const { host, latest } = await show({
+		type: "forecast-strip",
+		data: {
+			place: { kind: "region", type: "county", code: "06019" },
+			layers: [{ dataset: "forecasts" }]
+		}
+	});
+	const choose = page.getByRole("button", { name: m.get_data_monitors_choose() });
+	await choose.click();
+	const search = page.getByRole("dialog", { name: m.get_data_monitors_dialog_title_single() });
+	await expect.element(search).toBeVisible();
+	await animationsSettled(search.element());
+	const box = page.getByRole("combobox");
+	await expect.element(box).toHaveAttribute("placeholder", m.place_picker_placeholder_monitors());
+	await userEvent.fill(box, "ba");
+	await page.getByRole("option", { name: /BAM/ }).click();
+	await expect.element(search).not.toBeInTheDocument();
+	expect(latest().data).toEqual({ layers: [{ dataset: "forecasts", monitors: ["m-bam"] }] });
+	await expect
+		.element(page.getByTestId("where-summary"))
+		.toHaveTextContent(m.get_data_where_one_monitor());
+	host.remove();
+});
+
 test("adding pesticide use on Automatic says Automatic moved to Monthly; removing it clears the note", async () => {
 	const { host, current } = await show(monitorsDraft(["m1"]));
 	const note = page.getByTestId("resolution-note");

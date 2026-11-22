@@ -14,6 +14,7 @@
 	import type { WidgetDataConfig } from "$lib/data/schema";
 	import { m } from "$lib/paraglide/messages.js";
 	import { report } from "$lib/safety/report";
+	import { DEFAULT_LAYER } from "$lib/widgets/defaults";
 	import type { EntryPick } from "./layers";
 	import {
 		monitorGroups,
@@ -28,7 +29,8 @@
 	 * then Monitors: a checkbox per monitor type in the monitors meta's groups, the searched
 	 * monitors' list (each removable) and the Monitors search. A single-place widget shows only the
 	 * search (one monitor). With None the ticks and monitors stay, greyed out with their reason; a
-	 * type or monitor that doesn't measure the pollutant is greyed out with its reason, kept.
+	 * type or monitor that doesn't measure the pollutant is greyed out with its reason, kept. Greyed
+	 * means it can't be newly ticked and isn't fetched: a ticked one can always be unticked.
 	 */
 	let {
 		data,
@@ -37,6 +39,7 @@
 		pollutants,
 		pollutantReason,
 		capText,
+		strip = false,
 		onpollutant,
 		ontypes,
 		onmonitors
@@ -52,6 +55,11 @@
 		pollutantReason?: (entry: EntryTypeMeta) => string | undefined;
 		/** Set when no pollutant can be added (one layer too many): every pollutant greyed with it. */
 		capText?: string;
+		/**
+		 * A Forecast strip (spec decision 11, ruling R11): its one monitor is on its own forecasts
+		 * layer and is searched as PM2.5's are (it has no pollutant of its own).
+		 */
+		strip?: boolean;
 		/** A pollutant, or `null` for None. */
 		onpollutant: (pick: EntryPick | null) => void;
 		/** The ticked monitor types after a change. */
@@ -65,8 +73,10 @@
 	const searchReasonId = `${uid}-search-reason`;
 	const capId = `${uid}-cap`;
 
-	const layer = $derived(data.layers.find((l) => isPollutantLayer(l, catalog)));
-	const entryType = $derived(layer?.entryType);
+	const layer = $derived(
+		strip ? data.layers[0] : data.layers.find((l) => isPollutantLayer(l, catalog))
+	);
+	const entryType = $derived(strip ? DEFAULT_LAYER.entryType : layer?.entryType);
 	const ticked = $derived(layer?.monitorTypes ?? []);
 	const ids = $derived(layer?.monitors ?? []);
 	const single = $derived(limit === 1);
@@ -203,7 +213,7 @@
 									type="checkbox"
 									class="accent-primary size-4"
 									checked={ticked.includes(choice.type)}
-									disabled={!!choice.blocked}
+									disabled={!!choice.blocked && !ticked.includes(choice.type)}
 									aria-describedby={reasonOf(choice.blocked, notSuppliedId)}
 									onchange={(e) => toggleType(choice.type, e.currentTarget.checked)}
 								/>
@@ -255,7 +265,9 @@
 			bind:ref={addButton}
 			{ids}
 			{single}
-			purpose={entryType ? { dataset: layer?.dataset ?? AIR_QUALITY, entryType } : undefined}
+			purpose={entryType
+				? { dataset: strip ? DEFAULT_LAYER.dataset : (layer?.dataset ?? AIR_QUALITY), entryType }
+				: undefined}
 			reasonId={searchReasonId}
 			onchange={onmonitors}
 		/>

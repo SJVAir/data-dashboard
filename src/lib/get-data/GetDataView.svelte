@@ -24,6 +24,7 @@
 	import { DATA_TABLE_TYPE } from "$lib/widgets/table";
 	import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
 	import { CURRENT_TYPE } from "$lib/widgets/current";
+	import { FORECAST_TYPE } from "$lib/widgets/forecast";
 	import { MAP_TYPE } from "$lib/widgets/map";
 	import {
 		HMS_FIRE,
@@ -1026,6 +1027,23 @@
 								onmonitors={setMonitors}
 							/>
 						{/if}
+					</section>
+				{:else if plain.type === FORECAST_TYPE}
+					<!-- A Forecast strip: one place or one monitor (decision 11), on its own layer (R11). -->
+					<section class="flex flex-col gap-3" aria-labelledby="{uid}-what">
+						<h2 id="{uid}-what" class="text-primary text-sm font-semibold">
+							{m.get_data_what()}
+						</h2>
+						<AirQualitySection
+							data={plain.data}
+							catalog={known}
+							limit={placeLimit(type)}
+							pollutants={null}
+							strip
+							onpollutant={setPollutant}
+							ontypes={setMonitorTypes}
+							onmonitors={setMonitors}
+						/>
 					</section>
 				{/if}
 			{:else}

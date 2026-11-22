@@ -1,7 +1,7 @@
 import type { CatalogEntry } from "$lib/data/metadata";
-import { isPollutantLayer, layerKind } from "$lib/data/layer-kind";
+import { AIR_QUALITY, isPollutantLayer, layerKind } from "$lib/data/layer-kind";
 import type { Layer, PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
-import { mainLayer } from "$lib/widgets/shared/input";
+import { isStripLayer, mainLayer } from "$lib/widgets/shared/input";
 import { MAX_OVERLAYS } from "$lib/widgets/shared/overlays";
 
 /**
@@ -151,16 +151,24 @@ export function dropMonitorsForPlace(data: WidgetDataConfig, limit: number): voi
 	}
 }
 
-/** The air-quality layer holding the widget's monitors (its pollutant, or one kept with None). */
+/**
+ * The layer holding the widget's monitors: its air-quality layer (its pollutant, or one kept with
+ * None), else a Forecast strip's one layer (ruling R11).
+ */
 function monitorsLayer(data: WidgetDataConfig, catalog: CatalogEntry[] | undefined) {
-	return data.layers.find((l) => isPollutantLayer(l, catalog));
+	const strip = data.layers[0];
+	return (
+		data.layers.find((l) => isPollutantLayer(l, catalog)) ??
+		(strip && isStripLayer(data, strip) ? strip : undefined)
+	);
 }
 
 /**
- * Sets the field `key` (ticked types or searched monitors) of the air-quality layer to `ids`
- * (duplicates dropped; none removes the field). A layer kept with None (no entry type) that is
- * left holding nothing goes. With no air-quality layer nothing changes: monitors need a pollutant
- * (Get data disables them until one is chosen).
+ * Sets the field `key` (ticked types or searched monitors) of the monitors layer (`monitorsLayer`)
+ * to `ids` (duplicates dropped; none removes the field). An air-quality layer kept with None (no
+ * entry type) that is left holding nothing goes. Types are only ever ticked on an air-quality
+ * layer. With neither layer nothing changes: monitors need a pollutant (Get data disables them
+ * until one is chosen).
  */
 function setMonitorField(
 	data: WidgetDataConfig,
@@ -169,11 +177,16 @@ function setMonitorField(
 	ids: string[]
 ): void {
 	const layer = monitorsLayer(data, catalog);
-	if (!layer) return;
+	if (!layer || (key === "monitorTypes" && layer.dataset !== AIR_QUALITY)) return;
 	const unique = [...new Set(ids)];
 	if (unique.length > 0) layer[key] = unique;
 	else delete layer[key];
-	if (!layer.entryType && !layer.monitors?.length && !layer.monitorTypes?.length) {
+	if (
+		layer.dataset === AIR_QUALITY &&
+		!layer.entryType &&
+		!layer.monitors?.length &&
+		!layer.monitorTypes?.length
+	) {
 		removeLayer(data, data.layers.indexOf(layer));
 	}
 }

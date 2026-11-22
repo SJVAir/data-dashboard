@@ -300,6 +300,28 @@ describe("monitors on the air-quality layer", () => {
 		expect(data.layers).toEqual([{ ...temperature }]);
 	});
 
+	it("a Forecast strip's one monitor goes on its own forecasts layer, which stays when cleared", () => {
+		const strip: WidgetDataConfig = { place: FRESNO, layers: [{ dataset: "forecasts" }] };
+		setMonitors(strip, CATALOG, ["m1"]);
+		dropWhereForMonitor(strip, 1);
+		expect(strip).toEqual({ layers: [{ dataset: "forecasts", monitors: ["m1"] }] });
+		setMonitorTypes(strip, CATALOG, ["airnow"]);
+		expect(strip.layers).toEqual([{ dataset: "forecasts", monitors: ["m1"] }]);
+		setMonitors(strip, CATALOG, []);
+		expect(strip.layers).toEqual([{ dataset: "forecasts" }]);
+	});
+
+	it("under None a ticked type can be unticked; the emptied layer goes", () => {
+		const data: WidgetDataConfig = {
+			place: FRESNO,
+			layers: [{ dataset: "air-quality", monitorTypes: ["airnow", "purpleair"] }]
+		};
+		setMonitorTypes(data, CATALOG, ["purpleair"]);
+		expect(data.layers).toEqual([{ dataset: "air-quality", monitorTypes: ["purpleair"] }]);
+		setMonitorTypes(data, CATALOG, []);
+		expect(data.layers).toEqual([]);
+	});
+
 	it("a single-place widget's searched monitor replaces its Where", () => {
 		const tile = pm25With();
 		dropWhereForMonitor(tile, 1);

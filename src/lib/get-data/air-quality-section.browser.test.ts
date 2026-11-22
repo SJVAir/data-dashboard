@@ -156,10 +156,12 @@ describe("air quality section", () => {
 		]);
 		const purple = page.getByRole("checkbox", { name: "PurpleAir" });
 		await expect.element(purple).toBeChecked();
-		await expect.element(purple).toBeDisabled();
+		// Greyed with its reason, but a choice can always be removed.
+		await expect.element(purple).toBeEnabled();
 		await expect
 			.element(purple)
 			.toHaveAccessibleDescription(m.get_data_monitor_type_no_pollutant());
+		// Not ticked: it can't be ticked until a pollutant is chosen.
 		await expect.element(page.getByRole("checkbox", { name: "AirNow" })).toBeDisabled();
 		await expect.element(addButton()).toBeDisabled();
 		await expect
@@ -183,11 +185,27 @@ describe("air quality section", () => {
 		await expect.element(addButton()).toBeEnabled();
 	});
 
+	test("under None a ticked type can be unticked: it's removed", async () => {
+		const { last } = await show(pm25({ monitorTypes: ["purpleair", "bam1022"] }));
+		await page.getByRole("radio", { name: m.get_data_none() }).click();
+		const purple = page.getByRole("checkbox", { name: "PurpleAir" });
+		await purple.click();
+		expect(last()?.layers).toEqual([{ dataset: "air-quality", monitorTypes: ["bam1022"] }]);
+		await expect.element(purple).not.toBeChecked();
+		// Now unticked and greyed: it can't be ticked again until a pollutant is chosen.
+		await expect.element(purple).toBeDisabled();
+		await expect
+			.element(purple)
+			.toHaveAccessibleDescription(m.get_data_monitor_type_no_pollutant());
+	});
+
 	test("a type that doesn't measure ozone is greyed with its reason and stays ticked", async () => {
 		await show(pm25({ entryType: "o3", monitorTypes: ["purpleair", "airnow"] }));
 		const purple = page.getByRole("checkbox", { name: "PurpleAir" });
 		await expect.element(purple).toBeChecked();
-		await expect.element(purple).toBeDisabled();
+		await expect.element(purple).toBeEnabled();
+		// Unticked and not measuring ozone: it can't be ticked.
+		await expect.element(page.getByRole("checkbox", { name: "BAM 1022" })).toBeDisabled();
 		const reason = m.get_data_monitor_type_not_supplied({ pollutant: "Ozone" });
 		await expect.element(purple).toHaveAccessibleDescription(reason);
 		const airnow = page.getByRole("checkbox", { name: "AirNow" });
