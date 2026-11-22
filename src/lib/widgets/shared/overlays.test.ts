@@ -4,10 +4,15 @@ import type { WidgetDataConfig } from "$lib/data/schema";
 import type { PlaceInfo, QueryInput, Series, SeriesPoint } from "$lib/data/types";
 import type { Picks } from "$lib/places/selection";
 import {
+	ChartOptionsSchema,
 	MAX_OVERLAYS,
 	overlayInput,
+	overlayInputsFor,
 	overlayLayers,
+	overlayMonitor,
 	overlayPlaceFor,
+	overlayRefOf,
+	pairsByKey,
 	sharedSource
 } from "./overlays";
 
@@ -184,4 +189,64 @@ test("sharedSource true for identical zone series", () => {
 	expect(sharedSource([a, { ...b, points: [day(1, "a"), day(2, "a")] }])).toBe(false);
 	expect(sharedSource([a, { ...b, points: [day(1, "a")] }])).toBe(false);
 	expect(sharedSource([a, { ...b, points: [] }])).toBe(false);
+});
+
+const MONITORS: PlaceInfo[] = [
+	{ place: "monitor:p1", name: "P1" },
+	{ place: "monitor:p2", name: "P2" },
+	{ place: "monitor:p3", name: "P3" }
+];
+const SET: QueryInput = {
+	layer: { dataset: "air-quality", entryType: "pm25", place: FRESNO, monitorTypes: ["purpleair"] },
+	dateRange: { kind: "trailing", amount: 30, unit: "day" },
+	resolution: "day"
+};
+
+test("overlayFor names a monitor (decision 37): a monitor-only shape", () => {
+	expect(ChartOptionsSchema.parse({ overlayFor: { kind: "monitor", id: "p2" } })).toEqual({
+		overlayFor: { kind: "monitor", id: "p2" }
+	});
+	expect(ChartOptionsSchema.safeParse({ overlayFor: { kind: "monitor" } }).success).toBe(false);
+});
+
+test("a monitor set's overlay monitor is Overlay for's once loaded, else the first", () => {
+	const p2 = { overlayFor: { kind: "monitor", id: "p2" } };
+	// The set's monitors aren't known before it loads.
+	expect(overlayMonitor(p2)).toBeNull();
+	expect(overlayMonitor(p2, MONITORS)).toBe("p2");
+	expect(overlayMonitor({ overlayFor: { kind: "monitor", id: "gone" } }, MONITORS)).toBe("p1");
+	expect(overlayMonitor({ overlayFor: FRESNO }, MONITORS)).toBe("p1");
+	expect(overlayMonitor(undefined, [])).toBeNull();
+});
+
+test("a monitor set's overlays are fetched for one monitor; others are unchanged", () => {
+	const base = [overlayInput(SET, { dataset: "forecasts", entryType: "burn-status" }), null];
+	const options = { overlayFor: { kind: "monitor", id: "p3" } };
+	expect(overlayInputsFor(SET, base, options)).toEqual([null, null]);
+	const [forP3, misfit] = overlayInputsFor(SET, base, options, MONITORS);
+	expect(forP3?.layer).toEqual({
+		dataset: "forecasts",
+		entryType: "burn-status",
+		monitors: ["p3"]
+	});
+	expect(misfit).toBeNull();
+	// Areas, and searched monitors alone, keep one overlay per line.
+	const area = [overlayInput(MAIN, { dataset: "forecasts", entryType: "burn-status" })];
+	expect(overlayInputsFor(MAIN, area, options, places)).toBe(area);
+	const searched = { ...MAIN, layer: { ...MAIN.layer, monitors: ["p1", "p2"] } };
+	expect(overlayInputsFor(searched, area, options, MONITORS)).toBe(area);
+});
+
+test("an overlay of the main's own keys pairs by key, any other by index", () => {
+	expect(pairsByKey(MONITORS, [MONITORS[1]])).toBe(true);
+	expect(pairsByKey(places, [{ place: "region:city:clovis", name: "Clovis" }])).toBe(false);
+	expect(pairsByKey(MONITORS, [])).toBe(false);
+});
+
+test("Overlay for finds a saved monitor among a monitor set's lines, and saves one", () => {
+	expect(overlayPlaceFor({ overlayFor: { kind: "monitor", id: "p3" } }, MONITORS, picks)).toBe(
+		"monitor:p3"
+	);
+	expect(overlayRefOf(MONITORS[1], 1, picks)).toEqual({ kind: "monitor", id: "p2" });
+	expect(overlayRefOf(places[1], 1, picks)).toEqual(KERN);
 });

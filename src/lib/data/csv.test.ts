@@ -391,6 +391,19 @@ describe("toCsv overlay rows", () => {
 		expect(mine.map((r) => get(r, "place_name"))).toEqual(["A", "B"]);
 	});
 
+	it("a monitor set's overlay, for one of its monitors, is that monitor's rows", () => {
+		const forB = {
+			...overlay,
+			data: data({
+				series: [{ place: "monitor:b", points: [burnPoint("2026-11-01T07:00:00Z", "burn-day")] }],
+				places: [{ place: "monitor:b", name: "B" }]
+			})
+		};
+		const rows = parse(toCsv(main, META, "owner", [forB])).slice(1);
+		const mine = rows.filter((r) => get(r, "entry_type") === "burn-status");
+		expect(mine.map((r) => get(r, "place_name"))).toEqual(["B"]);
+	});
+
 	it("a point's overlay rows are named as its region for a shared viewer", () => {
 		const zip = {
 			place: "region:zipcode:93721",
@@ -493,6 +506,54 @@ describe("downloadDataCsv", () => {
 		expect(types).toContain("burn-status");
 		expect(types.indexOf("pm25")).toBeLessThan(types.indexOf("burn-status"));
 		expect(saved[0]).not.toContain("NaN");
+	});
+
+	it("a monitor set's overlay is asked for one monitor: Overlay for's, once the set loads", async () => {
+		const asked: unknown[] = [];
+		const forecasts: DatasetAdapter = {
+			id: "forecasts",
+			// The layer as asked for: its monitors are the Overlay for monitor alone.
+			async target(layer) {
+				asked.push(layer.monitors);
+				return { kind: "monitors", ids: [...(layer.monitors ?? [])] };
+			},
+			offered: (b) => b,
+			fetch: async () => ({
+				series: [],
+				places: [],
+				resolution: "day",
+				fromRaw: false,
+				processor: null,
+				fetchedAt: Date.now()
+			})
+		};
+		fake.metadata = fixtureMetadata({
+			catalog: async () => catalog,
+			datasetLevels: async (dataset) => (dataset === "forecasts" ? BURN : [])
+		});
+		fake.client = createQueryClient({
+			adapters: [fakeAdapter([]), forecasts],
+			metadata: fake.metadata,
+			regions: { resolve: async () => "unsupported" }
+		});
+		const set = structuredClone({
+			...config,
+			place: { kind: "region", type: "county", code: "06019" },
+			layers: [
+				{ dataset: "air-quality", entryType: "pm25", monitorTypes: ["purpleair"] },
+				config.layers[1]
+			]
+		}) as never;
+		const saved: string[] = [];
+		await downloadDataCsv(set, (_n, c) => void saved.push(c), "owner", "chart", {
+			overlayFor: { kind: "monitor", id: "purpleair-2" }
+		});
+		expect(asked).toEqual([["purpleair-2"]]);
+		// Every monitor of the set has its rows.
+		const ids = parse(saved[0])
+			.slice(1)
+			.map((r) => r[CSV_COLUMNS.indexOf("place_id")]);
+		expect(new Set(ids)).toEqual(new Set(["purpleair-1", "purpleair-2", "purpleair-3"]));
 	});
 
 	it("reports a failed overlay and names it in skipped", async () => {

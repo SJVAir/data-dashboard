@@ -10,6 +10,7 @@ import { mapMessages } from "../host/messages";
 import { monitorIds } from "../sources";
 import { filterMonitors, placeMonitors } from "../toolbar/values";
 import { singleMonitor } from "../../shared/input";
+import { monitorMain } from "../../shared/overlays";
 import { AHEAD } from "./day-layer.svelte";
 import type { MapDataInput } from "./loaded.svelte";
 import {
@@ -216,9 +217,18 @@ export class MonitorsBlock {
 	});
 	/** One source for the monitors plugin, reading the query's current state. */
 	readonly monitorsSource: DataSource<MonitorFeatureProperties>;
+	/**
+	 * The air-quality layer asks for monitors: a pollutant with ticked types or searched monitors.
+	 * With none (or no pollutant) nothing is loaded, and the other layers draw at once.
+	 */
+	readonly #asks = $derived.by(() => {
+		const { layer, entryType } = this.#getInput();
+		return !!entryType && !!layer && monitorMain(layer);
+	});
 	/** Loading the monitors for the first time (the skeleton shows over the map). */
 	readonly monitorsLoading = $derived(
 		this.#loads &&
+			this.#asks &&
 			!this.#monitorsUnavailable &&
 			this.monitorsData === undefined &&
 			this.monitorsState.status !== "error"

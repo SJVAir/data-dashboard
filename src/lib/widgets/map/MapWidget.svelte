@@ -21,13 +21,13 @@
 	import type { QueryState, UnavailableReason } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { formatNumber, pacificDay, parseDateKey } from "$lib/format";
-	import { HMS_FIRE, HMS_SMOKE } from "$lib/get-data/map";
+	import { HMS_FIRE, HMS_SMOKE, hasNotices, hasSmokeAndFire } from "$lib/get-data/map";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
 	import {
 		entryMeta,
-		hasPlaces,
 		mainLayer,
+		wherePurpose,
 		widgetEffective,
 		widgetPlaceKind
 	} from "../shared/input";
@@ -165,8 +165,9 @@
 		get onDay() {
 			return days.onDay;
 		},
+		// No fill row without a pollutant to fill by (a note says so).
 		get fillLabel() {
-			return fillInfo?.plural;
+			return hasPollutant ? fillInfo?.plural : undefined;
 		},
 		get notices() {
 			return data.notices;
@@ -270,17 +271,41 @@
 			units: entryInfo?.units
 		})
 	);
-	const idle = $derived(
-		!layer || !hasPlaces(widget.data) || widget.data.place?.kind === "default-place"
+	/**
+	 * The Map has a pollutant to draw (an air-quality layer with an entry type: None keeps the
+	 * layer's types and monitors with none). A pollutant is optional (spec decision 6).
+	 */
+	const hasPollutant = $derived(!!pollutantLayer(widget.data, known)?.entryType);
+	/**
+	 * The Map has something to draw: a pollutant, smoke and fire, spray notices, pesticide use or
+	 * a region fill. With none, it says what to add.
+	 */
+	const drawsAnything = $derived(
+		hasPollutant ||
+			hasSmokeAndFire(widget.data) ||
+			hasNotices(widget.data) ||
+			!!useLayer ||
+			!!savedFill
 	);
+	/**
+	 * No map is made: nothing to draw, or only the starter's unresolved place. No Where is
+	 * everywhere (spec decision 1), never idle.
+	 */
+	const idle = $derived(!drawsAnything || widget.data.place?.kind === "default-place");
 	/**
 	 * Whether the map can show a pollutant of the tile: none the server's map offers is never drawn.
 	 */
 	const support = $derived.by<"loading" | "ok" | "pollutants-failed" | UnavailableReason>(() => {
 		if (catalog === "unavailable") return "catalog-unavailable";
-		if (catalog === undefined || pollutants === undefined) return "loading";
-		if (pollutants === "unavailable") return "pollutants-failed";
-		if (!entryType || !entryLabel || !pollutants.includes(entryType)) return "unknown-entry-type";
+		if (catalog === undefined) return "loading";
+		// With no pollutant the server's map pollutants don't matter: the other layers draw.
+		if (hasPollutant) {
+			if (pollutants === undefined) return "loading";
+			if (pollutants === "unavailable") return "pollutants-failed";
+			if (!entryType || !entryLabel || !pollutants.includes(entryType)) {
+				return "unknown-entry-type";
+			}
+		}
 		// A stored level outside the Map's (hour or raw, from untrusted input) draws nothing.
 		if (effective?.unusable) return "no-resolution";
 		return "ok";
@@ -289,8 +314,10 @@
 	/** Whether the tile loads its data: a map is (or will be) drawn, with now or a day to show. */
 	const loads = $derived(!!config && supported && !idle && days.at !== null);
 
+	// The Where frames the map whatever it draws: with no pollutant, a point's region is looked
+	// up as a new widget's (PM2.5, `wherePurpose`). Nothing is framed while idle.
 	const frame = new MapFrame(
-		() => layer,
+		() => (idle ? undefined : (layer ?? wherePurpose(widget.data, known))),
 		() => widget.data
 	);
 	onDestroy(() => frame.destroy());
@@ -540,8 +567,13 @@
 	const useGone = $derived(useDrawn && data.useUnavailable === "filter-gone");
 	const useSectionsFailed = $derived(useDrawn && data.useBlock.sectionsFailed);
 
-	/** The fill is on the map: the tile has one the metadata lists, and its row hasn't hidden it. */
-	const fillDrawn = $derived(!!fillInfo && wiring.fillShown);
+	/**
+	 * The fill is on the map: the tile has one the metadata lists, a pollutant colours it (the
+	 * regions' figure is the pollutant's), and its row hasn't hidden it.
+	 */
+	const fillDrawn = $derived(!!fillInfo && hasPollutant && wiring.fillShown);
+	/** A fill is chosen but no pollutant colours it: said, never an uncoloured layer. */
+	const fillNeedsPollutant = $derived(!!savedFill && !hasPollutant);
 	/**
 	 * The fill's layer label: on now it says the figure is today's so far, and on the current month
 	 * or year that it's the period's so far.
@@ -879,6 +911,13 @@
 				action: { label: m.widget_state_retry(), onclick: () => data.retryHms() }
 			});
 		}
+		if (fillNeedsPollutant) {
+			notes.push({
+				message: m.map_fill_needs_pollutant(),
+				hook: "map-fill-needs-pollutant",
+				...(markable && { action: { label: m.widget_edit_data(), onclick: editData } })
+			});
+		}
 		if (fillFailed) {
 			notes.push({
 				message: m.map_fill_failed(),
@@ -1096,11 +1135,14 @@
 			{m.map_unavailable_no_key()}
 		</p>
 	{:else if instead}
+		<!-- With nothing to draw it says what to add (never "Choose a place": a Where alone draws
+			nothing); only the starter's unresolved place asks for a place. -->
 		<WidgetState
 			state={instead}
 			{widget}
 			onretry={retry}
-			onchoose={() => openPlacePicker({ widgetId: widget.id })}
+			onchoose={drawsAnything ? () => openPlacePicker({ widgetId: widget.id }) : undefined}
+			idleText={drawsAnything ? undefined : m.map_empty_add_layers()}
 			children={nothing}
 		/>
 	{:else if map}

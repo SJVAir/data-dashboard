@@ -48,6 +48,7 @@
 		lineRefs,
 		MAX_OVERLAYS,
 		overlayPlaceFor,
+		overlayRefOf,
 		sharedSource
 	} from "$lib/widgets/shared/overlays";
 	import * as layers from "./layers";
@@ -446,16 +447,24 @@
 	});
 	const data = new DataWidget(() => namesWidget);
 
-	/** "Overlay for": a Chart choice, only when the places' overlays differ (different zones). */
+	/** The draft has ticked monitor types: its lines are a monitor set's monitors. */
+	const setLines = $derived(widgetMonitors(plain.data).types.length > 0);
+	/**
+	 * "Overlay for": a Chart choice, listing its lines (areas or monitors). With ticked types,
+	 * whenever the set has two or more monitors (its overlay is fetched for the one chosen, spec
+	 * decision 37); otherwise only when the lines' overlays differ (different zones).
+	 */
 	const overlayFor = $derived.by(() => {
-		if (plain.type !== CHART_TYPE || lines.length < 2) return null;
+		if (plain.type !== CHART_TYPE || data.overlays.length === 0) return null;
+		if (!setLines && lines.length < 2) return null;
 		const shown = data.shown;
 		if (shown.status !== "ready") return null;
-		const differ = data.overlays.some(
-			(o) => o.state.status === "ready" && !sharedSource(o.state.data.series)
-		);
-		if (!differ) return null;
 		const places = shown.data.places;
+		if (places.length < 2) return null;
+		const differ =
+			setLines ||
+			data.overlays.some((o) => o.state.status === "ready" && !sharedSource(o.state.data.series));
+		if (!differ) return null;
 		const key = overlayPlaceFor(plain.options, places, lines);
 		return {
 			places,
@@ -857,7 +866,8 @@
 	}
 
 	function setOverlayFor(index: number): void {
-		const ref = lines[index];
+		const place = overlayFor?.places[index];
+		const ref = place ? overlayRefOf(place, index, lines) : null;
 		if (ref) draft.options = { ...draft.options, overlayFor: ref };
 	}
 
@@ -867,7 +877,8 @@
 			plain.data,
 			(name, contents, mime) => app.platform.files.save(name, contents, mime),
 			"owner",
-			plain.type
+			plain.type,
+			plain.options
 		);
 	}
 </script>

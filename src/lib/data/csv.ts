@@ -17,7 +17,7 @@ import { placeLabel } from "$lib/widgets/title";
 import { calendarInput } from "$lib/calendars/input";
 import { isCalendarType } from "$lib/calendars/types";
 import { entryMeta, widgetInputs, widgetPlaceKind } from "$lib/widgets/shared/input";
-import { overlayLayers } from "$lib/widgets/shared/overlays";
+import { overlayInputsFor, overlayLayers, pairsByKey } from "$lib/widgets/shared/overlays";
 import { getMetadata, getQueryClient } from "./index";
 import type { Subscription } from "./query/client";
 import {
@@ -182,8 +182,9 @@ function dataRows(
  * places in request order, oldest first. Numbers are plain (`.` decimal, no grouping) and a
  * missing value (or NaN) is empty. A raw reading's period ends where it starts. Each overlay's
  * rows follow the main rows, in the same long format with its own entry type; an overlay's
- * places pair with the main's by request index (a point's region can differ by dataset) and
- * carry the main place's columns. Every overlay is at the main's resolution (the dataset rules),
+ * places pair with the main's by request index (a point's region can differ by dataset), or by
+ * key for a monitor set's (fetched for one of its monitors: `pairsByKey`), and carry the main
+ * place's columns. Every overlay is at the main's resolution (the dataset rules),
  * and each row still carries its own `period_start`/`period_end` and `resolution`. A weather
  * overlay's rows carry the station (`source_id`, `source_name`) and a pesticide overlay's the
  * active filters (`filters`, joined with "; ").
@@ -204,9 +205,10 @@ export function toCsv(
 		...dataRows(data, meta, [], (s) => own.get(s.place), viewer)
 	];
 	for (const o of overlays) {
-		lines.push(
-			...dataRows(o.data, o.meta, o.levels, (s, i) => data.places[i] ?? o.data.places[i], viewer)
-		);
+		const byKey = pairsByKey(data.places, o.data.places);
+		const placeAt = (s: QueryData["series"][number], i: number) =>
+			byKey ? own.get(s.place) : (data.places[i] ?? o.data.places[i]);
+		lines.push(...dataRows(o.data, o.meta, o.levels, placeAt, viewer));
 	}
 	return `${lines.join("\r\n")}\r\n`;
 }
@@ -281,14 +283,16 @@ export type CsvResult = { skipped: string[] };
  * Runs the data config's query once (no polling), with every place of its selection (not only
  * the ones it has room to show), plus each overlay's, then saves it as CSV through the
  * platform. The file name's dates are the range as of when the data was fetched. A failed or
- * unavailable overlay is left out (named in `skipped`); the main rows still export. Throws if
- * there is nothing to download or the main data can't be loaded.
+ * unavailable overlay is left out (named in `skipped`); the main rows still export. A monitor
+ * set's overlays are for one monitor (`options`' "Overlay for", else the first: as the Chart
+ * draws). Throws if there is nothing to download or the main data can't be loaded.
  */
 export async function downloadDataCsv(
 	config: WidgetDataConfig,
 	save: FileAccess["save"],
 	viewer: PlaceViewer = "owner",
-	type?: string
+	type?: string,
+	options?: unknown
 ): Promise<CsvResult> {
 	const catalog = await getMetadata().catalog();
 	if (catalog === "unavailable") throw new Error("The catalog is unavailable");
@@ -324,8 +328,10 @@ export async function downloadDataCsv(
 	};
 	const { data } = state;
 	const layers = overlayLayers(config, catalog);
+	// A monitor set's overlays are for one of its monitors, known now that it has loaded.
+	const overlayInputs = overlayInputsFor(input, chart.overlays, options, data.places);
 	const loaded = await Promise.all(
-		layers.map((l, i) => loadOverlay(chart.overlays[i] ?? null, l, catalog))
+		layers.map((l, i) => loadOverlay(overlayInputs[i] ?? null, l, catalog))
 	);
 	const overlays = loaded.filter((o): o is OverlayCsv => o !== null);
 	const skipped = layers.flatMap((l, i) =>
@@ -355,7 +361,7 @@ export function downloadWidgetCsv(
 	save: FileAccess["save"],
 	viewer: PlaceViewer = "owner"
 ): Promise<CsvResult> {
-	return downloadDataCsv(widget.data, save, viewer, widget.type);
+	return downloadDataCsv(widget.data, save, viewer, widget.type, widget.options);
 }
 
 /** Downloads in progress, by key (a widget id, or `"get-data"` for the draft). */
@@ -376,11 +382,12 @@ export function saveDataCsv(
 	data: WidgetDataConfig,
 	save: FileAccess["save"],
 	viewer: PlaceViewer = "owner",
-	type?: string
+	type?: string,
+	options?: unknown
 ): Promise<void> {
 	const running = pending.get(key);
 	if (running) return running;
-	const job = downloadDataCsv(data, save, viewer, type);
+	const job = downloadDataCsv(data, save, viewer, type, options);
 	toast.promise(job, {
 		loading: m.widget_download_csv_pending(),
 		error: (error: unknown) => {
@@ -408,5 +415,5 @@ export function saveWidgetCsv(
 	save: FileAccess["save"],
 	viewer: PlaceViewer = "owner"
 ): Promise<void> {
-	return saveDataCsv(widget.id, widget.data, save, viewer, widget.type);
+	return saveDataCsv(widget.id, widget.data, save, viewer, widget.type, widget.options);
 }

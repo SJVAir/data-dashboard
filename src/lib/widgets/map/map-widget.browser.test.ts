@@ -37,7 +37,6 @@ import { createNowClient, type NowClient } from "$lib/data/now/client";
 import type { QueryClient } from "$lib/data/query/client";
 import type { PlaceInfo, QueryInput, QueryLayer } from "$lib/data/types";
 import { FIXTURE_CATALOG, fixtureMetadata } from "$lib/data/testing/fixtures";
-import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { resetPesticideMeta } from "$lib/data/pesticide-meta";
 import { formatNumber, pacificDay, todayPacific } from "$lib/format";
@@ -533,25 +532,38 @@ async function madeMap(): Promise<FakeMap> {
 
 const region = (code: string) => ({ place: { kind: "region" as const, type: "county", code } });
 
-test("idle shows Choose a place and opens the picker", async () => {
-	// No Where and nothing ticked or searched: nothing to draw.
-	const widget = mapWidget({ monitorTypes: [] });
-	const screen = await show(widget);
-	const button = screen.getByRole("button", { name: m.widget_state_choose_place() });
-	await expect.element(button).toBeVisible();
-	await button.click();
-	expect(openPlacePicker).toHaveBeenCalledWith({ widgetId: widget.id });
-});
+/** A Map whose air-quality layer has no pollutant (None keeps its ticks), plus `more` layers. */
+function noPollutant(at: LayerAt, more: Layer[] = []): WidgetInstance {
+	const widget = mapWidget(at);
+	delete widget.data.layers[0].entryType;
+	widget.data.layers.push(...more);
+	return widget;
+}
 
-test("a Map with no layers (None and nothing else) shows its empty state, loading nothing", async () => {
+test("a Map with nothing to draw says what to add, and loads nothing", async () => {
+	// None and nothing else, with a Where and without: never "Choose a place".
+	for (const at of [region("019"), {}]) {
+		fakeMaps.reset();
+		const screen = await show(noPollutant(at));
+		await expect.element(screen.getByText(m.map_empty_add_layers())).toBeVisible();
+		expect(screen.getByRole("button", { name: m.widget_state_choose_place() }).query()).toBeNull();
+		await screen.unmount();
+	}
 	const widget = mapWidget(region("019"));
 	widget.data.layers = [];
 	const screen = await show(widget);
-	await expect
-		.element(screen.getByRole("button", { name: m.widget_state_choose_place() }))
-		.toBeVisible();
+	await expect.element(screen.getByText(m.map_empty_add_layers())).toBeVisible();
+	await new Promise((r) => setTimeout(r, 100));
 	expect(fakeMaps.made).toHaveLength(0);
 	expect(getMonitors).not.toHaveBeenCalled();
+	expect(nowClient.entries()).toEqual([]);
+});
+
+test("the starter's unresolved place asks for a place, making no map", async () => {
+	const screen = await show(mapWidget({ place: { kind: "default-place" } }));
+	await expect.element(screen.getByText(m.widget_state_idle())).toBeVisible();
+	expect(screen.getByText(m.map_empty_add_layers()).query()).toBeNull();
+	expect(fakeMaps.made).toHaveLength(0);
 });
 
 test("a Map with a place but no monitor types or monitors says why it draws none", async () => {
@@ -560,15 +572,115 @@ test("a Map with a place but no monitor types or monitors says why it draws none
 	expect(getMonitors).not.toHaveBeenCalled();
 });
 
-test("an idle map creates no map and loads nothing", async () => {
-	const screen = await show(mapWidget({ monitorTypes: [] }));
-	await expect
-		.element(screen.getByRole("button", { name: m.widget_state_choose_place() }))
-		.toBeVisible();
-	await new Promise((r) => setTimeout(r, 100));
-	expect(fakeMaps.made).toHaveLength(0);
+test("map: no types and no monitors draws no monitor points; the fill still draws", async () => {
+	rated();
+	zipFill();
+	await show({
+		...mapWidget({ ...region("019"), monitorTypes: [] }),
+		options: { fill: "zipcode" }
+	});
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => fillValues(map)?.["region:zipcode:93721"]).toBe(5);
+	expect(drawn(map) ?? []).toEqual([]);
 	expect(getMonitors).not.toHaveBeenCalled();
-	expect(nowClient.entries()).toEqual([]);
+	// Nothing is loading: no skeleton over the fill.
+	await expect.poll(() => frame.querySelector(".bg-card.absolute.inset-0")).toBeNull();
+});
+
+test("map: a new Map's every type ticked draws every monitor in Where", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([
+		reading("p1"),
+		{ ...reading("n1"), type: "airnow" },
+		{ ...reading("b1"), type: "bam1022" }
+	] as never);
+	await show(mapWidget(region("019")));
+	const map = await madeMap();
+	await expect.poll(() => drawn(map)).toEqual(["p1", "n1", "b1"]);
+	expect(getMonitors).toHaveBeenCalledWith(
+		"pm25",
+		{ timestamp: expect.any(Date), region: ["r019"] },
+		expect.anything()
+	);
+});
+
+test("with no Where, the ticked types draw every monitor of them, everywhere", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([
+		reading("p1"),
+		{ ...reading("n1"), type: "airnow" }
+	] as never);
+	await show(mapWidget({ monitorTypes: ["purpleair"] }));
+	const map = await madeMap();
+	await expect.poll(() => drawn(map)).toEqual(["p1"]);
+	expect(getMonitors).toHaveBeenCalledWith("pm25", undefined, expect.anything());
+});
+
+test("the toolbar's monitor types are only those the Map asked for", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([
+		reading("p1"),
+		{ ...reading("n1"), type: "airnow" },
+		{ ...reading("b1"), type: "bam1022" }
+	] as never);
+	const screen = await showLive(
+		mapWidget({ ...region("019"), monitorTypes: ["purpleair", "airnow"] }),
+		editing()
+	);
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => drawn(map)).toEqual(["p1", "n1"]);
+	await expect.element(screen.getByRole("checkbox", { name: "purpleair" })).toBeVisible();
+	await expect.element(screen.getByRole("checkbox", { name: "airnow" })).toBeVisible();
+	expect(screen.getByRole("checkbox", { name: "bam1022" }).query()).toBeNull();
+});
+
+test("no pollutant: smoke and fire draw alone", async () => {
+	vi.mocked(getHMSSmoke).mockResolvedValue([
+		{ id: "s1", density: "heavy", geometry: { type: "Polygon", coordinates: [] } }
+	] as never);
+	await show(noPollutant(region("019"), [{ dataset: "hms-smoke" }, { dataset: "hms-fire" }]));
+	const map = await madeMap();
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "hms-smoke", "hms-fire"]);
+	type Src = { features: { features: unknown[] } | null };
+	const smoke = map.plugins.find((p) => p.id === "hms-smoke")!.options;
+	await expect.poll(() => (smoke.source as Src).features?.features).toHaveLength(1);
+	expect(getMonitors).not.toHaveBeenCalled();
+	// The Where still frames the map.
+	await expect.poll(() => focusOf(map)?.geometry).toBeTruthy();
+});
+
+test("no pollutant: spray notices draw alone", async () => {
+	vi.mocked(getActivePesticideNotices).mockResolvedValue(
+		noticeCollection([sprayNotice("n1", "MDM-14S-21E-05")]) as never
+	);
+	await show(noPollutant(region("019"), [{ dataset: "pesticide-notices" }]));
+	const map = await madeMap();
+	await expect.poll(() => pluginIds(map)).toContain("notices");
+	await expect.poll(() => noticesOf(map)?.options.source.features?.features.length).toBe(1);
+	expect(pluginIds(map)).not.toContain("monitors");
+	expect(getMonitors).not.toHaveBeenCalled();
+});
+
+test("no pollutant: a fill alone makes the map, unfilled, and says why", async () => {
+	zipFill();
+	const screen = await show({ ...noPollutant(region("019")), options: { fill: "zipcode" } });
+	const map = await madeMap();
+	await expect.element(screen.getByText(m.map_fill_needs_pollutant())).toBeVisible();
+	expect(pluginIds(map)).not.toContain("fill");
+	expect(pluginIds(map)).not.toContain("monitors");
+	expect(getRegionSummariesBulkDailyOpen).not.toHaveBeenCalled();
+	// The Where still frames the map.
+	await expect.poll(() => focusOf(map)?.geometry).toBeTruthy();
+});
+
+test("no pollutant: pesticide use draws alone", async () => {
+	const widget = useMap();
+	delete widget.data.layers[0].entryType;
+	await show(widget);
+	const map = await madeMap();
+	await expect.poll(() => pluginIds(map)).toContain("townships");
+	await expect.poll(() => useAsked()).toEqual(["2023"]);
+	expect(pluginIds(map)).not.toContain("monitors");
+	expect(getMonitors).not.toHaveBeenCalled();
 });
 
 /** What a map's focus area shows now. */

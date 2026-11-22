@@ -387,8 +387,8 @@ export function toMapDraft(
 
 /**
  * A Map draft cut to its pollutant (no layers with none), at its Where, over its range (if it has
- * one), with no options. `dropped` says when other layers (smoke and fire, notices, use) were left out (`"overlays"`), when marks were (`"marks"`) and when a
- * region fill was (`"fill"`).
+ * one), with no options. `dropped` says when other layers (smoke and fire, notices, use) were left
+ * out (`"overlays"`), when marks were (`"marks"`) and when a region fill was (`"fill"`).
  */
 export function mapShowingOnly(
 	draft: Draft,

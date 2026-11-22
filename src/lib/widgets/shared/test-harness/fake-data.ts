@@ -7,13 +7,26 @@ import type { Rect, WidgetInstance } from "$lib/documents/schema";
 
 const DAY = 86_400_000;
 
+/** How many monitors of each ticked type a fake monitor set holds. */
+export const FAKE_SET_SIZE = 3;
+
 /**
  * The places a fake fetch answers for: each searched monitor (`monitor:<id>`, "Monitor <id>"),
+ * a monitor set's `FAKE_SET_SIZE` monitors per ticked type (`<type>-<n>`) then its searched ones,
  * or each region key (`region:<key>`, "Region <key>").
  */
 function fakePlaces(target: AdapterRequest["target"]): { place: string; name: string }[] {
-	if (target.kind === "monitors") {
-		return target.ids.map((id) => ({ place: `monitor:${id}`, name: `Monitor ${id}` }));
+	if (target.kind === "monitors" || target.kind === "monitor-set") {
+		const ticked =
+			target.kind === "monitor-set"
+				? target.types.flatMap((type) =>
+						Array.from({ length: FAKE_SET_SIZE }, (_, i) => `${type}-${i + 1}`)
+					)
+				: [];
+		return [...ticked, ...target.ids].map((id) => ({
+			place: `monitor:${id}`,
+			name: `Monitor ${id}`
+		}));
 	}
 	if (target.kind === "regions") {
 		return target.keys.map((key) => ({ place: `region:${key}`, name: `Region ${key}` }));
@@ -21,8 +34,24 @@ function fakePlaces(target: AdapterRequest["target"]): { place: string; name: st
 	return [];
 }
 
-/** A fake target: the searched monitors, else the Where's regions, else unavailable. */
+/**
+ * A fake target: ticked types (a monitor set over the Where's region keys), else the searched
+ * monitors, else the Where's regions, else unavailable.
+ */
 async function fakeTarget(layer: QueryLayer): Promise<Target | { unavailable: UnavailableReason }> {
+	if (layer.monitorTypes?.length) {
+		const regionKeys = layer.selection
+			? [...layer.selection.ids]
+			: layer.place?.kind === "region"
+				? [`${layer.place.type}:${layer.place.code}`]
+				: null;
+		return {
+			kind: "monitor-set",
+			ids: [...(layer.monitors ?? [])],
+			types: [...layer.monitorTypes],
+			regionKeys
+		};
+	}
 	if (layer.monitors?.length) return { kind: "monitors", ids: [...layer.monitors] };
 	if (layer.place?.kind === "region") {
 		return { kind: "regions", keys: [`${layer.place.type}:${layer.place.code}`] };

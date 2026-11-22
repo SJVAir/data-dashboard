@@ -525,6 +525,26 @@ test("Overlay for appears only when places are in different zones", async () => 
 	expect((await second.current()).options).toEqual({ overlayFor: { kind: "monitor", id: "m2" } });
 });
 
+test("Overlay for lists a monitor set's monitors; the overlay is fetched for the one chosen", async () => {
+	const draft = monitorsDraft([], {}, ["burn-status"]);
+	draft.data.layers[0] = { dataset: "air-quality", entryType: "pm25", monitorTypes: ["purpleair"] };
+	const { current } = await show(draft);
+	// Same zone or not, a set's monitors are listed: only the chosen one's overlay is fetched.
+	const choice = page.getByRole("combobox", { name: "Overlay for" });
+	await expect.element(choice).toBeVisible();
+	await expect
+		.poll(() => forecastRequests.at(-1)?.target)
+		.toEqual({ kind: "monitors", ids: ["t1"] });
+	await choice.selectOptions("Monitor t2");
+	expect((await current()).options).toEqual({ overlayFor: { kind: "monitor", id: "t2" } });
+	await expect
+		.poll(() => forecastRequests.at(-1)?.target)
+		.toEqual({ kind: "monitors", ids: ["t2"] });
+	expect(
+		forecastRequests.every((r) => r.target.kind === "monitors" && r.target.ids.length === 1)
+	).toBe(true);
+});
+
 describe("Show as with many places", () => {
 	const ids = Array.from({ length: 40 }, (_, i) => `k${i + 1}`);
 	const selected = (d: Draft) => d.data.selection?.ids.map((id) => id.slice("county:".length));

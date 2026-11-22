@@ -11,7 +11,7 @@ import { DEFAULT_RANGE } from "../defaults";
 import { dataTitle } from "../title";
 import { setGeneratedTitle } from "../titles.svelte";
 import { entryMeta, widgetInputs, widgetPlaceKind, type WidgetInputs } from "./input";
-import { MAX_OVERLAYS, overlayLayers } from "./overlays";
+import { MAX_OVERLAYS, overlayInputsFor, overlayLayers } from "./overlays";
 import { PLACE_VIEWER_KEY, type PlaceViewer } from "./viewer";
 
 /** An overlay's levels: `undefined` until loaded, an error if they couldn't be. */
@@ -227,8 +227,16 @@ export class DataWidget {
 		});
 
 		const layers = $derived(overlayLayers(widget().data, this.catalog));
-		// Every overlay is fetched at the dataset's resolution alongside the main, not after it.
-		const inputs = $derived(this.picked.overlays);
+		/** The main's loaded places (kept while it reloads), which a monitor set's overlays need. */
+		const mainPlaces = $derived.by(() => {
+			const s = query.state;
+			return "data" in s ? s.data?.places : undefined;
+		});
+		// Every overlay is fetched at the dataset's resolution alongside the main, not after it;
+		// a monitor set's for one of its monitors (`overlayInputsFor`), once that is known.
+		const inputs = $derived(
+			overlayInputsFor(this.picked.input, this.picked.overlays, widget().options, mainPlaces)
+		);
 		const client = getQueryClient();
 		for (let i = 0; i < MAX_OVERLAYS; i++) {
 			const q = new LiveQuery(

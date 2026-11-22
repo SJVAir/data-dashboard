@@ -20,6 +20,7 @@ import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 import { generatedTitle } from "../titles.svelte";
 import ChartWidget from "./ChartWidget.svelte";
 import {
+	FAKE_SET_SIZE,
 	FORECASTS_ENTRY,
 	chartWidget,
 	fakeAdapter,
@@ -131,6 +132,39 @@ test("seven areas draw seven series, each named in the key, with no cut", async 
 	expect(samples[5].style.color).toBe(samples[0].style.color);
 	expect(samples[5].dataset.dash).not.toBe(samples[0].dataset.dash);
 	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 · 7 places · Last 30 days");
+});
+
+/** A Chart of PM2.5 in Fresno County with `types` ticked (none: the county's own line). */
+function fresnoChart(types: string[]): WidgetInstance {
+	const widget = chartWidget([]);
+	widget.data.place = { kind: "region", type: "county", code: "06019" };
+	widget.data.layers = [
+		{ dataset: "air-quality", entryType: "pm25", ...(types.length && { monitorTypes: types }) }
+	];
+	return widget;
+}
+
+test("chart: Fresno County with PurpleAir ticked draws one line per PurpleAir in it", async () => {
+	const screen = await show(fresnoChart(["purpleair"]));
+	const key = screen.getByRole("list", { name: m.chart_series_key() });
+	await expect.poll(() => key.getByRole("listitem").elements().length).toBe(FAKE_SET_SIZE);
+	for (let i = 1; i <= FAKE_SET_SIZE; i++) {
+		await expect.element(key.getByText(`Monitor purpleair-${i}`)).toBeVisible();
+	}
+	expect(requests.at(-1)!.target).toEqual({
+		kind: "monitor-set",
+		ids: [],
+		types: ["purpleair"],
+		regionKeys: ["county:06019"]
+	});
+});
+
+test("chart: Fresno County with nothing ticked draws the county's line", async () => {
+	const screen = await show(fresnoChart([]));
+	await expect
+		.element(screen.getByRole("group", { name: "Chart of Region county:06019" }))
+		.toBeVisible();
+	expect(requests.at(-1)!.target).toEqual({ kind: "regions", keys: ["county:06019"] });
 });
 
 test("searched monitors are never cut: all seven are asked for", async () => {
@@ -381,6 +415,40 @@ test("places with different overlays follow the saved place", async () => {
 	const screen = await show(widget);
 	await expect
 		.element(screen.getByRole("list", { name: "Burn status in Monitor m2" }))
+		.toBeVisible();
+});
+
+test("a monitor set's overlay is fetched for its Overlay for monitor alone", async () => {
+	fake.metadata = fixtureMetadata({ catalog: async () => [...FIXTURE_CATALOG, FORECASTS_ENTRY] });
+	fake.client = createQueryClient({
+		adapters: [fakeAdapter(requests), fakeForecastsAdapter(requests)],
+		metadata: fake.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const widget = fresnoChart(["purpleair"]);
+	widget.options = { overlayFor: { kind: "monitor", id: "purpleair-2" } };
+	widget.data.layers.push({ dataset: "forecasts", entryType: "burn-status" });
+	const screen = await show(widget);
+	await expect
+		.element(screen.getByRole("list", { name: "Burn status in Monitor purpleair-2" }))
+		.toBeVisible();
+	// One monitor's overlay, asked for once the set's monitors are known; never one per monitor.
+	const overlays = requests.filter((r) => r.entryType === "burn-status");
+	expect(overlays.map((r) => r.target)).toEqual([{ kind: "monitors", ids: ["purpleair-2"] }]);
+});
+
+test("a monitor set's overlay with no Overlay for is the first monitor's", async () => {
+	fake.metadata = fixtureMetadata({ catalog: async () => [...FIXTURE_CATALOG, FORECASTS_ENTRY] });
+	fake.client = createQueryClient({
+		adapters: [fakeAdapter(requests), fakeForecastsAdapter(requests)],
+		metadata: fake.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const widget = fresnoChart(["purpleair"]);
+	widget.data.layers.push({ dataset: "forecasts", entryType: "burn-status" });
+	const screen = await show(widget);
+	await expect
+		.element(screen.getByRole("list", { name: "Burn status in Monitor purpleair-1" }))
 		.toBeVisible();
 });
 

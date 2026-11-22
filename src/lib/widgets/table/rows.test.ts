@@ -203,3 +203,32 @@ test("a daily table shows no monthly value repeated down its days", () => {
 	const rows = wideRows(main, [{ data: use, levels: [], kind: "number", aggregate: "sum" }]);
 	expect(rows.map((r) => r.overlays[0])).toEqual([null, null]);
 });
+
+test("table: 12 monitors give 12 columns", () => {
+	const ids = Array.from({ length: 12 }, (_, i) => `purpleair-${i + 1}`);
+	const twelve: QueryData = {
+		...data,
+		series: ids.map((id, i) => ({ place: `monitor:${id}`, points: [pt(1, i)] })),
+		places: ids.map((id) => ({ place: `monitor:${id}`, name: `Monitor ${id}` }))
+	};
+	const rows = wideRows(twelve);
+	expect(rows).toHaveLength(1);
+	expect(rows[0].cells.map((c) => c?.mean)).toEqual(ids.map((_, i) => i));
+});
+
+test("a monitor set's overlay, for one of its monitors, pairs with that monitor's column", () => {
+	// Fetched for monitor b alone ("Overlay for"): never paired with a by request order.
+	const overlay: QueryData = {
+		...data,
+		series: [{ place: "monitor:b", points: [burn(2, "discouraged")] }],
+		places: [{ place: "monitor:b", name: "B" }]
+	};
+	const overlays: OverlayRows[] = [{ data: overlay, levels: BURN, kind: "level" }];
+	expect(overlayColumns(data, overlays).map((c) => [c.place.name, c.key])).toEqual([
+		["B", "monitor:b"]
+	]);
+	const rows = wideRows(data, overlays);
+	expect(
+		rows.find((r) => r.t === 2)!.overlays.map((l) => (l && "label" in l ? l.label : null))
+	).toEqual(["Burning Discouraged"]);
+});

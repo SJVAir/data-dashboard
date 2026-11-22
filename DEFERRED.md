@@ -1156,6 +1156,15 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   air-quality entry type offers nothing. Searched monitors alone still offer raw. **Revisit when**
   someone asks for raw across ticked types, or the server offers bulk raw entries.
 
+- **A generated title for a Map with no pollutant.** _Deferred 2026-11-22 (step 5 spec 7a, Task
+  8)._ A Map with None now draws its other layers (smoke and fire, spray notices, pesticide use),
+  but its generated title is built from the pollutant's label (`syncMapTitle`,
+  `widgets/map/map-title.svelte.ts`), so such a Map gets none, and its map has no accessible name
+  unless the person titles it. Naming it (which layer's label, with the Where) is copy the spec
+  doesn't settle. A region fill with no pollutant isn't drawn (its figure is the pollutant's): a
+  note says to choose one. **Revisit** in spec 7a's review or 7b, or when someone saves a
+  pollutant-less Map without a title.
+
 - **Comparing mixed kinds of place in one widget.** _Deferred 2026-11-04 (step 4 spec 2)._ A
   school, a monitor and a county side by side in one Chart: several places are one
   `SpatialSelection`, which is all monitors or all regions, so the picker greys out the other

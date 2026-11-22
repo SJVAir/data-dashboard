@@ -43,11 +43,77 @@ export function overlayInput(main: QueryInput, overlay: QueryLayer): QueryInput 
 
 /**
  * A Chart's own options (saved on the widget, not on a layer): `overlayFor` is one line's place
- * or searched monitor.
+ * (a Where area) or monitor (spec decision 37: one of the monitors the main draws, ticked or
+ * searched; not a Where place).
  */
 export const ChartOptionsSchema = z.object({
 	overlayFor: z.union([PlaceRefSchema, MonitorRefSchema]).optional()
 });
+
+/** The saved `overlayFor`, if the options parse. */
+function savedOverlayFor(options: unknown): z.infer<typeof ChartOptionsSchema>["overlayFor"] {
+	const parsed = ChartOptionsSchema.safeParse(options);
+	return parsed.success ? parsed.data.overlayFor : undefined;
+}
+
+/** Whether a main layer asks for monitors (ticked types or searched): its lines are monitors. */
+export function monitorMain(layer: Pick<QueryLayer, "monitors" | "monitorTypes">): boolean {
+	return (layer.monitors?.length ?? 0) > 0 || (layer.monitorTypes?.length ?? 0) > 0;
+}
+
+/** The monitor id of a series place key (`monitor:<id>`), or undefined for any other place. */
+function monitorOf(place: string): string | undefined {
+	return place.startsWith("monitor:") ? place.slice("monitor:".length) : undefined;
+}
+
+/** Whether a main layer has ticked monitor types: a monitor set, which may hold hundreds. */
+function monitorSet(layer: Pick<QueryLayer, "monitorTypes">): boolean {
+	return (layer.monitorTypes?.length ?? 0) > 0;
+}
+
+/**
+ * The monitor a monitor set's overlays are fetched for (spec decision 37): the saved
+ * `overlayFor` monitor when it's among the set's loaded monitors (`places`), else the first.
+ * `null` before the set has loaded, or with no monitors.
+ */
+export function overlayMonitor(options: unknown, places?: PlaceInfo[]): string | null {
+	const ids = (places ?? []).flatMap((p) => monitorOf(p.place) ?? []);
+	const saved = savedOverlayFor(options);
+	if (saved?.kind === "monitor" && ids.includes(saved.id)) return saved.id;
+	return ids[0] ?? null;
+}
+
+/**
+ * A widget's overlay inputs as fetched (`base`: `widgetInputs`' overlays at the main's places).
+ * A monitor set's (ticked types) are fetched for one of its monitors (`overlayMonitor`), never
+ * per monitor: a set can hold hundreds. `null` until the set has loaded. Areas and searched
+ * monitors keep theirs (one per line, as today: "Overlay for" picks among them).
+ */
+export function overlayInputsFor(
+	main: QueryInput | null,
+	base: (QueryInput | null)[],
+	options: unknown,
+	places?: PlaceInfo[]
+): (QueryInput | null)[] {
+	if (!main || !monitorSet(main.layer)) return base;
+	const id = overlayMonitor(options, places);
+	return base.map((input) => {
+		if (!input || !id) return null;
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars -- the monitor stands in
+		const { place, selection, monitors, ...own } = input.layer;
+		return { ...input, layer: { ...own, monitors: [id] } };
+	});
+}
+
+/**
+ * Whether an overlay's places pair with the main's by key (each is one of the main's: a monitor
+ * set's overlay, fetched for one of its monitors) rather than by request index (a point's region
+ * can differ by dataset).
+ */
+export function pairsByKey(main: PlaceInfo[], overlay: PlaceInfo[]): boolean {
+	const keys = new Set(main.map((p) => p.place));
+	return overlay.length > 0 && overlay.every((p) => keys.has(p.place));
+}
 
 /**
  * The refs of a Chart's lines, in order: its searched monitors when it has any (one line each),
@@ -61,14 +127,28 @@ export function lineRefs(where: Pick<QueryLayer, "place" | "selection" | "monito
 
 /**
  * The place whose overlay the Chart draws, as a `PlaceInfo.place` key of `places` (one per pick,
- * in pick order): the saved `overlayFor` when it's among `picks`, else the first place. Options
- * that don't parse are ignored. `""` when there are no places.
+ * in pick order; a monitor set's are its monitors): the saved `overlayFor` when it's among them,
+ * else the first place. Options that don't parse are ignored. `""` when there are no places.
  */
 export function overlayPlaceFor(options: unknown, places: PlaceInfo[], picks: Picks): string {
-	const parsed = ChartOptionsSchema.safeParse(options);
-	const saved = parsed.success ? parsed.data.overlayFor : undefined;
-	const at = saved ? picks.findIndex((p) => sameRef(p, saved)) : -1;
+	const saved = savedOverlayFor(options);
+	// A monitor is found by its series key: a monitor set's lines are its loaded monitors.
+	const at =
+		saved?.kind === "monitor"
+			? places.findIndex((p) => p.place === `monitor:${saved.id}`)
+			: saved
+				? picks.findIndex((p) => sameRef(p, saved))
+				: -1;
 	return (places[at] ?? places[0])?.place ?? "";
+}
+
+/**
+ * The ref "Overlay for" saves for the line `place` at `index`: a monitor by its id, else the
+ * pick at that index (a Where area).
+ */
+export function overlayRefOf(place: PlaceInfo, index: number, picks: Picks): Picks[number] | null {
+	const id = monitorOf(place.place);
+	return id ? { kind: "monitor", id } : (picks[index] ?? null);
 }
 
 /**
