@@ -22,6 +22,7 @@ import type { QueryData } from "$lib/data/types";
 import { formatDate, formatDateRange, todayPacific } from "$lib/format";
 import { resolveRange } from "$lib/format/range";
 import { m } from "$lib/paraglide/messages.js";
+import { setPlatform } from "$lib/platform";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
@@ -1586,6 +1587,16 @@ describe("now widgets", () => {
 		},
 		...(thresholds ? { thresholds } : {})
 	});
+	/** An ozone scale with keys of its own (tier 2 is "usg-o3"). */
+	const ozoneScale = async (): Promise<Level[]> => {
+		const pm25 = await fixtureMetadata().levels("pm25");
+		const level = (key: string) => pm25.find((l) => l.key === key)!;
+		return [
+			level("good"),
+			{ ...level("unhealthy-sensitive"), key: "usg-o3" },
+			{ ...level("unhealthy"), key: "unhealthy-o3" }
+		];
+	};
 
 	test("Show as Current conditions: no When, one place, the pollutant and alert level, a note", async () => {
 		const { host, current } = await show(areasDraft(["a1", "a2", "a3"], {}, ["burn-status"]));
@@ -1599,13 +1610,14 @@ describe("now widgets", () => {
 		await expect.element(page.getByText(m.get_data_extra_places_left_out())).toBeVisible();
 		// One place: the first.
 		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Area a1");
-		// The pollutants on offer in Air quality (PM10 isn't available; no None: Current conditions
-		// always shows one), and the alert level at its default.
+		// The pollutants on offer in Air quality as checkboxes (PM10 isn't available; no None), and
+		// the alert level at its default.
 		const pollutant = page.getByRole("group", { name: "Air quality" });
-		await expect.element(pollutant.getByRole("radio", { name: "PM2.5" })).toBeChecked();
-		await expect.element(pollutant.getByRole("radio", { name: "None" })).not.toBeInTheDocument();
-		await expect.element(pollutant.getByRole("radio", { name: "Ozone" })).toBeVisible();
-		await expect.element(pollutant.getByRole("radio", { name: "PM10" })).not.toBeInTheDocument();
+		await expect.element(pollutant.getByRole("checkbox", { name: "PM2.5" })).toBeChecked();
+		await expect.element(pollutant.getByRole("checkbox", { name: "Ozone" })).toBeVisible();
+		await expect.element(pollutant.getByRole("checkbox", { name: "PM10" })).not.toBeInTheDocument();
+		expect(pollutant.getByRole("radio").elements()).toHaveLength(0);
+		await expect.element(pollutant.getByText("None", { exact: true })).not.toBeInTheDocument();
 		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
 		const options = [...(alert().element() as HTMLSelectElement).options].map((o) => o.text);
 		expect(options).toEqual([
@@ -2245,33 +2257,30 @@ describe("now widgets", () => {
 		});
 	});
 
-	test("a pollutant change keeps the alert level its scale has, else its default", async () => {
+	test("Outside: a pollutant change keeps the alert level its scale has, else its default", async () => {
+		const o3 = await ozoneScale();
 		const pm25 = await fixtureMetadata().levels("pm25");
-		const level = (key: string) => pm25.find((l) => l.key === key)!;
-		const o3: Level[] = [
-			level("good"),
-			{ ...level("unhealthy-sensitive"), key: "usg-o3" },
-			{ ...level("unhealthy"), key: "unhealthy-o3" }
-		];
 		fake.metadata = fixtureMetadata({
 			catalog: async () => CATALOG,
+			guidelinePollutants: async () => ["pm25", "o3"],
 			levels: async (e) => (e === "o3" ? o3 : e === "pm25" ? pm25 : [])
 		});
 		makeClient();
-		const { current } = await show(currentDraft([{ level: "unhealthy" }]));
+		const { current } = await show({ ...currentDraft([{ level: "unhealthy" }]), type: "outside" });
 		await expect.element(alert()).toHaveValue("unhealthy");
 		await page.getByRole("radio", { name: "Ozone" }).click();
 		// "unhealthy" isn't on the ozone scale: its default, with no note (the person chose).
 		await expect.element(alert()).toHaveValue("usg-o3");
-		await expect.element(page.getByText(/isn't on this pollutant's scale/)).not.toBeInTheDocument();
+		await expect.element(page.getByText(/isn't one of this pollutant's/)).not.toBeInTheDocument();
 		await alert().selectOptions("good");
 		await page.getByRole("radio", { name: "PM2.5" }).click();
 		await expect.element(alert()).toHaveValue("good");
+		// Other types than Current conditions keep their alert level untagged.
 		expect((await current()).thresholds).toEqual([{ level: "good" }]);
 	});
 
 	test("the preview shows the tile's mark when the air is already at the level, and tells nothing", async () => {
-		const { host } = await show(currentDraft([{ level: "good" }]));
+		const { host } = await show(currentDraft([{ level: "good", entryType: "pm25" }]));
 		const preview = () => host.querySelector<HTMLElement>("[data-testid=get-data-preview]")!;
 		// The fake's reading is Good: at the alert level.
 		await expect
@@ -2300,7 +2309,7 @@ describe("now widgets", () => {
 	});
 
 	test("a saved level the scale no longer has shows its default, and says so", async () => {
-		await show(currentDraft([{ level: "gone" }]));
+		await show(currentDraft([{ level: "gone", entryType: "pm25" }]));
 		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
 		await expect
 			.element(
@@ -2403,20 +2412,220 @@ describe("now widgets", () => {
 		await page.getByRole("button", { name: m.get_data_retry() }).click();
 		// The default the conversion owed is set once the scale loads.
 		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
-		expect((await current()).thresholds).toEqual([{ level: "unhealthy-sensitive" }]);
+		expect((await current()).thresholds).toEqual([
+			{ level: "unhealthy-sensitive", entryType: "pm25" }
+		]);
+	});
 
-		// A pollutant change whose scale can't load keeps the alert level as it is.
-		await alert().selectOptions("unhealthy");
-		failing = true;
-		await page.getByRole("radio", { name: "Ozone" }).click();
-		await expect.element(page.getByText(m.get_data_levels_unavailable())).toBeVisible();
-		const kept = await current();
-		expect(kept.data.layers[0].entryType).toBe("o3");
-		expect(kept.thresholds).toEqual([{ level: "unhealthy" }]);
+	describe("Current conditions with several pollutants", () => {
+		const forPm25 = () => page.getByRole("combobox", { name: "Alert level for PM2.5" });
+		const forOzone = () => page.getByRole("combobox", { name: "Alert level for Ozone" });
+		const aq = () => page.getByRole("group", { name: "Air quality" });
+		/** PM2.5 and ozone with their scales; ozone's fails while `ozoneFails.on`. */
+		const ozoneFails = { on: false };
+		beforeEach(async () => {
+			ozoneFails.on = false;
+			const o3 = await ozoneScale();
+			const pm25 = await fixtureMetadata().levels("pm25");
+			fake.metadata = fixtureMetadata({
+				catalog: async () => CATALOG,
+				levels: async (e) => {
+					if (e === "o3" && ozoneFails.on) throw new Error("offline");
+					return e === "o3" ? o3 : e === "pm25" ? pm25 : [];
+				}
+			});
+			makeClient();
+		});
+		const both = (): Draft => ({
+			type: "current-conditions",
+			data: {
+				layers: [
+					{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] },
+					{ dataset: "air-quality", entryType: "o3" }
+				]
+			},
+			thresholds: [
+				{ level: "unhealthy", entryType: "pm25" },
+				{ level: "usg-o3", entryType: "o3" }
+			]
+		});
+
+		test("ticking Ozone beside PM2.5 adds its layer and its alert level at its default", async () => {
+			const { current } = await show(
+				currentDraft([{ level: "unhealthy-sensitive", entryType: "pm25" }])
+			);
+			await expect.element(aq().getByRole("checkbox", { name: "PM2.5" })).toBeChecked();
+			await expect.element(aq().getByRole("checkbox", { name: "Ozone" })).not.toBeChecked();
+			await aq().getByRole("checkbox", { name: "Ozone" }).click();
+			await expect.element(forPm25()).toHaveValue("unhealthy-sensitive");
+			await expect.element(forOzone()).toHaveValue("usg-o3");
+			const out = await current();
+			expect(out.data.layers).toEqual([
+				{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] },
+				{ dataset: "air-quality", entryType: "o3" }
+			]);
+			expect(out.thresholds).toEqual([
+				{ level: "unhealthy-sensitive", entryType: "pm25" },
+				{ level: "usg-o3", entryType: "o3" }
+			]);
+			// Each pollutant's level is its own.
+			await forOzone().selectOptions("unhealthy-o3");
+			expect((await current()).thresholds).toEqual([
+				{ level: "unhealthy-sensitive", entryType: "pm25" },
+				{ level: "unhealthy-o3", entryType: "o3" }
+			]);
+		});
+
+		test("unticking PM2.5 drops its alert level and keeps the searched monitor", async () => {
+			const { current } = await show(both());
+			await expect.element(forPm25()).toHaveValue("unhealthy");
+			await aq().getByRole("checkbox", { name: "PM2.5" }).click();
+			await expect.element(forPm25()).not.toBeInTheDocument();
+			// One pollutant left: its control reads as a single one does.
+			await expect
+				.element(page.getByRole("combobox", { name: "Alert level", exact: true }))
+				.toHaveValue("usg-o3");
+			const out = await current();
+			expect(out.data.layers).toEqual([
+				{ dataset: "air-quality", entryType: "o3", monitors: ["m1"] }
+			]);
+			expect(out.thresholds).toEqual([{ level: "usg-o3", entryType: "o3" }]);
+		});
+
+		test("unticking every pollutant leaves the checkboxes enabled and blocks Add", async () => {
+			const { latest, host } = await show(both());
+			await aq().getByRole("checkbox", { name: "PM2.5" }).click();
+			await aq().getByRole("checkbox", { name: "Ozone" }).click();
+			const add = page.getByRole("button", { name: "Add to Home" });
+			await expect.element(add).toBeDisabled();
+			expect(m.get_data_choose_pollutant()).toBe("Choose a pollutant");
+			await expect.element(add).toHaveAccessibleDescription(m.get_data_choose_pollutant());
+			await expect
+				.poll(() => host.querySelector("[data-testid=get-data-preview-column]")?.textContent ?? "")
+				.toContain(m.get_data_choose_pollutant());
+			for (const name of ["PM2.5", "Ozone"]) {
+				await expect.element(aq().getByRole("checkbox", { name })).toBeEnabled();
+				await expect.element(aq().getByRole("checkbox", { name })).not.toBeChecked();
+			}
+			await expect.element(alert()).not.toBeInTheDocument();
+			// The monitor is kept on the one bare layer, and the draft stays Current conditions.
+			expect(latest().type).toBe("current-conditions");
+			expect(latest().data.layers).toEqual([{ dataset: "air-quality", monitors: ["m1"] }]);
+			expect("thresholds" in latest()).toBe(false);
+			// Ticking one again gives it its default and unblocks Add.
+			await aq().getByRole("checkbox", { name: "Ozone" }).click();
+			await expect.element(add).toBeEnabled();
+			await expect.element(alert()).toHaveValue("usg-o3");
+		});
+
+		test("one pollutant's scale failing replaces only its control, with its own Retry", async () => {
+			ozoneFails.on = true;
+			const { current } = await show(both());
+			await expect.element(page.getByText(m.get_data_levels_unavailable())).toBeVisible();
+			await expect.element(forOzone()).not.toBeInTheDocument();
+			await expect.element(forPm25()).toHaveValue("unhealthy");
+			expect(page.getByRole("button", { name: m.get_data_retry() }).elements()).toHaveLength(1);
+			await forPm25().selectOptions("good");
+			// Ozone's saved level is kept meanwhile.
+			expect((await current()).thresholds).toEqual([
+				{ level: "good", entryType: "pm25" },
+				{ level: "usg-o3", entryType: "o3" }
+			]);
+			ozoneFails.on = false;
+			await page.getByRole("button", { name: m.get_data_retry() }).click();
+			await expect.element(forOzone()).toHaveValue("usg-o3");
+			await expect.element(page.getByText(m.get_data_levels_unavailable())).not.toBeInTheDocument();
+		});
+
+		test("a newly ticked pollutant whose scale fails gets its default once Retry loads it", async () => {
+			ozoneFails.on = true;
+			const { current } = await show(currentDraft([{ level: "unhealthy", entryType: "pm25" }]));
+			await aq().getByRole("checkbox", { name: "Ozone" }).click();
+			await expect.element(page.getByText(m.get_data_levels_unavailable())).toBeVisible();
+			expect((await current()).thresholds).toEqual([{ level: "unhealthy", entryType: "pm25" }]);
+			ozoneFails.on = false;
+			await page.getByRole("button", { name: m.get_data_retry() }).click();
+			await expect.element(forOzone()).toHaveValue("usg-o3");
+			expect((await current()).thresholds).toEqual([
+				{ level: "unhealthy", entryType: "pm25" },
+				{ level: "usg-o3", entryType: "o3" }
+			]);
+		});
+
+		test("a level picked by hand is kept by Show as Can we go outside?", async () => {
+			fake.metadata = fixtureMetadata({
+				catalog: async () => CATALOG,
+				guidelinePollutants: async () => ["pm25"]
+			});
+			const { current } = await show(
+				currentDraft([{ level: "unhealthy-sensitive", entryType: "pm25" }])
+			);
+			await alert().selectOptions("good");
+			await page.getByRole("radio", { name: "Can we go outside?" }).click();
+			await expect.element(page.getByRole("radio", { name: "Can we go outside?" })).toBeChecked();
+			await expect.element(alert()).toHaveValue("good");
+			const out = await current();
+			expect(out.type).toBe("outside");
+			expect(out.thresholds).toEqual([{ level: "good" }]);
+		});
+	});
+
+	test("a fell-back alert level can be kept with Use, which saves it and clears the note", async () => {
+		const { current } = await show(currentDraft([{ level: "gone", entryType: "pm25" }]));
+		const note = page.getByText(
+			m.get_data_alert_level_replaced({ level: "Unhealthy for Sensitive Groups" })
+		);
+		await expect.element(note).toBeVisible();
+		const use = page.getByRole("button", {
+			name: m.get_data_alert_level_use({ level: "Unhealthy for Sensitive Groups" })
+		});
+		expect(m.get_data_alert_level_use({ level: "Good" })).toBe("Use Good");
+		await use.click();
+		await expect.element(note).not.toBeInTheDocument();
+		await expect.element(use).not.toBeInTheDocument();
+		expect((await current()).thresholds).toEqual([
+			{ level: "unhealthy-sensitive", entryType: "pm25" }
+		]);
+	});
+
+	test("a failed guideline load says nothing false, keeps the layer, reports, and retries on the next type change", async () => {
+		let failing = true;
+		fake.metadata = fixtureMetadata({
+			catalog: async () => CATALOG,
+			guidelinePollutants: async () => {
+				if (failing) throw new Error("offline");
+				return ["o3", "pm25"];
+			}
+		});
+		const { current, platform } = await show(areasDraft(["a1"]));
+		setPlatform(platform);
+		await page.getByRole("radio", { name: "Can we go outside?" }).click();
+		await expect.element(page.getByRole("radio", { name: "Can we go outside?" })).toBeChecked();
+		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
+		expect(document.querySelectorAll("[data-no-guidelines]")).toHaveLength(0);
+		expect((await current()).data.layers).toEqual([{ dataset: "air-quality", entryType: "pm25" }]);
+		await expect.poll(() => platform.errors.reports.length).toBeGreaterThan(0);
+		// The next type change asks again.
+		failing = false;
+		await page.getByRole("radio", { name: "Chart" }).click();
+		await page.getByRole("radio", { name: "Can we go outside?" }).click();
+		await expect
+			.element(
+				page.getByRole("group", { name: "Air quality" }).getByRole("radio", { name: "Ozone" })
+			)
+			.toBeVisible();
+	});
+
+	test("a Chart's What keeps its pollutant radios with None", async () => {
+		await show(monitorsDraft(["m1"]));
+		const group = page.getByRole("group", { name: "Air quality" });
+		await expect.element(group.getByRole("radio", { name: "None" })).toBeVisible();
+		await expect.element(group.getByRole("radio", { name: "PM2.5" })).toBeChecked();
+		expect(group.getByRole("checkbox", { name: "PM2.5" }).elements()).toHaveLength(0);
 	});
 
 	test("axe passes", async () => {
-		const { host } = await show(currentDraft([{ level: "gone" }]));
+		const { host } = await show(currentDraft([{ level: "gone", entryType: "pm25" }]));
 		await expect.element(alert()).toBeVisible();
 		await animationsSettled(host);
 		const results = await axe.run(host);

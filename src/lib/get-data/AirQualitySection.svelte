@@ -25,8 +25,8 @@
 	import MonitorsControl from "./MonitorsControl.svelte";
 
 	/**
-	 * The Air quality section (spec decisions 4, 6, 7, 31–33, 36): the pollutant radios with None,
-	 * then Monitors: a checkbox per monitor type in the monitors meta's groups, the searched
+	 * The Air quality section (spec decisions 4, 6, 7, 31–33, 36): the pollutant radios with None
+	 * (or, with `multiple`, a checkbox per pollutant), then Monitors: a checkbox per monitor type in the monitors meta's groups, the searched
 	 * monitors' list (each removable) and the Monitors search. A single-place widget shows only the
 	 * search (one monitor). With None the ticks and monitors stay, greyed out with their reason; a
 	 * type or monitor that doesn't measure the pollutant is greyed out with its reason, kept. Greyed
@@ -41,7 +41,9 @@
 		capText,
 		strip = false,
 		none = true,
+		multiple = false,
 		onpollutant,
+		onpollutants,
 		ontypes,
 		onmonitors
 	}: {
@@ -63,8 +65,15 @@
 		strip?: boolean;
 		/** Offers None among the pollutants (Current conditions always has one, decision 4). */
 		none?: boolean;
-		/** A pollutant, or `null` for None. */
-		onpollutant: (pick: EntryPick | null) => void;
+		/**
+		 * Several pollutants (Current conditions): a checkbox each, in the order given, with no None;
+		 * none greyed out (unticking the last is allowed). `onpollutants` replaces `onpollutant`.
+		 */
+		multiple?: boolean;
+		/** A pollutant, or `null` for None (without `multiple`). */
+		onpollutant?: (pick: EntryPick | null) => void;
+		/** With `multiple`: the ticked pollutants' entry types after a change, in the order ticked. */
+		onpollutants?: (entryTypes: string[]) => void;
 		/** The ticked monitor types after a change. */
 		ontypes: (types: string[]) => void;
 		/** The searched monitors after a change. */
@@ -81,6 +90,12 @@
 	);
 	const entryType = $derived(strip ? DEFAULT_LAYER.entryType : layer?.entryType);
 	const ticked = $derived(layer?.monitorTypes ?? []);
+	/** With `multiple`: the ticked pollutants, in layer order. */
+	const pollutantsTicked = $derived(
+		multiple
+			? data.layers.flatMap((l) => (l.dataset === AIR_QUALITY && l.entryType ? [l.entryType] : []))
+			: []
+	);
 	const ids = $derived(layer?.monitors ?? []);
 	const single = $derived(limit === 1);
 	const aq = $derived(catalog.find((c) => c.id === AIR_QUALITY));
@@ -134,6 +149,14 @@
 		return undefined;
 	}
 
+	/** Ticks a pollutant on (after those ticked) or off. */
+	function togglePollutant(id: string, on: boolean): void {
+		const next = on
+			? [...pollutantsTicked.filter((e) => e !== id), id]
+			: pollutantsTicked.filter((e) => e !== id);
+		onpollutants?.(next);
+	}
+
 	function toggleType(type: string, on: boolean): void {
 		const next = on ? [...ticked, type] : ticked.filter((t) => t !== type);
 		ontypes(offered.filter((t) => next.includes(t)));
@@ -153,7 +176,22 @@
 {/snippet}
 
 <div class="flex flex-col gap-3">
-	{#if pollutants}
+	{#if pollutants && multiple}
+		<fieldset class="flex flex-col gap-1">
+			<legend class="sr-only">{aq?.label ?? AIR_QUALITY}</legend>
+			{#each pollutants as entry (entry.id)}
+				<label class="flex min-h-6 items-center gap-2 text-sm">
+					<input
+						type="checkbox"
+						class="accent-primary size-4"
+						checked={pollutantsTicked.includes(entry.id)}
+						onchange={(e) => togglePollutant(entry.id, e.currentTarget.checked)}
+					/>
+					<span>{entry.label}</span>
+				</label>
+			{/each}
+		</fieldset>
+	{:else if pollutants}
 		<fieldset class="flex flex-col gap-1">
 			<legend class="sr-only">{aq?.label ?? AIR_QUALITY}</legend>
 			{#if none}
@@ -164,7 +202,7 @@
 						name="{uid}-pollutant"
 						value=""
 						checked={!layer?.entryType}
-						onchange={() => onpollutant(null)}
+						onchange={() => onpollutant?.(null)}
 					/>
 					<span>{m.get_data_none()}</span>
 				</label>
@@ -184,7 +222,7 @@
 							{checked}
 							disabled={capped || !!why}
 							aria-describedby={capped ? capId : why ? whyId : undefined}
-							onchange={() => onpollutant({ dataset: AIR_QUALITY, entryType: entry.id })}
+							onchange={() => onpollutant?.({ dataset: AIR_QUALITY, entryType: entry.id })}
 						/>
 						<span class={[(capped || why) && "text-muted-foreground"]}>{entry.label}</span>
 					</label>

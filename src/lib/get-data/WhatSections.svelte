@@ -54,6 +54,7 @@
 		maxOverlays,
 		onpollutant,
 		onnowpollutant,
+		onnowpollutants,
 		guidelines,
 		onmonitortypes,
 		onmonitors,
@@ -81,8 +82,10 @@
 		maxOverlays: number;
 		/** A pollutant, or `null` for None. */
 		onpollutant: (pick: EntryPick | null) => void;
-		/** Current conditions' pollutant (its alert level follows it). */
+		/** "Can we go outside?"'s pollutant (its alert level follows it). */
 		onnowpollutant: (entryType: string) => void;
+		/** Current conditions' ticked pollutants, in the order ticked (each has its alert level). */
+		onnowpollutants: (entryTypes: string[]) => void;
 		/** The ticked monitor types after a change (Air quality). */
 		onmonitortypes: (types: string[]) => void;
 		/** The searched monitors after a change (Air quality). */
@@ -191,7 +194,7 @@
 			.filter(({ layer }) => layer.dataset === PESTICIDE_USE && layer.entryType)
 	);
 
-	/** The pollutant radios this type offers; `null` when it has none here. */
+	/** The pollutants this type offers (Current conditions' as checkboxes); `null` when none here. */
 	const radios = $derived.by<EntryTypeMeta[] | null>(() => {
 		if (isMap) {
 			// The Map's offered pollutants, plus the chosen one when it isn't (checked, so it shows).
@@ -372,6 +375,19 @@
 			ontypes={onmonitortypes}
 			{onmonitors}
 		/>
+	{:else if type.type === CURRENT_TYPE}
+		<!-- Current conditions: a checkbox per pollutant, none greyed out (unticking the last is
+		     allowed; the preview and Save then ask for one). -->
+		<AirQualitySection
+			{data}
+			{catalog}
+			{limit}
+			pollutants={radios}
+			multiple
+			onpollutants={onnowpollutants}
+			ontypes={onmonitortypes}
+			{onmonitors}
+		/>
 	{:else if type.time !== "now" || main}
 		<!-- A single-place type shows only the search: one monitor or one place (decision 33). -->
 		<AirQualitySection
@@ -379,12 +395,12 @@
 			{catalog}
 			{limit}
 			pollutants={radios}
-			none={type.type !== CURRENT_TYPE && type.type !== OUTSIDE_TYPE}
+			none={type.type !== OUTSIDE_TYPE}
 			pollutantReason={isMap
 				? undefined
 				: (entry) => blocked?.([{ dataset: AIR_QUALITY, entryType: entry.id }], pollutant)}
 			capText={!isMap && atCap ? limitText : undefined}
-			onpollutant={type.type === CURRENT_TYPE || type.type === OUTSIDE_TYPE
+			onpollutant={type.type === OUTSIDE_TYPE
 				? (pick) => pick && onnowpollutant(pick.entryType)
 				: onpollutant}
 			ontypes={onmonitortypes}

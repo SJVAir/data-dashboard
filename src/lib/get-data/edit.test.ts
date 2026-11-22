@@ -154,15 +154,23 @@ describe("saveEdit", () => {
 		const current: WidgetInstance = {
 			...preSpec,
 			type: "current-conditions",
-			thresholds: [{ level: "unhealthy_sensitive" }]
+			thresholds: [{ level: "unhealthy_sensitive", entryType: "pm25" }]
 		};
 		const { session } = await withWidget(current);
-		expect(editDraft(current).thresholds).toEqual([{ level: "unhealthy_sensitive" }]);
+		expect(editDraft(current).thresholds).toEqual([
+			{ level: "unhealthy_sensitive", entryType: "pm25" }
+		]);
 		expect(saveEdit(session, "w1", editDraft(current))).toBe(false);
-		const draft: Draft = { ...editDraft(current), thresholds: [{ level: "unhealthy" }] };
+		const draft: Draft = {
+			...editDraft(current),
+			thresholds: [{ level: "unhealthy", entryType: "pm25" }]
+		};
 		expect(draftChanged(editDraft(current), draft)).toBe(true);
 		expect(saveEdit(session, "w1", draft)).toBe(true);
-		expect(shown(session)).toEqual({ ...current, thresholds: [{ level: "unhealthy" }] });
+		expect(shown(session)).toEqual({
+			...current,
+			thresholds: [{ level: "unhealthy", entryType: "pm25" }]
+		});
 		session.undo();
 		expect(shown(session)).toEqual(current);
 		expect(session.canUndo).toBe(false);

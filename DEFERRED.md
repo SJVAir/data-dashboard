@@ -2886,8 +2886,6 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     calls are unguarded. **Revisit with** the next now client change.
   - **A failed watcher chunk load retries only on the next dashboard or watched-set change.**
     **Revisit if** seen on flaky connections.
-  - **A fell-back default alert level cannot be confirmed in the form** (a stored bad key
-    persists until the person picks a level). **Revisit with** the next thresholds form change.
   - **The Forecast strip's Where list is filtered to PM2.5 monitors** (coverage unconfirmed), and
     a names-only Data widget runs a 30-day query. **Revisit** when coverage is checked, or if
     seen.

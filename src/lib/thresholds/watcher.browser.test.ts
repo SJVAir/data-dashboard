@@ -196,7 +196,7 @@ function tile(
 		data: {
 			layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["a"] }]
 		},
-		thresholds: [{ level: "unhealthy_sensitive" }],
+		thresholds: [{ level: "unhealthy_sensitive", entryType: "pm25" }],
 		...extra
 	};
 }
@@ -371,7 +371,7 @@ test("a threshold turned Off and back On while at the level starts afresh: no to
 	await expect.poll(async () => readTold(platform, app.space, docId)).toEqual({});
 	nextPoll();
 	await expect.element(page.getByText("40.0")).toBeVisible();
-	setThreshold([{ level: "unhealthy_sensitive" }]);
+	setThreshold([{ level: "unhealthy_sensitive", entryType: "pm25" }]);
 	await handled(platform, app, docId, "w1", readingAt(1));
 	await expect.poll(() => thresholdMarks.w1?.level.key).toBe("unhealthy_sensitive");
 	await new Promise((r) => setTimeout(r, 200));
