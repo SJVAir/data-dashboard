@@ -424,3 +424,32 @@ The user's calls, 2026-11-22:
 - **No compatibility work for old saved dashboards** (nobody has any): decision 30 above.
 - **Remove the existing compatibility code** (`dropMonitorWhere`, `dropMonitorBar`, the Map
   options' `showing` preprocess, the older several-pollutant Map handling, and their tests).
+
+**7b** (2026-11-22): rulings by the session lead while building 7b (the 7b ledger's R1–R15).
+
+- **R1, R6:** the threshold helpers `withThreshold` and `thresholdFor` live with the other
+  threshold helpers (`src/lib/thresholds/levels.ts`), and the schema caps thresholds at one per
+  pollutant layer.
+- **R2, R3, R11, R12:** a mark is held under `markKey(widgetId, entryType)` (the widget id alone
+  for every type but Current conditions); the card's rows and the watcher take that key, and the
+  taskbar reads `widgetMark`.
+- **R4:** with no pollutant ticked, a Current conditions draft stays Current conditions (still
+  holding its monitor) and isn't converted; Save asks to "Choose a pollutant".
+- **R5:** a saved alert level that isn't in its pollutant's scale shows the fallback with a
+  **"Use {level}"** button that saves it (the "fell-back default alert level" leftover in
+  `DEFERRED.md` is done).
+- **R7:** every writer of Current conditions thresholds tags them with `entryType` (the form,
+  fixtures and the E2E documents); an untagged one is not read.
+- **R8:** if the list of pollutants with school guidelines fails to load, "Can we go outside?"
+  says nothing about it and keeps its layer; the failure is reported and retried on the next type
+  change.
+- **R9:** an Outside card saved with ozone is watched by ozone (it reads as saved).
+- **R10:** Current conditions keeps its pollutants in the offered (catalog) order, whatever order
+  they were ticked in.
+- **R13:** screenshots of a marked one-pollutant card and a two-pollutant card were taken for a
+  visual check the tests can't do (not committed).
+- **R14:** changing a card's alert levels forgets "last told" for every pollutant watched on it,
+  as Off and back On already did: lowering a level below the current reading shows the mark
+  without a toast. **A behaviour change; say so in the PR.**
+- **R15:** an untitled two-pollutant card's notification is titled with both pollutants (the
+  saved card's generated title); a browser test covers it.
