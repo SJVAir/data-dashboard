@@ -259,11 +259,8 @@ describe("downloadWidgetCsv for a point", () => {
 			regions: { resolve: async () => "unsupported" }
 		});
 		const widget = chartWidget(["m1"]);
-		widget.data.layers[0] = {
-			dataset: "air-quality",
-			entryType: "pm25",
-			place: { kind: "point", lat: 36.7468, lon: -119.7726 }
-		};
+		widget.data.place = { kind: "point", lat: 36.7468, lon: -119.7726 };
+		widget.data.layers[0] = { dataset: "air-quality", entryType: "pm25" };
 		const saved: Array<{ name: string; contents: string }> = [];
 		await downloadWidgetCsv(widget, (name, contents) => {
 			saved.push({ name, contents });
@@ -388,10 +385,28 @@ describe("toCsv overlay rows", () => {
 	});
 
 	it("every place's overlay rows are exported", () => {
-		const rows = parse(toCsv(main, META, "owner", [overlay])).slice(1);
+		// Two areas: their overlay's regions pair by request index.
+		const areas = data({
+			series: main.series.map((s, i) => ({ ...s, place: `region:${["a", "b"][i]}` })),
+			places: main.places.map((p, i) => ({ ...p, place: `region:${["a", "b"][i]}` }))
+		});
+		const rows = parse(toCsv(areas, META, "owner", [overlay])).slice(1);
 		const mine = rows.filter((r) => get(r, "entry_type") === "burn-status");
 		expect(mine.map((r) => get(r, "place_id"))).toEqual(["a", "b"]);
 		expect(mine.map((r) => get(r, "place_name"))).toEqual(["A", "B"]);
+	});
+
+	it("a monitor set's overlay, for one of its monitors, is that monitor's rows", () => {
+		const forB = {
+			...overlay,
+			data: data({
+				series: [{ place: "monitor:b", points: [burnPoint("2026-11-01T07:00:00Z", "burn-day")] }],
+				places: [{ place: "monitor:b", name: "B" }]
+			})
+		};
+		const rows = parse(toCsv(main, META, "owner", [forB])).slice(1);
+		const mine = rows.filter((r) => get(r, "entry_type") === "burn-status");
+		expect(mine.map((r) => get(r, "place_name"))).toEqual(["B"]);
 	});
 
 	it("a point's overlay rows are named as its region for a shared viewer", () => {
@@ -452,7 +467,7 @@ describe("downloadDataCsv", () => {
 	const config = {
 		dateRange: { kind: "trailing", amount: 30, unit: "day" },
 		layers: [
-			{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
+			{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] },
 			{ dataset: "forecasts", entryType: "burn-status" }
 		]
 	} as const;
@@ -496,6 +511,54 @@ describe("downloadDataCsv", () => {
 		expect(types).toContain("burn-status");
 		expect(types.indexOf("pm25")).toBeLessThan(types.indexOf("burn-status"));
 		expect(saved[0]).not.toContain("NaN");
+	});
+
+	it("a monitor set's overlay is asked for one monitor: Overlay for's, once the set loads", async () => {
+		const asked: unknown[] = [];
+		const forecasts: DatasetAdapter = {
+			id: "forecasts",
+			// The layer as asked for: its monitors are the Overlay for monitor alone.
+			async target(layer) {
+				asked.push(layer.monitors);
+				return { kind: "monitors", ids: [...(layer.monitors ?? [])] };
+			},
+			offered: (b) => b,
+			fetch: async () => ({
+				series: [],
+				places: [],
+				resolution: "day",
+				fromRaw: false,
+				processor: null,
+				fetchedAt: Date.now()
+			})
+		};
+		fake.metadata = fixtureMetadata({
+			catalog: async () => catalog,
+			datasetLevels: async (dataset) => (dataset === "forecasts" ? BURN : [])
+		});
+		fake.client = createQueryClient({
+			adapters: [fakeAdapter([]), forecasts],
+			metadata: fake.metadata,
+			regions: { resolve: async () => "unsupported" }
+		});
+		const set = structuredClone({
+			...config,
+			place: { kind: "region", type: "county", code: "06019" },
+			layers: [
+				{ dataset: "air-quality", entryType: "pm25", monitorTypes: ["purpleair"] },
+				config.layers[1]
+			]
+		}) as never;
+		const saved: string[] = [];
+		await downloadDataCsv(set, (_n, c) => void saved.push(c), "owner", "chart", {
+			overlayFor: { kind: "monitor", id: "purpleair-2" }
+		});
+		expect(asked).toEqual([["purpleair-2"]]);
+		// Every monitor of the set has its rows.
+		const ids = parse(saved[0])
+			.slice(1)
+			.map((r) => r[CSV_COLUMNS.indexOf("place_id")]);
+		expect(new Set(ids)).toEqual(new Set(["purpleair-1", "purpleair-2", "purpleair-3"]));
 	});
 
 	it("reports a failed overlay and names it in skipped", async () => {
@@ -589,11 +652,11 @@ describe("downloadDataCsv", () => {
 		await downloadDataCsv(
 			{
 				dateRange: { kind: "trailing", amount: 30, unit: "day" },
+				place: { kind: "point", lat: 36.7468, lon: -119.7726 },
 				layers: [
 					{
 						dataset: "air-quality",
-						entryType: "pm25",
-						place: { kind: "point", lat: 36.7468, lon: -119.7726 }
+						entryType: "pm25"
 					}
 				]
 			},
@@ -696,11 +759,11 @@ describe("downloadDataCsv for a pesticide-only widget", () => {
 		await downloadDataCsv(
 			{
 				dateRange: { kind: "trailing", amount: 90, unit: "day" },
+				place: { kind: "region", type: "county", code: "06019" },
 				layers: [
 					{
 						dataset: "pesticide-use",
-						entryType: "pounds-applied",
-						place: { kind: "monitor", id: "m1" }
+						entryType: "pounds-applied"
 					}
 				]
 			},
@@ -772,11 +835,7 @@ describe("a calendar's CSV", () => {
 			regions: { resolve: async () => "unsupported" }
 		});
 		const widget = chartWidget(["m1"]);
-		widget.data.layers[0] = {
-			dataset: "air-quality",
-			entryType: "o3",
-			place: { kind: "monitor", id: "m1" }
-		};
+		widget.data.layers[0] = { dataset: "air-quality", entryType: "o3", monitors: ["m1"] };
 		const seen: unknown[] = [];
 		const spy = vi.spyOn(fake.client, "subscribe");
 		const saved: string[] = [];
@@ -804,11 +863,7 @@ describe("a calendar's CSV", () => {
 			regions: { resolve: async () => "unsupported" }
 		});
 		const widget = chartWidget(["m1"]);
-		widget.data.layers[0] = {
-			dataset: "air-quality",
-			entryType: "o3",
-			place: { kind: "monitor", id: "m1" }
-		};
+		widget.data.layers[0] = { dataset: "air-quality", entryType: "o3", monitors: ["m1"] };
 		let out = "";
 		await downloadWidgetCsv({ ...widget, type: "calendar-month" }, (_n, contents) => {
 			out = contents;

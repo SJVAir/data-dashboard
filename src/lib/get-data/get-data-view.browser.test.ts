@@ -39,8 +39,6 @@ import { makeDoc } from "$lib/sync/test-support";
 import { defaultDraft, type Draft } from "./draft.svelte";
 import { editDraft, saveEdit } from "./edit";
 import GetDataView from "./GetDataView.svelte";
-import WhereControl from "./WhereControl.svelte";
-import type { Picks } from "$lib/places/selection";
 
 type Hit = { id: string; name: string; detail: string; placeholder?: boolean };
 type Station = { id: string; name: string; distance: number; inside: boolean; active: boolean };
@@ -65,7 +63,15 @@ const fake = vi.hoisted(() => ({
 	 */
 	regionTypes: undefined as (() => Promise<unknown[]>) | undefined,
 	/** The pesticide meta's answer (default: `PESTICIDE_META`). */
-	pesticideMeta: undefined as (() => Promise<unknown>) | undefined
+	pesticideMeta: undefined as (() => Promise<unknown>) | undefined,
+	/** The regions the resolver knows, by `type:code`, with their names (default: none). */
+	regionNames: {} as Record<string, string>,
+	/** The schools the resolver knows, by `source:code`, with their names (default: none). */
+	locations: {} as Record<string, string>,
+	/** The region resolver fails (a lookup that can't be made). */
+	regionFail: false,
+	/** The area `placeRegion` finds for a school or point (default: none). */
+	area: null as { type: string; code: string } | null
 }));
 const PESTICIDE_META = vi.hoisted(() => ({
 	categories: [
@@ -99,11 +105,28 @@ vi.mock("$lib/data", () => ({
 	getQueryClient: () => fake.client,
 	getMetadata: () => fake.metadata,
 	getResolvers: () => ({
-		regions: { resolve: async () => null },
-		locations: { resolve: async () => null },
+		regions: {
+			resolve: async (type: string, code: string) => {
+				if (fake.regionFail) throw new Error("offline");
+				const name = fake.regionNames[`${type}:${code}`];
+				return name ? { id: `sq-${code}`, name } : null;
+			}
+		},
+		locations: {
+			resolve: async (source: string, code: string) => {
+				const name = fake.locations[`${source}:${code}`];
+				return name
+					? {
+							name,
+							keys: [],
+							details: { type: "school", city: "Fresno", zip: "93702", address: "1" }
+						}
+					: null;
+			}
+		},
 		points: { keys: async () => [] }
 	}),
-	placeRegion: async () => null
+	placeRegion: async () => fake.area
 }));
 vi.mock("$lib/data/now", () => ({ getNowClient: () => fake.now }));
 vi.mock("$lib/places/host", async (original) => {
@@ -112,7 +135,15 @@ vi.mock("$lib/places/host", async (original) => {
 		...actual,
 		directoryFor: (...args: Parameters<typeof actual.directoryFor>) => {
 			const real = actual.directoryFor(...args);
-			return fake.regionTypes ? { ...real, regionTypes: fake.regionTypes } : real;
+			const known = Object.keys(fake.regionNames).length > 0;
+			return {
+				...real,
+				...(fake.regionTypes ? { regionTypes: fake.regionTypes } : {}),
+				...(Object.keys(fake.locations).length > 0
+					? { locationTypes: async () => [{ type: "school", label: "School", source: "schools" }] }
+					: {}),
+				...(known ? { regionTypeLabels: async () => new Map([["county", "County"]]) } : {})
+			};
 		}
 	};
 });
@@ -183,13 +214,21 @@ function airQuality(requests: AdapterRequest[]): DatasetAdapter {
 	return {
 		id: "air-quality",
 		async target(layer) {
-			if (layer.selection?.kind === "monitors") {
-				return { kind: "monitors", ids: [...layer.selection.ids] };
+			if (layer.monitors?.length) return { kind: "monitors", ids: [...layer.monitors] };
+			// Ticked types: the types' monitors (t1, t2), alongside a county's own place.
+			if (layer.monitorTypes?.length) {
+				if (layer.place?.kind === "region") {
+					return {
+						kind: "regions",
+						keys: [`${layer.place.type}:${layer.place.code}`, "monitor:t1", "monitor:t2"]
+					};
+				}
+				return { kind: "monitors", ids: ["t1", "t2"] };
 			}
-			if (layer.place?.kind === "monitor") return { kind: "monitors", ids: [layer.place.id] };
 			if (layer.place?.kind === "region") {
 				return { kind: "regions", keys: [`${layer.place.type}:${layer.place.code}`] };
 			}
+			if (layer.selection) return { kind: "regions", keys: [...layer.selection.ids] };
 			return { unavailable: "place-unsupported" };
 		},
 		offered: (base) => base,
@@ -198,7 +237,9 @@ function airQuality(requests: AdapterRequest[]): DatasetAdapter {
 			if (fetchMode === "fail") throw new Error("offline");
 			if (fetchMode === "hang") await new Promise(() => {});
 			const keys =
-				req.target.kind === "monitors" ? req.target.ids : (req.target as { keys: string[] }).keys;
+				req.target.kind === "monitors"
+					? req.target.ids.map((id) => `monitor:${id}`)
+					: (req.target as { keys: string[] }).keys;
 			const start = req.range.start.getTime();
 			return {
 				series: keys.map((key, n) => ({
@@ -214,7 +255,9 @@ function airQuality(requests: AdapterRequest[]): DatasetAdapter {
 				})),
 				places: keys.map((key) => ({
 					place: key,
-					name: key === "county:06019" ? "Fresno County" : `Monitor ${key}`
+					name:
+						fake.regionNames[key] ??
+						(key === "county:06019" ? "Fresno County" : `Monitor ${key.replace("monitor:", "")}`)
 				})),
 				resolution: req.resolution,
 				fromRaw: false,
@@ -259,6 +302,10 @@ beforeEach(async () => {
 	fake.delay = undefined;
 	fake.regionTypes = async () => [];
 	fake.pesticideMeta = undefined;
+	fake.regionNames = {};
+	fake.locations = {};
+	fake.regionFail = false;
+	fake.area = null;
 	fake.metadata = fixtureMetadata({ catalog: async () => CATALOG });
 	makeClient();
 	fake.now = createNowClient({ activity: createMemoryPlatform().activity });
@@ -268,13 +315,37 @@ afterEach(() => {
 	document.body.querySelectorAll("[data-get-data-host]").forEach((el) => el.remove());
 });
 
+/**
+ * A Chart of PM2.5 (and `overlays`) in the counties `codes` (a Where selection; one is a place),
+ * each named "Area <code>" by the region resolver.
+ */
+function areasDraft(codes: string[], extra: Partial<Draft> = {}, overlays: string[] = []): Draft {
+	for (const code of codes) fake.regionNames[`county:${code}`] = `Area ${code}`;
+	const ids = codes.map((code) => `county:${code}`);
+	return {
+		type: "chart",
+		data: {
+			dateRange: { kind: "trailing", amount: 30, unit: "day" },
+			...(ids.length === 1
+				? { place: { kind: "region", type: "county", code: codes[0] } }
+				: { selection: { kind: "regions", ids } }),
+			layers: [
+				{ dataset: "air-quality", entryType: "pm25" },
+				...overlays.map((entryType) => ({ dataset: "forecasts", entryType }))
+			]
+		},
+		...extra
+	};
+}
+
+/** A Chart of PM2.5 (and `overlays`) at the searched monitors `ids`. */
 function monitorsDraft(ids: string[], extra: Partial<Draft> = {}, overlays: string[] = []): Draft {
 	return {
 		type: "chart",
 		data: {
 			dateRange: { kind: "trailing", amount: 30, unit: "day" },
 			layers: [
-				{ dataset: "air-quality", entryType: "pm25", selection: { kind: "monitors", ids } },
+				{ dataset: "air-quality", entryType: "pm25", monitors: [...ids] },
 				...overlays.map((entryType) => ({ dataset: "forecasts", entryType }))
 			]
 		},
@@ -283,6 +354,8 @@ function monitorsDraft(ids: string[], extra: Partial<Draft> = {}, overlays: stri
 }
 
 async function show(initial: Draft = defaultDraft()) {
+	// The default draft's county, named by the region resolver (unless a test named it already).
+	fake.regionNames["county:06019"] ??= "Fresno County";
 	const platform = createMemoryPlatform();
 	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
 	const host = document.createElement("div");
@@ -455,62 +528,44 @@ test("Overlay for appears only when places are in different zones", async () => 
 	expect((await second.current()).options).toEqual({ overlayFor: { kind: "monitor", id: "m2" } });
 });
 
-describe("Show as over the cap", () => {
-	const ids = ["k1", "k2", "k3", "k4", "k5", "k6", "k7"];
-	const selected = (d: Draft) => d.data.layers[0].selection?.ids;
+test("Overlay for lists a monitor set's monitors; the overlay is fetched for the one chosen", async () => {
+	const draft = monitorsDraft([], {}, ["burn-status"]);
+	draft.data.layers[0] = { dataset: "air-quality", entryType: "pm25", monitorTypes: ["purpleair"] };
+	const { current } = await show(draft);
+	// Same zone or not, a set's monitors are listed: only the chosen one's overlay is fetched.
+	const choice = page.getByRole("combobox", { name: "Overlay for" });
+	await expect.element(choice).toBeVisible();
+	await expect
+		.poll(() => forecastRequests.at(-1)?.target)
+		.toEqual({ kind: "monitors", ids: ["t1"] });
+	await choice.selectOptions("Monitor t2");
+	expect((await current()).options).toEqual({ overlayFor: { kind: "monitor", id: "t2" } });
+	await expect
+		.poll(() => forecastRequests.at(-1)?.target)
+		.toEqual({ kind: "monitors", ids: ["t2"] });
+	expect(
+		forecastRequests.every((r) => r.target.kind === "monitors" && r.target.ids.length === 1)
+	).toBe(true);
+});
 
-	beforeEach(() => {
-		fake.metadata = fixtureMetadata({
-			catalog: async () => CATALOG,
-			monitors: async () =>
-				ids.map((id) => ({
-					id,
-					name: `Monitor ${id}`,
-					type: "purpleair",
-					county: "Fresno",
-					active: true,
-					inside: false
-				}))
-		});
-		makeClient();
-	});
+describe("Show as with many places", () => {
+	const ids = Array.from({ length: 40 }, (_, i) => `k${i + 1}`);
+	const selected = (d: Draft) => d.data.selection?.ids.map((id) => id.slice("county:".length));
 
-	test("Chart from a 7-place Table asks which 5 to keep; Cancel keeps the Table and its 7", async () => {
-		const { latest } = await show(monitorsDraft(ids, { type: "data-table" }));
+	test("a 40-area Table shows as a Chart of all 40, with no keep dialog", async () => {
+		const { latest } = await show(areasDraft(ids, { type: "data-table" }));
 		const chart = page.getByRole("radio", { name: "Chart" });
 		await expect.element(chart).toBeEnabled();
 		await expect.element(chart).not.toHaveAccessibleDescription();
 		await chart.click();
-		const dialog = page.getByRole("dialog");
-		await expect.element(dialog.getByText("Choose up to 5 places to keep.")).toBeVisible();
-		await dialog.getByRole("button", { name: "Cancel" }).click();
-		await expect.element(dialog).not.toBeInTheDocument();
-		// Focus goes back to the button pressed.
-		await expect.element(chart).toHaveFocus();
-		await expect.element(page.getByRole("radio", { name: "Data table" })).toBeChecked();
-		expect(latest().type).toBe("data-table");
-		expect(selected(latest())).toEqual(ids);
-	});
-
-	test("Done with 5 gives a Chart of those 5, with no places-left-out note", async () => {
-		const { latest } = await show(monitorsDraft(ids, { type: "data-table" }));
-		await page.getByRole("radio", { name: "Chart" }).click();
-		const dialog = page.getByRole("dialog");
-		await expect.element(dialog.getByText("Choose up to 5 places to keep.")).toBeVisible();
-		await dialog.getByRole("button", { name: "Remove Monitor k2" }).click();
-		await dialog.getByRole("button", { name: "Remove Monitor k4" }).click();
-		await dialog.getByRole("button", { name: "Done" }).click();
-		await expect.element(dialog).not.toBeInTheDocument();
-		await expect.element(page.getByRole("radio", { name: "Chart" })).toBeChecked();
-		await expect.element(page.getByRole("radio", { name: "Chart" })).toHaveFocus();
+		await expect.element(chart).toBeChecked();
+		expect(page.getByRole("dialog").query()).toBeNull();
 		expect(latest().type).toBe("chart");
-		expect(selected(latest())).toEqual(["k1", "k3", "k5", "k6", "k7"]);
-		const cut = m.get_data_places_over_cap_left_out({ count: "5", countValue: 5 });
-		expect(page.getByText(cut).query()).toBeNull();
-		// Change places afterwards opens the picker as usual, not to choose which to keep.
-		await page.getByRole("button", { name: "Change places" }).click();
-		await expect.element(page.getByRole("dialog")).toBeVisible();
-		expect(page.getByText("Choose up to 5 places to keep.").query()).toBeNull();
+		expect(selected(latest())).toEqual(ids);
+		expect(page.getByText(/places, so the others were left out/).query()).toBeNull();
+		// Back to the Table: all 40 still.
+		await page.getByRole("radio", { name: "Data table" }).click();
+		expect(selected(latest())).toEqual(ids);
 	});
 });
 
@@ -591,6 +646,50 @@ test("Data resolution is its own section after What, with a help button; the lin
 	host.remove();
 });
 
+test("Air quality's monitor types and searched monitors edit the draft's air-quality layer", async () => {
+	const air = { ...CATALOG[0], monitorTypes: ["bam1022", "purpleair"] };
+	fake.metadata = fixtureMetadata({ catalog: async () => [air, ...CATALOG.slice(1)] });
+	makeClient();
+	const { host, latest } = await show(monitorsDraft(["m-pa"]));
+	await page.getByRole("checkbox", { name: "BAM 1022" }).click();
+	expect(latest().data.layers[0]).toEqual({
+		dataset: "air-quality",
+		entryType: "pm25",
+		monitors: ["m-pa"],
+		monitorTypes: ["bam1022"]
+	});
+	await page
+		.getByRole("button", { name: m.get_data_monitors_remove_label({ name: "Purple Air" }) })
+		.click();
+	expect(latest().data.layers[0]).not.toHaveProperty("monitors");
+	host.remove();
+});
+
+test("a Forecast strip searches one monitor, saved on its forecasts layer; it replaces the Where", async () => {
+	const { host, latest } = await show({
+		type: "forecast-strip",
+		data: {
+			place: { kind: "region", type: "county", code: "06019" },
+			layers: [{ dataset: "forecasts" }]
+		}
+	});
+	const choose = page.getByRole("button", { name: m.get_data_monitors_choose() });
+	await choose.click();
+	const search = page.getByRole("dialog", { name: m.get_data_monitors_dialog_title_single() });
+	await expect.element(search).toBeVisible();
+	await animationsSettled(search.element());
+	const box = page.getByRole("combobox");
+	await expect.element(box).toHaveAttribute("placeholder", m.place_picker_placeholder_monitors());
+	await userEvent.fill(box, "ba");
+	await page.getByRole("option", { name: /BAM/ }).click();
+	await expect.element(search).not.toBeInTheDocument();
+	expect(latest().data).toEqual({ layers: [{ dataset: "forecasts", monitors: ["m-bam"] }] });
+	await expect
+		.element(page.getByTestId("where-summary"))
+		.toHaveTextContent(m.get_data_where_one_monitor());
+	host.remove();
+});
+
 test("adding pesticide use on Automatic says Automatic moved to Monthly; removing it clears the note", async () => {
 	const { host, current } = await show(monitorsDraft(["m1"]));
 	const note = page.getByTestId("resolution-note");
@@ -620,7 +719,7 @@ test("adding pesticide use on Automatic says Automatic moved to Monthly; removin
 			end: formatDate(todayPacific())
 		})
 	);
-	await page.getByRole("button", { name: /^Remove/ }).click();
+	await page.getByRole("button", { name: /^Remove Pounds Applied/ }).click();
 	await expect.element(note).toHaveTextContent("");
 	await expect.element(daily).toBeEnabled();
 	await expect.element(page.getByTestId("range-widened-note")).toHaveTextContent("");
@@ -673,11 +772,236 @@ test("keyboard: the date list, accordion and Show as work without a mouse", asyn
 	await expect.element(current).toBeChecked();
 });
 
-test("the pollutant can't be cleared without a number layer; overlays can't stand alone", async () => {
+test("get data view: What comes before When and Where", async () => {
+	await show();
+	const heading = (name: string) => page.getByRole("heading", { name, level: 2 }).element();
+	const [what, when, where] = [heading("What"), heading("When"), heading("Where")];
+	expect(what.compareDocumentPosition(when) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	expect(when.compareDocumentPosition(where) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+test("get data view: the Map and the Chart render the same What", async () => {
+	const { host } = await show(areasDraft(["06019"]));
+	const sections = () =>
+		[...host.querySelectorAll<HTMLElement>("[data-what-section]")].map(
+			(el) => el.dataset.whatSection
+		);
+	const fill = () => page.getByRole("button", { name: m.getdata_map_fill() });
+	await expect.element(fill()).toBeInTheDocument();
+	const chart = sections();
+	// What a Chart can't show is greyed with its reason, never hidden.
+	await expect.element(fill()).toBeDisabled();
+	await expect
+		.element(fill())
+		.toHaveAccessibleDescription(m.get_data_section_only_for({ types: "Map" }));
+	await page.getByRole("radio", { name: "Map" }).click();
+	await expect.element(page.getByRole("radio", { name: "Map" })).toBeChecked();
+	await expect.element(fill()).toBeEnabled();
+	expect(sections()).toEqual(chart);
+	expect(chart).toContain("fill");
+	// Catalog order, the Map's own fill last.
+	expect(chart).toEqual([
+		"air-quality",
+		"forecasts",
+		"weather",
+		"pesticide-use",
+		"hms-smoke",
+		"pesticide-notices",
+		"fill"
+	]);
+});
+
+test("get data view: the left column scrolls and the preview stays in view", async () => {
+	await page.viewport(1280, 720);
+	const { host } = await show(areasDraft(["06019"]));
+	await drawn(host);
+	const column = host.querySelector<HTMLElement>("[data-testid=get-data-choices]")!;
+	// Every section open makes the column taller than the view.
+	for (const trigger of column.querySelectorAll<HTMLButtonElement>(
+		"[data-what-section] h3 button[aria-expanded=false]:not(:disabled)"
+	)) {
+		trigger.click();
+	}
+	await animationsSettled(host);
+	await expect.poll(() => column.scrollHeight > column.clientHeight).toBe(true);
+	// A Tab stop, so the keyboard can scroll it.
+	await expect.poll(() => column.getAttribute("tabindex")).toBe("0");
+	column.scrollTop = column.scrollHeight;
+	await expect.poll(() => column.scrollTop).toBeGreaterThan(0);
+	expect(window.scrollY).toBe(0);
+	const preview = host.querySelector<HTMLElement>("[data-testid=get-data-preview]")!;
+	const top = preview.getBoundingClientRect().top;
+	expect(top).toBeGreaterThanOrEqual(0);
+	expect(top).toBeLessThan(window.innerHeight);
+	// The action bar stays in view at the bottom.
+	const add = page.getByRole("button", { name: "Add to Home" }).element().getBoundingClientRect();
+	expect(add.bottom).toBeLessThanOrEqual(window.innerHeight);
+});
+
+test("get data view: keyboard focus stays in the column after removing a monitor", async () => {
+	await show(monitorsDraft(["m-pa", "m-bam"]));
+	const remove = (name: string) =>
+		page.getByRole("button", { name: m.get_data_monitors_remove_label({ name }) });
+	await expect.element(remove("BAM")).toBeInTheDocument();
+	(remove("Purple Air").element() as HTMLElement).focus();
+	await userEvent.keyboard("{Enter}");
+	// The next row's Remove.
+	await expect.element(remove("BAM")).toHaveFocus();
+	await userEvent.keyboard("{Enter}");
+	// None left: the search's button.
+	await expect.element(page.getByRole("button", { name: m.get_data_monitors_add() })).toHaveFocus();
+	expect(document.activeElement).not.toBe(document.body);
+});
+
+test("get data view: None is never disabled", async () => {
+	for (const type of ["chart", "map"]) {
+		const { current, host, screen } = await show(areasDraft(["06019"], { type }));
+		// The Map's Fill regions by has a None of its own.
+		const scope = type === "map" ? page.getByRole("group", { name: "Air quality" }) : page;
+		const none = scope.getByRole("radio", { name: "None" });
+		await expect.element(none).toBeEnabled();
+		expect(none.element().getAttribute("aria-describedby")).toBeNull();
+		await none.click();
+		await expect.element(none).toBeChecked();
+		expect((await current()).data.layers).toEqual([]);
+		screen.unmount();
+		host.remove();
+	}
+});
+
+test("get data view: Where shows with no pollutant and reads Everywhere", async () => {
+	const draft = areasDraft(["06019"]);
+	draft.data.layers = [];
+	delete draft.data.place;
+	await show(draft);
+	await expect.element(page.getByRole("heading", { name: "Where" })).toBeVisible();
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Everywhere");
+});
+
+test("get data view: Clear goes back to Everywhere, focuses Change places, says so", async () => {
+	const { latest } = await show(areasDraft(["06019", "06029"]));
+	const clear = page.getByRole("button", { name: "Clear places" });
+	await clear.click();
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Everywhere");
+	await expect.element(clear).not.toBeInTheDocument();
+	await expect.element(page.getByRole("button", { name: "Change places" })).toHaveFocus();
+	await expect
+		.element(page.getByTestId("get-data-announcement"))
+		.toHaveTextContent(m.get_data_places_cleared());
+	const data = latest().data;
+	expect(data.place).toBeUndefined();
+	expect(data.selection).toBeUndefined();
+});
+
+test("get data view: a single-place widget has no Clear (its empty Where asks for one)", async () => {
+	await show({
+		type: "current-conditions",
+		data: {
+			layers: [{ dataset: "air-quality", entryType: "pm25" }],
+			place: { kind: "region", type: "county", code: "06019" }
+		}
+	});
+	await expect.element(page.getByTestId("where-summary")).not.toHaveTextContent("Choose");
+	await expect.element(page.getByRole("button", { name: "Change places" })).toBeVisible();
+	expect(page.getByRole("button", { name: "Clear places" }).elements()).toHaveLength(0);
+});
+
+test("get data view: searched monitors with no Where read Everywhere", async () => {
+	await show(monitorsDraft(["m1", "m2"]));
+	await expect.poll(() => requests.length).toBeGreaterThan(0);
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Everywhere");
+	await expect.poll(() => requests.length).toBeGreaterThan(0);
+	await expect.element(page.getByTestId("where-summary")).not.toHaveTextContent("Monitor");
+});
+
+test("get data view: a single-place widget with no Where and no monitor asks for one", async () => {
+	await show({
+		type: "current-conditions",
+		data: { layers: [{ dataset: "air-quality", entryType: "pm25" }] }
+	});
+	await expect
+		.element(page.getByTestId("where-summary"))
+		.toHaveTextContent("Choose a place or a monitor");
+});
+
+test("get data view: a single-place widget with one monitor and no Where says so", async () => {
+	await show({
+		type: "current-conditions",
+		data: { layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }] }
+	});
+	await expect
+		.element(page.getByTestId("where-summary"))
+		.toHaveTextContent(m.get_data_where_one_monitor());
+	expect(m.get_data_where_one_monitor()).toBe("None: this shows one monitor");
+});
+
+test("get data view: Reference-grade ticked with no Where reads Everywhere", async () => {
+	const draft = areasDraft([]);
+	draft.data.layers[0] = { dataset: "air-quality", entryType: "pm25", monitorTypes: ["airnow"] };
+	await show(draft);
+	await expect.poll(() => requests.length).toBeGreaterThan(0);
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Everywhere");
+	await expect.element(page.getByTestId("where-summary")).not.toHaveTextContent("Monitor");
+});
+
+test("get data view: a county Where with ticked types names the county, not the monitors", async () => {
+	const draft = areasDraft(["06019"]);
+	draft.data.layers[0] = { dataset: "air-quality", entryType: "pm25", monitorTypes: ["airnow"] };
+	await show(draft);
+	await expect.poll(() => requests.length).toBeGreaterThan(0);
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Area 06019");
+	await expect.element(page.getByTestId("where-summary")).not.toHaveTextContent("Monitor");
+});
+
+test("get data view: the Map offers radios, one pollutant", async () => {
+	fake.metadata = fixtureMetadata({
+		catalog: async () => CATALOG,
+		mapPollutants: async () => ["pm25", "o3"]
+	});
+	const { current } = await show(areasDraft(["06019"], { type: "map" }));
+	const group = page.getByRole("group", { name: "Air quality" });
+	const radios = group.getByRole("radio");
+	await expect.element(group.getByRole("radio", { name: "PM2.5" })).toBeChecked();
+	expect(radios.elements().map((r) => r.closest("label")?.textContent?.trim())).toEqual([
+		m.get_data_none(),
+		"PM2.5",
+		"Ozone"
+	]);
+	await expect.element(group.getByRole("checkbox")).not.toBeInTheDocument();
+	await group.getByRole("radio", { name: "Ozone" }).click();
+	await expect.element(group.getByRole("radio", { name: "PM2.5" })).not.toBeChecked();
+	expect((await current()).data.layers).toEqual([{ dataset: "air-quality", entryType: "o3" }]);
+	expect((await current()).data.place).toEqual({ kind: "region", type: "county", code: "06019" });
+});
+
+test("get data view: a pollutant the catalog doesn't know is replaced or removed, never doubled", async () => {
+	for (const type of ["map", "chart"]) {
+		const unknown = (): Draft => {
+			const draft = monitorsDraft(["m1"], { type });
+			draft.data.layers = [{ dataset: "air-quality", entryType: "mystery" }];
+			return draft;
+		};
+		const scope = () => (type === "map" ? page.getByRole("group", { name: "Air quality" }) : page);
+		let shown = await show(unknown());
+		// It's the pollutant chosen: None isn't checked.
+		await expect.element(scope().getByRole("radio", { name: "None" })).not.toBeChecked();
+		await scope().getByRole("radio", { name: "PM2.5" }).click();
+		expect((await shown.current()).data.layers).toEqual([
+			{ dataset: "air-quality", entryType: "pm25" }
+		]);
+		shown.screen.unmount();
+		shown.host.remove();
+		shown = await show(unknown());
+		await scope().getByRole("radio", { name: "None" }).click();
+		await expect.element(scope().getByRole("radio", { name: "None" })).toBeChecked();
+		expect((await shown.current()).data.layers).toEqual([]);
+		shown.screen.unmount();
+		shown.host.remove();
+	}
+});
+
+test("the pollutant radios switch the pollutant; overlays follow the main layer", async () => {
 	const { current } = await show(monitorsDraft(["m1"], {}, ["burn-status"]));
-	const none = page.getByRole("radio", { name: "None" });
-	await expect.element(none).toBeDisabled();
-	await expect.element(none).toHaveAccessibleDescription(m.get_data_keep_one());
 	const pm25 = page.getByRole("radio", { name: "PM2.5" });
 	await pm25.click();
 	await expect.element(pm25).toBeChecked();
@@ -688,7 +1012,8 @@ test("the pollutant can't be cleared without a number layer; overlays can't stan
 	await expect.element(pm25).not.toBeChecked();
 	const layers = (await current()).data.layers;
 	expect(layers.map((l) => l.entryType)).toEqual(["o3", "burn-status"]);
-	expect(layers[0].selection).toEqual({ kind: "monitors", ids: ["m1"] });
+	// The pollutant's searched monitors stay with it.
+	expect(layers[0].monitors).toEqual(["m1"]);
 	// The overlay holds no place of its own: it follows the main layer.
 	expect(layers[1]).toEqual({ dataset: "forecasts", entryType: "burn-status" });
 });
@@ -712,7 +1037,7 @@ test("Download CSV saves the draft's data", async () => {
 	expect(files.saved[0].contents).toContain("pm25");
 });
 
-test("a refetch keeps the place names; a failed query shows the count", async () => {
+test("a refetch keeps the place names; a place that can't be looked up shows the count", async () => {
 	const { host } = await show();
 	const summary = page.getByTestId("where-summary");
 	await expect.element(summary).toHaveTextContent("Fresno County");
@@ -724,10 +1049,73 @@ test("a refetch keeps the place names; a failed query shows the count", async ()
 	await expect.element(summary).toHaveTextContent("Fresno County");
 	host.remove();
 
-	fetchMode = "fail";
+	fake.regionFail = true;
 	makeClient();
 	await show();
 	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("1 place");
+});
+
+test("get data view: a county Where with searched monitors names the county", async () => {
+	const draft = areasDraft(["06019"]);
+	draft.data.layers[0] = { dataset: "air-quality", entryType: "pm25", monitors: ["m1"] };
+	await show(draft);
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Area 06019");
+});
+
+test("get data view: a point Where reads its label, else Your location", async () => {
+	const draft = areasDraft([]);
+	draft.data.place = { kind: "point", lat: 36.7, lon: -119.8, label: "Home" };
+	const { screen, host } = await show(draft);
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Home");
+	screen.unmount();
+	host.remove();
+	const plain = areasDraft([]);
+	plain.data.place = { kind: "point", lat: 36.7, lon: -119.8 };
+	await show(plain);
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Your location");
+});
+
+test("get data view: a school Where names the school", async () => {
+	fake.locations = { "schools:s1": "Roosevelt High" };
+	const draft = areasDraft([]);
+	draft.data.place = { kind: "location", source: "schools", code: "s1" };
+	await show(draft);
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Roosevelt High");
+});
+
+describe("Show as a Chart from a school (a Chart holds areas only)", () => {
+	const atSchool = (): Draft => ({
+		type: "current-conditions",
+		data: {
+			place: { kind: "location", source: "schools", code: "s1" },
+			layers: [{ dataset: "air-quality", entryType: "pm25" }]
+		}
+	});
+
+	test("the school's area takes its place", async () => {
+		fake.locations = { "schools:s1": "Roosevelt High" };
+		fake.regionNames["county:06019"] = "Fresno County";
+		fake.area = { type: "county", code: "06019" };
+		const { latest } = await show(atSchool());
+		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Roosevelt High");
+		await page.getByRole("radio", { name: "Chart" }).click();
+		await expect.element(page.getByRole("radio", { name: "Chart" })).toBeChecked();
+		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Fresno County");
+		expect(latest().data.place).toEqual({ kind: "region", type: "county", code: "06019" });
+		await expect
+			.element(page.getByText(m.get_data_school_point_left_out()))
+			.not.toBeInTheDocument();
+	});
+
+	test("with no area found, the school is left out with a note", async () => {
+		fake.locations = { "schools:s1": "Roosevelt High" };
+		const { latest } = await show(atSchool());
+		await page.getByRole("radio", { name: "Chart" }).click();
+		await expect.element(page.getByText(m.get_data_school_point_left_out())).toBeVisible();
+		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Everywhere");
+		expect(latest().type).toBe("chart");
+		expect(latest().data.place).toBeUndefined();
+	});
 });
 
 test("a chosen level the new range can't serve stays, blocked, and Add waits", async () => {
@@ -797,7 +1185,7 @@ test("a mixed draft on Automatic blocks Add, naming the dataset the main layer c
 			"Pesticide Use doesn't line up with the data resolution. Remove it or choose another data resolution."
 		);
 	await openSection(/^Pesticide Use/);
-	await page.getByRole("button", { name: /^Remove/ }).click();
+	await page.getByRole("button", { name: /^Remove Pounds Applied/ }).click();
 	await expect.element(add).toBeEnabled();
 });
 
@@ -954,6 +1342,13 @@ function withLayers(ids: string[], ...rest: Draft["data"]["layers"]): Draft {
 	return draft;
 }
 
+/** `areasDraft(codes)` with `rest` after its PM2.5 layer. */
+function withAreaLayers(codes: string[], ...rest: Draft["data"]["layers"]): Draft {
+	const draft = areasDraft(codes);
+	draft.data.layers.push(...rest);
+	return draft;
+}
+
 const TEMPERATURE = { dataset: "weather", entryType: "temperature" };
 const POUNDS = { dataset: "pesticide-use", entryType: "pounds-applied" };
 
@@ -963,33 +1358,49 @@ async function openSection(name: RegExp) {
 }
 
 test("a temperature-only chart can be added", async () => {
-	const { current } = await show(monitorsDraft(["m1"]));
+	const { current } = await show(areasDraft(["06019"]));
 	await openSection(/^Weather/);
 	await page.getByRole("checkbox", { name: "Temperature", exact: true }).click();
 	await page.getByRole("radio", { name: "None" }).click();
-	expect((await current()).data.layers).toEqual([
-		{ ...TEMPERATURE, selection: { kind: "monitors", ids: ["m1"] } }
-	]);
-	// The last number layer can't be unchecked.
+	expect((await current()).data.layers).toEqual([{ ...TEMPERATURE }]);
+	expect((await current()).data.place).toEqual({ kind: "region", type: "county", code: "06019" });
+	// The last number layer can be unchecked too: a widget may hold nothing.
 	const box = page.getByRole("checkbox", { name: "Temperature", exact: true });
-	await expect.element(box).toBeDisabled();
-	await expect.element(box).toHaveAccessibleDescription(m.get_data_keep_one());
+	await expect.element(box).toBeEnabled();
+	await box.click();
+	expect((await current()).data.layers).toEqual([]);
 });
 
 test("choosing None for Air Quality keeps the places", async () => {
+	const { current } = await show(withAreaLayers(["a1", "a2"], { ...TEMPERATURE }));
+	const where = { kind: "regions", ids: ["county:a1", "county:a2"] };
+	await page.getByRole("radio", { name: "None" }).click();
+	await expect.element(page.getByRole("radio", { name: "None" })).toBeChecked();
+	// The Where names its own places, whatever the layers.
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Area a1 and Area a2");
+	expect((await current()).data.layers).toEqual([{ ...TEMPERATURE }]);
+	expect((await current()).data.selection).toEqual(where);
+	// Choosing a pollutant again makes it the main layer; Where stays.
+	await page.getByRole("radio", { name: "Ozone" }).click();
+	expect((await current()).data.layers).toEqual([
+		{ dataset: "air-quality", entryType: "o3" },
+		{ ...TEMPERATURE }
+	]);
+	expect((await current()).data.selection).toEqual(where);
+});
+
+test("choosing None keeps the searched monitors, with no pollutant (decision 31)", async () => {
 	const { current } = await show(withLayers(["m1", "m2"], { ...TEMPERATURE }));
 	await page.getByRole("radio", { name: "None" }).click();
 	await expect.element(page.getByRole("radio", { name: "None" })).toBeChecked();
-	await expect
-		.element(page.getByTestId("where-summary"))
-		.toHaveTextContent("Monitor m1 and Monitor m2");
 	expect((await current()).data.layers).toEqual([
-		{ ...TEMPERATURE, selection: { kind: "monitors", ids: ["m1", "m2"] } }
+		{ dataset: "air-quality", monitors: ["m1", "m2"] },
+		{ ...TEMPERATURE }
 	]);
-	// Choosing a pollutant again takes them back.
+	// Choosing a pollutant again gives the monitors back to it.
 	await page.getByRole("radio", { name: "Ozone" }).click();
 	expect((await current()).data.layers).toEqual([
-		{ dataset: "air-quality", entryType: "o3", selection: { kind: "monitors", ids: ["m1", "m2"] } },
+		{ dataset: "air-quality", entryType: "o3", monitors: ["m1", "m2"] },
 		{ ...TEMPERATURE }
 	]);
 });
@@ -999,7 +1410,7 @@ test("the station choice shows only with one place", async () => {
 		{ id: "st1", name: "Fresno State", distance: 0, inside: true, active: true },
 		{ id: "st2", name: "Parlier", distance: 4.2, inside: false, active: false }
 	];
-	const one = await show(withLayers(["m1"], { ...TEMPERATURE }));
+	const one = await show(withAreaLayers(["06019"], { ...TEMPERATURE }));
 	await openSection(/^Weather/);
 	const station = page.getByRole("combobox", { name: "Station" });
 	await expect.element(station).toHaveValue("st1");
@@ -1014,7 +1425,7 @@ test("the station choice shows only with one place", async () => {
 	one.screen.unmount();
 	one.host.remove();
 
-	await show(withLayers(["m1", "m2"], { ...TEMPERATURE }));
+	await show(withAreaLayers(["a1", "a2"], { ...TEMPERATURE }));
 	await openSection(/^Weather/);
 	await expect
 		.element(page.getByRole("checkbox", { name: "Temperature", exact: true }))
@@ -1123,11 +1534,11 @@ test("smoke alone disables Add with the reason", async () => {
 		type: "chart",
 		data: {
 			dateRange: { kind: "trailing", amount: 30, unit: "day" },
+			place: { kind: "region", type: "county", code: "06019" },
 			layers: [
 				{
 					dataset: "hms-smoke",
-					entryType: "smoke-density",
-					selection: { kind: "monitors", ids: ["m1"] }
+					entryType: "smoke-density"
 				}
 			]
 		}
@@ -1168,13 +1579,13 @@ describe("now widgets", () => {
 	const currentDraft = (thresholds?: Draft["thresholds"]): Draft => ({
 		type: "current-conditions",
 		data: {
-			layers: [{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }]
+			layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }]
 		},
 		...(thresholds ? { thresholds } : {})
 	});
 
 	test("Show as Current conditions: no When, one place, the pollutant and alert level, a note", async () => {
-		const { host, current } = await show(monitorsDraft(["m1", "m2", "m3"], {}, ["burn-status"]));
+		const { host, current } = await show(areasDraft(["a1", "a2", "a3"], {}, ["burn-status"]));
 		await expect.element(page.getByRole("heading", { name: "When" })).toBeInTheDocument();
 		await page.getByRole("radio", { name: "Current conditions" }).click();
 		await expect.element(page.getByRole("radio", { name: "Current conditions" })).toBeChecked();
@@ -1184,10 +1595,12 @@ describe("now widgets", () => {
 		await expect.element(page.getByText(m.get_data_overlays_left_out())).toBeVisible();
 		await expect.element(page.getByText(m.get_data_extra_places_left_out())).toBeVisible();
 		// One place: the first.
-		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Monitor m1");
-		// The pollutants on offer (PM10 isn't available), and the alert level at its default.
-		const pollutant = page.getByRole("group", { name: "Pollutant" });
+		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Area a1");
+		// The pollutants on offer in Air quality (PM10 isn't available; no None: Current conditions
+		// always shows one), and the alert level at its default.
+		const pollutant = page.getByRole("group", { name: "Air quality" });
 		await expect.element(pollutant.getByRole("radio", { name: "PM2.5" })).toBeChecked();
+		await expect.element(pollutant.getByRole("radio", { name: "None" })).not.toBeInTheDocument();
 		await expect.element(pollutant.getByRole("radio", { name: "Ozone" })).toBeVisible();
 		await expect.element(pollutant.getByRole("radio", { name: "PM10" })).not.toBeInTheDocument();
 		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
@@ -1204,13 +1617,12 @@ describe("now widgets", () => {
 			.poll(() => host.querySelector("[data-testid=get-data-preview]")?.textContent ?? "", {
 				timeout: 5000
 			})
-			.toContain("Monitor m1");
+			.toContain("Area a1");
 		expect(await current()).toEqual({
 			type: "current-conditions",
 			data: {
-				layers: [
-					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }
-				]
+				place: { kind: "region", type: "county", code: "a1" },
+				layers: [{ dataset: "air-quality", entryType: "pm25" }]
 			},
 			thresholds: [{ level: "unhealthy-sensitive" }]
 		});
@@ -1221,7 +1633,7 @@ describe("now widgets", () => {
 	});
 
 	test("Show as Map keeps the chart's places; its untouched 30 days become Now", async () => {
-		const { current } = await show(monitorsDraft(["m1", "m2", "m3"]));
+		const { current } = await show(areasDraft(["a1", "a2", "a3"]));
 		await page.getByRole("radio", { name: "Map" }).click();
 		await expect.element(page.getByRole("radio", { name: "Map" })).toBeChecked();
 		await expect.element(page.getByText(m.get_data_dates_left_out())).not.toBeInTheDocument();
@@ -1235,11 +1647,11 @@ describe("now widgets", () => {
 		expect(await current()).toEqual({
 			type: "map",
 			data: {
+				selection: { kind: "regions", ids: ["county:a1", "county:a2", "county:a3"] },
 				layers: [
 					{
 						dataset: "air-quality",
-						entryType: "pm25",
-						selection: { kind: "monitors", ids: ["m1", "m2", "m3"] }
+						entryType: "pm25"
 					}
 				]
 			}
@@ -1262,9 +1674,7 @@ describe("now widgets", () => {
 		const { current } = await show({
 			type: "map",
 			data: {
-				layers: [
-					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }
-				]
+				layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }]
 			}
 		});
 		const dates = page.getByRole("button", { name: /^Dates/ });
@@ -1309,9 +1719,7 @@ describe("now widgets", () => {
 		const { current } = await show({
 			type: "map",
 			data: {
-				layers: [
-					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }
-				]
+				layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }]
 			}
 		});
 		const use = page.getByRole("switch", { name: m.getdata_map_use_switch() });
@@ -1341,7 +1749,7 @@ describe("now widgets", () => {
 			type: "map",
 			data: {
 				layers: [
-					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
+					{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] },
 					{ dataset: "pesticide-use" }
 				]
 			}
@@ -1355,34 +1763,6 @@ describe("now widgets", () => {
 			);
 		await chooseDates("Last 7 days");
 		await expect.element(add).toBeEnabled();
-	});
-
-	test("shows the Map pollutant checkboxes, and the last one can't be unchecked", async () => {
-		const { current } = await show(monitorsDraft(["m1"]));
-		await page.getByRole("radio", { name: "Map" }).click();
-		// The map's pollutants only, in the monitors meta's order.
-		const group = page.getByRole("group", { name: "Air quality" });
-		const pm25 = group.getByRole("checkbox", { name: "PM2.5" });
-		const ozone = group.getByRole("checkbox", { name: "Ozone" });
-		await expect.element(pm25).toBeChecked();
-		await expect.element(pm25).toBeDisabled();
-		await expect.element(page.getByText(m.get_data_map_keep_one())).toBeVisible();
-		await expect.element(group.getByRole("checkbox", { name: "PM10" })).not.toBeInTheDocument();
-		await expect.element(group.getByRole("radio")).not.toBeInTheDocument();
-		const boxes = group.getByRole("checkbox").elements();
-		expect(boxes.map((b) => b.closest("label")?.textContent?.trim())).toEqual(["Ozone", "PM2.5"]);
-		await ozone.click();
-		await expect.element(pm25).toBeEnabled();
-		expect((await current()).data.layers).toEqual([
-			{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
-			{ dataset: "air-quality", entryType: "o3" }
-		]);
-		// Unchecking the first moves the places to the next.
-		await pm25.click();
-		await expect.element(ozone).toBeDisabled();
-		expect((await current()).data.layers).toEqual([
-			{ dataset: "air-quality", entryType: "o3", place: { kind: "monitor", id: "m1" } }
-		]);
 	});
 
 	test("turns smoke and fire on and off together", async () => {
@@ -1432,7 +1812,7 @@ describe("now widgets", () => {
 			type: "map",
 			data: {
 				layers: [
-					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
+					{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] },
 					{ dataset: "pesticide-notices", filters: { chemical: "c1", commodity: "k1" } }
 				]
 			}
@@ -1510,7 +1890,7 @@ describe("now widgets", () => {
 			type: "map",
 			data: {
 				layers: [
-					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
+					{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] },
 					{ dataset: "pesticide-notices", filters: { chemical: "c1", commodity: "k1" } },
 					{ dataset: "pesticide-use", filters: { chemical: "c1", commodity: "k1" } }
 				]
@@ -1575,7 +1955,7 @@ describe("now widgets", () => {
 			type: "map",
 			data: {
 				layers: [
-					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
+					{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] },
 					{ dataset: "pesticide-notices" },
 					{ dataset: "pesticide-use" }
 				]
@@ -1604,37 +1984,41 @@ describe("now widgets", () => {
 			.element(page.getByRole("checkbox", { name: m.get_data_smoke_and_fire() }))
 			.toBeChecked();
 		await expect.element(page.getByText(m.get_data_overlays_left_out())).not.toBeInTheDocument();
-		await page.getByRole("checkbox", { name: "Ozone" }).click();
+		await page.getByRole("radio", { name: "Ozone" }).click();
 		await page.getByRole("radio", { name: "Chart" }).click();
 		await expect.element(page.getByRole("radio", { name: "Chart" })).toBeChecked();
 		await expect.element(page.getByText(m.get_data_overlays_left_out())).toBeVisible();
 		const out = await current();
 		expect(out.type).toBe("chart");
 		expect(out.data.layers).toEqual([
-			{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }
+			{ dataset: "air-quality", entryType: "o3", monitors: ["m1"] }
 		]);
+		expect(out.data.place).toBeUndefined();
 	});
 
-	test("Show as Current conditions from a Map uses the pollutant showing and drops the marks", async () => {
+	test("Show as Current conditions from a Map uses its pollutant and drops the marks", async () => {
 		const { current } = await show({
 			type: "map",
 			data: {
 				layers: [
-					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
-					{ dataset: "air-quality", entryType: "o3" }
+					{ dataset: "air-quality", entryType: "o3", monitors: ["m1"] },
+					{ dataset: "hms-smoke" },
+					{ dataset: "hms-fire" }
 				]
 			},
-			options: { showing: "o3", marks: ["m1"] }
+			options: { marks: ["m1"] }
 		});
-		await expect.element(page.getByRole("checkbox", { name: "Ozone" })).toBeChecked();
+		await expect.element(page.getByRole("radio", { name: "Ozone" })).toBeChecked();
 		await page.getByRole("radio", { name: "Current conditions" }).click();
 		await expect.element(page.getByText(m.get_data_marks_left_out())).toBeVisible();
 		await expect.element(page.getByText(m.get_data_overlays_left_out())).toBeVisible();
 		const out = await current();
 		expect(out.type).toBe("current-conditions");
+		// The Map's one searched monitor is the tile's.
 		expect(out.data.layers).toEqual([
-			{ dataset: "air-quality", entryType: "o3", place: { kind: "monitor", id: "m1" } }
+			{ dataset: "air-quality", entryType: "o3", monitors: ["m1"] }
 		]);
+		expect(out.data.place).toBeUndefined();
 		expect("options" in out).toBe(false);
 	});
 
@@ -1642,9 +2026,7 @@ describe("now widgets", () => {
 		await show({
 			type: "map",
 			data: {
-				layers: [
-					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }
-				],
+				layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }],
 				dateRange: { kind: "trailing", amount: 7, unit: "day" }
 			},
 			options: { marks: ["m1"] }
@@ -1664,7 +2046,7 @@ describe("now widgets", () => {
 			type: "map",
 			data: {
 				layers: [
-					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
+					{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] },
 					{ dataset: "air-quality", entryType: "o3" },
 					// A Chart's smoke layer (an entry type) isn't the Map's place-less smoke.
 					{ dataset: "hms-smoke", entryType: "smoke-density" }
@@ -1689,9 +2071,7 @@ describe("now widgets", () => {
 			title: null,
 			rect: { x: 0, y: 0, w: 6, h: 6 },
 			data: {
-				layers: [
-					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }
-				]
+				layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }]
 			},
 			options: { marks: ["m1"] }
 		};
@@ -1716,12 +2096,11 @@ describe("now widgets", () => {
 			},
 			context: new Map([[APP_CONTEXT_KEY, app]])
 		});
-		await page.getByRole("checkbox", { name: "Ozone" }).click();
+		await page.getByRole("radio", { name: "Ozone" }).click();
 		await page.getByRole("checkbox", { name: m.get_data_smoke_and_fire() }).click();
 		await page.getByRole("button", { name: "Save changes" }).click();
 		const saved = session.doc.body.widgets[0];
 		expect(saved.data.layers.map((l) => l.entryType ?? l.dataset)).toEqual([
-			"pm25",
 			"o3",
 			"hms-smoke",
 			"hms-fire"
@@ -1794,14 +2173,14 @@ describe("now widgets", () => {
 	});
 
 	test("a Map link with 30 places opens cut to 25, and says so", async () => {
-		const ids = Array.from({ length: 30 }, (_, i) => `m${i + 1}`);
-		const { current } = await show(monitorsDraft(ids, { type: "map" }));
+		const codes = Array.from({ length: 30 }, (_, i) => `a${i + 1}`);
+		const { current } = await show(areasDraft(codes, { type: "map" }));
 		await expect
 			.element(page.getByText(m.get_data_places_over_cap_left_out({ count: 25, countValue: 25 })))
 			.toBeVisible();
-		expect((await current()).data.layers[0].selection).toEqual({
-			kind: "monitors",
-			ids: ids.slice(0, 25)
+		expect((await current()).data.selection).toEqual({
+			kind: "regions",
+			ids: codes.slice(0, 25).map((code) => `county:${code}`)
 		});
 	});
 
@@ -1825,14 +2204,14 @@ describe("now widgets", () => {
 	});
 
 	test("Outside has the alert level but no pollutant control; the Forecast strip has neither", async () => {
-		const { current } = await show(monitorsDraft(["m1"]));
+		const { current } = await show(areasDraft(["a1"]));
 		await page.getByRole("radio", { name: "Can we go outside?" }).click();
 		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
 		// Not a downloadable type.
 		await expect
 			.element(page.getByRole("button", { name: "Download CSV" }))
 			.not.toBeInTheDocument();
-		await expect.element(page.getByRole("group", { name: "Pollutant" })).not.toBeInTheDocument();
+		await expect.element(page.getByRole("group", { name: "Air quality" })).not.toBeInTheDocument();
 		// A one-place draft over dates still says the dates were left out.
 		await expect.element(page.getByText(m.get_data_dates_left_out())).toBeVisible();
 		await expect
@@ -1841,12 +2220,15 @@ describe("now widgets", () => {
 		await page.getByRole("radio", { name: "Forecast" }).click();
 		await expect.element(page.getByRole("radio", { name: "Forecast" })).toBeChecked();
 		await expect.element(alert()).not.toBeInTheDocument();
-		await expect.element(page.getByRole("group", { name: "Pollutant" })).not.toBeInTheDocument();
+		await expect.element(page.getByRole("group", { name: "Air quality" })).not.toBeInTheDocument();
 		// The place is still named (through a PM2.5 query of it).
-		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Monitor m1");
+		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Area a1");
 		expect(await current()).toEqual({
 			type: "forecast-strip",
-			data: { layers: [{ dataset: "forecasts", place: { kind: "monitor", id: "m1" } }] }
+			data: {
+				place: { kind: "region", type: "county", code: "a1" },
+				layers: [{ dataset: "forecasts" }]
+			}
 		});
 		// Back to a Chart: the default range.
 		await page.getByRole("radio", { name: "Chart" }).click();
@@ -1855,7 +2237,8 @@ describe("now widgets", () => {
 			.toHaveTextContent("Last 30 days");
 		expect((await current()).data).toEqual({
 			dateRange: { kind: "trailing", amount: 30, unit: "day" },
-			layers: [{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }]
+			place: { kind: "region", type: "county", code: "a1" },
+			layers: [{ dataset: "air-quality", entryType: "pm25" }]
 		});
 	});
 
@@ -1926,10 +2309,10 @@ describe("now widgets", () => {
 	});
 
 	test("a Current conditions link opens a range draft converted", async () => {
-		await show({ ...monitorsDraft(["m1", "m2"]), type: "current-conditions" });
+		await show({ ...areasDraft(["a1", "a2"]), type: "current-conditions" });
 		await expect.element(page.getByText(m.get_data_dates_left_out())).toBeVisible();
 		await expect.element(page.getByText(m.get_data_extra_places_left_out())).toBeVisible();
-		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Monitor m1");
+		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Area a1");
 		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
 	});
 
@@ -1946,7 +2329,7 @@ describe("now widgets", () => {
 		const ozone: Draft = {
 			type: "current-conditions",
 			data: {
-				layers: [{ dataset: "air-quality", entryType: "o3", place: { kind: "monitor", id: "m1" } }]
+				layers: [{ dataset: "air-quality", entryType: "o3", monitors: ["m1"] }]
 			}
 		};
 		await show(ozone);
@@ -2098,12 +2481,12 @@ describe("calendar types", () => {
 		data: {
 			dateRange: { kind: "to-date", unit: "month" },
 			timeSubRange: { start: "2026-11-02", end: "2026-11-03" },
-			layers: [{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }]
+			layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }]
 		}
 	});
 
 	test("greyed out with its reason when the data has two places", async () => {
-		await show(monitorsDraft(["m1", "m2"]));
+		await show(areasDraft(["a1", "a2"]));
 		await expect.element(page.getByRole("radio", { name: "Month calendar" })).toBeDisabled();
 		await expect.element(page.getByText(/Month calendar:/).first()).toBeInTheDocument();
 	});
@@ -2180,102 +2563,5 @@ describe("calendar types", () => {
 		const { current } = await show(rangedMonth(daysAgo(2), daysAgo(1)));
 		await chooseDates("Last 90 days");
 		expect((await current()).data.timeSubRange).toEqual({ start: daysAgo(2), end: daysAgo(1) });
-	});
-});
-
-describe("Where in keep mode", () => {
-	const ids = ["k1", "k2", "k3", "k4", "k5", "k6", "k7"];
-	const picks: Picks = ids.map((id) => ({ kind: "monitor", id }));
-
-	async function showWhere() {
-		fake.metadata = fixtureMetadata({
-			catalog: async () => CATALOG,
-			monitors: async () =>
-				ids.map((id) => ({
-					id,
-					name: `Monitor ${id}`,
-					type: "purpleair",
-					county: "Fresno",
-					active: true,
-					inside: false
-				}))
-		});
-		const platform = createMemoryPlatform();
-		const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
-		const host = document.createElement("div");
-		host.dataset.getDataHost = "";
-		document.body.appendChild(host);
-		const onkeep = vi.fn();
-		const oncancel = vi.fn();
-		const onchange = vi.fn();
-		const screen = await render(WhereControl, {
-			target: host,
-			props: {
-				picks,
-				names: null,
-				namesSettled: true,
-				max: 5,
-				purpose: { dataset: "air-quality", entryType: "pm25" },
-				onchange,
-				keep: { max: 5, onkeep, oncancel }
-			},
-			context: new Map([[APP_CONTEXT_KEY, app]])
-		});
-		const dialog = page.getByRole("dialog");
-		await expect.element(dialog).toBeVisible();
-		await expect.element(dialog.getByText("Choose up to 5 places to keep.")).toBeVisible();
-		return { screen, dialog, onkeep, oncancel, onchange };
-	}
-
-	test("opens its picker at once; Done hands over the places to keep", async () => {
-		const { dialog, onkeep, oncancel, onchange } = await showWhere();
-		// The keep line is announced up front: it describes the dialog and the search box.
-		await expect.element(dialog).toHaveAccessibleDescription("Choose up to 5 places to keep.");
-		await expect
-			.element(dialog.getByRole("combobox"))
-			.toHaveAccessibleDescription("Choose up to 5 places to keep.");
-		const done = dialog.getByRole("button", { name: "Done" });
-		await expect.element(done).toHaveAttribute("aria-disabled", "true");
-		await dialog.getByRole("button", { name: "Remove Monitor k6" }).click();
-		await dialog.getByRole("button", { name: "Remove Monitor k7" }).click();
-		// Within the cap the keep line goes, and the dialog no longer names it.
-		await expect
-			.element(dialog.getByText("Choose up to 5 places to keep."))
-			.not.toBeInTheDocument();
-		await expect.element(dialog).not.toHaveAttribute("aria-describedby");
-		await done.click();
-		expect(onkeep).toHaveBeenCalledWith(picks.slice(0, 5));
-		expect(oncancel).not.toHaveBeenCalled();
-		expect(onchange).not.toHaveBeenCalled();
-		await expect.element(dialog).not.toBeInTheDocument();
-		await expect.element(page.getByRole("button", { name: "Change places" })).toHaveFocus();
-	});
-
-	test("Cancel calls oncancel once and returns focus to the Change button", async () => {
-		const { dialog, onkeep, oncancel } = await showWhere();
-		await dialog.getByRole("button", { name: "Cancel" }).click();
-		await expect.element(dialog).not.toBeInTheDocument();
-		expect(oncancel).toHaveBeenCalledOnce();
-		expect(onkeep).not.toHaveBeenCalled();
-		await expect.element(page.getByRole("button", { name: "Change places" })).toHaveFocus();
-	});
-
-	test("Escape cancels once", async () => {
-		const { dialog, onkeep, oncancel } = await showWhere();
-		await expect.element(dialog.getByRole("combobox")).toHaveFocus();
-		await userEvent.keyboard("{Escape}");
-		await expect.element(dialog).not.toBeInTheDocument();
-		expect(oncancel).toHaveBeenCalledOnce();
-		expect(onkeep).not.toHaveBeenCalled();
-		await expect.element(page.getByRole("button", { name: "Change places" })).toHaveFocus();
-	});
-
-	test("the dialog's close button cancels once", async () => {
-		const { dialog, onkeep, oncancel } = await showWhere();
-		await dialog.getByRole("button", { name: /close/i }).click();
-		await expect.element(dialog).not.toBeInTheDocument();
-		expect(oncancel).toHaveBeenCalledOnce();
-		expect(onkeep).not.toHaveBeenCalled();
-		await expect.element(page.getByRole("button", { name: "Change places" })).toHaveFocus();
 	});
 });

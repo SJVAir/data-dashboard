@@ -8,6 +8,7 @@ import { m } from "$lib/paraglide/messages.js";
 import type { GeoResult } from "$lib/platform/types";
 import { animationsSettled } from "../../test/animations";
 import type { PlaceDirectory } from "./directory";
+import type { PickerOffer } from "./picker-state.svelte";
 import PlacePicker from "./PlacePicker.svelte";
 import type { PickerMode, Picks } from "./selection";
 import type { LocationOption, MonitorOption, PlaceOption, RegionOption } from "./types";
@@ -98,6 +99,7 @@ function twelve() {
 
 type Options = {
 	mode?: PickerMode;
+	offer?: PickerOffer;
 	initial?: Picks;
 	recent?: PlaceOption[];
 	known?: PlaceOption[];
@@ -116,6 +118,7 @@ async function show(opts: Options = {}) {
 		directory: directory(),
 		purpose: { dataset: "air-quality", entryType: "pm25" },
 		mode: opts.mode ?? { kind: "single" },
+		...(opts.offer ? { offer: opts.offer } : {}),
 		initial: opts.initial ?? [],
 		recent: opts.recent ?? [],
 		known: opts.known,
@@ -167,8 +170,8 @@ for (const [label, width, height] of [
 		test("the search box is focused, with the placeholder", async () => {
 			const { input } = await show();
 			await expect.element(input).toHaveFocus();
-			expect(inputEl().placeholder).toBe("Search for a city, ZIP, school, or monitor");
-			expect(m.place_picker_placeholder()).toBe("Search for a city, ZIP, school, or monitor");
+			expect(inputEl().placeholder).toBe(m.place_picker_placeholder());
+			expect(m.place_picker_placeholder()).toBe("Search for a city, ZIP, or school");
 		});
 
 		test("before typing: Recent rows, Use my location and Browse", async () => {
@@ -179,14 +182,17 @@ for (const [label, width, height] of [
 			await expect
 				.element(screen.getByRole("option", { name: /Roosevelt High School/ }))
 				.toBeVisible();
-			await expect.element(screen.getByRole("option", { name: /Fresno - Garland/ })).toBeVisible();
+			// Where offers no monitors, so a recent monitor isn't listed.
+			await expect
+				.element(screen.getByRole("option", { name: /Fresno - Garland/ }))
+				.not.toBeInTheDocument();
 			await expect.element(screen.getByRole("heading", { name: "Browse" })).toBeVisible();
 			const root = screen.container.firstElementChild as HTMLElement;
 			await animationsSettled(root);
 			expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(width);
 		});
 
-		test("typing shows three labeled groups, then the count", async () => {
+		test("typing shows two labeled groups, then the count", async () => {
 			twelve();
 			const { screen, input } = await show({ recent: [fresnoCounty] });
 			await userEvent.fill(input, "fr");
@@ -194,8 +200,8 @@ for (const [label, width, height] of [
 				.element(screen.getByRole("group", { name: "Schools & child care" }))
 				.toBeVisible();
 			await expect.element(screen.getByRole("group", { name: "Places" })).toBeVisible();
-			await expect.element(screen.getByRole("group", { name: "Monitors" })).toBeVisible();
-			await expect.poll(liveText).toBe("12 results");
+			await expect.poll(liveText).toBe("8 results");
+			expect(screen.container.querySelector("[aria-label='Monitors']")).toBeNull();
 			expect(screen.container.querySelector("[aria-label='Recent']")).toBeNull();
 			expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(width);
 			document.body.style.background = "#ffffff";
@@ -204,6 +210,42 @@ for (const [label, width, height] of [
 		});
 	});
 }
+
+test('place picker: Where offers no monitors; "areas" offers no schools or points', async () => {
+	twelve();
+	const where = await show();
+	await userEvent.fill(where.input, "fr");
+	await expect.poll(liveText).toBe("8 results");
+	await expect
+		.element(where.screen.getByRole("option", { name: /Fresno - Garland/ }))
+		.not.toBeInTheDocument();
+	where.screen.unmount();
+
+	const areas = await show({ offer: "areas", recent: [fresnoCounty, roosevelt, garland] });
+	await expect.element(areas.screen.getByRole("option", { name: /Fresno County/ })).toBeVisible();
+	await expect
+		.element(areas.screen.getByRole("option", { name: /Roosevelt High School/ }))
+		.not.toBeInTheDocument();
+	await expect
+		.element(areas.screen.getByRole("button", { name: "Use my location" }))
+		.not.toBeInTheDocument();
+	expect(inputEl().placeholder).toBe(m.place_picker_placeholder_areas());
+	await userEvent.fill(areas.input, "fr");
+	await expect.poll(liveText).toBe("4 results");
+	await expect.element(areas.screen.getByRole("group", { name: "Places" })).toBeVisible();
+	expect(areas.screen.container.querySelector("[aria-label='Schools & child care']")).toBeNull();
+	areas.screen.unmount();
+
+	const only = await show({ offer: "monitors", recent: [fresnoCounty, garland] });
+	expect(inputEl().placeholder).toBe(m.place_picker_placeholder_monitors());
+	await expect.element(only.screen.getByRole("option", { name: /Fresno - Garland/ })).toBeVisible();
+	await expect
+		.element(only.screen.getByRole("option", { name: /Fresno County/ }))
+		.not.toBeInTheDocument();
+	await userEvent.fill(only.input, "fr");
+	await expect.poll(liveText).toBe("4 results");
+	await expect.element(only.screen.getByRole("group", { name: "Monitors" })).toBeVisible();
+});
 
 test("rows show their details, and Not reporting as text", async () => {
 	vi.mocked(searchLocations).mockResolvedValue({
@@ -221,7 +263,10 @@ test("rows show their details, and Not reporting as text", async () => {
 	expect(schoolText).toContain("Fresno · 93702");
 	expect(schoolText).toContain("4250 E Tulare Ave");
 	await expect.element(screen.getByRole("option", { name: /^Roosevelt\s*City/ })).toBeVisible();
-	const mon = screen.getByRole("option", { name: /Roosevelt Rooftop/ });
+	screen.unmount();
+	const monitorsOnly = await show({ offer: "monitors" });
+	await userEvent.fill(monitorsOnly.input, "roo");
+	const mon = monitorsOnly.screen.getByRole("option", { name: /Roosevelt Rooftop/ });
 	await expect.element(mon).toBeVisible();
 	const monText = mon.element().textContent;
 	expect(monText).toContain("PurpleAir");
@@ -233,7 +278,7 @@ test("arrow keys move across groups; Enter picks in single mode", async () => {
 	twelve();
 	const { screen, input, ondone } = await show();
 	await userEvent.fill(input, "fr");
-	await expect.poll(liveText).toBe("12 results");
+	await expect.poll(liveText).toBe("8 results");
 	expect(inputEl().getAttribute("aria-expanded")).toBe("true");
 	expect(inputEl().getAttribute("aria-controls")).toBe(
 		screen.container.querySelector("[role=listbox]")!.id
@@ -257,7 +302,7 @@ test("Escape clears the box, then cancels", async () => {
 	twelve();
 	const { input, oncancel } = await show();
 	await userEvent.fill(input, "fr");
-	await expect.poll(liveText).toBe("12 results");
+	await expect.poll(liveText).toBe("8 results");
 	await userEvent.keyboard("{Escape}");
 	expect(inputEl().value).toBe("");
 	expect(oncancel).not.toHaveBeenCalled();
@@ -291,11 +336,12 @@ test("a stale response is ignored", async () => {
 	expect(liveText()).toBe("1 result");
 });
 
-function renderWith(dir: PlaceDirectory) {
+function renderWith(dir: PlaceDirectory, offer: PickerOffer = "where") {
 	return render(PlacePicker, {
 		directory: dir,
 		purpose: { dataset: "air-quality", entryType: "pm25" },
 		mode: { kind: "single" },
+		offer,
 		initial: [],
 		recent: [],
 		locate: vi.fn(),
@@ -307,27 +353,37 @@ function renderWith(dir: PlaceDirectory) {
 
 test("a failed group shows Retry while the others show, and is announced", async () => {
 	twelve();
-	const dir = directory();
-	vi.mocked(dir.monitors).mockRejectedValueOnce(new Error("offline"));
-	const screen = await renderWith(dir);
+	vi.mocked(searchRegionPlaces).mockRejectedValueOnce(new Error("offline"));
+	const screen = await renderWith(directory());
 	await userEvent.fill(screen.getByRole("combobox"), "fr");
 	const notice = () => screen.container.querySelector("[data-picker-error]");
-	await expect.poll(() => notice()?.textContent).toContain("Couldn't search monitors.");
-	await expect.element(screen.getByRole("group", { name: "Places" })).toBeVisible();
-	expect(screen.container.querySelector("[aria-label='Monitors']")).toBeNull();
-	await expect.poll(liveText).toBe("8 results | Couldn't search monitors.");
+	await expect.poll(() => notice()?.textContent).toContain("Couldn't search places.");
+	await expect.element(screen.getByRole("group", { name: "Schools & child care" })).toBeVisible();
+	expect(screen.container.querySelector("[aria-label='Places']")).toBeNull();
+	await expect.poll(liveText).toBe("4 results | Couldn't search places.");
 	await screen.getByRole("button", { name: "Retry" }).click();
-	await expect.element(screen.getByRole("group", { name: "Monitors" })).toBeVisible();
-	await expect.poll(liveText).toBe("12 results");
+	await expect.element(screen.getByRole("group", { name: "Places" })).toBeVisible();
+	await expect.poll(liveText).toBe("8 results");
 	expect(notice()).toBeNull();
 });
 
-test("when every returned group is empty, only the failure is announced", async () => {
+test("a monitors search's failure shows Retry and is announced", async () => {
+	twelve();
 	const dir = directory();
 	vi.mocked(dir.monitors).mockRejectedValueOnce(new Error("offline"));
-	const screen = await renderWith(dir);
-	await userEvent.fill(screen.getByRole("combobox"), "zz");
+	const screen = await renderWith(dir, "monitors");
+	await userEvent.fill(screen.getByRole("combobox"), "fr");
 	await expect.poll(liveText).toBe("Couldn't search monitors.");
+	await screen.getByRole("button", { name: "Retry" }).click();
+	await expect.element(screen.getByRole("group", { name: "Monitors" })).toBeVisible();
+	await expect.poll(liveText).toBe("4 results");
+});
+
+test("when every returned group is empty, only the failure is announced", async () => {
+	vi.mocked(searchRegionPlaces).mockRejectedValueOnce(new Error("offline"));
+	const screen = await renderWith(directory());
+	await userEvent.fill(screen.getByRole("combobox"), "zz");
+	await expect.poll(liveText).toBe("Couldn't search places.");
 });
 
 test("More matches when a group has more", async () => {
@@ -401,24 +457,20 @@ describe("multiple mode", () => {
 				{ kind: "region", type: "county", code: "06107" }
 			],
 			known: [fresnoCounty, tulare],
-			recent: [garland, roosevelt]
+			recent: [roosevelt]
 		});
 		await input.click();
 		await userEvent.keyboard("{ArrowDown}");
-		const row = activeOption()!;
-		expect(row.textContent).toContain("Fresno - Garland");
-		expect(row.getAttribute("aria-disabled")).toBe("true");
-		const reason = document.getElementById(row.getAttribute("aria-describedby")!)!;
-		expect(reason.textContent).toBe(
-			"This widget compares regions. Remove the regions to compare monitors."
-		);
-		await userEvent.keyboard("{Enter}");
-		expect(screen.container.querySelector("[aria-label='Remove Fresno - Garland']")).toBeNull();
-		await userEvent.keyboard("{ArrowDown}");
 		const school = activeOption()!;
+		expect(school.textContent).toContain("Roosevelt High School");
+		expect(school.getAttribute("aria-disabled")).toBe("true");
 		expect(document.getElementById(school.getAttribute("aria-describedby")!)!.textContent).toBe(
 			"A school or your location can only be shown on its own."
 		);
+		await userEvent.keyboard("{Enter}");
+		expect(
+			screen.container.querySelector("[aria-label='Remove Roosevelt High School']")
+		).toBeNull();
 		document.body.style.background = "#ffffff";
 		const results = await axe.run(screen.container);
 		expect(results.violations).toEqual([]);
@@ -507,8 +559,13 @@ describe("multiple mode", () => {
 
 describe("keep state (more picks than the cap)", () => {
 	const mode: PickerMode = { kind: "multiple", max: 5 };
-	const seven = ["a", "b", "c", "d", "e", "f", "g"].map((n) => monitor(`Monitor ${n}`));
-	const sevenPicks: Picks = seven.map((o) => ({ kind: "monitor", id: o.id }));
+	/** Seven areas (Where holds areas, never monitors). */
+	const seven = ["a", "b", "c", "d", "e", "f", "g"].map((n): RegionOption => ({
+		...fresnoCounty,
+		code: `c-${n}`,
+		name: `Area ${n}`
+	}));
+	const sevenPicks: Picks = seven.map((o) => ({ kind: "region", type: o.type, code: o.code }));
 
 	test("says how many to keep; Done is disabled with that as its reason until at the cap", async () => {
 		const { screen, ondone } = await show({ mode, initial: sevenPicks, known: seven });
@@ -529,9 +586,9 @@ describe("keep state (more picks than the cap)", () => {
 		(done.element() as HTMLButtonElement).click();
 		expect(ondone).not.toHaveBeenCalled();
 
-		await screen.getByRole("button", { name: "Remove Monitor a" }).click();
+		await screen.getByRole("button", { name: "Remove Area a" }).click();
 		await expect.element(done).toHaveAttribute("aria-disabled", "true");
-		await screen.getByRole("button", { name: "Remove Monitor b" }).click();
+		await screen.getByRole("button", { name: "Remove Area b" }).click();
 		await expect.element(done).not.toHaveAttribute("aria-disabled");
 		await expect.element(done).not.toHaveAttribute("aria-describedby");
 		expect(screen.container.textContent).not.toContain("places to keep");
@@ -549,7 +606,7 @@ describe("keep state (more picks than the cap)", () => {
 	});
 
 	test("no row can be added while over the cap; a picked row can go", async () => {
-		const extra = monitor("Monitor h");
+		const extra: RegionOption = { ...fresnoCounty, code: "c-h", name: "Area h" };
 		const { screen, input } = await show({
 			mode,
 			initial: sevenPicks,
@@ -559,16 +616,16 @@ describe("keep state (more picks than the cap)", () => {
 		await input.click();
 		await userEvent.keyboard("{ArrowDown}");
 		const row = activeOption()!;
-		expect(row.textContent).toContain("Monitor h");
+		expect(row.textContent).toContain("Area h");
 		expect(row.getAttribute("aria-disabled")).toBe("true");
 		expect(document.getElementById(row.getAttribute("aria-describedby")!)!.textContent).toBe(
 			"This widget shows up to 5 places."
 		);
 		await userEvent.keyboard("{Enter}");
-		expect(screen.container.querySelector("[aria-label='Remove Monitor h']")).toBeNull();
+		expect(screen.container.querySelector("[aria-label='Remove Area h']")).toBeNull();
 		// The picked one toggles off.
 		await userEvent.keyboard("{ArrowDown}{Enter}");
-		expect(screen.container.querySelector("[aria-label='Remove Monitor a']")).toBeNull();
+		expect(screen.container.querySelector("[aria-label='Remove Area a']")).toBeNull();
 		await expect
 			.element(screen.getByRole("button", { name: "Use my location" }))
 			.toHaveAttribute("aria-disabled", "true");

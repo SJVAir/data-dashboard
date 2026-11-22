@@ -1,9 +1,9 @@
 import type { Feature } from "geojson";
 import { getResolvers, placeRegion } from "$lib/data";
-import type { Layer } from "$lib/data/schema";
+import type { Layer, WidgetDataConfig } from "$lib/data/schema";
 import type { UnavailableReason } from "$lib/data/types";
-import { nowInput } from "../shared/input";
-import { frameOf, type Frame } from "./framing";
+import { nowInput, widgetWhere } from "../shared/input";
+import { frameOf, type Frame, type Where } from "./framing";
 import { regionKey, regionShapes, type RegionRef } from "./regions";
 
 export type FrameState =
@@ -18,15 +18,18 @@ export type FrameState =
 /** No shapes. The frame's maps are replaced whole (`$state.raw`), never changed in place. */
 const noShapes = (): Map<string, Feature> => new Map();
 
-/** A layer's places, as a key (another tab's copy of the same places is the same key). */
-const placesKey = (layer: Layer | undefined) =>
-	JSON.stringify([layer?.place ?? null, layer?.selection ?? null]);
+/**
+ * A Where and the layer's searched monitors, as a key (another tab's copy of the same places is
+ * the same key).
+ */
+const placesKey = (where: Where, layer: Layer | undefined) =>
+	JSON.stringify([where.place ?? null, where.selection ?? null, layer?.monitors ?? null]);
 
 const isAbort = (e: unknown) => e instanceof DOMException && e.name === "AbortError";
 
 /**
- * A map's frame, kept in step with its layer: what it highlights, outlines, pins and fits, with
- * the region shapes to outline. Each layer change aborts the previous lookups. A frame that
+ * A map's frame, kept in step with its layer and its data's Where: what it highlights, outlines,
+ * pins and fits, with the region shapes to outline. Each change aborts the previous lookups. A frame that
  * can't be completed still holds what's known (its pin, its monitors), so the map still draws.
  */
 export class MapFrame {
@@ -39,13 +42,16 @@ export class MapFrame {
 	/** The places `frame` was made for. */
 	#frameFor: string | null = null;
 
-	constructor(layer: () => Layer | undefined) {
+	constructor(layer: () => Layer | undefined, data: () => WidgetDataConfig) {
 		this.#stop = $effect.root(() => {
 			$effect(() => {
 				const current = layer();
+				const all = data();
+				// A deep copy, read here so a change of Where reruns the frame.
+				const where = widgetWhere(all);
 				void this.#tries;
 				const controller = new AbortController();
-				this.#load(current, controller.signal);
+				this.#load(current, where, all, controller.signal);
 				return () => controller.abort();
 			});
 		});
@@ -67,9 +73,9 @@ export class MapFrame {
 		this.state = state;
 	}
 
-	#load(layer: Layer | undefined, signal: AbortSignal) {
-		const key = placesKey(layer);
-		const { needs, ...rest } = frameOf(layer);
+	#load(layer: Layer | undefined, where: Where, data: WidgetDataConfig, signal: AbortSignal) {
+		const key = placesKey(where, layer);
+		const { needs, ...rest } = frameOf(layer, where);
 		const frame: Frame = { ...rest, regions: [], pin: null };
 		if (needs.length === 0) {
 			this.#set(key, frame, noShapes(), frame.focus === "none" ? "idle" : "ready");
@@ -82,7 +88,7 @@ export class MapFrame {
 			this.#frameFor = null;
 		}
 		this.state = "loading";
-		this.#resolve(frame, needs, signal).then(
+		this.#resolve(frame, needs, data, signal).then(
 			({ frame, shapes, state }) => {
 				if (!signal.aborted) this.#set(key, frame, shapes, state);
 			},
@@ -96,6 +102,7 @@ export class MapFrame {
 	async #resolve(
 		frame: Frame,
 		needs: ReturnType<typeof frameOf>["needs"],
+		data: WidgetDataConfig,
 		signal: AbortSignal
 	): Promise<{ frame: Frame; shapes: Map<string, Feature>; state: FrameState }> {
 		let regions: RegionRef[] = [];
@@ -114,9 +121,9 @@ export class MapFrame {
 				const { lat, lon } = found.point;
 				pin = { kind: "location", name: found.name, lat, lon };
 			} else {
-				const place = need.layer.place;
-				if (place?.kind === "point") pin = { kind: "point", lat: place.lat, lon: place.lon };
-				const input = nowInput(need.layer);
+				pin = { kind: "point", lat: need.point.lat, lon: need.point.lon };
+				// The region the Map shows now for its Where (`nowInput` reads it from `data`).
+				const input = nowInput(data, need.layer);
 				const region = input ? await placeRegion(input, signal) : null;
 				const withPin = { ...frame, pin };
 				if (!region) {

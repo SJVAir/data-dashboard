@@ -191,8 +191,8 @@ test("adds a temperature-only chart", async ({ page }) => {
 	await page.getByRole("checkbox", { name: "Temperature", exact: true }).check();
 	await page.getByRole("radio", { name: "None" }).check();
 	await expect(page.getByRole("radio", { name: "None" })).toBeChecked();
-	// The last number layer can't be unchecked.
-	await expect(page.getByRole("checkbox", { name: "Temperature", exact: true })).toBeDisabled();
+	// The last number layer can be unchecked too (a widget may hold nothing); it stays on here.
+	await expect(page.getByRole("checkbox", { name: "Temperature", exact: true })).toBeEnabled();
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
 	await expect(page.getByRole("combobox", { name: "Station" })).toHaveValue(
 		"I3wADR9bR-2hfub3h3nsJA"
@@ -205,6 +205,143 @@ test("adds a temperature-only chart", async ({ page }) => {
 	await expect(added).toBeVisible();
 	await expect(widgetTitles(page).last()).not.toContainText("PM2.5");
 	await expect(added.getByText(/PM2\.5/)).toHaveCount(0);
+});
+
+test("with no Where, weather draws every station and pesticide use the whole valley", async ({
+	page
+}) => {
+	const range = { kind: "trailing", amount: 12, unit: "month" };
+	const widget = (id: string, x: number, layer: object) => ({
+		id,
+		type: "data-table",
+		title: null,
+		rect: { x, y: 0, w: 6, h: 6 },
+		data: { dateRange: range, resolution: "month", layers: [layer] }
+	});
+	const doc = {
+		kind: "dashboard",
+		schemaVersion: 1,
+		id: "no-where-1",
+		name: "Everywhere",
+		body: {
+			widgets: [
+				widget("w0", 0, { dataset: "weather", entryType: "temperature" }),
+				widget("w1", 6, { dataset: "pesticide-use", entryType: "pounds-applied" })
+			]
+		}
+	};
+	// Every station from bulk requests naming the catalog's weather type; the valley's use from
+	// a request naming no place.
+	const stations = page.waitForRequest((r) =>
+		/\/monitors\/temperature\/summaries\/monthly\/\?.*type=cimis/.test(r.url())
+	);
+	const valley = page.waitForRequest(
+		(r) =>
+			/\/pesticides\/place\/\?/.test(r.url()) && !new URL(r.url()).searchParams.has("region_type")
+	);
+	await page.goto(shareLinkFor(doc));
+	await expect(page).toHaveURL(DASHBOARD_URL);
+	await Promise.all([stations, valley]);
+	const tables = page.getByRole("table");
+	// One column per station, named from the response; one for the valley.
+	await expect(
+		tables.getByRole("columnheader", { name: /CIMIS #80 - Fresno State/ }).first()
+	).toBeVisible();
+	await expect(
+		tables.getByRole("columnheader", { name: /CIMIS #15 - Stratford/ }).first()
+	).toBeVisible();
+	await expect(tables.getByRole("columnheader", { name: /Whole valley/ }).first()).toBeVisible();
+});
+
+test("with no Where, a weather overlay on the valley's pesticide use says to add a place", async ({
+	page
+}) => {
+	const doc = {
+		kind: "dashboard",
+		schemaVersion: 1,
+		id: "no-where-2",
+		name: "Everywhere",
+		body: {
+			widgets: [
+				{
+					id: "w0",
+					type: "chart",
+					title: null,
+					rect: { x: 0, y: 0, w: 12, h: 8 },
+					data: {
+						dateRange: { kind: "trailing", amount: 12, unit: "month" },
+						resolution: "month",
+						layers: [
+							{ dataset: "pesticide-use", entryType: "pounds-applied" },
+							{ dataset: "weather", entryType: "temperature" }
+						]
+					}
+				}
+			]
+		}
+	};
+	const weather: string[] = [];
+	page.on("request", (r) => {
+		if (
+			/\/monitors\/(weather\/place|temperature\/summaries)|\/summaries\/temperature\//.test(r.url())
+		) {
+			weather.push(r.url());
+		}
+	});
+	const valley = page.waitForRequest(
+		(r) =>
+			/\/pesticides\/place\/\?/.test(r.url()) && !new URL(r.url()).searchParams.has("region_type")
+	);
+	await page.goto(shareLinkFor(doc));
+	await expect(page).toHaveURL(DASHBOARD_URL);
+	await valley;
+	// The main draws the valley; the overlay isn't fetched and says why.
+	await expect(page.getByText(/Whole valley/).first()).toBeVisible();
+	await expect(page.getByText("Add a place to show Temperature beside it.")).toBeVisible();
+	expect(weather).toEqual([]);
+});
+
+test("with no Where, a pesticide overlay on every station says to add a place", async ({
+	page
+}) => {
+	const doc = {
+		kind: "dashboard",
+		schemaVersion: 1,
+		id: "no-where-3",
+		name: "Everywhere",
+		body: {
+			widgets: [
+				{
+					id: "w0",
+					type: "chart",
+					title: null,
+					rect: { x: 0, y: 0, w: 12, h: 8 },
+					data: {
+						dateRange: { kind: "trailing", amount: 12, unit: "month" },
+						resolution: "month",
+						layers: [
+							{ dataset: "weather", entryType: "temperature" },
+							{ dataset: "pesticide-use", entryType: "pounds-applied" }
+						]
+					}
+				}
+			]
+		}
+	};
+	const pesticides: string[] = [];
+	page.on("request", (r) => {
+		if (/\/pesticides\/place\//.test(r.url())) pesticides.push(r.url());
+	});
+	const stations = page.waitForRequest((r) =>
+		/\/monitors\/temperature\/summaries\/monthly\/\?.*type=cimis/.test(r.url())
+	);
+	await page.goto(shareLinkFor(doc));
+	await expect(page).toHaveURL(DASHBOARD_URL);
+	await stations;
+	// The main draws every station; the overlay isn't fetched and says why.
+	await expect(page.getByText(/CIMIS #15 - Stratford/).first()).toBeVisible();
+	await expect(page.getByText("Add a place to show Pounds Applied beside it.")).toBeVisible();
+	expect(pesticides).toEqual([]);
 });
 
 test("downloads a CSV with station and filter columns", async ({ page }) => {
@@ -267,9 +404,10 @@ test("an old PM2.5 + burn status widget still shows its bands", async ({ page })
 					rect: { x: 0, y: 0, w: 8, h: 4 },
 					data: {
 						dateRange: { kind: "trailing", amount: 30, unit: "day" },
+						place,
 						layers: [
-							{ dataset: "air-quality", entryType: "pm25", place },
-							{ dataset: "forecasts", entryType: "burn-status", place }
+							{ dataset: "air-quality", entryType: "pm25" },
+							{ dataset: "forecasts", entryType: "burn-status" }
 						]
 					}
 				}
@@ -333,4 +471,123 @@ test("Add widget → Current conditions keeps the default alert level through Ed
 	await expect(page.getByRole("combobox", { name: "Alert level" })).toHaveValue(usg);
 	// Opening a saved now widget converts nothing.
 	await expect(page.getByText(/so they were left out/)).toHaveCount(0);
+});
+
+test("on two columns the left column scrolls under the top nav; the preview and actions stay", async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 720 });
+	await page.goto("data");
+	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
+	const column = page.getByRole("group", { name: "What, When and Where" });
+	// What comes first, then When and Where, then Data resolution and More options.
+	const headings = column.getByRole("heading", { level: 2 });
+	await expect(headings).toHaveText(["What", "When", "Where", "Data resolution", /^More options/]);
+	// Open every section the Chart shows, so the column is taller than the screen.
+	const closed = column.locator("[data-what-section] h3 button[aria-expanded=false]:enabled");
+	while ((await closed.count()) > 0) await closed.first().click();
+	await expect.poll(() => column.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+	// The page itself doesn't scroll: the view fills the screen below the nav.
+	expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(720);
+	await column.evaluate((el) => (el.scrollTop = el.scrollHeight));
+	const preview = await page.getByTestId("get-data-preview").boundingBox();
+	expect(preview!.y).toBeGreaterThanOrEqual(0);
+	expect(preview!.y).toBeLessThan(720);
+	const add = await addToButton(page).boundingBox();
+	expect(add!.y + add!.height).toBeLessThanOrEqual(720);
+	// The top nav is still there above the view.
+	await expect(nav(page)).toBeInViewport();
+});
+
+for (const width of [390, 320]) {
+	test(`at ${width} px the Data Portal fits the screen as a Chart and as a Map (no sideways scroll)`, async ({
+		page
+	}) => {
+		await page.setViewportSize({ width, height: 844 });
+		await page.goto("data");
+		await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
+		const scrollWidth = () => page.evaluate(() => document.documentElement.scrollWidth);
+		expect(await scrollWidth()).toBeLessThanOrEqual(width);
+		await page.getByRole("radio", { name: "Map" }).click();
+		await expect(page.getByRole("radio", { name: "Map" })).toBeChecked();
+		await expect(page.getByRole("button", { name: "Fill regions by" })).toBeEnabled();
+		expect(await scrollWidth()).toBeLessThanOrEqual(width);
+		// The choices still work from the keyboard: arrows move along the group.
+		await page.getByRole("radio", { name: "Map" }).focus();
+		await page.keyboard.press("ArrowLeft");
+		await expect(page.getByRole("radio", { name: "Data table" })).toBeFocused();
+	});
+}
+
+test("Show as keeps the ticked monitor types from a Map to a Chart, and a calendar notes them left out", async ({
+	page
+}) => {
+	await page.clock.install({ time: "2026-11-15T12:00:00-08:00" });
+	await page.goto("data");
+	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
+	const purple = page.getByRole("checkbox", { name: "PurpleAir" });
+	// A new Chart starts with none ticked; a new Map with every type (decision 8).
+	await expect(purple).not.toBeChecked();
+	await page.locator('[data-show-as="map"]').click();
+	await expect(page.locator('[data-show-as="map"]')).toHaveAttribute("data-state", "on");
+	await expect(purple).toBeChecked();
+	// Back to a Chart: the ticks are kept, and nothing is noted.
+	await page.locator('[data-show-as="chart"]').click();
+	await expect(page.locator('[data-show-as="chart"]')).toHaveAttribute("data-state", "on");
+	await expect(purple).toBeChecked();
+	await expect(page.getByText(/left out/)).toHaveCount(0);
+	// A calendar shows one place or one monitor: the ticks go, with a note; the county stays.
+	await page.locator('[data-show-as="calendar-month"]').click();
+	await expect(page.locator('[data-show-as="calendar-month"]')).toHaveAttribute("data-state", "on");
+	await expect(
+		page.getByText(
+			"This widget shows one place or one monitor, so the chosen monitor types were left out."
+		)
+	).toBeVisible();
+	await expect(page.getByTestId("where-summary")).toHaveText("Fresno County");
+	await expect(page.getByRole("checkbox", { name: "PurpleAir" })).toHaveCount(0);
+});
+
+test("a Chart of Fresno County with PurpleAir ticked asks once per period for the county's PurpleAirs", async ({
+	page
+}) => {
+	await page.clock.install({ time: "2026-11-15T12:00:00-08:00" });
+	await page.goto("data");
+	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
+
+	const asked: URL[] = [];
+	page.on("request", (r) => {
+		const url = new URL(r.url());
+		if (/\/monitors\/pm25\/summaries\/(daily|hourly)\/$/.test(url.pathname)) asked.push(url);
+	});
+	const bulk = page.waitForRequest(
+		(r) => /\/monitors\/pm25\/summaries\/daily\/\?/.test(r.url()) && /type=purpleair/.test(r.url())
+	);
+	await page.getByRole("checkbox", { name: "PurpleAir" }).check();
+	const url = new URL((await bulk).url());
+	// Fresno County's server id, and the one type: one request holds every PurpleAir there.
+	expect(url.searchParams.getAll("region")).toEqual(["r6phe"]);
+	expect(url.searchParams.getAll("type")).toEqual(["purpleair"]);
+
+	// One line per PurpleAir in the county, each named for its monitor (the table has a column
+	// for each line).
+	await page.locator('[data-show-as="data-table"]').click();
+	const table = page.getByRole("region", { name: "Data table values" });
+	await expect(table.getByRole("columnheader", { name: /Science Building Room 74/ })).toHaveCount(
+		1
+	);
+	await expect(table.getByRole("columnheader", { name: /Clovis Library Room 3/ })).toHaveCount(1);
+	await expect(table.getByRole("columnheader", { name: /Fresno County/ })).toHaveCount(0);
+	// Every request for the monitor set carried the county and the type: nothing unscoped.
+	const sets = asked.filter((u) => u.searchParams.has("type"));
+	expect(sets.length).toBeGreaterThan(0);
+	for (const set of sets) {
+		expect(set.searchParams.getAll("region")).toEqual(["r6phe"]);
+		expect(set.searchParams.getAll("type")).toEqual(["purpleair"]);
+	}
+	// One bulk request per period asked, never one per monitor.
+	const periods = sets.map(
+		(u) => `${u.pathname}|${u.searchParams.get("start")}|${u.searchParams.get("end")}`
+	);
+	expect(new Set(periods).size).toBe(periods.length);
 });

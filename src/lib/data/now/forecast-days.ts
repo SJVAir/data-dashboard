@@ -4,8 +4,7 @@ import { latestIssues, type Forecast } from "../adapters/forecasts";
 import type { AdapterContext } from "../adapters/registry";
 import { isNotFound, layerTarget, placeCandidates } from "../adapters/targets";
 import { levelFor, type Level } from "../metadata";
-import type { Layer } from "../schema";
-import type { PlaceInfo, Target, UnavailableReason } from "../types";
+import type { PlaceInfo, QueryLayer, Target, UnavailableReason } from "../types";
 import type { NowSource } from "./client";
 
 export type ForecastDay = {
@@ -48,6 +47,10 @@ export function targetKey(target: Target): string {
 			return "all";
 		case "regions":
 			return `regions:${target.keys.join(",")}`;
+		case "monitor-set": {
+			const regions = target.regionKeys ? target.regionKeys.join(",") : "everywhere";
+			return `monitor-set:${target.types.join(",")}:${regions}:${target.ids.join(",")}`;
+		}
 		default: {
 			// How the place was reached shows in the result, so it belongs in the key (no coordinates).
 			const via =
@@ -154,7 +157,7 @@ async function loadDays(
  * `{ unavailable }` for the reasons a layer target gives, and for a layer with no place.
  */
 export async function forecastDaysSource(
-	layer: Layer,
+	layer: QueryLayer,
 	ctx: AdapterContext,
 	now: () => Date,
 	signal?: AbortSignal

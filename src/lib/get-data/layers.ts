@@ -1,14 +1,15 @@
 import type { CatalogEntry } from "$lib/data/metadata";
-import { layerKind } from "$lib/data/layer-kind";
+import { AIR_QUALITY, isPollutantLayer, layerKind } from "$lib/data/layer-kind";
 import type { Layer, PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
-import { mainLayer } from "$lib/widgets/shared/input";
+import { mainLayer, monitorsLayer } from "$lib/widgets/shared/input";
 import { MAX_OVERLAYS } from "$lib/widgets/shared/overlays";
 
 /**
- * Get data's edits to a draft's layers, each mutating `data` in place (the view's draft). The
- * places live on the main layer (`mainLayer`): when an edit changes which layer is main, they
- * move to the new one, so the widget never ends up with no places. An edit that would break a
- * rule (no number layer left, too many overlays) changes nothing.
+ * Get data's edits to a draft's layers, each mutating `data` in place (the view's draft). Where
+ * is on the data, not a layer, so no edit here touches it. An edit that would break a rule (too
+ * many overlays) changes nothing; any layer can be removed (a widget may hold none). The
+ * dataset's resolution (`data.resolution`) always stays: a specific resolution never changes by
+ * itself (Get data shows it blocked, with its reason, when a layer doesn't offer it).
  *
  * Kept free of the SDK and adapters, so it can be unit-tested and stays out of the initial bundle.
  */
@@ -20,16 +21,6 @@ export type EntryPick = { dataset: string; entryType: string };
 export const WEATHER = "weather";
 /** The pesticide use dataset, whose layers each carry their own filters. */
 export const PESTICIDES = "pesticide-use";
-
-const isNumber = (layer: Layer, catalog: CatalogEntry[] | undefined) => {
-	const kind = layerKind(layer, catalog);
-	return kind === "pollutant" || kind === "number";
-};
-
-/** How many number layers (a pollutant, a weather reading, a pesticide measure) `data` has. */
-export function numberLayers(data: WidgetDataConfig, catalog: CatalogEntry[] | undefined): number {
-	return data.layers.filter((l) => isNumber(l, catalog)).length;
-}
 
 /** The overlays `data` has: every layer with an entry type but the main one. */
 function overlayCount(data: WidgetDataConfig, catalog: CatalogEntry[] | undefined): number {
@@ -45,42 +36,25 @@ export function canAddLayer(data: WidgetDataConfig, catalog: CatalogEntry[] | un
 }
 
 /**
- * Runs `change`, then moves the places from the old main layer to the new one when the main
- * changed. The dataset's resolution (`data.resolution`) always stays: a specific resolution never
- * changes by itself (Get data shows it blocked, with its reason, when a layer doesn't offer it).
- */
-export function keepingPlaces(
-	data: WidgetDataConfig,
-	catalog: CatalogEntry[] | undefined,
-	change: () => void
-): void {
-	const before = mainLayer(data, catalog);
-	const carried = before && { place: before.place, selection: before.selection };
-	change();
-	const after = mainLayer(data, catalog);
-	if (!before || !after || after === before || !carried) return;
-	delete before.place;
-	delete before.selection;
-	delete after.place;
-	delete after.selection;
-	if (carried.place) after.place = carried.place;
-	if (carried.selection) after.selection = carried.selection;
-}
-
-/**
  * Chooses the widget's pollutant, or (`null`) removes it. A pollutant chosen where there was
- * none becomes the main layer, taking the places, unless the old main would then be one overlay
- * too many. Removing it hands the places to the next number layer, and is refused when there is
- * none.
+ * none becomes the main layer, unless the old main would then be one overlay too many. None
+ * always removes it, even when it was the last layer, except that an air-quality layer holding
+ * monitors or ticked types keeps them with no entry type (spec decision 31: nothing is cleared;
+ * `queryLayer` fetches nothing for them). The pollutant is `isPollutantLayer`'s (an air-quality
+ * layer the catalog doesn't know counts), so it's replaced or removed, never doubled; another
+ * pollutant keeps the layer's monitors and types.
  */
 export function setPollutant(
 	data: WidgetDataConfig,
 	catalog: CatalogEntry[] | undefined,
 	pick: EntryPick | null
 ): void {
-	const at = data.layers.findIndex((l) => layerKind(l, catalog) === "pollutant");
+	const at = data.layers.findIndex((l) => isPollutantLayer(l, catalog));
 	if (pick === null) {
-		if (at >= 0) removeLayer(data, catalog, at);
+		if (at < 0) return;
+		const layer = data.layers[at];
+		if (layer.monitors?.length || layer.monitorTypes?.length) delete layer.entryType;
+		else removeLayer(data, at);
 		return;
 	}
 	if (at >= 0) {
@@ -90,9 +64,7 @@ export function setPollutant(
 		return;
 	}
 	if (!canAddLayer(data, catalog)) return;
-	keepingPlaces(data, catalog, () =>
-		data.layers.unshift({ dataset: pick.dataset, entryType: pick.entryType })
-	);
+	data.layers.unshift({ dataset: pick.dataset, entryType: pick.entryType });
 }
 
 function addLayer(data: WidgetDataConfig, catalog: CatalogEntry[] | undefined, layer: Layer) {
@@ -100,12 +72,12 @@ function addLayer(data: WidgetDataConfig, catalog: CatalogEntry[] | undefined, l
 	// Weather layers share one station.
 	const station = data.layers.find((l) => l.dataset === WEATHER && l.station)?.station;
 	if (layer.dataset === WEATHER && station) layer.station = station;
-	keepingPlaces(data, catalog, () => data.layers.push(layer));
+	data.layers.push(layer);
 }
 
 /**
  * Turns a weather, smoke or forecast layer on or off (one layer per entry type). A number layer
- * added where there's no number layer becomes the main, with the places.
+ * added where there's no number layer becomes the main.
  */
 export function toggleLayer(
 	data: WidgetDataConfig,
@@ -117,7 +89,7 @@ export function toggleLayer(
 		(l) => l.dataset === pick.dataset && l.entryType === pick.entryType
 	);
 	if (on && at < 0) addLayer(data, catalog, { dataset: pick.dataset, entryType: pick.entryType });
-	else if (!on && at >= 0) removeLayer(data, catalog, at);
+	else if (!on && at >= 0) removeLayer(data, at);
 }
 
 /** Adds a pesticide use layer of `entryType` with no filters (all pesticides). */
@@ -129,25 +101,10 @@ export function addPesticideLayer(
 	addLayer(data, catalog, { dataset: PESTICIDES, entryType });
 }
 
-/** Whether the layer at `index` can be removed: not when it's the last number layer. */
-export function canRemoveLayer(
-	data: WidgetDataConfig,
-	catalog: CatalogEntry[] | undefined,
-	index: number
-): boolean {
-	const layer = data.layers[index];
-	if (!layer) return false;
-	return !isNumber(layer, catalog) || numberLayers(data, catalog) > 1;
-}
-
-/** Removes the layer at `index`; the main one hands its places on. Refuses the last number layer. */
-export function removeLayer(
-	data: WidgetDataConfig,
-	catalog: CatalogEntry[] | undefined,
-	index: number
-): void {
-	if (!canRemoveLayer(data, catalog, index)) return;
-	keepingPlaces(data, catalog, () => data.layers.splice(index, 1));
+/** Removes the layer at `index` (the last one too: a widget may hold no layers). */
+export function removeLayer(data: WidgetDataConfig, index: number): void {
+	if (!data.layers[index]) return;
+	data.layers.splice(index, 1);
 }
 
 /** Sets (or, with nothing in them, clears) the filters of the pesticide layer at `index`. */
@@ -179,6 +136,76 @@ export function setStation(data: WidgetDataConfig, station: string | undefined):
 /** A station was chosen for the old places: a place change drops it. */
 export function dropStationOnPlaceChange(data: WidgetDataConfig): void {
 	setStation(data, undefined);
+}
+
+/**
+ * A place was picked for a widget taking `limit` places (`placeLimit`): a single-place widget
+ * holds one place or one monitor (spec decision 11), so its searched monitors and ticked types
+ * go. A Chart, Table or Map keeps them, and so does a cleared Where.
+ */
+export function dropMonitorsForPlace(data: WidgetDataConfig, limit: number): void {
+	if (limit !== 1 || !(data.place || data.selection)) return;
+	for (const layer of data.layers) {
+		delete layer.monitors;
+		delete layer.monitorTypes;
+	}
+}
+
+/**
+ * Sets the field `key` (ticked types or searched monitors) of the monitors layer (`monitorsLayer`)
+ * to `ids` (duplicates dropped; none removes the field). An air-quality layer kept with None (no
+ * entry type) that is left holding nothing goes. Types are only ever ticked on an air-quality
+ * layer. With neither layer nothing changes: monitors need a pollutant (Get data disables them
+ * until one is chosen).
+ */
+function setMonitorField(
+	data: WidgetDataConfig,
+	catalog: CatalogEntry[] | undefined,
+	key: "monitors" | "monitorTypes",
+	ids: string[]
+): void {
+	const layer = monitorsLayer(data, catalog);
+	if (!layer || (key === "monitorTypes" && layer.dataset !== AIR_QUALITY)) return;
+	const unique = [...new Set(ids)];
+	if (unique.length > 0) layer[key] = unique;
+	else delete layer[key];
+	if (
+		layer.dataset === AIR_QUALITY &&
+		!layer.entryType &&
+		!layer.monitors?.length &&
+		!layer.monitorTypes?.length
+	) {
+		removeLayer(data, data.layers.indexOf(layer));
+	}
+}
+
+/** Ticks exactly `types` (monitor types) on the air-quality layer (spec decision 7). */
+export function setMonitorTypes(
+	data: WidgetDataConfig,
+	catalog: CatalogEntry[] | undefined,
+	types: string[]
+): void {
+	setMonitorField(data, catalog, "monitorTypes", types);
+}
+
+/** Sets the air-quality layer's searched monitors to `ids`, in order (spec decision 7). */
+export function setMonitors(
+	data: WidgetDataConfig,
+	catalog: CatalogEntry[] | undefined,
+	ids: string[]
+): void {
+	setMonitorField(data, catalog, "monitors", ids);
+}
+
+/**
+ * A monitor was searched for a widget taking `limit` places (`placeLimit`): a single-place widget
+ * holds one place or one monitor (spec decision 11), so its Where goes. A Chart, Table or Map
+ * keeps it (searched monitors count wherever they are).
+ */
+export function dropWhereForMonitor(data: WidgetDataConfig, limit: number): void {
+	if (limit !== 1 || !data.layers.some((l) => l.monitors?.length)) return;
+	delete data.place;
+	delete data.selection;
 }
 
 /**

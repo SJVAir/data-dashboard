@@ -17,9 +17,8 @@ import {
 	MapOptionsSchema,
 	PESTICIDE_NOTICES,
 	PESTICIDE_USE,
-	drawableShowing,
 	mapOptions,
-	pollutantLayers,
+	pollutantLayer,
 	useFigureOf,
 	type MapOptions
 } from "../options";
@@ -94,7 +93,8 @@ const unique = <T>(values: T[]): T[] => values.filter((v, i) => values.indexOf(v
 function optionKeys(changed: string[]): (keyof MapOptions)[] {
 	return unique(
 		changed.flatMap((key): (keyof MapOptions)[] => {
-			if (key === "pollutant") return ["showing"];
+			// The Map holds one pollutant: nothing to save (its group shows only with two or more).
+			if (key === "pollutant") return [];
 			if (key === FILL_KEY) return ["fillShown"];
 			if (key === NOTICES_KEY) return ["noticesShown"];
 			if (key === USE_KEY) return ["useShown"];
@@ -136,24 +136,23 @@ export class MapToolbarWiring {
 	);
 	/** The pesticide use figure drawn now (the saved one, or the catalog's first). Never saved. */
 	readonly useFigure = $derived.by(() => useFigureOf(this.options, this.#in.catalog));
-	/** The pollutant drawn now (the one showing, or its fallback). Never saved. */
-	readonly drawn = $derived.by(() =>
-		drawableShowing(this.#in.widget.data, this.options, this.#in.catalog, this.#in.drawable)
+	/** The pollutant drawn: the Map's one (none without it). */
+	readonly drawn = $derived.by(
+		() => pollutantLayer(this.#in.widget.data, this.#in.catalog)?.entryType
 	);
 
 	/** What the data offers, as a key: the toolbar is built again only when it changes. */
 	readonly #offerKey = $derived.by(() => {
 		const { widget, catalog, drawable, notShown } = this.#in;
-		const pollutants = pollutantLayers(widget.data, catalog).flatMap((l) =>
-			l.entryType && drawable?.includes(l.entryType) ? [l.entryType] : []
-		);
+		const pollutant = pollutantLayer(widget.data, catalog)?.entryType;
+		const pollutants = pollutant && drawable?.includes(pollutant) ? [pollutant] : [];
 		// Only the monitors a filter could hide give the Monitors group its rows.
 		const exempt = this.#in.exempt;
 		const features = (this.#in.monitors?.features ?? []).filter(
 			(f) => !isExempt(f.properties.refKey, exempt)
 		);
 		const offer: MapOffer = {
-			pollutants: unique(pollutants),
+			pollutants,
 			types: unique(features.map((f) => f.properties.type)),
 			hasInactive: features.some((f) => f.properties.isActive === false),
 			hasInside: features.some((f) => f.properties.location === "inside"),
@@ -207,13 +206,12 @@ export class MapToolbarWiring {
 			useFigures: this.#in.useFigures
 		};
 		if (this.#in.tileOptions?.mode === "view") {
-			const { widget, catalog, drawable } = this.#in;
 			const saved = this.saved;
 			const owner = toolbar.build({
 				offer,
-				drawn: drawableShowing(widget.data, saved, catalog, drawable),
+				drawn: this.drawn,
 				options: saved,
-				useFigure: useFigureOf(saved, catalog),
+				useFigure: useFigureOf(saved, this.#in.catalog),
 				...labels
 			});
 			const shown = toolbar.build({
@@ -269,7 +267,6 @@ export class MapToolbarWiring {
 			next,
 			changed,
 			state.presetDefaults,
-			this.offer.pollutants[0],
 			this.offer.use?.figures[0]
 		);
 		if (!MapOptionsSchema.safeParse(options).success) return;
@@ -279,16 +276,7 @@ export class MapToolbarWiring {
 			return;
 		}
 		const saved = this.saved;
-		const { data } = widget;
-		const { catalog, drawable } = this.#in;
-		// The pollutant is back when the one drawn is the owner's (a saved `showing` equal to the
-		// first pollutant is stored as missing here, so the options alone would differ).
-		const drawnOf = (o: MapOptions) => drawableShowing(data, o, catalog, drawable);
-		const back = keys.filter((key) =>
-			key === "showing"
-				? drawnOf(options) === drawnOf(saved)
-				: sameOption(key, options[key], saved[key])
-		);
+		const back = keys.filter((key) => sameOption(key, options[key], saved[key]));
 		const held = keys.filter((key) => !back.includes(key));
 		if (back.length) viewerReset(ctx, widget, back);
 		if (held.length) changeTileOptions(ctx, widget, options, held);

@@ -4,7 +4,7 @@ import type { WidgetType } from "../registry";
 
 export const DATA_TABLE_TYPE = "data-table";
 
-/** One pollutant for up to ten places over the widget's date range, as exact numbers. */
+/** One pollutant for its places over the widget's date range, as exact numbers. */
 export const dataTableType: WidgetType = {
 	type: DATA_TABLE_TYPE,
 	label: () => m.widget_data_table_title(),
@@ -17,8 +17,7 @@ export const dataTableType: WidgetType = {
 	downloadable: true,
 	accepts: {
 		datasets: ["air-quality", "forecasts", "weather", "hms-smoke", "pesticide-use"],
-		maxPollutantLayers: 1,
-		maxPlaces: 10
+		maxPollutantLayers: 1
 	},
 	// Type-specific items only; the widget frame adds the common widget actions.
 	menu: () => [],

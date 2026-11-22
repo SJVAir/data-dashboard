@@ -1,6 +1,6 @@
-import { layerKind } from "$lib/data/layer-kind";
+import { isPollutantLayer } from "$lib/data/layer-kind";
 import type { CatalogEntry } from "$lib/data/metadata";
-import { LIMITS, SafeIdSchema, type Layer, type WidgetDataConfig } from "$lib/data/schema";
+import { SafeIdSchema, type Layer, type WidgetDataConfig } from "$lib/data/schema";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { z } from "$lib/zod";
 import { USE_FIELDS } from "./data/use-fields";
@@ -17,19 +17,12 @@ export const PESTICIDE_NOTICES = "pesticide-notices";
 /** The Map's pesticide use layer: place-less, drawn over the whole map. */
 export const PESTICIDE_USE = "pesticide-use";
 /**
- * The most pollutants a Map holds: the layer limit less four (smoke, fire, spray notices, and the
- * one 5b uses).
- */
-export const MAP_POLLUTANTS_MAX = LIMITS.LAYERS_MAX - 4;
-/**
  * The most stops a Map's date range has at its resolution (366 days at Daily, 366 months at
  * Monthly, and so on), counted on the range widened to whole periods.
  */
 export const MAP_MAX_STOPS = 366;
 
 export const MapOptionsSchema = z.strictObject({
-	/** The entry type drawn now (one of the pollutant layers'). */
-	showing: SafeIdSchema.optional(),
 	/** The monitors marked on the map. */
 	marks: z
 		.array(SafeIdSchema)
@@ -69,11 +62,11 @@ export const MapOptionsSchema = z.strictObject({
 		.refine((ids) => new Set(ids).size === ids.length, { message: "Types must be unique" })
 		.optional()
 });
+
 export type MapOptions = z.infer<typeof MapOptionsSchema>;
 
 /** The options the toolbar owns (everything but `marks`). */
 export const MAP_TOOLBAR_KEYS = [
-	"showing",
 	"basemap",
 	"clustered",
 	"fireAndSmoke",
@@ -92,46 +85,15 @@ export function mapOptions(widget: Pick<WidgetInstance, "options">): MapOptions 
 	return parsed.success ? parsed.data : {};
 }
 
-/** The air-quality layers, in order (the first holds the places). */
-export function pollutantLayers(
-	data: WidgetDataConfig,
-	catalog: CatalogEntry[] | undefined
-): Layer[] {
-	return data.layers.filter((l) => {
-		if (l.dataset !== "air-quality") return false;
-		const kind = layerKind(l, catalog);
-		return kind === undefined || kind === "pollutant";
-	});
-}
-
-/** The entry type drawn now: `options.showing` when a pollutant layer has it, else the first. */
-export function showingOf(
-	data: WidgetDataConfig,
-	options: MapOptions,
-	catalog: CatalogEntry[] | undefined
-): string | undefined {
-	const layers = pollutantLayers(data, catalog);
-	const wanted = layers.find((l) => l.entryType && l.entryType === options.showing);
-	return (wanted ?? layers[0])?.entryType;
-}
-
 /**
- * The pollutant to draw: the one showing when the server's map draws it, else the first of the
- * layers' pollutants it does. With none drawable (or the list not known yet) it is `showingOf`,
- * so the caller reports it unavailable. Never saved: the owner's `showing` stays as chosen.
+ * The Map's pollutant: its air-quality layer (one whose kind the catalog doesn't know counts), or
+ * none. A Map holds one pollutant or none.
  */
-export function drawableShowing(
+export function pollutantLayer(
 	data: WidgetDataConfig,
-	options: MapOptions,
-	catalog: CatalogEntry[] | undefined,
-	drawable: readonly string[] | undefined
-): string | undefined {
-	const showing = showingOf(data, options, catalog);
-	if (!drawable || (showing && drawable.includes(showing))) return showing;
-	const first = pollutantLayers(data, catalog).find(
-		(l) => l.entryType && drawable.includes(l.entryType)
-	);
-	return first?.entryType ?? showing;
+	catalog: CatalogEntry[] | undefined
+): Layer | undefined {
+	return data.layers.find((l) => l.dataset === AIR_QUALITY && isPollutantLayer(l, catalog));
 }
 
 /**

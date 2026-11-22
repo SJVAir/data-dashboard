@@ -12,7 +12,7 @@ import { resolveRange } from "$lib/format/range";
 import { resolveThreshold } from "$lib/thresholds/levels";
 import { DEFAULT_RANGE } from "../../defaults";
 import { DataWidget } from "../../shared/data-widget.svelte";
-import { mainLayer } from "../../shared/input";
+import { hasPlaces, mainLayer } from "../../shared/input";
 
 export { figureName };
 
@@ -49,17 +49,17 @@ export class CalendarData {
 
 	constructor(widget: () => WidgetInstance) {
 		const metadata = getMetadata();
-		this.#w = new DataWidget(() => widget(), 1, {
+		this.#w = new DataWidget(() => widget(), {
 			input: ({ data }, catalog) => {
 				const layer = mainLayer(data, catalog);
 				const input = calendarInput(data, catalog, widget().type);
 				const lookup = this.#lookup;
 				// The query waits for the figure, so it runs once with the right key.
 				if (!input || !layer?.entryType || lookup?.entryType !== layer.entryType) {
-					return { layer, input: null, hidden: 0, overlays: [] };
+					return { layer, input: null, overlays: [] };
 				}
 				const full = lookup.figure ? { ...input, figure: lookup.figure.field } : input;
-				return { layer, input: full, hidden: 0, overlays: [] };
+				return { layer, input: full, overlays: [] };
 			}
 		});
 		const w = this.#w;
@@ -120,7 +120,7 @@ export class CalendarData {
 
 		this.shown = $derived.by(() => {
 			const s = w.shown;
-			const placed = !!w.picked.layer?.place || !!w.picked.layer?.selection;
+			const placed = !!w.picked.layer && hasPlaces(widget().data);
 			if (s.status === "idle" && placed && entryType && !settled) return { status: "loading" };
 			return s;
 		});

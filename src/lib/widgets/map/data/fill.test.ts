@@ -269,6 +269,25 @@ describe("the fill entry", () => {
 		expect(value.features.features.map((f) => f.properties.value)).toEqual([null, null]);
 	});
 
+	it("outlines (no pollutant) are every region with no figure, asking for no figure or summaries", async () => {
+		const figureOf = vi.fn(async () => figure);
+		const levelsOf = vi.fn(async () => levels);
+		ctx.rating = { figure: figureOf, levels: levelsOf };
+		const source = createFillEntry(ctx).outlines({ regionType: "zipcode" });
+		expect(source.key).toBe("map-fill:outlines:zipcode");
+		const value = await source.fetch(signal);
+		expect(value.features.features.map((f) => f.properties)).toEqual([
+			{ refKey: "region:zipcode:93721", name: "ZIP 93721", value: null },
+			{ refKey: "region:zipcode:93722", name: "ZIP 93722", value: null }
+		]);
+		expect(value.final).toBe(true);
+		expect(source.poll(value)).toBe(false);
+		expect(figureOf).not.toHaveBeenCalled();
+		expect(levelsOf).not.toHaveBeenCalled();
+		expect(daily).not.toHaveBeenCalled();
+		expect(open).not.toHaveBeenCalled();
+	});
+
 	it("has the pollutant's ScaleRef, as the monitors do (so the legend shares one section)", () => {
 		expect(fillScale("pm25")).toEqual({ dataset: "air-quality", entryType: "pm25" });
 	});

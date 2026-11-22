@@ -30,14 +30,13 @@ import { render } from "vitest-browser-svelte";
 import { getMetadata, getResolvers, placeRegion } from "$lib/data";
 import { loadDashboard } from "$lib/documents/load";
 import { CURRENT_SCHEMA_VERSION } from "$lib/documents/schema";
-import type { DateRangeSpec, Layer } from "$lib/data/schema";
+import type { DateRangeSpec, Layer, WidgetDataConfig } from "$lib/data/schema";
 import type { CatalogEntry, MetadataSource } from "$lib/data/metadata";
 import { getNowClient } from "$lib/data/now";
 import { createNowClient, type NowClient } from "$lib/data/now/client";
 import type { QueryClient } from "$lib/data/query/client";
-import type { PlaceInfo, QueryInput } from "$lib/data/types";
+import type { PlaceInfo, QueryInput, QueryLayer } from "$lib/data/types";
 import { FIXTURE_CATALOG, fixtureMetadata } from "$lib/data/testing/fixtures";
-import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { resetPesticideMeta } from "$lib/data/pesticide-meta";
 import { formatNumber, pacificDay, todayPacific } from "$lib/format";
@@ -204,10 +203,13 @@ const SHAPES: Record<string, Feature> = {
 
 /** A query client that names a layer's place, for the title. */
 function namingClient(): QueryClient {
-	const info = (layer: Layer): PlaceInfo => {
+	const info = (layer: QueryLayer): PlaceInfo => {
+		// A query with ticked types reads every monitor of them, as the real client does: its first
+		// place is a monitor, never the Where.
+		if (layer.monitorTypes?.length) return { place: "monitor:any", name: "Some monitor" };
 		const place = layer.place ?? null;
-		if (place?.kind === "monitor")
-			return { place: `monitor:${place.id}`, name: `Monitor ${place.id}` };
+		const monitor = layer.monitors?.length === 1 ? layer.monitors[0] : undefined;
+		if (monitor && !place) return { place: `monitor:${monitor}`, name: `Monitor ${monitor}` };
 		if (place?.kind === "region") {
 			return { place: `region:${place.type}:${place.code}`, name: "Fresno County" };
 		}
@@ -448,13 +450,27 @@ afterEach(() => {
 	vi.resetAllMocks();
 });
 
-function mapWidget(layer: Partial<Layer>): WidgetInstance {
+/** A layer's fields with the widget's Where beside them (the helpers split them). */
+type LayerAt = Partial<Layer> & Pick<WidgetDataConfig, "place" | "selection">;
+
+/** Every monitor type (the local monitors meta's keys): a new Map ticks them all (decision 8). */
+const EVERY_TYPE = ["airgradient", "airnow", "aqlite", "aqview", "bam1022", "purpleair", "vozbox"];
+
+/** A Map of PM2.5 with `at`'s Where; every type ticked unless `at` gives its own monitors. */
+function mapWidget(at: LayerAt): WidgetInstance {
+	const { place, selection, ...layer } = at;
 	return {
 		id: crypto.randomUUID(),
 		type: "map",
 		title: null,
 		rect: { x: 0, y: 0, w: 6, h: 6 },
-		data: { layers: [{ dataset: "air-quality", entryType: "pm25", ...layer }] }
+		data: {
+			...(place ? { place } : {}),
+			...(selection ? { selection } : {}),
+			layers: [
+				{ dataset: "air-quality", entryType: "pm25", monitorTypes: [...EVERY_TYPE], ...layer }
+			]
+		}
 	};
 }
 
@@ -516,24 +532,173 @@ async function madeMap(): Promise<FakeMap> {
 
 const region = (code: string) => ({ place: { kind: "region" as const, type: "county", code } });
 
-test("idle shows Choose a place and opens the picker", async () => {
-	const widget = mapWidget({});
-	const screen = await show(widget);
-	const button = screen.getByRole("button", { name: m.widget_state_choose_place() });
-	await expect.element(button).toBeVisible();
-	await button.click();
-	expect(openPlacePicker).toHaveBeenCalledWith({ widgetId: widget.id });
-});
+/** A Map whose air-quality layer has no pollutant (None keeps its ticks), plus `more` layers. */
+function noPollutant(at: LayerAt, more: Layer[] = []): WidgetInstance {
+	const widget = mapWidget(at);
+	delete widget.data.layers[0].entryType;
+	widget.data.layers.push(...more);
+	return widget;
+}
 
-test("an idle map creates no map and loads nothing", async () => {
-	const screen = await show(mapWidget({}));
-	await expect
-		.element(screen.getByRole("button", { name: m.widget_state_choose_place() }))
-		.toBeVisible();
+test("a Map with nothing to draw says what to add, and loads nothing", async () => {
+	// None and nothing else, with a Where and without: never "Choose a place".
+	for (const at of [region("019"), {}]) {
+		fakeMaps.reset();
+		const screen = await show(noPollutant(at));
+		await expect.element(screen.getByText(m.map_empty_add_layers())).toBeVisible();
+		expect(screen.getByRole("button", { name: m.widget_state_choose_place() }).query()).toBeNull();
+		await screen.unmount();
+	}
+	const widget = mapWidget(region("019"));
+	widget.data.layers = [];
+	const screen = await show(widget);
+	await expect.element(screen.getByText(m.map_empty_add_layers())).toBeVisible();
 	await new Promise((r) => setTimeout(r, 100));
 	expect(fakeMaps.made).toHaveLength(0);
 	expect(getMonitors).not.toHaveBeenCalled();
 	expect(nowClient.entries()).toEqual([]);
+});
+
+test("the starter's unresolved place asks for a place, making no map", async () => {
+	const screen = await show(mapWidget({ place: { kind: "default-place" } }));
+	await expect.element(screen.getByText(m.widget_state_idle())).toBeVisible();
+	expect(screen.getByText(m.map_empty_add_layers()).query()).toBeNull();
+	expect(fakeMaps.made).toHaveLength(0);
+});
+
+test("a Map with a place but no monitor types or monitors says why it draws none", async () => {
+	const screen = await show(mapWidget({ ...region("019"), monitorTypes: [] }));
+	await expect.element(screen.getByText(m.map_no_monitors_chosen())).toBeVisible();
+	expect(getMonitors).not.toHaveBeenCalled();
+});
+
+test("map: no types and no monitors draws no monitor points; the fill still draws", async () => {
+	rated();
+	zipFill();
+	await show({
+		...mapWidget({ ...region("019"), monitorTypes: [] }),
+		options: { fill: "zipcode" }
+	});
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => fillValues(map)?.["region:zipcode:93721"]).toBe(5);
+	expect(drawn(map) ?? []).toEqual([]);
+	expect(getMonitors).not.toHaveBeenCalled();
+	// Nothing is loading: no skeleton over the fill.
+	await expect.poll(() => frame.querySelector(".bg-card.absolute.inset-0")).toBeNull();
+});
+
+test("map: a new Map's every type ticked draws every monitor in Where", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([
+		reading("p1"),
+		{ ...reading("n1"), type: "airnow" },
+		{ ...reading("b1"), type: "bam1022" }
+	] as never);
+	await show(mapWidget(region("019")));
+	const map = await madeMap();
+	await expect.poll(() => drawn(map)).toEqual(["p1", "n1", "b1"]);
+	expect(getMonitors).toHaveBeenCalledWith(
+		"pm25",
+		{ timestamp: expect.any(Date), region: ["r019"] },
+		expect.anything()
+	);
+});
+
+test("with no Where, the ticked types draw every monitor of them, everywhere", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([
+		reading("p1"),
+		{ ...reading("n1"), type: "airnow" }
+	] as never);
+	await show(mapWidget({ monitorTypes: ["purpleair"] }));
+	const map = await madeMap();
+	await expect.poll(() => drawn(map)).toEqual(["p1"]);
+	expect(getMonitors).toHaveBeenCalledWith("pm25", undefined, expect.anything());
+});
+
+test("the toolbar's monitor types are only those the Map asked for", async () => {
+	vi.mocked(getMonitors).mockResolvedValue([
+		reading("p1"),
+		{ ...reading("n1"), type: "airnow" },
+		{ ...reading("b1"), type: "bam1022" }
+	] as never);
+	const screen = await showLive(
+		mapWidget({ ...region("019"), monitorTypes: ["purpleair", "airnow"] }),
+		editing()
+	);
+	const map = await madeMap();
+	map.ready = true;
+	await expect.poll(() => drawn(map)).toEqual(["p1", "n1"]);
+	await expect.element(screen.getByRole("checkbox", { name: "purpleair" })).toBeVisible();
+	await expect.element(screen.getByRole("checkbox", { name: "airnow" })).toBeVisible();
+	expect(screen.getByRole("checkbox", { name: "bam1022" }).query()).toBeNull();
+});
+
+test("no pollutant: smoke and fire draw alone", async () => {
+	vi.mocked(getHMSSmoke).mockResolvedValue([
+		{ id: "s1", density: "heavy", geometry: { type: "Polygon", coordinates: [] } }
+	] as never);
+	await show(noPollutant(region("019"), [{ dataset: "hms-smoke" }, { dataset: "hms-fire" }]));
+	const map = await madeMap();
+	await expect.poll(() => pluginIds(map)).toEqual(["focus", "hms-smoke", "hms-fire"]);
+	type Src = { features: { features: unknown[] } | null };
+	const smoke = map.plugins.find((p) => p.id === "hms-smoke")!.options;
+	await expect.poll(() => (smoke.source as Src).features?.features).toHaveLength(1);
+	expect(getMonitors).not.toHaveBeenCalled();
+	// The Where still frames the map.
+	await expect.poll(() => focusOf(map)?.geometry).toBeTruthy();
+});
+
+test("no pollutant: spray notices draw alone", async () => {
+	vi.mocked(getActivePesticideNotices).mockResolvedValue(
+		noticeCollection([sprayNotice("n1", "MDM-14S-21E-05")]) as never
+	);
+	await show(noPollutant(region("019"), [{ dataset: "pesticide-notices" }]));
+	const map = await madeMap();
+	await expect.poll(() => pluginIds(map)).toContain("notices");
+	await expect.poll(() => noticesOf(map)?.options.source.features?.features.length).toBe(1);
+	expect(pluginIds(map)).not.toContain("monitors");
+	expect(getMonitors).not.toHaveBeenCalled();
+});
+
+test("no pollutant: a fill alone draws the region type's outlines, uncoloured, with no legend", async () => {
+	const figure = vi.fn(async () => null);
+	const levels = vi.fn(async () => []);
+	vi.mocked(getMetadata).mockReturnValue(
+		fixtureMetadata({ catalog: async () => CATALOG, figure, levels })
+	);
+	zipFill();
+	await show({ ...noPollutant(region("019")), options: { fill: "zipcode" } });
+	const map = await madeMap();
+	await expect.poll(() => pluginIds(map)).toEqual(["fill", "focus"]);
+	const fill = fillOf(map)!;
+	expect(fill.options).toMatchObject({ layerLabel: "ZIP Codes", noFigure: "outline" });
+	// Every region, with no figure: outlines.
+	await expect
+		.poll(() => fillValues(map))
+		.toEqual({
+			"region:zipcode:93721": null,
+			"region:zipcode:93722": null,
+			"region:zipcode:93723": null
+		});
+	// No scale: map-sdk gives it no legend section. No figure, levels or summaries are asked for.
+	expect(fill.options.source.scale).toBeNull();
+	expect(figure).not.toHaveBeenCalled();
+	expect(levels).not.toHaveBeenCalled();
+	expect(getRegionSummariesBulkDailyOpen).not.toHaveBeenCalled();
+	expect(getRegionSummariesBulkDaily).not.toHaveBeenCalled();
+	// The Where still frames the map.
+	await expect.poll(() => focusOf(map)?.geometry).toBeTruthy();
+});
+
+test("no pollutant: pesticide use draws alone", async () => {
+	const widget = useMap();
+	delete widget.data.layers[0].entryType;
+	await show(widget);
+	const map = await madeMap();
+	await expect.poll(() => pluginIds(map)).toContain("townships");
+	await expect.poll(() => useAsked()).toEqual(["2023"]);
+	expect(pluginIds(map)).not.toContain("monitors");
+	expect(getMonitors).not.toHaveBeenCalled();
 });
 
 /** What a map's focus area shows now. */
@@ -610,14 +775,14 @@ test("several regions are one MultiPolygon focus area", async () => {
 });
 
 test("monitor places get no focus area", async () => {
-	await show(mapWidget({ place: { kind: "monitor", id: "a" } }));
+	await show(mapWidget({ monitors: ["a"], monitorTypes: [] }));
 	const map = await madeMap();
 	await expect.poll(() => map.plugins.map((p) => p.id)).toEqual(["focus", "monitors"]);
 	expect(focusOf(map).geometry).toBeNull();
 });
 
 test("the monitors plugin's selection is the marks, not the places", async () => {
-	await show(mapWidget({ selection: { kind: "monitors", ids: ["a", "b"] } }));
+	await show(mapWidget({ monitors: ["a", "b"], monitorTypes: [] }));
 	const map = await madeMap();
 	await expect.poll(() => map.plugins.find((p) => p.id === "monitors")).toBeTruthy();
 	const monitors = map.plugins.find((p) => p.id === "monitors")!;
@@ -634,7 +799,7 @@ test("the monitors plugin's selection is the marks, not the places", async () =>
 test("fits once the monitors are loaded", async () => {
 	let load: (value: unknown) => void = () => {};
 	vi.mocked(getMonitors).mockReturnValue(new Promise((r) => (load = r)) as never);
-	await show(mapWidget({ selection: { kind: "monitors", ids: ["a", "b", "gone"] } }));
+	await show(mapWidget({ monitors: ["a", "b", "gone"], monitorTypes: [] }));
 	const map = await madeMap();
 	map.ready = true;
 	await expect.poll(() => vi.mocked(getMonitors).mock.calls.length).toBe(1);
@@ -719,9 +884,99 @@ test("title for one place and several", async () => {
 	await expect.poll(() => generatedTitle(point.id)).toBe("PM2.5 · ZIP 93721 (shared location)");
 	await shared.unmount();
 
-	const several = mapWidget({ selection: { kind: "monitors", ids: ["a", "b", "c"] } });
+	const several = mapWidget({
+		selection: { kind: "regions", ids: ["county:019", "county:029", "county:107"] }
+	});
 	await show(several);
 	await expect.poll(() => generatedTitle(several.id)).toBe("PM2.5 · 3 places");
+});
+
+/** A query client that counts its subscriptions (each a data request). */
+function countingClient(): { client: QueryClient; inputs: QueryInput[] } {
+	const base = namingClient();
+	const inputs: QueryInput[] = [];
+	return {
+		inputs,
+		client: {
+			...base,
+			subscribe(input, listener) {
+				inputs.push(input);
+				return base.subscribe(input, listener);
+			}
+		}
+	};
+}
+
+/** The regions resolver naming a county "Fresno County"; with `fail`, it rejects. */
+function namedRegions(fail = false) {
+	vi.mocked(getResolvers).mockReturnValue({
+		locations: { resolve: async () => null },
+		regions: {
+			resolve: async (_type: string, code: string) => {
+				if (fail) throw new Error("offline");
+				return { id: `r${code}`, name: "Fresno County" };
+			}
+		}
+	} as never);
+}
+
+test("a Map with no pollutant is titled by what it shows and its area, with no data request", async () => {
+	const { getQueryClient } = await import("$lib/data");
+	const counting = countingClient();
+	vi.mocked(getQueryClient).mockReturnValue(counting.client);
+	namedRegions();
+	const smoke = noPollutant(region("019"), [{ dataset: "hms-smoke" }, { dataset: "hms-fire" }]);
+	const first = await show(smoke);
+	const title = `${m.get_data_smoke_and_fire()} · Fresno County`;
+	await expect.poll(() => generatedTitle(smoke.id)).toBe(title);
+	const map = await madeMap();
+	await expect.poll(() => map.view.label).toBe(m.map_label({ title }));
+	// The area is named by lookup: no PM2.5 (or any) data is asked for to name it.
+	expect(counting.inputs).toEqual([]);
+	await first.unmount();
+
+	// Several layers are a list; with no Where, what it shows alone.
+	zipFill();
+	const several = {
+		...noPollutant({}, [{ dataset: "pesticide-notices" }, { dataset: "pesticide-use" }]),
+		options: { fill: "zipcode" }
+	};
+	await show(several);
+	await expect
+		.poll(() => generatedTitle(several.id))
+		.toBe("Spray Notices, Pesticide Use, and ZIP Codes");
+});
+
+test("a Map with no pollutant whose area can't be named is titled by what it shows", async () => {
+	namedRegions(true);
+	const smoke = noPollutant(region("019"), [{ dataset: "hms-smoke" }, { dataset: "hms-fire" }]);
+	await show(smoke);
+	await expect.poll(() => generatedTitle(smoke.id)).toBe(m.get_data_smoke_and_fire());
+	const map = await madeMap();
+	await expect.poll(() => map.view.label).toBe(m.map_label({ title: m.get_data_smoke_and_fire() }));
+});
+
+test("a Map with no pollutant names a point by its region, for the viewer", async () => {
+	const point = noPollutant({ place: { kind: "point", lat: 36.7, lon: -119.8 } }, [
+		{ dataset: "hms-smoke" },
+		{ dataset: "hms-fire" }
+	]);
+	await show(point, "shared");
+	await expect
+		.poll(() => generatedTitle(point.id))
+		.toBe(`${m.get_data_smoke_and_fire()} · ZIP 93721 (shared location)`);
+});
+
+test("a pollutant Map of several searched monitors and no Where counts them", async () => {
+	const widget = mapWidget({ monitors: ["a", "b", "c"], monitorTypes: [] });
+	await show(widget);
+	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 · 3 places");
+});
+
+test("a Map with a pollutant and no Where is titled by its pollutant alone", async () => {
+	const widget = mapWidget({});
+	await show(widget);
+	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5");
 });
 
 test("shows unavailable with no key", async () => {
@@ -785,22 +1040,6 @@ test("an entry type the map doesn't offer is unavailable, with no map", async ()
 	expect(fakeMaps.made).toHaveLength(0);
 });
 
-test("draws another layer's pollutant when the one showing isn't offered, saving nothing", async () => {
-	const widget = mapWidget(region("019"));
-	widget.data.layers = [
-		{ ...widget.data.layers[0], entryType: "pm100" },
-		{ dataset: "air-quality", entryType: "pm25" }
-	];
-	widget.options = { showing: "pm100" };
-	const screen = await showLive(widget);
-	await madeMap();
-	await expect.poll(() => vi.mocked(getMonitors).mock.calls.length).toBeGreaterThan(0);
-	expect(JSON.stringify(vi.mocked(getMonitors).mock.calls[0])).toContain("pm25");
-	expect(screen.getByText(m.widget_state_unavailable_unknown_entry_type()).query()).toBeNull();
-	// The session's stored widget keeps the owner's choice.
-	expect(app().current.session!.doc.body.widgets[0].options).toEqual({ showing: "pm100" });
-});
-
 test("a failed pollutant list shows Try again, and retrying recovers", async () => {
 	const mapPollutants = vi
 		.fn<() => Promise<string[] | "unavailable">>()
@@ -831,7 +1070,7 @@ test("a failed monitors load shows the error, and Retry loads them again", async
 
 test("a monitor the server doesn't list is no longer available, and the map still draws", async () => {
 	vi.mocked(getMonitors).mockResolvedValue([reading("a", -120, 36)] as never);
-	const screen = await show(mapWidget({ place: { kind: "monitor", id: "gone" } }));
+	const screen = await show(mapWidget({ monitors: ["gone"], monitorTypes: [] }));
 	const map = await madeMap();
 	await expect.element(screen.getByText(m.widget_state_gone_title())).toBeVisible();
 	expect(frame.querySelector(`[data-fake-map="${map.uid}"]`)).toBeTruthy();
@@ -882,7 +1121,7 @@ test("passes axe in light and dark", async () => {
 });
 
 test("a click pins the card and never selects", async () => {
-	const widget = mapWidget({ place: { kind: "monitor", id: "a" } });
+	const widget = mapWidget({ monitors: ["a"], monitorTypes: [] });
 	await show(widget);
 	const map = await madeMap();
 	await expect.poll(() => map.view.card).toEqual({ actions: expect.any(Function) });
@@ -902,11 +1141,14 @@ test("a click pins the card and never selects", async () => {
 	expect(app().current!.session!.doc.body).toEqual(before);
 });
 
-/** A spec 2 Map's data: these pollutant layers (the first holds the places), and smoke and fire. */
-function layers(first: Partial<Layer>, more: Partial<Layer>[] = [], smokeAndFire = false) {
+/** A spec 2 Map's data: these pollutant layers (at the first's Where), and smoke and fire. */
+function layers(at: LayerAt, more: Partial<Layer>[] = [], smokeAndFire = false) {
+	const { place, selection, ...first } = at;
 	return {
+		...(place ? { place } : {}),
+		...(selection ? { selection } : {}),
 		layers: [
-			{ dataset: "air-quality", entryType: "pm25", ...first },
+			{ dataset: "air-quality", entryType: "pm25", monitorTypes: [...EVERY_TYPE], ...first },
 			...more.map((l) => ({ dataset: "air-quality", ...l })),
 			...(smokeAndFire ? [{ dataset: "hms-smoke" }, { dataset: "hms-fire" }] : [])
 		]
@@ -918,7 +1160,7 @@ test("draws only the region's monitors", async () => {
 	await show(mapWidget(region("6phe")));
 	const map = await madeMap();
 	await expect.poll(() => drawn(map)).toEqual(["in1", "in2"]);
-	// Scoped by the server: the region's id, for the pollutant showing.
+	// Scoped by the server: the region's id, for the Map's pollutant.
 	expect(getMonitors).toHaveBeenCalledWith(
 		"pm25",
 		{ timestamp: expect.any(Date), region: ["r6phe"] },
@@ -934,7 +1176,7 @@ test("draws only the region's monitors", async () => {
 
 test("draws exactly the hand-picked monitors", async () => {
 	vi.mocked(getMonitors).mockResolvedValue([reading("a"), reading("b"), reading("c")] as never);
-	await show(mapWidget({ selection: { kind: "monitors", ids: ["a", "c"] } }));
+	await show(mapWidget({ monitors: ["a", "c"], monitorTypes: [] }));
 	const map = await madeMap();
 	await expect.poll(() => drawn(map)).toEqual(["a", "c"]);
 	// The current list for the Valley, with no region.
@@ -969,12 +1211,11 @@ test("draws a spec 1 ozone tile as ozone", async () => {
 	await expect.poll(() => generatedTitle(widget.id)).toBe("Ozone · Fresno County");
 });
 
-test("draws the pollutant showing, and switches when it changes", async () => {
+test("draws the Map's pollutant, and switches when it changes", async () => {
 	vi.mocked(getMonitors).mockImplementation(async (type) => [reading(String(type))] as never);
 	const widget: WidgetInstance = {
 		...mapWidget({}),
-		data: layers(region("019"), [{ entryType: "o3" }]),
-		options: { showing: "o3" }
+		data: layers({ ...region("019"), entryType: "o3" })
 	};
 	const screen = await show(widget);
 	const map = await madeMap();
@@ -982,7 +1223,7 @@ test("draws the pollutant showing, and switches when it changes", async () => {
 	expect(map.plugins.find((p) => p.id === "monitors")!.options).toMatchObject({
 		layerLabel: "Ozone"
 	});
-	await screen.rerender({ widget: { ...widget, options: { showing: "pm25" } } });
+	await screen.rerender({ widget: { ...widget, data: layers(region("019")) } });
 	await expect.poll(() => drawn(map)).toEqual(["pm25"]);
 	expect(map.plugins.find((p) => p.id === "monitors")!.options).toMatchObject({
 		layerLabel: "PM2.5"
@@ -1125,17 +1366,15 @@ const monitorsSourceOf = (map: FakeMap) =>
 test("a pollutant switch draws none of the old readings while the new scope resolves", async () => {
 	vi.mocked(getMonitors).mockImplementation(async (type) => [reading(String(type))] as never);
 	const gate = holdableRegions();
-	const widget: WidgetInstance = {
-		...mapWidget({}),
-		data: layers(region("019"), [{ entryType: "o3" }]),
-		options: { showing: "pm25" }
-	};
+	const widget: WidgetInstance = { ...mapWidget({}), data: layers(region("019")) };
 	const screen = await show(widget);
 	const map = await madeMap();
 	await expect.poll(() => drawn(map)).toEqual(["pm25"]);
 	gate.held = true;
 	const before = gate.calls;
-	await screen.rerender({ widget: { ...widget, options: { showing: "o3" } } });
+	await screen.rerender({
+		widget: { ...widget, data: layers({ ...region("019"), entryType: "o3" }) }
+	});
 	await expect.poll(() => gate.calls).toBeGreaterThan(before);
 	await expect
 		.poll(() => map.plugins.find((p) => p.id === "monitors")?.options.layerLabel)
@@ -1286,15 +1525,15 @@ const hiddenLines = () =>
 const reasonLine = (reason: "pollutant" | "options" | "places" | "unknown", n = 1) =>
 	m.map_marks_hidden({ reason, pollutant: "Ozone", count: String(n), countValue: n });
 
-test("keeps marks when the pollutant showing changes, and counts the hidden ones", async () => {
+test("keeps marks when the pollutant changes, and counts the hidden ones", async () => {
 	await listedMonitors();
 	vi.mocked(getMonitors).mockImplementation(
 		async (type) => (type === "o3" ? [reading("b")] : [reading("a"), reading("b")]) as never
 	);
 	const widget: WidgetInstance = {
 		...mapWidget({}),
-		data: layers(region("019"), [{ entryType: "o3" }]),
-		options: { showing: "pm25", marks: ["a", "b"] }
+		data: layers(region("019")),
+		options: { marks: ["a", "b"] }
 	};
 	await showLive(widget);
 	const map = await madeMap();
@@ -1306,8 +1545,7 @@ test("keeps marks when the pollutant showing changes, and counts the hidden ones
 		op: "setWidgetData",
 		target: { widgetId: widget.id },
 		from: current().data,
-		to: current().data,
-		options: { from: current().options, to: { showing: "o3", marks: ["a", "b"] } }
+		to: layers({ ...region("019"), entryType: "o3" })
 	});
 	await expect.poll(() => drawn(map)).toEqual(["b"]);
 	await expect.poll(hiddenNote).toBe(reasonLine("pollutant"));
@@ -1331,8 +1569,8 @@ test("gives each reason its own line, in order, in the list note and the map's n
 	);
 	const widget: WidgetInstance = {
 		...mapWidget({}),
-		data: layers(region("019"), [{ entryType: "o3" }]),
-		options: { showing: "o3", marks: ["a", "c", "zz"] }
+		data: layers({ ...region("019"), entryType: "o3" }),
+		options: { marks: ["a", "c", "zz"] }
 	};
 	await showLive(widget);
 	const map = await madeMap();
@@ -1537,8 +1775,8 @@ describe("Show in a chart / Show in a table", () => {
 		// "a" (purpleair) doesn't report Ozone; "c" is outside the places.
 		const widget: WidgetInstance = {
 			...mapWidget({}),
-			data: layers(region("019"), [{ entryType: "o3" }]),
-			options: { showing: "o3", marks: ["a", "c"] }
+			data: layers({ ...region("019"), entryType: "o3" }),
+			options: { marks: ["a", "c"] }
 		};
 		await showEditing(widget);
 		const map = await madeMap();
@@ -1585,27 +1823,26 @@ describe("Show in a chart / Show in a table", () => {
 		await expect.poll(() => menuIds(widget)).toEqual(SHOW_IN);
 	});
 
-	test("are listed for a viewer, whose held pollutant reaches the draft", async () => {
+	test("are listed for a viewer, with the Map's own draft", async () => {
 		await listedMonitors();
 		vi.mocked(getMonitors).mockResolvedValue([reading("b")] as never);
 		const widget: WidgetInstance = {
 			...mapWidget({}),
-			data: layers(region("019"), [{ entryType: "o3" }]),
+			data: layers({ ...region("019"), entryType: "o3" }),
 			options: { marks: ["b"] }
 		};
 		const changes = new ViewerChanges();
-		const screen = await showViewer(widget, changes);
+		await showViewer(widget, changes);
 		const map = await madeMap();
 		map.ready = true;
 		await expect.poll(() => drawn(map)).toEqual(["b"]);
 		await expect.poll(() => menuIds(widget)).toEqual(SHOW_IN);
-		await screen.getByRole("radio", { name: "Ozone" }).click();
-		await expect.poll(() => changes.get(widget.id)).toEqual({ showing: "o3" });
-		await expect.poll(() => mapSend(widget.id)?.draft().options?.showing).toBe("o3");
-		expect(structuredClone(mapSend(widget.id)!.draft())).toMatchObject({
-			options: { marks: ["b"], showing: "o3" }
+		expect(structuredClone(mapSend(widget.id)!.draft())).toEqual({
+			type: "map",
+			data: widget.data,
+			options: { marks: ["b"] }
 		});
-		expect(optionsOf()).toEqual({ marks: ["b"] });
+		expect(changes.get(widget.id)).toBeUndefined();
 	});
 
 	test("aren't offered by Get data's preview", async () => {
@@ -1660,25 +1897,17 @@ const pluginIds = (map: FakeMap) => map.plugins.map((p) => p.id);
 /** Two monitors: "a" a PurpleAir, "b" an AirNow. */
 const twoTypes = () => [reading("a"), { ...reading("b"), type: "airnow" }];
 
-test("the toolbar's pollutant is saved with undo, and its radio follows undo", async () => {
+test("the toolbar offers no pollutant choice: a Map holds one", async () => {
 	vi.mocked(getMonitors).mockImplementation(async (type) => [reading(String(type))] as never);
-	const widget = { ...mapWidget({}), data: layers(region("019"), [{ entryType: "o3" }]) };
+	const widget = { ...mapWidget({}), data: layers(region("019"), []) };
 	const screen = await showLive(widget, editing());
 	const map = await madeMap();
 	map.ready = true;
 	await expect.poll(() => drawn(map)).toEqual(["pm25"]);
-	const session = app().current.session!;
-	const apply = vi.spyOn(session, "apply");
-	await screen.getByRole("radio", { name: "Ozone" }).click();
-	await expect.poll(optionsOf).toEqual({ showing: "o3" });
-	await expect.poll(() => drawn(map)).toEqual(["o3"]);
-	session.undo();
-	await expect.element(screen.getByRole("radio", { name: "PM2.5" })).toBeChecked();
-	await expect.poll(() => drawn(map)).toEqual(["pm25"]);
+	await expect.poll(() => fakeToolbars.last?.groups.map((g) => g.id)).toBeDefined();
+	expect(fakeToolbars.last?.groups.map((g) => g.id)).not.toContain("pollutant");
+	expect(screen.getByRole("radio", { name: "Ozone" }).query()).toBeNull();
 	expect(optionsOf()).toBeUndefined();
-	// Undo set the toolbar's values: no change of its own.
-	await new Promise((r) => setTimeout(r, 50));
-	expect(apply).toHaveBeenCalledTimes(1);
 });
 
 test("Fire & Smoke off removes the smoke and fire layers, and on adds them again", async () => {
@@ -1726,9 +1955,8 @@ test("the toolbar's clusters and basemap drive the map, and Reset removes every 
 	vi.mocked(getMonitors).mockResolvedValue(twoTypes() as never);
 	const widget: WidgetInstance = {
 		...mapWidget({}),
-		data: layers(region("019"), [{ entryType: "o3" }], true),
+		data: layers(region("019"), [], true),
 		options: {
-			showing: "o3",
 			marks: ["a"],
 			basemap: "satellite",
 			clustered: false,
@@ -1846,27 +2074,6 @@ test("a viewer back at a default the owner changed sees it, and Reset puts the o
 	expect(optionsOf()).toEqual({ clustered: false, inactive: true });
 });
 
-test("a viewer back at the owner's pollutant holds nothing, though the owner saved it", async () => {
-	vi.mocked(getMonitors).mockImplementation(async (type) => [reading(String(type))] as never);
-	const widget: WidgetInstance = {
-		...mapWidget({}),
-		data: layers(region("019"), [{ entryType: "o3" }]),
-		// Saved as the first pollutant (explicit, not missing).
-		options: { showing: "pm25" }
-	};
-	const changes = new ViewerChanges();
-	const screen = await showViewer(widget, changes);
-	const map = await madeMap();
-	map.ready = true;
-	await expect.poll(() => drawn(map)).toEqual(["pm25"]);
-	await screen.getByRole("radio", { name: "Ozone" }).click();
-	await expect.poll(() => drawn(map)).toEqual(["o3"]);
-	expect(changes.get(widget.id)).toEqual({ showing: "o3" });
-	await screen.getByRole("radio", { name: "PM2.5" }).click();
-	await expect.poll(() => drawn(map)).toEqual(["pm25"]);
-	expect(changes.get(widget.id)).toBeUndefined();
-});
-
 test("Get data's preview shows the toolbar read-only: its rows are disabled and change nothing", async () => {
 	vi.mocked(getMonitors).mockResolvedValue(twoTypes() as never);
 	registerWidgetType(mapType);
@@ -1902,7 +2109,7 @@ test("the toolbar's filters never hide the tile's own monitors, and offer no row
 	// A monitor place whose monitor is indoors: drawn with the defaults, and no Monitors group
 	// (its rows couldn't filter it).
 	vi.mocked(getMonitors).mockResolvedValue([{ ...reading("a"), location: "inside" }] as never);
-	const first = await show(mapWidget({ place: { kind: "monitor", id: "a" } }));
+	const first = await show(mapWidget({ monitors: ["a"], monitorTypes: [] }));
 	let map = await madeMap();
 	map.ready = true;
 	await expect.poll(() => drawn(map)).toEqual(["a"]);
@@ -1916,7 +2123,7 @@ test("the toolbar's filters never hide the tile's own monitors, and offer no row
 		{ ...reading("b"), type: "airnow" }
 	] as never);
 	await show({
-		...mapWidget({ selection: { kind: "monitors", ids: ["a", "b"] } }),
+		...mapWidget({ monitors: ["a", "b"], monitorTypes: [] }),
 		options: { hiddenTypes: ["airnow"], marks: ["b"] }
 	});
 	map = await madeMap();
@@ -2170,7 +2377,7 @@ const daysAsked = () =>
 
 /** A Map of `layer` over `range`. */
 function rangedMap(
-	layer: Partial<Layer>,
+	layer: LayerAt,
 	options?: Record<string, unknown>,
 	range: DateRangeSpec = RANGE
 ): WidgetInstance {
@@ -2224,7 +2431,8 @@ test("on a past day, the monitors draw the day's figures: no row isn't drawn, th
 		entryType: "pm25",
 		start: "2026-09-09",
 		end: "2026-09-09",
-		region: ["r019"]
+		region: ["r019"],
+		type: EVERY_TYPE
 	});
 	await expect.element(screen.getByText(m.map_day_not_final())).not.toBeInTheDocument();
 });
@@ -2321,14 +2529,19 @@ test("a pollutant change on a day keeps the day, and draws nothing stale while i
 	]) as never);
 	const gate = holdableRegions();
 	const widget: WidgetInstance = {
-		...rangedMap(region("019"), { showing: "pm25", at: "2026-09-08" }),
-		data: { ...layers(region("019"), [{ entryType: "o3" }]), dateRange: RANGE }
+		...rangedMap(region("019"), { at: "2026-09-08" }),
+		data: { ...layers(region("019")), dateRange: RANGE }
 	};
 	const screen = await show(widget);
 	const map = await madeMap();
 	await expect.poll(() => drawnValues(map)).toEqual({ a: 12 });
 	gate.held = true;
-	await screen.rerender({ widget: { ...widget, options: { showing: "o3", at: "2026-09-08" } } });
+	await screen.rerender({
+		widget: {
+			...widget,
+			data: { ...layers({ ...region("019"), entryType: "o3" }), dateRange: RANGE }
+		}
+	});
 	await expect
 		.poll(() => map.plugins.find((p) => p.id === "monitors")?.options.layerLabel)
 		.toBe("Ozone");
@@ -2340,7 +2553,8 @@ test("a pollutant change on a day keeps the day, and draws nothing stale while i
 		entryType: "o3",
 		start: "2026-09-08",
 		end: "2026-09-08",
-		region: ["r019"]
+		region: ["r019"],
+		type: EVERY_TYPE
 	});
 	expect(dayLabel()).toBe("Tuesday, September 8, 2026");
 });
@@ -2376,7 +2590,8 @@ test("a place change on a day keeps the day, and draws nothing stale while it re
 		entryType: "pm25",
 		start: "2026-09-08",
 		end: "2026-09-08",
-		region: ["r029"]
+		region: ["r029"],
+		type: EVERY_TYPE
 	});
 	expect(dayLabel()).toBe("Tuesday, September 8, 2026");
 });
@@ -2978,7 +3193,7 @@ test("a step doesn't move the camera, even when a monitor place has no figure th
 		reading("b", -119, 37)
 	] as never);
 	dailyFigures({ "2026-09-08": { a: 8, b: 8 }, "2026-09-09": { a: 9 } });
-	await show(rangedMap({ selection: { kind: "monitors", ids: ["a", "b"] } }));
+	await show(rangedMap({ monitors: ["a", "b"], monitorTypes: [] }));
 	const map = await madeMap();
 	map.ready = true;
 	await expect.poll(() => drawnValues(map)).toEqual({ a: 9 });

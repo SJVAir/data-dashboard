@@ -67,8 +67,8 @@ function adapter(): DatasetAdapter {
 	return {
 		id: "air-quality",
 		async target(layer) {
-			return layer.place?.kind === "monitor"
-				? { kind: "monitors", ids: [layer.place.id] }
+			return layer.monitors?.length
+				? { kind: "monitors", ids: [...layer.monitors] }
 				: { unavailable: "place-unsupported" };
 		},
 		offered: (base) => base,
@@ -133,7 +133,7 @@ function calendar(id = "cal", extra: Partial<WidgetInstance> = {}): WidgetInstan
 		rect: { x: 0, y: 0, w: 12, h: 4 },
 		data: {
 			dateRange: { kind: "trailing", amount: 12, unit: "month" },
-			layers: [{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "a" } }]
+			layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["a"] }]
 		},
 		...extra
 	};

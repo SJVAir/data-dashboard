@@ -1,20 +1,46 @@
 import { SvelteMap } from "svelte/reactivity";
-import type { PlaceRef } from "$lib/data/schema";
 import { formatNumber } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";
 import type { GeoResult } from "$lib/platform/types";
 import type { PlaceDirectory } from "./directory";
 import { MIN_QUERY, searchPlaces, type SearchResult } from "./search";
 import { blockReason, toggle, type BlockReason, type PickerMode, type Picks } from "./selection";
-import { refOf, type PlaceOption } from "./types";
+import { refOf, type PickRef, type PlaceOption } from "./types";
 
 export const DEBOUNCE_MS = 250;
+
+/**
+ * What a picker offers: `where` (areas, schools, addresses and "my location": the Map's and the
+ * single-place widgets' Where), `areas` (areas only: a Chart's or Table's Where), or `monitors`
+ * (only monitors that supply the purpose's entry type: the Monitors search).
+ */
+export type PickerOffer = "where" | "areas" | "monitors";
+
+/** The result groups each offer shows. */
+export const OFFER_GROUPS: Record<PickerOffer, readonly GroupKey[]> = {
+	where: ["locations", "regions"],
+	areas: ["regions"],
+	monitors: ["monitors"]
+};
+
+/** Whether `offer` includes an option of `kind`. */
+export function offers(offer: PickerOffer, kind: PlaceOption["kind"]): boolean {
+	switch (kind) {
+		case "monitor":
+			return offer === "monitors";
+		case "region":
+			return offer !== "monitors";
+		case "location":
+			return offer === "where";
+	}
+}
 
 export type PickerContext = {
 	directory: PlaceDirectory;
 	entryType: string;
 	activeOnly: boolean;
 	mode: PickerMode;
+	offer: PickerOffer;
 	recent: PlaceOption[];
 	known: PlaceOption[];
 	locate: (signal: AbortSignal) => Promise<GeoResult>;
@@ -26,7 +52,7 @@ export type SectionKey = "recent" | "locations" | "regions" | "monitors";
 export type Row = {
 	id: string;
 	option: PlaceOption;
-	ref: PlaceRef;
+	ref: PickRef;
 	reason: string | null;
 	selected: boolean;
 };
@@ -34,8 +60,6 @@ export type Section = { key: SectionKey; label: string; rows: Row[] };
 export type GroupKey = "locations" | "regions" | "monitors";
 export type GeoState =
 	{ status: "idle" } | { status: "locating" } | { status: "message"; text: string };
-
-const GROUPS: GroupKey[] = ["locations", "regions", "monitors"];
 
 function groupLabel(key: SectionKey): string {
 	switch (key) {
@@ -62,7 +86,7 @@ export function errorText(key: GroupKey): string {
 }
 
 /** A stable key for a ref (names and DOM ids). */
-export function refKey(ref: PlaceRef): string {
+export function refKey(ref: PickRef): string {
 	switch (ref.kind) {
 		case "monitor":
 			return `monitor:${ref.id}`;
@@ -109,9 +133,10 @@ export class PickerState {
 	sections: Section[] = $derived.by(() => {
 		const ctx = this.#ctx();
 		const lists: { key: SectionKey; options: PlaceOption[] }[] = [];
-		if (!this.typing) lists.push({ key: "recent", options: ctx.recent });
-		else if (this.result) {
-			for (const key of GROUPS) {
+		if (!this.typing) {
+			lists.push({ key: "recent", options: ctx.recent.filter((o) => offers(ctx.offer, o.kind)) });
+		} else if (this.result) {
+			for (const key of OFFER_GROUPS[ctx.offer]) {
 				const group = this.result[key];
 				if (group.status === "ready") lists.push({ key, options: group.options });
 			}
@@ -144,13 +169,13 @@ export class PickerState {
 	failed: GroupKey[] = $derived.by(() => {
 		const result = this.result;
 		if (!this.typing || !result) return [];
-		return GROUPS.filter((key) => result[key].status === "error");
+		return OFFER_GROUPS[this.#ctx().offer].filter((key) => result[key].status === "error");
 	});
 
 	more: boolean = $derived.by(() => {
 		const result = this.result;
 		if (!this.typing || !result) return false;
-		return GROUPS.some((key) => {
+		return OFFER_GROUPS[this.#ctx().offer].some((key) => {
 			const group = result[key];
 			return group.status === "ready" && group.more;
 		});
@@ -185,7 +210,7 @@ export class PickerState {
 		}
 	}
 
-	nameOf(ref: PlaceRef): string {
+	nameOf(ref: PickRef): string {
 		if (ref.kind === "point") return m.place_picker_your_location();
 		return this.#names.get(refKey(ref)) ?? m.place_picker_unnamed();
 	}
@@ -216,7 +241,12 @@ export class PickerState {
 		const ctx = this.#ctx();
 		searchPlaces(
 			this.query,
-			{ directory: ctx.directory, entryType: ctx.entryType, activeOnly: ctx.activeOnly },
+			{
+				directory: ctx.directory,
+				entryType: ctx.entryType,
+				activeOnly: ctx.activeOnly,
+				groups: OFFER_GROUPS[ctx.offer]
+			},
 			controller.signal
 		).then(
 			(result) => {
@@ -266,7 +296,7 @@ export class PickerState {
 		}
 	}
 
-	remove(ref: PlaceRef): void {
+	remove(ref: PickRef): void {
 		this.picks = this.picks.filter((p) => refKey(p) !== refKey(ref));
 	}
 

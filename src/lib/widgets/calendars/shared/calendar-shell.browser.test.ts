@@ -66,8 +66,8 @@ function adapter(): DatasetAdapter {
 	return {
 		id: "air-quality",
 		async target(layer) {
-			return layer.place?.kind === "monitor"
-				? { kind: "monitors", ids: [layer.place.id] }
+			return layer.monitors?.length
+				? { kind: "monitors", ids: [...layer.monitors] }
 				: { unavailable: "place-unsupported" };
 		},
 		offered: (base) => base,
@@ -135,7 +135,7 @@ function calendar(extra: Partial<WidgetInstance> = {}, entryType = "pm25"): Widg
 		rect: { x: 0, y: 0, w: 4, h: 6 },
 		data: {
 			dateRange: { kind: "custom", start: "2026-10-01", end: "2026-11-30" },
-			layers: [{ dataset: "air-quality", entryType, place: { kind: "monitor", id: "a" } }]
+			layers: [{ dataset: "air-quality", entryType, monitors: ["a"] }]
 		},
 		...extra
 	};
@@ -414,7 +414,9 @@ test("the legend shows no level swatches when no day is rated", async () => {
 
 test("a widget with no place asks for nothing and offers the place picker state", async () => {
 	const widget = calendar();
-	widget.data.layers = [{ dataset: "air-quality", entryType: "pm25" }];
+	delete widget.data.place;
+	delete widget.data.selection;
+	delete widget.data.layers[0].monitors;
 	const app = await initApp(createMemoryPlatform(), {
 		channel: createMemoryTabHub().channel(),
 		tabId: "t1"
@@ -424,7 +426,7 @@ test("a widget with no place asks for nothing and offers the place picker state"
 		props: { widget },
 		context: new Map<unknown, unknown>([[APP_CONTEXT_KEY, app]])
 	});
-	await expect.poll(() => frame.textContent).toContain(m.widget_state_idle());
+	await expect.poll(() => frame.textContent).toContain(m.widget_state_idle_place_or_monitor());
 	expect(requests).toHaveLength(0);
 });
 

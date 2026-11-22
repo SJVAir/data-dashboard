@@ -480,9 +480,7 @@ test("a viewer reaches their own notifications switch when a widget has an alert
 					title: "Air now",
 					rect: { x: 0, y: 0, w: 3, h: 5 },
 					data: {
-						layers: [
-							{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }
-						]
+						layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }]
 					},
 					thresholds: [{ level: "unhealthy_sensitive" }]
 				}

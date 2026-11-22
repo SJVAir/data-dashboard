@@ -14,7 +14,7 @@
 	import { STARTER_ID } from "$lib/starter/starter";
 	import { LAST_OPENED_KEY, useApp } from "$lib/store/app.svelte";
 	import type { DocumentSession } from "$lib/store/document-session.svelte";
-	import { HandOffSchema, overCap, type HandOff } from "$lib/widgets/map/hand-off";
+	import { HandOffSchema, type HandOff } from "$lib/widgets/map/hand-off";
 	import { dataTypes } from "$lib/widgets/registry";
 	import { navigate, p, route } from "../router";
 
@@ -52,8 +52,7 @@
 	 */
 	let handOff = $state.raw<HandOff | null>(null);
 	/**
-	 * What "Discard changes?" compares with: the start (the widget's draft, the Map's), then the
-	 * places kept in the opening keep dialog (D24).
+	 * What "Discard changes?" compares with: the start (the widget's draft, the Map's).
 	 */
 	let baseline = $state.raw<Draft | null>(null);
 	/** Saved, or discarded: navigation goes ahead without asking. */
@@ -325,9 +324,6 @@
 					saves={!handOff}
 					leftOut={handOff?.leftOut ?? 0}
 					startNotes={handOff?.notes}
-					keepOnOpen={handOff && overCap(handOff.draft)
-						? { oncancel: goBack, onkeep: (draft) => (baseline = draft) }
-						: undefined}
 				/>
 			{/if}
 		{/key}

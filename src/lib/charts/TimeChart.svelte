@@ -23,7 +23,7 @@
 	} from "./time-chart";
 
 	/**
-	 * The shared time chart: level bands, a line with dots per place (at most five), each day's
+	 * The shared time chart: level bands, a line with dots per place, each day's
 	 * worst hour as a stick (single place), the level key and series key, and a readout that
 	 * follows the pointer or the arrow keys. Overlays draw as day bands behind the line, each with
 	 * its legend row and its level in the readout; `notes` say why an overlay isn't drawn. Number

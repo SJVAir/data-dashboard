@@ -543,7 +543,7 @@ function pointWidget(id: string): WidgetInstance {
 	return {
 		...widget(id),
 		type: "chart",
-		data: { layers: [{ dataset: "air-quality", entryType: "pm25", place: POINT }] }
+		data: { place: POINT, layers: [{ dataset: "air-quality", entryType: "pm25" }] }
 	};
 }
 
@@ -698,7 +698,7 @@ test("before a live link, Use ZIP 93721 instead swaps the points in one undoable
 	expect(server).not.toContain('"point"');
 	expect(server).not.toContain("36.7378");
 	expect(server).toContain('"zipcode"');
-	const places = () => session.doc.body.widgets.map((w) => w.data.layers[0].place);
+	const places = () => session.doc.body.widgets.map((w) => w.data.place);
 	expect(places()).toEqual([
 		{ kind: "region", type: "zipcode", code: "93721" },
 		{ kind: "region", type: "zipcode", code: "93721" }
@@ -722,7 +722,7 @@ test("Share my exact location warns, then creates the link with the point kept",
 	await liveSection().getByRole("button", { name: "Share my exact location" }).click();
 	await expect.element(liveSection().getByText(WARNING)).toBeVisible();
 	await expect.poll(() => worker.states.d1?.shareToken).toBeTruthy();
-	expect(session.doc.body.widgets[0].data.layers[0].place).toEqual(POINT);
+	expect(session.doc.body.widgets[0].data.place).toEqual(POINT);
 	expect(session.canUndo).toBe(false);
 });
 
@@ -739,16 +739,16 @@ test("with one point widget, Use ZIP 93721 instead edits only that widget's data
 	await expect.poll(() => worker.states.d1?.shareToken).toBeTruthy();
 	// Not a whole-document replacement: a concurrent edit elsewhere doesn't conflict with it.
 	expect(applied.mock.calls.map(([change]) => change.op)).toEqual(["setWidgetData"]);
-	expect(session.doc.body.widgets[0].data.layers[0].place).toEqual({
+	expect(session.doc.body.widgets[0].data.place).toEqual({
 		kind: "region",
 		type: "zipcode",
 		code: "93721"
 	});
 	session.undo();
-	expect(session.doc.body.widgets[0].data.layers[0].place).toEqual(POINT);
+	expect(session.doc.body.widgets[0].data.place).toEqual(POINT);
 	expect(session.canUndo).toBe(false);
 	await expect
-		.poll(() => session.doc.body.widgets[0].data.layers[0].place)
+		.poll(() => session.doc.body.widgets[0].data.place)
 		.toEqual({ kind: "region", type: "zipcode", code: "93721" });
 });
 
@@ -768,7 +768,7 @@ test("a point re-picked after the lookup is looked up again before anything is s
 		op: "setWidgetData",
 		target: { widgetId: "p" },
 		from: before.data,
-		to: { layers: [{ ...before.data.layers[0], place: moved }] }
+		to: { place: moved, layers: [{ ...before.data.layers[0] }] }
 	});
 	const applied = vi.spyOn(session, "apply");
 	mocked.placeRegion.mockResolvedValue({ type: "zipcode", code: "93722" });
@@ -777,11 +777,11 @@ test("a point re-picked after the lookup is looked up again before anything is s
 	expect(applied).not.toHaveBeenCalled();
 	expect(worker.states.d1?.shareToken ?? null).toBeNull();
 	expect(fake.requests).not.toContain("share d1");
-	expect(session.doc.body.widgets[0].data.layers[0].place).toEqual(moved);
+	expect(session.doc.body.widgets[0].data.place).toEqual(moved);
 	// Found again: now it swaps the new point.
 	await liveSection().getByRole("button", { name: "Use ZIP 93721 instead" }).click();
 	await expect.poll(() => worker.states.d1?.shareToken).toBeTruthy();
-	expect(session.doc.body.widgets[0].data.layers[0].place).toEqual({
+	expect(session.doc.body.widgets[0].data.place).toEqual({
 		kind: "region",
 		type: "zipcode",
 		code: "93722"
@@ -835,7 +835,7 @@ test("a live link already on: Share my exact location is remembered until the li
 		.element(liveSection().getByText("This dashboard includes your exact location."))
 		.not.toBeInTheDocument();
 	await expect.poll(() => worker.states.d1?.shareExact).toBe(true);
-	expect(session.doc.body.widgets[0].data.layers[0].place).toEqual(POINT);
+	expect(session.doc.body.widgets[0].data.place).toEqual(POINT);
 	expect(fake.requests.filter((r) => r === "share d1")).toHaveLength(2);
 
 	// The next opening doesn't ask again: the warning stands.

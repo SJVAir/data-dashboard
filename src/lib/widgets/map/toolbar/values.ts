@@ -13,7 +13,7 @@ export const USE_FIGURE_KEY = "useFigure";
 
 /** What the tile's data offers the toolbar. */
 export type MapOffer = {
-	/** Drawable pollutant layers, in order. */
+	/** The Map's pollutant when the server's map draws it, else none (never more than one). */
 	pollutants: string[];
 	/** The loaded monitors' types. */
 	types: string[];
@@ -66,7 +66,6 @@ export function toOptions(
 	next: OptionValues,
 	changed: string[],
 	defaults: OptionValues,
-	firstPollutant: string | undefined,
 	firstFigure?: string
 ): MapOptions {
 	const out: Record<string, unknown> = { ...current };
@@ -79,9 +78,6 @@ export function toOptions(
 			if (value === false) hidden.add(type);
 			else hidden.delete(type);
 			typesChanged = true;
-		} else if (key === "pollutant") {
-			if (typeof value !== "string" || value === firstPollutant) delete out.showing;
-			else out.showing = value;
 		} else if (key === "regions") {
 			if (value === false) out.fillShown = false;
 			else delete out.fillShown;
@@ -141,15 +137,11 @@ export function groupsShown(
 }
 
 /**
- * The monitors that are the tile's own places: a monitor place, or a hand-picked monitors
- * selection. The toolbar's filters never hide them (ruling, 2026-11-13).
+ * The monitors that are the tile's own places: its air-quality layer's searched monitors. The
+ * toolbar's filters never hide them (ruling, 2026-11-13).
  */
-export function placeMonitors(
-	layer: Pick<Layer, "place" | "selection"> | undefined
-): ReadonlySet<string> {
-	if (layer?.place?.kind === "monitor") return new Set([layer.place.id]);
-	if (layer?.selection?.kind === "monitors") return new Set(layer.selection.ids);
-	return new Set();
+export function placeMonitors(layer: Pick<Layer, "monitors"> | undefined): ReadonlySet<string> {
+	return new Set(layer?.monitors ?? []);
 }
 
 /**

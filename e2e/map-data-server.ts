@@ -15,13 +15,61 @@ const CATALOG = /\/api\/2\.0\/meta\/datasets\/$/;
  * Fresno and in ZIP 93721 (where the point lookup puts any point). Bakersfield is in none.
  */
 const REGION_MONITORS: Record<string, string[]> = {
-	r6phe: ["4Mb0j33kTnS0qzeE4iDGWw", "Tt5ixZRKSH-rVKJtwVh-bw"],
+	r6phe: ["4Mb0j33kTnS0qzeE4iDGWw", "Tt5ixZRKSH-rVKJtwVh-bw", "PaSecondFresno0000000AA"],
 	dn3sk: ["6qEHS0fITHOQYHLN4c9GKA"],
 	njyup: ["4Mb0j33kTnS0qzeE4iDGWw"],
 	yd7ru: ["4Mb0j33kTnS0qzeE4iDGWw"]
 };
 
 type Monitor = { id: string };
+
+/**
+ * The monitor types a bulk summaries request names (`type=`, repeatable, as the server takes
+ * them; `@sjvair/sdk` `5.0.0-beta.16`), or `null` for every type.
+ */
+function typesOf(url: URL): Set<string> | null {
+	const types = url.searchParams.getAll("type").flatMap((t) => t.split(","));
+	return types.length > 0 ? new Set(types) : null;
+}
+
+/** Whether a bulk summaries request is scoped (by region or by type): the Map's are. */
+function scoped(url: URL): boolean {
+	return url.searchParams.has("region") || url.searchParams.has("type");
+}
+
+/**
+ * The monitor ids a bulk request's regions hold (`regionMonitors`), or every listed monitor when
+ * it names no region (a Map with no Where), kept to the types it names.
+ */
+function bulkWanted(
+	url: URL,
+	list: { id: string; type?: string }[],
+	regionMonitors: (region: string) => string[]
+): Set<string> {
+	const regions = url.searchParams.getAll("region").flatMap((r) => r.split(","));
+	const types = typesOf(url);
+	const inside = regions.length > 0 ? new Set(regions.flatMap(regionMonitors)) : null;
+	return new Set(
+		list
+			.filter((m) => (!inside || inside.has(m.id)) && (!types || types.has(m.type ?? "")))
+			.map((m) => m.id)
+	);
+}
+
+/**
+ * The fixture monitors (`monitors.json`) of the types a bulk summaries request names that sit in
+ * its regions (`REGION_MONITORS`), or anywhere when it names none: the rows a bulk monitor-set
+ * request (`region=` with `type=`) answers, one per monitor.
+ */
+export async function monitorsOfRequest(
+	url: URL
+): Promise<{ id: string; name: string; type: string }[]> {
+	const list = await json<{ data: { id: string; name: string; type: string }[] }>(
+		`${API_FIXTURES}monitors.json`
+	);
+	const wanted = bulkWanted(url, list?.data ?? [], (r) => REGION_MONITORS[r] ?? []);
+	return (list?.data ?? []).filter((m) => wanted.has(m.id));
+}
 
 async function json<T>(path: string): Promise<T | null> {
 	try {
@@ -175,7 +223,7 @@ export async function routeMapDays(
 	days: Record<string, MapDay>
 ): Promise<void> {
 	await context.route(
-		(url) => MONITOR_DAILY.test(url.pathname) && url.searchParams.has("region"),
+		(url) => MONITOR_DAILY.test(url.pathname) && scoped(url),
 		async (route) => {
 			const url = new URL(route.request().url());
 			const day = url.searchParams.get("start") ?? "";
@@ -184,17 +232,17 @@ export async function routeMapDays(
 				await route.fulfill({ status: 400, json: { error: "end must equal start" } });
 				return;
 			}
-			const regions = url.searchParams.getAll("region").flatMap((r) => r.split(","));
-			const wanted = new Set(regions.flatMap((r) => REGION_MONITORS[r] ?? []));
 			const [, type] = MONITOR_DAILY.exec(url.pathname)!;
-			const list = await json<{ data: { id: string; name: string }[] }>(
+			const list = await json<{ data: { id: string; name: string; type: string }[] }>(
 				`${API_FIXTURES}monitors/${type}/current.json`
 			);
+			const wanted = bulkWanted(url, list?.data ?? [], (r) => REGION_MONITORS[r] ?? []);
 			const data = (list?.data ?? [])
 				.filter((m) => wanted.has(m.id) && days[day]?.figures[m.id] !== undefined)
 				.map((m) => ({
 					id: m.id,
 					name: m.name,
+					type: m.type,
 					summaries: [
 						{
 							timestamp: `${day}T00:00:00-08:00`,
@@ -242,7 +290,7 @@ export async function routeMapPeriods(
 	periods: Record<string, MapPeriod>
 ): Promise<void> {
 	await context.route(
-		(url) => MONITOR_PERIOD.test(url.pathname) && url.searchParams.has("region"),
+		(url) => MONITOR_PERIOD.test(url.pathname) && scoped(url),
 		async (route) => {
 			const url = new URL(route.request().url());
 			const [, type, level] = MONITOR_PERIOD.exec(url.pathname)!;
@@ -259,17 +307,17 @@ export async function routeMapPeriods(
 				await route.fulfill({ status: 400, json: { error: "not one whole period" } });
 				return;
 			}
-			const regions = url.searchParams.getAll("region").flatMap((r) => r.split(","));
-			const wanted = new Set(regions.flatMap((r) => REGION_MONITORS[r] ?? []));
-			const list = await json<{ data: { id: string; name: string }[] }>(
+			const list = await json<{ data: { id: string; name: string; type: string }[] }>(
 				`${API_FIXTURES}monitors/${type}/current.json`
 			);
+			const wanted = bulkWanted(url, list?.data ?? [], (r) => REGION_MONITORS[r] ?? []);
 			const period = periods[start];
 			const data = (list?.data ?? [])
 				.filter((mon) => wanted.has(mon.id) && period?.figures[mon.id] !== undefined)
 				.map((mon) => ({
 					id: mon.id,
 					name: mon.name,
+					type: mon.type,
 					summaries: [
 						{
 							// Inside the period's first Pacific day, whatever its offset.
@@ -523,6 +571,7 @@ export async function routeMapNotices(
 				geographies: ["point"],
 				meta_url: "/api/2.0/pesticides/meta/",
 				places_url: "",
+				monitor_types: null,
 				entry_types: [
 					{
 						id: "spray-notice",
@@ -665,6 +714,16 @@ type UseFile = {
 
 /** The use fixture's notes, badges and chemicals (`fixtures/map-use.json`). */
 export const USE_FILE = JSON.parse(readFileSync(FIXTURES + "map-use.json", "utf8")) as UseFile;
+
+/**
+ * Every monitor type, as the local catalog's air-quality `monitor_types` lists them (the fixture
+ * `meta/datasets.json`): a Map ticks them all to draw every monitor in its Where (decision 8).
+ */
+export const EVERY_MONITOR_TYPE: string[] = (
+	JSON.parse(readFileSync(API_FIXTURES + "meta/datasets.json", "utf8")) as {
+		data: { datasets: { id: string; monitor_types: string[] | null }[] };
+	}
+).data.datasets.find((d) => d.id === "air-quality")!.monitor_types!;
 
 /** A township's size in degrees (about six miles each way in the valley). */
 const TOWNSHIP_DEG = { lng: 0.108, lat: 0.087 };
@@ -824,6 +883,7 @@ export async function routeMapUse(
 				geographies: ["region"],
 				meta_url: "/api/2.0/pesticides/meta/",
 				places_url: "",
+				monitor_types: null,
 				entry_types: USE_CATALOG.figures.map((figure) => ({
 					...figure,
 					kind: "other",
@@ -930,7 +990,12 @@ export async function routeMoreMonitors(
 	extras: ExtraMonitor[],
 	figure = 5
 ): Promise<void> {
-	type Row = { id: string; name: string; position: { type: string; coordinates: number[] } };
+	type Row = {
+		id: string;
+		name: string;
+		type: string;
+		position: { type: string; coordinates: number[] };
+	};
 	const current = (await json<{ data: Row[] }>(`${API_FIXTURES}monitors/pm25/current.json`))!;
 	const listed = (await json<{ data: Row[] }>(`${API_FIXTURES}monitors.json`))!;
 	const drummond = current.data.find((m) => m.id === REGION_MONITORS[FRESNO_COUNTY_ID][0])!;
@@ -982,19 +1047,22 @@ export async function routeMoreMonitors(
 		}
 	);
 	await context.route(
-		(url) => MONITOR_DAILY.exec(url.pathname)?.[1] === "pm25" && url.searchParams.has("region"),
+		(url) => MONITOR_DAILY.exec(url.pathname)?.[1] === "pm25" && scoped(url),
 		(route) => {
 			const url = new URL(route.request().url());
 			const day = url.searchParams.get("start") ?? "";
 			if (url.searchParams.get("end") !== day) {
 				return route.fulfill({ status: 400, json: { error: "end must equal start" } });
 			}
-			const wanted = wantedIn(url);
+			const wanted = bulkWanted(url, all, (r) =>
+				r === FRESNO_COUNTY_ID ? [...inCounty] : (REGION_MONITORS[r] ?? [])
+			);
 			const data = all
 				.filter((m) => wanted.has(m.id) && m.id !== SCIENCE_BUILDING)
 				.map((m) => ({
 					id: m.id,
 					name: m.name,
+					type: m.type,
 					summaries: [
 						{
 							timestamp: `${day}T00:00:00-08:00`,

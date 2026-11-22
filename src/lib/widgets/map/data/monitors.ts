@@ -18,7 +18,8 @@ import {
 	type SnapshotAt
 } from "$lib/data/snapshot";
 import type { UnavailableReason } from "$lib/data/types";
-import { pollutantLayers } from "../options";
+import { queryLayer } from "../../shared/input";
+import { pollutantLayer } from "../options";
 import { monitorScope, type MonitorScope, type ScopeContext } from "./scope";
 import type { MapDataEntry, MapDataInput } from "./types";
 
@@ -122,10 +123,44 @@ export function isThin(props: MapFeatureProperties): boolean {
 
 /** The places' scope as the snapshot query takes it, with a key that names its kind. */
 export function snapshotScope(scope: MonitorScope): { scope: SnapshotScope; scopeKey: string } {
-	return {
-		scope: { kind: scope.kind, ids: scope.ids },
-		scopeKey: `${scope.kind}:${scope.key}`
-	};
+	const shape: SnapshotScope =
+		scope.kind === "monitor-set"
+			? { kind: "monitor-set", types: scope.types, regionIds: scope.regionIds, ids: scope.ids }
+			: { kind: "monitors", ids: scope.ids };
+	return { scope: shape, scopeKey: `${scope.kind}:${scope.key}` };
+}
+
+/**
+ * The latest readings of a scope's monitors. A monitor set: those of its types (kept by type
+ * here: the readings endpoints have no type filter, spec decision 35) at `timestamp` inside its
+ * regions, or currently everywhere, plus its searched monitors from the current list. Searched
+ * monitors alone: the current list kept to their ids.
+ */
+async function scopeReadings(
+	scope: MonitorScope,
+	type: MonitorEntryType,
+	timestamp: Date,
+	signal: AbortSignal
+): Promise<MonitorLatest[]> {
+	let all: MonitorLatest[] | undefined;
+	const current = async () =>
+		(all ??= (await getMonitors(type, undefined, { signal })) as MonitorLatest[]);
+	const wanted = new Set(scope.ids);
+	if (scope.kind === "monitors") return (await current()).filter((m) => wanted.has(m.id));
+	const types = new Set(scope.types);
+	const inside = scope.regionIds
+		? ((await getMonitors(
+				type,
+				{ timestamp, region: scope.regionIds },
+				{ signal }
+			)) as MonitorLatest[])
+		: await current();
+	const found = inside.filter((m) => types.has(m.type));
+	const have = new Set(found.map((m) => m.id));
+	const missing = scope.ids.filter((id) => !have.has(id));
+	if (missing.length === 0) return found;
+	const searched = new Set(missing);
+	return [...found, ...(await current()).filter((m) => searched.has(m.id))];
 }
 
 export type MonitorsEntryContext = ScopeContext & { now: () => Date };
@@ -168,37 +203,25 @@ export type DayRating = Pick<MetadataSource, "figure" | "levels">;
 export type DaySource = ReturnType<typeof monitorDaySource>;
 
 /**
- * The monitors entry: the pollutant showing's monitors and latest readings, limited by the places
- * (the first pollutant layer's). Regions go to the server's `at` endpoint; monitor places take the
- * current list filtered to their ids. The list is the same on every stop (a stop's figures come
- * from `stopSource`, joined to it by id), so its key holds no day.
+ * The monitors entry: the Map's pollutant's monitors and latest readings, those its air-quality
+ * layer asks for (`monitorScope`: ticked types inside the Where, plus searched monitors); none
+ * with neither. The list is the same on every stop (a stop's figures come from `stopSource`,
+ * joined to it by id), so its key holds no day.
  */
 export function createMonitorsEntry(ctx: MonitorsEntryContext): MonitorsEntry {
 	return {
 		id: "monitors",
 		async source({ data, entryType }, signal) {
-			const layer = pollutantLayers(data, undefined)[0];
+			const layer = pollutantLayer(data, undefined);
 			if (!layer) return null;
-			const scope = await monitorScope(layer, ctx, signal);
-			if ("unavailable" in scope) return scope;
+			const scope = await monitorScope(queryLayer(data, layer), ctx, signal);
+			if (!scope || "unavailable" in scope) return scope;
 			const type = entryType as MonitorEntryType;
 			const source: MonitorsListSource = {
-				key: `map-monitors:${entryType}:${scope.key}`,
+				key: `map-monitors:${entryType}:${scope.kind}:${scope.key}`,
 				cadence: "raw",
 				scope,
-				fetch: async (s) => {
-					if (scope.kind === "regions") {
-						const found = await getMonitors(
-							type,
-							{ timestamp: ctx.now(), region: scope.ids },
-							{ signal: s }
-						);
-						return found as MonitorLatest[];
-					}
-					const all = (await getMonitors(type, undefined, { signal: s })) as MonitorLatest[];
-					const wanted = new Set(scope.ids);
-					return all.filter((m) => wanted.has(m.id));
-				}
+				fetch: (s) => scopeReadings(scope, type, ctx.now(), s)
 			};
 			return source;
 		},

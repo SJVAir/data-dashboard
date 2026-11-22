@@ -153,11 +153,30 @@ export function fullscreenFrame(page: Page): Locator {
 
 type Rect = { x: number; y: number; w: number; h: number };
 
+/** A widget as a saved or shared document carries it (the fakes build these by hand). */
+export type DocWidget = {
+	id: string;
+	type: string;
+	title: string | null;
+	rect: Rect;
+	data: { layers: unknown[]; dateRange?: unknown };
+	options?: unknown;
+};
+
+/** A dashboard document as a link or file carries it. */
+export type SharedDocument = {
+	kind: string;
+	schemaVersion: number;
+	id: string;
+	name: string;
+	body: { widgets: DocWidget[] };
+};
+
 /**
  * A placeholder-widget dashboard document as a link or file carries it. Widget `i` has id `w{i}`
  * and `rects[i]` (default: stacked in the left half).
  */
-export function sharedDoc(name: string, widgetTitles: string[], rects?: Rect[]) {
+export function sharedDoc(name: string, widgetTitles: string[], rects?: Rect[]): SharedDocument {
 	return {
 		kind: "dashboard",
 		schemaVersion: 1,
@@ -188,7 +207,7 @@ export function shareLinkFor(doc: unknown): string {
 }
 
 /** Opens `doc` through a share link (which saves a copy) and waits for its widgets. */
-export async function openSharedDoc(page: Page, doc: ReturnType<typeof sharedDoc>): Promise<void> {
+export async function openSharedDoc(page: Page, doc: SharedDocument): Promise<void> {
 	await page.goto(shareLinkFor(doc));
 	await expect(page).toHaveURL(DASHBOARD_URL);
 	await expect(widgetTitles(page)).toHaveCount(doc.body.widgets.length);

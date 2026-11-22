@@ -34,12 +34,12 @@ const rows = { types: true, inactive: true, inside: true };
 
 describe("toOptions", () => {
 	it("stores a value equal to its default as missing", () => {
-		const out = toOptions({ basemap: "satellite" }, { ...defaults }, ["basemap"], defaults, "pm25");
+		const out = toOptions({ basemap: "satellite" }, { ...defaults }, ["basemap"], defaults);
 		expect(out).not.toHaveProperty("basemap");
 	});
 
 	it("writes a changed value that differs from its default", () => {
-		const out = toOptions({}, { ...defaults, basemap: "satellite" }, ["basemap"], defaults, "pm25");
+		const out = toOptions({}, { ...defaults, basemap: "satellite" }, ["basemap"], defaults);
 		expect(out.basemap).toBe("satellite");
 	});
 
@@ -48,31 +48,26 @@ describe("toOptions", () => {
 			{},
 			{ ...defaults, "type:purpleair": false },
 			["type:purpleair"],
-			defaults,
-			"pm25"
+			defaults
 		);
 		expect(off.hiddenTypes).toEqual(["purpleair"]);
 		const on = toOptions(
 			off,
 			{ ...defaults, "type:purpleair": true },
 			["type:purpleair"],
-			defaults,
-			"pm25"
+			defaults
 		);
 		expect(on).not.toHaveProperty("hiddenTypes");
 	});
 
-	it("saves a pollutant other than the first, drops the first", () => {
-		const first = toOptions(
-			{ showing: "o3" },
-			{ ...defaults, pollutant: "pm25" },
+	it("saves nothing for a pollutant change (a Map holds one)", () => {
+		const out = toOptions(
+			{ marks: ["a"] },
+			{ ...defaults, pollutant: "o3" },
 			["pollutant"],
-			defaults,
-			"pm25"
+			defaults
 		);
-		expect(first).not.toHaveProperty("showing");
-		const other = toOptions({}, { ...defaults, pollutant: "o3" }, ["pollutant"], defaults, "pm25");
-		expect(other.showing).toBe("o3");
+		expect(out).toEqual({ marks: ["a"] });
 	});
 
 	it("keeps marks through any change", () => {
@@ -80,16 +75,15 @@ describe("toOptions", () => {
 			{ marks: ["a"] },
 			{ ...defaults, clustered: false },
 			["clustered"],
-			defaults,
-			"pm25"
+			defaults
 		);
 		expect(out).toEqual({ marks: ["a"], clustered: false });
 	});
 });
 
 describe("toValues", () => {
-	it("shows the drawn pollutant, not the saved one", () => {
-		const v = toValues({ showing: "no2" }, offer, defaults, "o3");
+	it("shows the drawn pollutant", () => {
+		const v = toValues({}, offer, defaults, "o3");
 		expect(v.pollutant).toBe("o3");
 	});
 
@@ -146,11 +140,10 @@ describe("fillShown", () => {
 			{ fillShown: false },
 			{ ...defaults, regions: true },
 			["regions"],
-			defaults,
-			"pm25"
+			defaults
 		);
 		expect(on).not.toHaveProperty("fillShown");
-		const off = toOptions({}, { ...defaults, regions: false }, ["regions"], defaults, "pm25");
+		const off = toOptions({}, { ...defaults, regions: false }, ["regions"], defaults);
 		expect(off.fillShown).toBe(false);
 	});
 
@@ -169,7 +162,6 @@ describe("withoutToolbar", () => {
 		expect(
 			withoutToolbar({
 				marks: ["a"],
-				showing: "o3",
 				basemap: "x",
 				clustered: false,
 				fireAndSmoke: true,
@@ -181,9 +173,10 @@ describe("withoutToolbar", () => {
 	});
 
 	it("clears fillShown and keeps day and fill", () => {
-		expect(
-			withoutToolbar({ at: "2026-11-14", fill: "city", fillShown: false, showing: "o3" })
-		).toEqual({ at: "2026-11-14", fill: "city" });
+		expect(withoutToolbar({ at: "2026-11-14", fill: "city", fillShown: false })).toEqual({
+			at: "2026-11-14",
+			fill: "city"
+		});
 	});
 });
 
@@ -251,17 +244,14 @@ describe("filterMonitors", () => {
 });
 
 describe("placeMonitors", () => {
-	it("is a monitor place's id, or a monitors selection's ids", () => {
-		expect([...placeMonitors({ place: { kind: "monitor", id: "x" } })]).toEqual(["x"]);
-		expect([...placeMonitors({ selection: { kind: "monitors", ids: ["a", "b"] } })]).toEqual([
-			"a",
-			"b"
-		]);
+	it("is the air-quality layer's searched monitors", () => {
+		expect([...placeMonitors({ monitors: ["x"] })]).toEqual(["x"]);
+		expect([...placeMonitors({ monitors: ["a", "b"] })]).toEqual(["a", "b"]);
 	});
-	it("is empty for regions, points and no places", () => {
+	it("is empty with no searched monitors (ticked types aren't exempt)", () => {
 		expect(placeMonitors(undefined).size).toBe(0);
-		expect(placeMonitors({ place: { kind: "region", type: "county", code: "019" } }).size).toBe(0);
-		expect(placeMonitors({ selection: { kind: "regions", ids: ["r019"] } }).size).toBe(0);
+		expect(placeMonitors({}).size).toBe(0);
+		expect(placeMonitors({ monitors: [] }).size).toBe(0);
 	});
 });
 
@@ -271,11 +261,10 @@ describe("notices", () => {
 			{ noticesShown: false },
 			{ ...defaults, notices: true },
 			["notices"],
-			defaults,
-			"pm25"
+			defaults
 		);
 		expect(on).not.toHaveProperty("noticesShown");
-		const off = toOptions({}, { ...defaults, notices: false }, ["notices"], defaults, "pm25");
+		const off = toOptions({}, { ...defaults, notices: false }, ["notices"], defaults);
 		expect(off.noticesShown).toBe(false);
 		expect(toValues({}, offer, defaults, "pm25").notices).toBe(true);
 		expect(toValues({ noticesShown: false }, offer, defaults, "pm25").notices).toBe(false);
@@ -299,19 +288,12 @@ describe("pesticide use rows", () => {
 		expect(shown.useFigure).toBe("pounds-applied");
 	});
 	it("the use row and figure map to useShown and useFigure", () => {
-		expect(toOptions({}, { use: false }, ["use"], defaults, undefined)).toEqual({
+		expect(toOptions({}, { use: false }, ["use"], defaults)).toEqual({
 			useShown: false
 		});
-		expect(toOptions({ useShown: false }, { use: true }, ["use"], defaults, undefined)).toEqual({});
+		expect(toOptions({ useShown: false }, { use: true }, ["use"], defaults)).toEqual({});
 		expect(
-			toOptions(
-				{},
-				{ useFigure: "acres-treated" },
-				["useFigure"],
-				defaults,
-				undefined,
-				"pounds-applied"
-			)
+			toOptions({}, { useFigure: "acres-treated" }, ["useFigure"], defaults, "pounds-applied")
 		).toEqual({ useFigure: "acres-treated" });
 		expect(
 			toOptions(
@@ -319,7 +301,6 @@ describe("pesticide use rows", () => {
 				{ useFigure: "pounds-applied" },
 				["useFigure"],
 				defaults,
-				undefined,
 				"pounds-applied"
 			)
 		).toEqual({});

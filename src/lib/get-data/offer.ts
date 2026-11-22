@@ -4,9 +4,9 @@ import { drawsAsBands } from "$lib/data/adapters/bands";
 import type { CatalogEntry, EntryTypeMeta } from "$lib/data/metadata";
 import type { WidgetDataConfig } from "$lib/data/schema";
 import type { Target } from "$lib/data/types";
-import { fromLayer } from "$lib/places/selection";
+import { fromWhere } from "$lib/places/selection";
 import { MAP_TYPE } from "$lib/widgets/map/options";
-import { widgetEffective, widgetPlaceKind } from "$lib/widgets/shared/input";
+import { widgetEffective, widgetMonitors, widgetPlaceKind } from "$lib/widgets/shared/input";
 import type { WidgetType } from "$lib/widgets/registry";
 import { blockedBySpan } from "./date-presets";
 
@@ -80,14 +80,6 @@ export function resolutionBlock(type: WidgetType, data: WidgetDataConfig): Level
 	return type.resolution && type.resolution !== chosen ? chosen : null;
 }
 
-/**
- * Whether switching to `type` with more places than it takes asks which to keep (D5, D17): a type
- * that takes several places, other than the Map (whose cap no other type's places exceed).
- */
-export function keepsOnSwitch(type: WidgetType): boolean {
-	return (type.accepts?.maxPlaces ?? 0) > 1 && type.type !== MAP_TYPE;
-}
-
 /** Why `type` can't show `data` as it stands, or `null` when it can. */
 export function typeBlock(
 	type: WidgetType,
@@ -98,11 +90,12 @@ export function typeBlock(
 	const accepts = type.accepts ?? {};
 	const accepted = accepts.datasets ?? [];
 	if (data.layers.some((l) => !accepted.includes(l.dataset))) return "dataset";
-	// Over a several-place cap (Chart, Table) Show as asks which places to keep instead (D17); a
-	// one-place type, and the Map, still block.
-	if (accepts.maxPlaces !== undefined && !keepsOnSwitch(type)) {
-		const places = Math.max(0, ...data.layers.map((l) => fromLayer(l).length));
-		if (places > accepts.maxPlaces) return "places";
+	// Only a type with a cap (the one-place types, and the Map) blocks on places. A single-place
+	// type takes one place or one monitor: its searched monitors count too (ticked types don't:
+	// they're left out on the way, `toNowDraft`).
+	const searched = accepts.maxPlaces === 1 ? widgetMonitors(data).monitors.length : 0;
+	if (accepts.maxPlaces !== undefined && fromWhere(data).length + searched > accepts.maxPlaces) {
+		return "places";
 	}
 	if (data.dateRange) {
 		// A span that counts stops (the Map's) counts them at the dataset's resolution.
@@ -110,7 +103,7 @@ export function typeBlock(
 			? widgetEffective(
 					{ type: type.type, data },
 					catalog,
-					widgetPlaceKind(data, catalog),
+					widgetPlaceKind(data),
 					data.dateRange,
 					now
 				).resolution

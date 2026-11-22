@@ -2,17 +2,17 @@
 	import { untrack } from "svelte";
 	import { stationsForLayer } from "./sources";
 	import { stationChoice, type WeatherStation } from "$lib/data/adapters/weather";
-	import type { Layer } from "$lib/data/schema";
+	import type { WidgetDataConfig } from "$lib/data/schema";
 	import { formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 
 	let {
-		place,
+		where,
 		value,
 		onchange
 	}: {
-		/** The widget's one place (the main layer's). */
-		place: Pick<Layer, "place" | "selection">;
+		/** The widget's Where (one place). */
+		where: Pick<WidgetDataConfig, "place" | "selection">;
 		/** The saved station; none means the first listed. */
 		value: string | undefined;
 		/** A station id, or `undefined` for the first (default) station. */
@@ -22,13 +22,13 @@
 	const uid = $props.id();
 
 	let stations = $state.raw<WeatherStation[]>([]);
-	const placeKey = $derived(JSON.stringify([place.place, place.selection]));
+	const placeKey = $derived(JSON.stringify([where.place, where.selection]));
 	$effect(() => {
 		void placeKey;
 		const controller = new AbortController();
 		stations = [];
 		// Only a change of place asks again (the draft is a new object on every edit).
-		const { place: one, selection } = untrack(() => place);
+		const { place: one, selection } = untrack(() => where);
 		stationsForLayer({ dataset: "weather", place: one, selection }, controller.signal).then(
 			(list) => {
 				// The server's order: inside ones first, then nearby ones, nearest first. Its first is

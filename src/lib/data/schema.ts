@@ -6,7 +6,6 @@ export const LIMITS = {
 	CODE_MAX: 64,
 	LABEL_MAX: 200,
 	LAYERS_MAX: 8,
-	SELECTION_MAX: 500,
 	CATEGORIES_MAX: 10
 } as const;
 
@@ -60,8 +59,14 @@ export const SafeIdSchema = IdSchema.regex(SAFE_ID);
 /** A region type, also the part of a selection's `type:code` id before the colon. */
 const REGION_TYPE = /^[a-z0-9_]+$/;
 
+/**
+ * A monitor picked by the Monitors search (the air-quality layer's `monitors`, a Chart's
+ * "Overlay for", a recent pick). Never a Where place: Where holds areas, schools and points.
+ */
+export const MonitorRefSchema = z.object({ kind: z.literal("monitor"), id: SafeIdSchema });
+export type MonitorRef = z.infer<typeof MonitorRefSchema>;
+
 const CHOSEN_PLACES = [
-	z.object({ kind: z.literal("monitor"), id: SafeIdSchema }),
 	z.object({ kind: z.literal("region"), type: CodeSchema.regex(REGION_TYPE), code: CodeSchema }),
 	z.object({ kind: z.literal("location"), source: CodeSchema, code: CodeSchema }),
 	z.object({
@@ -84,10 +89,11 @@ export type ChosenPlace = Exclude<PlaceRef, { kind: "default-place" }>;
 
 const REGION_ID = /^[a-z0-9_]+:[^:]+$/;
 
+/** Several areas (region ids `type:code`); monitors are never a Where selection. */
 export const SpatialSelectionSchema = z
 	.object({
-		kind: z.enum(["monitors", "regions"]),
-		ids: z.array(IdSchema).min(1).max(LIMITS.SELECTION_MAX),
+		kind: z.literal("regions"),
+		ids: z.array(IdSchema).min(1),
 		// A GeoJSON geometry the selection was drawn from; its size is bounded by the document
 		// size limit.
 		source: z.looseObject({ type: z.string() }).optional()
@@ -96,18 +102,11 @@ export const SpatialSelectionSchema = z
 		if (new Set(s.ids).size !== s.ids.length) {
 			ctx.addIssue({ code: "custom", path: ["ids"], message: "Selection ids must be unique" });
 		}
-		if (s.kind === "regions" && !s.ids.every((id) => REGION_ID.test(id))) {
+		if (!s.ids.every((id) => REGION_ID.test(id))) {
 			ctx.addIssue({
 				code: "custom",
 				path: ["ids"],
 				message: "Region ids must look like type:code"
-			});
-		}
-		if (s.kind === "monitors" && !s.ids.every((id) => SAFE_ID.test(id))) {
-			ctx.addIssue({
-				code: "custom",
-				path: ["ids"],
-				message: "Monitor ids may use only letters, digits, _ and -"
 			});
 		}
 	});
@@ -148,37 +147,56 @@ export const PesticideFiltersSchema = z.object({
 });
 export type PesticideFilters = z.infer<typeof PesticideFiltersSchema>;
 
-export const LayerSchema = z
-	.object({
-		dataset: z.string().min(1).max(LIMITS.ID_MAX),
-		entryType: SafeIdSchema.optional(),
-		place: PlaceRefSchema.optional(),
-		selection: SpatialSelectionSchema.optional(),
-		/** A weather layer's station (the catalog's station id). */
-		station: SafeIdSchema.optional(),
-		/** A pesticide layer's filters. */
-		filters: PesticideFiltersSchema.optional()
-	})
-	.refine((l) => !(l.place && l.selection), {
-		message: "A layer has a place or a selection, not both",
-		path: ["selection"]
-	});
+/** A list of distinct safe ids (monitor ids, monitor type keys). */
+function uniqueIds(message: string) {
+	return z.array(SafeIdSchema).refine((ids) => new Set(ids).size === ids.length, { message });
+}
+
+/**
+ * A layer: what data it is (Where is on the widget's data, `WidgetDataConfig`).
+ */
+export const LayerSchema = z.object({
+	dataset: z.string().min(1).max(LIMITS.ID_MAX),
+	entryType: SafeIdSchema.optional(),
+	/** A weather layer's station (the catalog's station id). */
+	station: SafeIdSchema.optional(),
+	/** A pesticide layer's filters. */
+	filters: PesticideFiltersSchema.optional(),
+	/**
+	 * Monitors picked by search (ids), counted wherever they are: on the air-quality layer, or a
+	 * single-place widget's one layer when it has no air-quality layer (the Forecast strip).
+	 */
+	monitors: uniqueIds("Monitor ids must be unique").optional(),
+	/**
+	 * The air-quality layer's ticked monitor types (the monitors meta's type keys): every monitor of
+	 * them inside the widget's Where, or everywhere with no Where. Meaningful only on the
+	 * air-quality layer.
+	 */
+	monitorTypes: uniqueIds("Monitor types must be unique").optional()
+});
 export type Layer = z.infer<typeof LayerSchema>;
 
-export const WidgetDataConfigSchema = z.object({
-	dateRange: DateRangeSpecSchema.optional(),
-	timeSubRange: TimeSubRangeSchema.optional(),
-	/**
-	 * The one resolution every layer is fetched at (the dataset rules); missing means Automatic,
-	 * which is never stored. An earlier document's per-layer `resolution` is dropped by
-	 * `LayerSchema` (it opens as Automatic).
-	 */
-	resolution: ResolutionSchema.optional(),
-	layers: z.array(LayerSchema).max(LIMITS.LAYERS_MAX)
-});
+export const WidgetDataConfigSchema = z
+	.object({
+		dateRange: DateRangeSpecSchema.optional(),
+		timeSubRange: TimeSubRangeSchema.optional(),
+		/**
+		 * The one resolution every layer is fetched at (the dataset rules); missing means Automatic,
+		 * which is never stored.
+		 */
+		resolution: ResolutionSchema.optional(),
+		/** Where: one place, or several (`selection`); neither is everywhere. */
+		place: PlaceRefSchema.optional(),
+		selection: SpatialSelectionSchema.optional(),
+		layers: z.array(LayerSchema).max(LIMITS.LAYERS_MAX)
+	})
+	.refine((d) => !(d.place && d.selection), {
+		message: "A widget has a place or a selection, not both",
+		path: ["selection"]
+	});
 export type WidgetDataConfig = z.infer<typeof WidgetDataConfigSchema>;
 
-/** Whether any layer's place is the starter-only `default-place`. */
+/** Whether a widget's place is the starter-only `default-place`. */
 export function hasDefaultPlace(config: WidgetDataConfig): boolean {
-	return config.layers.some((l) => l.place?.kind === "default-place");
+	return config.place?.kind === "default-place";
 }

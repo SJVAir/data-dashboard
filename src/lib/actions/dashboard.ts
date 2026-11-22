@@ -31,7 +31,12 @@ import { STARTER_ID, type HomeTarget } from "$lib/starter/starter";
 import { currentDashboardName, homeTarget, type AppContext } from "$lib/store/app.svelte";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
 import { placeNewWidget } from "$lib/layout/items";
-import { addWidgetEntries, getWidgetType } from "$lib/widgets/registry";
+import {
+	addWidgetEntries,
+	getWidgetType,
+	type Addable,
+	type WidgetType
+} from "$lib/widgets/registry";
 import { navigate } from "../../router";
 import type { MenuContext, MenuProvider } from "./types";
 
@@ -106,15 +111,43 @@ export function startGetData(app: AppContext, type: string): void {
 }
 
 /**
- * Adds a widget of `type` below everything else on the current dashboard: at the type's default
- * size, with its `addable` data (one undo step).
+ * The types whose add waits on its lookup (the Map's monitor types): another Add of that type is
+ * ignored meanwhile; any other type adds as usual.
  */
-export function addWidget(app: AppContext, type: string): void {
+const pendingAdds = new Set<string>();
+
+/**
+ * Adds a widget of `type` below everything else on the current dashboard: at the type's default
+ * size, with its `addable` data (one undo step). When the data needs a lookup first (the Map's
+ * monitor types, a bounded wait: `mapStartDataWithTypes`), the widget is added once it's done,
+ * only if the same dashboard is still current, and the returned promise settles then; a second
+ * Add of the same type while one waits does nothing.
+ */
+export function addWidget(app: AppContext, type: string): void | Promise<void> {
 	const session = editable(app);
 	const widgetType = getWidgetType(type);
-	if (!session || !widgetType) return;
-	const widgets = session.doc.body.widgets;
+	if (!session || !widgetType || pendingAdds.has(type)) return;
 	const added = widgetType.addable?.(session.doc) ?? { data: { layers: [] } };
+	if (!(added instanceof Promise)) {
+		placeAdded(app, widgetType, type, added);
+		return;
+	}
+	const docId = session.doc.id;
+	pendingAdds.add(type);
+	return added
+		.then((a) => {
+			if (editable(app)?.doc.id === docId) placeAdded(app, widgetType, type, a);
+		})
+		.finally(() => {
+			pendingAdds.delete(type);
+		});
+}
+
+/** Adds the widget `addWidget` made, on the dashboard that's current now. */
+function placeAdded(app: AppContext, widgetType: WidgetType, type: string, added: Addable): void {
+	const session = editable(app);
+	if (!session) return;
+	const widgets = session.doc.body.widgets;
 	const widget: WidgetInstance = {
 		id: crypto.randomUUID(),
 		type,
@@ -168,7 +201,11 @@ async function duplicateDashboard(app: AppContext, id?: string): Promise<void> {
 	// The index copies the stored document, so store this tab's edits first.
 	if (!target.isStarter) await target.session.flush();
 	const copyId = target.isStarter
-		? await app.index.duplicate(STARTER_ID, { from: app.starterPlace, to: app.starterPlace })
+		? await app.index.duplicate(STARTER_ID, {
+				from: app.starterPlace,
+				to: app.starterPlace,
+				area: app.starterArea
+			})
 		: await app.index.duplicate(target.session.doc.id);
 	await openDashboard(copyId);
 	await nameOpenedCopy(app, copyId);
@@ -207,7 +244,11 @@ async function copyWithPlace(
 	// The index copies the stored document, so store this tab's edits first.
 	if (!isStarter) await session.flush();
 	// The starter is built at its chosen place, the bar's place `from`.
-	const copyId = await app.index.duplicate(isStarter ? STARTER_ID : session.doc.id, { from, to });
+	const copyId = await app.index.duplicate(isStarter ? STARTER_ID : session.doc.id, {
+		from,
+		to,
+		...(isStarter ? { area: app.starterArea } : {})
+	});
 	await openDashboard(copyId);
 	await nameOpenedCopy(app, copyId);
 }
@@ -388,7 +429,9 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 				icon: LayoutTemplate,
 				group: "create",
 				run: () =>
-					void app.index.createFromStarter(app.starterPlace).then((id) => openDashboard(id))
+					void app.index
+						.createFromStarter(app.starterPlace, app.starterArea)
+						.then((id) => openDashboard(id))
 			},
 			{
 				id: "import",

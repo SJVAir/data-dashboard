@@ -17,7 +17,7 @@ import { newPlaceholder } from "$lib/widgets/placeholder";
 import { monthCalendarType } from "$lib/widgets/calendars/month";
 import { chartType } from "$lib/widgets/chart";
 import { currentType } from "$lib/widgets/current";
-import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
+import { DEFAULT_PLACE, DEFAULT_RANGE } from "$lib/widgets/defaults";
 import { forecastType } from "$lib/widgets/forecast";
 import { noteType } from "$lib/widgets/notes";
 import { outsideType } from "$lib/widgets/outside";
@@ -59,10 +59,10 @@ const renameWidget = (widgetId: string, to: string): Change => ({
 	to
 });
 
-const FRESNO = DEFAULT_LAYER.place as ChosenPlace;
+const FRESNO = DEFAULT_PLACE as ChosenPlace;
 const PLACES: ChosenPlace[] = [
 	{ kind: "region", type: "city", code: "0614218" },
-	{ kind: "monitor", id: "abc123" },
+	{ kind: "region", type: "zipcode", code: "93721" },
 	{ kind: "location", source: "schools", code: "123" },
 	{ kind: "point", lat: 36.7378, lon: -119.7871 }
 ];
@@ -78,18 +78,26 @@ const TYPES: WidgetType[] = [
 const typeOf = (type: string) => TYPES.find((t) => t.type === type)!;
 
 const places = (doc: Dashboard) =>
-	doc.body.widgets.flatMap((w) => w.data.layers.map((l) => l.place));
+	doc.body.widgets.flatMap((w) => (w.data.layers.length > 0 ? [w.data.place] : []));
 const overlaps = (a: Rect, b: Rect) =>
 	a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
-/** A document made from the starter: the chosen place everywhere, the bar, valid. */
+/**
+ * The place each starter widget shows at `place`: the Chart (areas only, decision 2) takes
+ * `area` for a school or point (Fresno County when none was looked up); the rest take `place`.
+ */
+const expectedPlaces = (doc: Dashboard, place: ChosenPlace, area: ChosenPlace = FRESNO) =>
+	doc.body.widgets
+		.filter((w) => w.data.layers.length > 0)
+		.map((w) => (w.type === "chart" && place.kind !== "region" ? area : place));
+
+/** A document made from the starter: the chosen place (its Chart's area), the bar, valid. */
 function expectFromStarter(doc: Dashboard, place: ChosenPlace) {
 	expect(DashboardSchema.safeParse(doc).success).toBe(true);
 	expect(doc.copiedFrom).toBe(STARTER_ID);
 	expect(doc.body.placeBar).toEqual({ place });
-	const shown = places(doc).filter((p) => p !== undefined);
-	expect(shown.length).toBeGreaterThan(0);
-	for (const p of shown) expect(p).toEqual(place);
+	expect(places(doc).length).toBeGreaterThan(0);
+	expect(places(doc)).toEqual(expectedPlaces(doc, place));
 }
 
 describe("starter template", () => {
@@ -149,7 +157,11 @@ describe("starter template", () => {
 		expect(chart.data).toEqual(draft.data);
 		expect(chart.data.dateRange).toEqual(DEFAULT_RANGE);
 		const moved = switchRange(draft.data, chartType, monthCalendarType, NOW);
-		expect(calendar.data).toEqual({ layers: draft.data.layers, dateRange: moved.dateRange });
+		expect(calendar.data).toEqual({
+			place: draft.data.place,
+			layers: draft.data.layers,
+			dateRange: moved.dateRange
+		});
 		expect(calendar.data.dateRange).toEqual({ kind: "to-date", unit: "month" });
 		for (const w of [current, outside, chart, calendar])
 			expect(w.data.layers[0].entryType).toBe("pm25");
@@ -167,21 +179,36 @@ describe("starter template", () => {
 });
 
 describe("starter dashboard", () => {
+	it("a school or point starter's Chart takes the looked-up area, never the school or point", () => {
+		const ZIP: ChosenPlace = { kind: "region", type: "zipcode", code: "93721" };
+		for (const place of PLACES.filter((p) => p.kind !== "region")) {
+			const starter = starterDashboard(place, ZIP);
+			expect(places(starter)).toEqual(expectedPlaces(starter, place, ZIP));
+			const chart = starter.body.widgets.find((w) => w.type === "chart")!;
+			expect(chart.data.place).toEqual(ZIP);
+		}
+		// An area place is the Chart's own, whatever area is kept.
+		const city = PLACES[0];
+		const atCity = starterDashboard(city, ZIP);
+		expect(atCity.body.widgets.find((w) => w.type === "chart")!.data.place).toEqual(city);
+	});
+
 	it("is the template at the chosen place, with the bar, for every kind of place", () => {
 		for (const place of [FRESNO, ...PLACES]) {
 			const starter = starterDashboard(place);
 			expect(DashboardSchema.safeParse(starter).success).toBe(true);
 			expect(starter.id).toBe(STARTER_ID);
 			expect(starter.body.placeBar).toEqual({ place });
-			expect(places(starter).filter((p) => p !== undefined)).toEqual(Array(5).fill(place));
+			expect(places(starter)).toEqual(expectedPlaces(starter, place));
+			expect(places(starter)).toHaveLength(5);
 			expect(JSON.stringify(starter)).not.toContain("default-place");
 		}
 	});
 
 	it("starter with a gone place still builds", () => {
-		// A removed monitor, a closed school: the starter doesn't look them up.
+		// A retired region, a closed school: the starter doesn't look them up.
 		for (const place of [
-			{ kind: "monitor", id: "removed-monitor" },
+			{ kind: "region", type: "zipcode", code: "00000" },
 			{ kind: "location", source: "schools", code: "closed-1999" }
 		] as const) {
 			const starter = starterDashboard(place);

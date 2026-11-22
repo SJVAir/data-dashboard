@@ -8,8 +8,14 @@ export const LEVELS = ["raw", "hour", "day", "month", "year"] as const;
 export type Level = (typeof LEVELS)[number];
 /** The levels a Map offers. */
 export const MAP_LEVELS: readonly Level[] = ["day", "month", "year"];
-/** Where a layer is fetched for: monitors, regions, or none (place-less). */
-export type PlaceKind = "monitors" | "regions" | "none";
+/**
+ * Where a layer is fetched for: searched monitors, regions, ticked monitor types (every monitor
+ * of them, through the bulk summaries, which like regions have no raw), or none (place-less).
+ */
+export type PlaceKind = "monitors" | "regions" | "monitor-types" | "none";
+
+/** Whether air quality at `place` has no raw entries (regions and the bulk monitor summaries). */
+const noRaw = (place: PlaceKind) => place === "regions" || place === "monitor-types";
 
 /** Whether `value` is one of the dataset rules' levels. */
 export const isLevel = (value: unknown): value is Level => LEVELS.includes(value as Level);
@@ -17,8 +23,9 @@ const rank = (level: Level): number => LEVELS.indexOf(level);
 
 /**
  * The levels one layer offers (catalog `resolutions` ∩ `offeredLevels`, narrowed by place:
- * regions have no raw). An air-quality entry type listing only `raw` offers every level at
- * monitors (downsampled from raw) and none at regions (no raw there to downsample). Unknown
+ * regions and ticked monitor types have no raw). An air-quality entry type listing only `raw`
+ * offers every level at monitors (downsampled from raw) and none at regions or ticked monitor
+ * types (no raw there to downsample). Unknown
  * entry type: []. A place-less layer whose dataset the catalog lacks: `LEVELS` narrowed by
  * `offeredLevels`.
  */
@@ -42,8 +49,7 @@ export function layerOffers(layer: Layer, catalog: CatalogEntry[], place: PlaceK
 	const base = downsampled ? [...LEVELS] : offeredLevels(layer.dataset, resolutions);
 	return LEVELS.filter(
 		(level) =>
-			base.includes(level) &&
-			!(layer.dataset === "air-quality" && place === "regions" && level === "raw")
+			base.includes(level) && !(layer.dataset === "air-quality" && noRaw(place) && level === "raw")
 	);
 }
 

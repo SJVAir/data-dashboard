@@ -112,7 +112,7 @@ describe("parseIncoming: documents", () => {
 	});
 
 	it("rejects default-place", async () => {
-		const w = { ...widget(0), data: { layers: [{ place: { kind: "default-place" } }] } };
+		const w = { ...widget(0), data: { place: { kind: "default-place" }, layers: [{}] } };
 		const text = JSON.stringify(envelopeOf(sharedOf({ body: { widgets: [w] } })));
 		expect(await parseIncoming(text, now)).toEqual(invalid);
 	});

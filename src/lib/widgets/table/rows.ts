@@ -1,5 +1,6 @@
 import type { Level } from "$lib/data/metadata";
 import type { PlaceInfo, QueryData, SeriesPoint } from "$lib/data/types";
+import { pairsByKey } from "../shared/overlays";
 
 /**
  * One period: its start, whether any place's value is still incomplete, a cell per place, and an
@@ -39,15 +40,19 @@ export type OverlayColumn = {
 /**
  * One column per main place per overlay, overlay by overlay. An overlay's places come in the
  * same request order as the main's, so they pair by index (a point's region can differ by
- * dataset). Every overlay is fetched at the main's resolution, so its periods are the main's.
+ * dataset); a monitor main's pairs by key (`pairsByKey`): an overlay place the main has no line
+ * for gives no column, and a monitor set's overlay, fetched for one of its monitors, gives that
+ * monitor's column alone. Every overlay is fetched at the main's
+ * resolution, so its periods are the main's.
  */
 export function overlayColumns(data: QueryData, overlays: OverlayRows[]): OverlayColumn[] {
-	return overlays.flatMap((o, overlay) =>
-		data.places.flatMap((place, i) => {
-			const info = o.data.places[i];
+	return overlays.flatMap((o, overlay) => {
+		const byKey = pairsByKey(data.places, o.data.places);
+		return data.places.flatMap((place, i) => {
+			const info = byKey ? o.data.places.find((p) => p.place === place.place) : o.data.places[i];
 			return info === undefined ? [] : [{ overlay, place, key: info.place, info }];
-		})
-	);
+		});
+	});
 }
 
 /**

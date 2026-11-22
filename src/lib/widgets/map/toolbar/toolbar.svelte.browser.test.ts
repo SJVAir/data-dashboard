@@ -90,7 +90,7 @@ describe("MapToolbar", () => {
 		const { groups, values } = new MapToolbar(stubMap()).build({
 			offer: offer({ pollutants: ["pm25", "o3"] }),
 			drawn: "o3",
-			options: { showing: "pm100" }
+			options: {}
 		});
 		expect(ids(groups)).toEqual(["pollutant", "settings"]);
 		const radio = group(groups, "pollutant").rows[0];

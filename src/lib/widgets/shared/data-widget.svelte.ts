@@ -11,20 +11,21 @@ import { DEFAULT_RANGE } from "../defaults";
 import { dataTitle } from "../title";
 import { setGeneratedTitle } from "../titles.svelte";
 import { entryMeta, widgetInputs, widgetPlaceKind, type WidgetInputs } from "./input";
-import { MAX_OVERLAYS, overlayLayers } from "./overlays";
+import { MAX_OVERLAYS, overlayInputsFor, overlayLayers } from "./overlays";
 import { PLACE_VIEWER_KEY, type PlaceViewer } from "./viewer";
 
 /** An overlay's levels: `undefined` until loaded, an error if they couldn't be. */
 type Levels = Level[] | { error: unknown } | undefined;
 
 /**
- * What a widget asks the query client for: its main layer, the main query (`input`), the places
- * cut, and one query per overlay (`null`: not fetched), all at the dataset's resolution.
+ * What a widget asks the query client for: its main layer, the main query (`input`), and one
+ * query per overlay (`null`: not fetched), all at the dataset's resolution.
  */
 export type WidgetPicked = {
 	layer: Layer | undefined;
 	input: QueryInput | null;
-	hidden: number;
+	/** What to add when the widget asks for nothing (`WidgetInputs.empty`). */
+	empty?: WidgetInputs["empty"];
 	overlays: (QueryInput | null)[];
 	effective?: WidgetInputs["effective"];
 	/** The figure the main needs (`WidgetInputs.figureFor`); absent or null: the plain mean. */
@@ -47,7 +48,6 @@ export type FigureOf = (entryType: string, resolution: DatasetLevel) => Figure |
 export type WidgetInputBuilder = (
 	widget: WidgetInstance,
 	catalog: CatalogEntry[] | undefined,
-	maxPlaces: number,
 	now: number,
 	figureOf: FigureOf
 ) => WidgetPicked;
@@ -59,17 +59,16 @@ export type WidgetInputBuilder = (
 function defaultInputs(
 	widget: WidgetInstance,
 	catalog: CatalogEntry[] | undefined,
-	maxPlaces: number,
 	now: number,
 	figureOf: FigureOf
 ): WidgetPicked {
-	const place = widgetPlaceKind(widget.data, catalog);
-	const plain = widgetInputs(widget, catalog, place, maxPlaces, now);
+	const place = widgetPlaceKind(widget.data);
+	const plain = widgetInputs(widget, catalog, place, now);
 	const need = plain.figureFor;
 	if (!need) return { ...plain, input: plain.main };
 	const figure = figureOf(need.entryType, need.resolution);
 	if (figure === undefined) return { ...plain, input: null, figurePending: true };
-	const got = widgetInputs(widget, catalog, place, maxPlaces, now, figure);
+	const got = widgetInputs(widget, catalog, place, now, figure);
 	return { ...got, input: got.main };
 }
 
@@ -95,7 +94,7 @@ function withLevels(s: QueryState, levels: Levels): QueryState {
 }
 
 /**
- * What a widget that shows one pollutant for up to `maxPlaces` places over a date range needs:
+ * What a widget that shows one pollutant for its places over a date range needs:
  * the live query, its entry type's levels, the retirement notice, and the generated title. Call
  * during component initialization (it registers effects and cleanup).
  */
@@ -134,11 +133,7 @@ export class DataWidget {
 	readonly overlays: WidgetOverlay[];
 
 	/** `opts.input` builds the queries (default `widgetInputs`). */
-	constructor(
-		widget: () => WidgetInstance,
-		maxPlaces: number,
-		opts: { input?: WidgetInputBuilder } = {}
-	) {
+	constructor(widget: () => WidgetInstance, opts: { input?: WidgetInputBuilder } = {}) {
 		const build = opts.input ?? defaultInputs;
 		const viewer = getContext<PlaceViewer | undefined>(PLACE_VIEWER_KEY) ?? "owner";
 		this.viewer = viewer;
@@ -160,7 +155,7 @@ export class DataWidget {
 			const f = this.#figure;
 			return f && f.key === `${entryType}/${resolution}` ? f.figure : undefined;
 		};
-		this.picked = $derived(build(widget(), this.catalog, maxPlaces, hour * HOUR_MS, figureOf));
+		this.picked = $derived(build(widget(), this.catalog, hour * HOUR_MS, figureOf));
 		const figureFor = $derived(this.picked.figureFor);
 		const figureKey = $derived(
 			figureFor ? `${figureFor.entryType}/${figureFor.resolution}` : undefined
@@ -232,8 +227,17 @@ export class DataWidget {
 		});
 
 		const layers = $derived(overlayLayers(widget().data, this.catalog));
-		// Every overlay is fetched at the dataset's resolution alongside the main, not after it.
-		const inputs = $derived(this.picked.overlays);
+		/** The main's loaded places (kept while it reloads), which a monitor set's overlays need. */
+		const mainPlaces = $derived.by(() => {
+			const s = query.state;
+			return "data" in s ? s.data?.places : undefined;
+		});
+		// Every overlay is fetched at the dataset's resolution alongside the main, not after it;
+		// a monitor set's for one of its monitors (`overlayInputsFor`), once that is known: a set
+		// can be hundreds of monitors, while searched monitors (picked one by one) keep one per line.
+		const inputs = $derived(
+			overlayInputsFor(this.picked.input, this.picked.overlays, widget().options, mainPlaces)
+		);
 		const client = getQueryClient();
 		for (let i = 0; i < MAX_OVERLAYS; i++) {
 			const q = new LiveQuery(

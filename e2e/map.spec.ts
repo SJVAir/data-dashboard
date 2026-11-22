@@ -26,7 +26,8 @@ import {
 	openPicker,
 	openSharedDoc,
 	widgetMenuItem,
-	widgetTitles
+	widgetTitles,
+	type SharedDocument
 } from "./helpers";
 import {
 	NOTICE_COMMODITY,
@@ -40,6 +41,7 @@ import {
 	routeMapReadings,
 	routeMapUse,
 	routeOneOutline,
+	EVERY_MONITOR_TYPE,
 	USE_CATALOG,
 	USE_FILE,
 	useFixtures,
@@ -69,7 +71,7 @@ test.beforeAll(async ({ browser, browserName }) => {
 });
 
 const FRESNO_MAP = "PM2.5 · Fresno County";
-const THREE_MAP = "PM2.5 · 3 places";
+const TWO_MAP = "PM2.5 · 2 places";
 /**
  * Drawn when the map shows Fresno County: Drummond Street only (Porterville is in view, just
  * outside the county, but isn't drawn; the Science Building is inactive and indoors).
@@ -77,8 +79,6 @@ const THREE_MAP = "PM2.5 · 3 places";
 const FRESNO_VIEW = "PM2.5: 1 Good";
 /** Drawn when it shows Fresno County with Inactive and Inside on: its two monitors. */
 const FRESNO_ALL_VIEW = "PM2.5: 2 Good";
-/** Drawn when it shows Drummond Street, Porterville and Bakersfield: those three only. */
-const THREE_VIEW = "PM2.5: 1 Good, 1 Moderate, 1 Unhealthy for Sensitive Groups";
 /** In view when zoomed in twice on the county: Drummond Street only. */
 const ZOOMED_VIEW = "PM2.5: 1 Good";
 
@@ -126,16 +126,6 @@ function picker(page: Page): Locator {
 	return page.getByRole("dialog", { name: /^Choose (a place|places)$/ });
 }
 
-/** Searches the open picker for `query` and picks the monitor named `name`. */
-async function pickMonitor(page: Page, query: string, name: string): Promise<void> {
-	await picker(page).getByRole("combobox", { name: "Search for a place" }).fill(query);
-	await picker(page)
-		.getByRole("listbox", { name: "Places found" })
-		.getByRole("group", { name: "Monitors" })
-		.getByRole("option", { name: new RegExp(`^${name}`) })
-		.click();
-}
-
 /** A new blank dashboard with a Map added from Add widget, drawn and framed. */
 async function addMap(page: Page): Promise<Locator> {
 	await newBlankDashboard(page);
@@ -147,7 +137,7 @@ async function addMap(page: Page): Promise<Locator> {
 	return map;
 }
 
-/** A shared dashboard holding one Map on the Drummond Street monitor. */
+/** A shared dashboard holding one Map of the Drummond Street monitor (searched, no Where). */
 const monitorDoc = {
 	kind: "dashboard",
 	schemaVersion: 1,
@@ -165,7 +155,7 @@ const monitorDoc = {
 						{
 							dataset: "air-quality",
 							entryType: "pm25",
-							place: { kind: "monitor", id: "4Mb0j33kTnS0qzeE4iDGWw" }
+							monitors: ["4Mb0j33kTnS0qzeE4iDGWw"]
 						}
 					]
 				}
@@ -180,7 +170,7 @@ const FRESNO_COUNTY = { kind: "region", type: "county", code: "06019" };
  * A shared dashboard holding one full-width Map of Fresno County's PM2.5 (wide enough for the
  * toolbar's dropdowns), with `more` layers after it.
  */
-function wideDoc(more: Array<Record<string, string>> = [], dateRange?: Record<string, unknown>) {
+function wideDoc(more: Array<Record<string, unknown>> = [], dateRange?: Record<string, unknown>) {
 	return {
 		kind: "dashboard",
 		schemaVersion: 1,
@@ -194,7 +184,11 @@ function wideDoc(more: Array<Record<string, string>> = [], dateRange?: Record<st
 					title: null,
 					rect: { x: 0, y: 0, w: 12, h: 8 },
 					data: {
-						layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO_COUNTY }, ...more],
+						place: FRESNO_COUNTY,
+						layers: [
+							{ dataset: "air-quality", entryType: "pm25", monitorTypes: EVERY_MONITOR_TYPE },
+							...more
+						],
 						...(dateRange && { dateRange })
 					}
 				}
@@ -218,20 +212,50 @@ test("adds a Map from Add widget at the dashboard's place", async ({ page, mapTi
 	expect(mapTiler.stubbed).toContain("api.maptiler.com/maps/streets-v4/style.json");
 });
 
-test("the picker frames three monitors, and undo brings the region back", async ({ page }) => {
+test("a Map from Add widget has every monitor type ticked in its Data Portal, and draws monitors", async ({
+	page
+}) => {
+	await page.clock.install({ time: "2026-11-15T12:00:00-08:00" });
+	const map = await addMap(page);
+	await expect(inView(map)).toHaveText(FRESNO_VIEW);
+	// A drawn monitor: a fixture monitor in Fresno County is a row of the feature list.
+	const list = await featureList(map);
+	await expect(list.getByRole("option", { name: /Fresno - Drummond Street/ })).toBeVisible();
+	await widgetMenuItem(page, FRESNO_MAP, "Open in Data Portal");
+	await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeVisible();
+	const types = page.getByRole("group", { name: "Monitors" }).getByRole("checkbox");
+	await expect(types.first()).toBeVisible();
+	// Every type the Data Portal offers is ticked, among them each fixture network.
+	await expect(page.getByRole("checkbox", { name: "AirNow" })).toBeChecked();
+	await expect(page.getByRole("checkbox", { name: "PurpleAir" })).toBeChecked();
+	for (const box of await types.all()) await expect(box).toBeChecked();
+});
+
+test("the picker frames two counties, offers no monitors, and undo brings the region back", async ({
+	page
+}) => {
 	await addMap(page);
 
 	await widgetMenuItem(page, FRESNO_MAP, "Change place");
 	await expect(picker(page)).toHaveAccessibleName("Choose places");
-	await picker(page).getByRole("button", { name: "Remove Fresno County" }).click();
-	await pickMonitor(page, "fre", "Fresno - Drummond Street");
-	await pickMonitor(page, "por", "Porterville-NFS");
-	await pickMonitor(page, "bak", "Bakersfield - California Avenue");
+	// Where holds areas, schools and "my location", never monitors.
+	await picker(page).getByRole("combobox", { name: "Search for a place" }).fill("fre");
+	const found = picker(page).getByRole("listbox", { name: "Places found" });
+	await expect(found.getByRole("option", { name: /^Fresno County/ })).toBeVisible();
+	await expect(found.getByRole("group", { name: "Monitors" })).toHaveCount(0);
+	await picker(page).getByRole("combobox", { name: "Search for a place" }).fill("");
+	await picker(page)
+		.getByRole("button", { name: /^Counties/ })
+		.click();
+	await picker(page)
+		.getByRole("grid", { name: "Places in this list" })
+		.getByRole("row", { name: /Tulare County/ })
+		.click();
 	await picker(page).getByRole("button", { name: "Done" }).click();
 	await expect(picker(page)).toBeHidden();
 
-	await expect(widgetTitles(page)).toHaveText([THREE_MAP]);
-	await expect(inView(mapOf(page, THREE_MAP))).toHaveText(THREE_VIEW);
+	await expect(widgetTitles(page)).toHaveText([TWO_MAP]);
+	await expect(inView(mapOf(page, TWO_MAP))).toHaveText(/^PM2\.5: \d/);
 
 	await nav(page).getByRole("button", { name: "Undo" }).click();
 	await expect(widgetTitles(page)).toHaveText([FRESNO_MAP]);
@@ -669,8 +693,8 @@ test.describe("shared by a live link", () => {
 	test.use({ account: maria });
 
 	/** Saves `doc` to Maria's account, shares it, and returns its live link. */
-	async function liveLinkTo(page: Page, doc: { name: string }): Promise<string> {
-		await openSharedDoc(page, doc as typeof monitorDoc);
+	async function liveLinkTo(page: Page, doc: SharedDocument): Promise<string> {
+		await openSharedDoc(page, doc);
 		await expect(nav(page).getByText("Saved to your account", { exact: true })).toBeVisible();
 		await openPicker(page, doc.name);
 		await page.getByRole("menuitem", { name: "Share…" }).click();
@@ -960,11 +984,16 @@ test.describe("with ozone and smoke and fire in the metadata", () => {
 		await routeMapMeta(context);
 	});
 
-	test("Get data adds ozone and smoke and fire to a Map, and both stay", async ({ page }) => {
+	test("Get data picks one pollutant for a Map and adds smoke and fire, and both stay", async ({
+		page
+	}) => {
 		const map = await addMap(page);
 		await widgetMenuItem(page, FRESNO_MAP, "Open in Data Portal");
 		await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeVisible();
-		await page.getByRole("checkbox", { name: "Ozone" }).check();
+		// One pollutant: Ozone replaces PM2.5, and PM2.5 comes back the same way.
+		await page.getByRole("radio", { name: "Ozone" }).check();
+		await expect(page.getByRole("radio", { name: "PM2.5" })).not.toBeChecked();
+		await page.getByRole("radio", { name: "PM2.5" }).check();
 		await page.getByRole("checkbox", { name: "Smoke and fire" }).check();
 		await page.getByRole("button", { name: "Save changes" }).click();
 		await expect(widgetTitles(page)).toHaveText([FRESNO_MAP]);
@@ -981,8 +1010,8 @@ test.describe("with ozone and smoke and fire in the metadata", () => {
 
 		await widgetMenuItem(page, FRESNO_MAP, "Open in Data Portal");
 		await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeVisible();
-		await expect(page.getByRole("checkbox", { name: "PM2.5" })).toBeChecked();
-		await expect(page.getByRole("checkbox", { name: "Ozone" })).toBeChecked();
+		await expect(page.getByRole("radio", { name: "PM2.5" })).toBeChecked();
+		await expect(page.getByRole("radio", { name: "Ozone" })).not.toBeChecked();
 		await expect(page.getByRole("checkbox", { name: "Smoke and fire" })).toBeChecked();
 	});
 
@@ -990,16 +1019,9 @@ test.describe("with ozone and smoke and fire in the metadata", () => {
 		page,
 		mapTiler
 	}) => {
-		await openSharedDoc(
-			page,
-			wideDoc([
-				{ dataset: "air-quality", entryType: "o3" },
-				{ dataset: "hms-smoke" },
-				{ dataset: "hms-fire" }
-			])
-		);
+		await openSharedDoc(page, wideDoc([{ dataset: "hms-smoke" }, { dataset: "hms-fire" }]));
 		await expect(widgetTitles(page)).toHaveText([FRESNO_MAP]);
-		// Named after its title, which follows the pollutant showing.
+		// Named after its title, which follows its pollutant.
 		const map = page.getByRole("region", { name: / · Fresno County map$/ });
 		await expect(inView(map)).toHaveText(FRESNO_VIEW);
 		const toolbar = toolbarOf(map);
@@ -1020,14 +1042,12 @@ test.describe("with ozone and smoke and fire in the metadata", () => {
 		await basemapSelect(map).selectOption({ label: "Satellite" });
 		await expect(basemapSelect(map)).toHaveValue("satellite-v4");
 		expect(mapTiler.stubbed).toContain("api.maptiler.com/maps/satellite-v4/style.json");
-		// The pollutant.
-		await openMenu(map, "PM2.5");
-		await toolbar.getByRole("radio", { name: /^Ozone/ }).click();
-		await expect(widgetTitles(page)).toHaveText(["Ozone · Fresno County"]);
+		// No pollutant choice: a Map holds one.
+		await expect(toolbar.getByRole("button", { name: "PM2.5", exact: true })).toHaveCount(0);
 		await expectSaved(page);
 
-		// Four changes, four undo steps, back to where it opened.
-		for (let i = 0; i < 4; i++) await undo.click();
+		// Three changes, three undo steps, back to where it opened.
+		for (let i = 0; i < 3; i++) await undo.click();
 		await expect(undo).toBeDisabled();
 		await expect(widgetTitles(page)).toHaveText([FRESNO_MAP]);
 		await expect(inView(map)).toHaveText(FRESNO_VIEW);
@@ -1039,20 +1059,16 @@ test.describe("with ozone and smoke and fire in the metadata", () => {
 		await expect(referenceGrade(map)).toBeChecked();
 
 		// Redone, saved, and kept after a reload.
-		for (let i = 0; i < 4; i++) await redo.click();
+		for (let i = 0; i < 3; i++) await redo.click();
 		await expect(redo).toBeDisabled();
-		await expect(widgetTitles(page)).toHaveText(["Ozone · Fresno County"]);
 		await expectSaved(page);
 		await page.reload();
-		await expect(widgetTitles(page)).toHaveText(["Ozone · Fresno County"]);
+		await expect(widgetTitles(page)).toHaveText([FRESNO_MAP]);
 		await openMenu(map, "Settings");
 		await expect(basemapSelect(map)).toHaveValue("satellite-v4");
 		await openMenu(map, "Layers");
 		await expect(fireAndSmoke).not.toBeChecked();
-		// Back on PM2.5, AirNow is still off.
-		await openMenu(map, "Ozone");
-		await toolbar.getByRole("radio", { name: /^PM2\.5/ }).click();
-		await expect(widgetTitles(page)).toHaveText([FRESNO_MAP]);
+		// AirNow is still off.
 		await openMenu(map, "Monitors");
 		await expect(referenceGrade(map)).not.toBeChecked();
 		await expect(inView(map)).toHaveCount(0);
@@ -1073,11 +1089,12 @@ const tallDoc = {
 				title: null,
 				rect: { x: 0, y: 0, w: 6, h: 6 },
 				data: {
+					place: { kind: "region", type: "county", code: "06019" },
 					layers: [
 						{
 							dataset: "air-quality",
 							entryType: "pm25",
-							place: { kind: "region", type: "county", code: "06019" }
+							monitorTypes: EVERY_MONITOR_TYPE
 						}
 					]
 				}
@@ -1255,6 +1272,36 @@ test.describe("a Map's region fill", () => {
 		// Held for a moment: a refetch fired late would still count.
 		await page.waitForTimeout(1_000);
 		expect(zipRequests.length).toBe(requests);
+	});
+
+	test("with no pollutant the fill is the ZIP codes' outlines, with no legend section and no figures", async ({
+		page
+	}) => {
+		const summaries: string[] = [];
+		page.on("request", (request) => {
+			const url = new URL(request.url());
+			// No figures for the fill, and none to name the place (looked up, not fetched).
+			if (url.pathname.includes("summar")) summaries.push(url.pathname);
+		});
+		const doc = fillDoc({ kind: "custom", start: "2026-11-09", end: "2026-11-15" });
+		const widget = doc.body.widgets[0] as Record<string, unknown> & {
+			data: { layers: Record<string, unknown>[] };
+		};
+		// None keeps the ticks with no entry type. Its generated title names what it shows.
+		delete widget.data.layers[0].entryType;
+		await openSharedDoc(page, doc);
+		const map = mapOf(page, "ZIP Codes · Fresno County");
+		await expect(map).toBeVisible();
+		// Every ZIP is listed, with no figure.
+		const list = await featureList(map);
+		await expect(list.getByRole("option", { name: "ZIP 93721, No data" })).toHaveCount(1);
+		await expect(list.getByRole("option", { name: "ZIP 93999, No data" })).toHaveCount(1);
+		await page.keyboard.press("Escape");
+		// No legend section for the outlines (map-sdk's own legend, with a null scale).
+		await expect(legendOf(map).getByRole("heading", { level: 3 })).toHaveCount(0);
+		await expect(legendOf(map).getByText("ZIP Codes")).toHaveCount(0);
+		expect(summaries).toEqual([]);
+		await expectNoViolationsInBothThemes(page);
 	});
 
 	test("on a day the fill is the day's figures, and a ZIP with none reads No data", async ({

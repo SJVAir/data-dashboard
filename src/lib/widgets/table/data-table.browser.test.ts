@@ -19,7 +19,8 @@ import {
 	chartWidget,
 	fakeAdapter,
 	fakeForecastsAdapter,
-	fakeNumberAdapter
+	fakeNumberAdapter,
+	setLayers
 } from "../shared/test-harness/fake-data";
 import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 import { generatedTitle } from "../titles.svelte";
@@ -92,6 +93,20 @@ test("rows start newest first, with the level beside each value", async () => {
 	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 · Monitor m1 · Last 30 days");
 });
 
+test("a table with no Where and no monitors says what to add", async () => {
+	const screen = await show(tableWidget([]));
+	await expect.element(screen.getByText(m.widget_empty_add_where_or_monitors())).toBeVisible();
+	expect(requests).toEqual([]);
+});
+
+test("a table with no layers (None and nothing else) shows its empty state", async () => {
+	const widget = tableWidget(["m1"]);
+	widget.data.layers = [];
+	const screen = await show(widget);
+	await expect.element(screen.getByText(m.widget_empty_add_layers())).toBeVisible();
+	expect(frame.querySelectorAll("tbody tr")).toHaveLength(0);
+});
+
 test("headers sort by keyboard and aria-sort follows", async () => {
 	const screen = await show(tableWidget(["m1", "m2"]));
 	await expect.poll(() => frame.querySelectorAll("tbody tr").length).toBe(3);
@@ -116,11 +131,14 @@ test("narrow shows date, value and level; wide adds worst hour, lowest and highe
 	await expect.element(screen.getByRole("columnheader", { name: /Worst hour/ })).toBeVisible();
 });
 
-test("ten places at most, and the rest are counted", async () => {
-	const ids = Array.from({ length: 12 }, (_, i) => `m${i + 1}`);
-	const screen = await show(tableWidget(ids));
-	await expect.element(screen.getByText("2 more places aren't shown.")).toBeVisible();
-	expect(requests.at(-1)!.target).toEqual({ kind: "monitors", ids: ids.slice(0, 10) });
+test("twelve places: every one is asked for, with no cut", async () => {
+	const ids = Array.from({ length: 12 }, (_, i) => `county:a${i + 1}`);
+	const widget = tableWidget([]);
+	widget.data.layers = [{ dataset: "air-quality", entryType: "pm25" }];
+	widget.data.selection = { kind: "regions", ids };
+	const screen = await show(widget);
+	await expect.poll(() => requests.at(-1)?.target).toEqual({ kind: "regions", keys: ids });
+	expect(screen.getByText(/more places? (aren't|isn't) shown/).query()).toBeNull();
 });
 
 test("the caption names the figure at the resolution", async () => {
@@ -435,18 +453,12 @@ test("a pesticide-only table names the filter and says the values are totals", a
 		regions: { resolve: async () => "unsupported" }
 	});
 	const widget = tableWidget(["m1"]);
-	widget.data.layers = [
-		{
-			dataset: "pesticide-use",
-			entryType: "pounds-applied",
-			place: { kind: "monitor", id: "m1" }
-		}
-	];
+	setLayers(widget, [{ dataset: "pesticide-use", entryType: "pounds-applied" }]);
 	const screen = await show(widget);
 	await expect
 		.element(
 			screen.getByRole("columnheader", {
-				name: "Pounds Applied · Chlorpyrifos, Monitor m1 (lbs)"
+				name: "Pounds Applied · Chlorpyrifos, Region county:m1 (lbs)"
 			})
 		)
 		.toBeVisible();
@@ -468,13 +480,7 @@ test("a pesticide-only table with no use says so", async () => {
 		regions: { resolve: async () => "unsupported" }
 	});
 	const widget = tableWidget(["m1"]);
-	widget.data.layers = [
-		{
-			dataset: "pesticide-use",
-			entryType: "pounds-applied",
-			place: { kind: "monitor", id: "m1" }
-		}
-	];
+	setLayers(widget, [{ dataset: "pesticide-use", entryType: "pounds-applied" }]);
 	const screen = await show(widget);
 	await expect.element(screen.getByText(m.data_none_pesticides(), { exact: true })).toBeVisible();
 	expect(screen.getByText(m.widget_state_empty()).query()).toBeNull();

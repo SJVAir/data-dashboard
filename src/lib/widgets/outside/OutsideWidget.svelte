@@ -8,11 +8,11 @@
 	import { getNowClient } from "$lib/data/now";
 	import { heatSource, type HeatToday } from "$lib/data/now/heat";
 	import { NowQuery } from "$lib/data/now/now-query.svelte";
-	import type { Layer } from "$lib/data/schema";
-	import type { QueryState } from "$lib/data/types";
+	import type { QueryLayer, QueryState } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { m } from "$lib/paraglide/messages.js";
 	import { CurrentConditions } from "../shared/current.svelte";
+	import { hasPlaces, queryLayer } from "../shared/input";
 	import LevelChip from "../shared/LevelChip.svelte";
 	import MarkFrame from "../shared/MarkFrame.svelte";
 	import { ReadingClock } from "../shared/reading-clock.svelte";
@@ -55,9 +55,10 @@
 	});
 
 	// --- Today's heat ---
-	const layer = $derived<Layer | undefined>(
-		pm25Widget.data.layers.find((l) => l.dataset === "air-quality" && (l.place || l.selection))
-	);
+	const layer = $derived.by<QueryLayer | undefined>(() => {
+		const found = pm25Widget.data.layers.find((l) => l.dataset === "air-quality");
+		return found && hasPlaces(pm25Widget.data) ? queryLayer(pm25Widget.data, found) : undefined;
+	});
 	// Equal layers (a re-render of the same widget) don't resolve the source again.
 	const layerKey = $derived(layer ? JSON.stringify(layer) : "");
 
@@ -235,8 +236,10 @@
 		state={shown}
 		{widget}
 		{retired}
+		pollutant={meta?.entryType.label}
 		onretry={retry}
 		onchoose={() => openPlacePicker({ widgetId: widget.id })}
+		idleText={m.widget_state_idle_place_or_monitor()}
 		ownsEmpty
 		children={body}
 	/>

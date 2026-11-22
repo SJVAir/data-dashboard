@@ -2,8 +2,8 @@ import type { WidgetDataConfig } from "$lib/data/schema";
 import type { PlaceInfo } from "$lib/data/types";
 
 /**
- * The widget's data with each retired region, and each retired school, swapped for its
- * replacement (null if none has one).
+ * The widget's data with each retired region, and each retired school, in its Where swapped for
+ * its replacement (null if none has one).
  */
 export function withReplacements(
 	data: WidgetDataConfig,
@@ -21,38 +21,25 @@ export function withReplacements(
 		}
 	}
 	if (swaps.size === 0 && schools.size === 0) return null;
-	let changed = false;
-	const layers = data.layers.map((layer) => {
-		const next = { ...layer };
-		if (layer.place?.kind === "region") {
-			const swap = swaps.get(`region:${layer.place.type}:${layer.place.code}`);
-			if (swap) {
-				next.place = { kind: "region", type: swap.type, code: swap.code };
-				changed = true;
-			}
+	const { place, selection } = data;
+	if (place?.kind === "region") {
+		const swap = swaps.get(`region:${place.type}:${place.code}`);
+		if (swap) return { ...data, place: { kind: "region", type: swap.type, code: swap.code } };
+	}
+	if (place?.kind === "location") {
+		const swap = schools.get(`${place.source}:${place.code}`);
+		if (swap) return { ...data, place: { kind: "location", source: swap.source, code: swap.code } };
+	}
+	if (selection?.kind === "regions") {
+		const ids: string[] = [];
+		let swapped = false;
+		for (const id of selection.ids) {
+			const swap = swaps.get(`region:${id}`);
+			const out = swap ? `${swap.type}:${swap.code}` : id;
+			if (swap) swapped = true;
+			if (!ids.includes(out)) ids.push(out);
 		}
-		if (layer.place?.kind === "location") {
-			const swap = schools.get(`${layer.place.source}:${layer.place.code}`);
-			if (swap) {
-				next.place = { kind: "location", source: swap.source, code: swap.code };
-				changed = true;
-			}
-		}
-		if (layer.selection?.kind === "regions") {
-			const ids: string[] = [];
-			let swapped = false;
-			for (const id of layer.selection.ids) {
-				const swap = swaps.get(`region:${id}`);
-				const out = swap ? `${swap.type}:${swap.code}` : id;
-				if (swap) swapped = true;
-				if (!ids.includes(out)) ids.push(out);
-			}
-			if (swapped) {
-				next.selection = { ...layer.selection, ids };
-				changed = true;
-			}
-		}
-		return next;
-	});
-	return changed ? { ...data, layers } : null;
+		if (swapped) return { ...data, selection: { ...selection, ids } };
+	}
+	return null;
 }

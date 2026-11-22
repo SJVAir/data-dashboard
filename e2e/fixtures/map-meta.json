@@ -141,6 +141,7 @@
 			"geographies": ["polygon"],
 			"meta_url": "/api/2.0/hms/meta/",
 			"places_url": "",
+			"monitor_types": null,
 			"entry_types": [
 				{
 					"id": "smoke-density",
@@ -168,6 +169,7 @@
 			"geographies": ["point"],
 			"meta_url": "/api/2.0/hms/meta/",
 			"places_url": "",
+			"monitor_types": null,
 			"entry_types": [
 				{
 					"id": "fire-frp",

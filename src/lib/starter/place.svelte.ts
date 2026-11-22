@@ -4,16 +4,16 @@
  */
 import { ChosenPlaceSchema, type ChosenPlace } from "$lib/data/schema";
 import type { Platform, SpaceId } from "$lib/platform/types";
-import { DEFAULT_LAYER } from "$lib/widgets/defaults";
+import { DEFAULT_PLACE } from "$lib/widgets/defaults";
 
 export type { ChosenPlace };
 
 /** Preference key (per space): the place the starter shows. */
 export const STARTER_PLACE_KEY = "starterPlace";
 
-/** Fresno County, as a new widget's place (`DEFAULT_LAYER`), as a fresh object. */
+/** Fresno County, as a new widget's place (`DEFAULT_PLACE`), as a fresh object. */
 export function defaultStarterPlace(): ChosenPlace {
-	return structuredClone(DEFAULT_LAYER.place) as ChosenPlace;
+	return structuredClone(DEFAULT_PLACE);
 }
 
 /** The space's chosen place; unset, unreadable or invalid (`default-place` too) is Fresno County. */
@@ -28,6 +28,32 @@ export async function readStarterPlace(
 		// Storage blocked: the default.
 	}
 	return defaultStarterPlace();
+}
+
+/** Preference key (per space): the region the starter's Chart shows for a school or point place. */
+export const STARTER_AREA_KEY = "starterArea";
+
+/** The stored starter area: a region, or `null` when unset, unreadable or not a region. */
+export async function readStarterArea(
+	p: Pick<Platform, "preferences">,
+	space: SpaceId
+): Promise<ChosenPlace | null> {
+	try {
+		const parsed = ChosenPlaceSchema.safeParse(await p.preferences.get(space, STARTER_AREA_KEY));
+		if (parsed.success && parsed.data.kind === "region") return parsed.data;
+	} catch {
+		// Storage blocked: none.
+	}
+	return null;
+}
+
+/** Stores the starter area (`readStarterArea`). */
+export async function saveStarterArea(
+	p: Pick<Platform, "preferences">,
+	space: SpaceId,
+	area: ChosenPlace
+): Promise<void> {
+	await p.preferences.set(space, STARTER_AREA_KEY, area);
 }
 
 /** Stores the space's chosen place (a point from "Use my location" stays on this device). */

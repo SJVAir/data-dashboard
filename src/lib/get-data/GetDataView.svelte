@@ -5,23 +5,26 @@
 
 <script lang="ts">
 	import { onDestroy, untrack } from "svelte";
+	import type { Attachment } from "svelte/attachments";
 	import { MediaQuery } from "svelte/reactivity";
 	import { Button } from "$lib/components/ui/button";
+	import { scrollFocusable } from "$lib/components/shared/scroll-focusable";
 	import { adapterOffers, getMetadata, getResolvers } from "$lib/data";
 	import { csvPending, saveDataCsv } from "$lib/data/csv";
 	import type { CatalogEntry, Level } from "$lib/data/metadata";
 	import { fillableTypes } from "$lib/data/snapshot";
-	import { LIMITS, type DateRangeSpec, type Layer, type PesticideFilters } from "$lib/data/schema";
+	import type { ChosenPlace, DateRangeSpec, Layer, PesticideFilters } from "$lib/data/schema";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { PHONE_QUERY } from "$lib/layout/config";
 	import { m } from "$lib/paraglide/messages.js";
 	import { directoryFor } from "$lib/places/host";
-	import { fromLayer, toLayerPlaces, type Picks } from "$lib/places/selection";
+	import { areasOnly } from "$lib/places/replace";
+	import { fromWhere, toWhere, type Picks } from "$lib/places/selection";
 	import type { RegionTypeInfo } from "$lib/places/types";
 	import { report } from "$lib/safety/report";
 	import { useApp } from "$lib/store/app.svelte";
 	import { CHART_TYPE } from "$lib/widgets/chart";
-	import { DEFAULT_RANGE } from "$lib/widgets/defaults";
+	import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
 	import { CURRENT_TYPE } from "$lib/widgets/current";
 	import { MAP_TYPE } from "$lib/widgets/map";
 	import {
@@ -32,19 +35,24 @@
 		PESTICIDE_USE,
 		mapOptions
 	} from "$lib/widgets/map/options";
-	import { dataTypes, getWidgetType, type WidgetType } from "$lib/widgets/registry";
+	import { dataTypes, getWidgetType, placeLimit, type WidgetType } from "$lib/widgets/registry";
 	import { offersNow } from "$lib/widgets/time";
 	import { DataWidget } from "$lib/widgets/shared/data-widget.svelte";
 	import {
 		entryMeta,
 		mainLayer,
-		placesEntryType,
-		placesLayer,
-		placesQueryLayer,
+		wherePurpose,
 		widgetEffective,
+		widgetMonitors,
 		widgetPlaceKind
 	} from "$lib/widgets/shared/input";
-	import { MAX_OVERLAYS, overlayPlaceFor, sharedSource } from "$lib/widgets/shared/overlays";
+	import {
+		lineRefs,
+		MAX_OVERLAYS,
+		overlayPlaceFor,
+		overlayRefOf,
+		sharedSource
+	} from "$lib/widgets/shared/overlays";
 	import * as layers from "./layers";
 	import { placeLabel } from "$lib/widgets/title";
 	import { generatedTitle } from "$lib/widgets/titles.svelte";
@@ -55,37 +63,33 @@
 	import { flushDraft, saveDraft, type Draft } from "./draft.svelte";
 	import type { GetDataMode } from "./mode";
 	import {
-		fromNowDraft,
+		fromRangeDraft,
 		isNowShaped,
 		keptThreshold,
 		nowPollutant,
-		nowPollutants,
 		offeredPollutants,
 		selectionFits,
 		switchRange,
-		toNowDraft,
-		type NowConversion,
-		type NowDropped
+		areaToLookUp,
+		withArea,
+		type NowConversion
 	} from "./now";
+	import { showAsDraft } from "./show-as";
 	import NowControls from "./NowControls.svelte";
 	import {
-		fromMapDraft,
 		isMapShaped,
 		mapShowingOnly,
-		setMapPollutant,
 		setMapFill,
 		setMapPesticideFilters,
 		setNotices,
 		setSmokeAndFire,
-		setUse,
-		toMapDraft
+		setUse
 	} from "./map";
 	import { pesticideMeta } from "./sources";
-	import MapSections from "./MapSections.svelte";
 	import { isCalendarType } from "$lib/calendars/types";
 	import ThresholdLineControl from "./ThresholdLineControl.svelte";
 	import { formatDate, formatDateRange, formatList, formatNumber } from "$lib/format";
-	import { keepsOnSwitch, offeredDatasets, resolutionBlock, typeBlock } from "./offer";
+	import { offeredDatasets, resolutionBlock, typeBlock } from "./offer";
 	import { datasetBlock, datasetBlockText } from "./dataset-offer";
 	import { LEVEL_BY, LEVEL_LABEL } from "./level-phrases";
 	import Preview, { type PreviewSize } from "./Preview.svelte";
@@ -111,7 +115,6 @@
 		onchange,
 		saves = true,
 		leftOut = 0,
-		keepOnOpen,
 		startNotes
 	}: {
 		mode: GetDataMode;
@@ -136,12 +139,6 @@
 		saves?: boolean;
 		/** Opened from a Map: the marks left out because they're hidden (a note, D4). */
 		leftOut?: number;
-		/**
-		 * Opened from a Map with more places than the type takes: the Where dialog opens at once
-		 * to choose which to keep (D17). Done keeps them (`onkeep` gets the draft with them);
-		 * Cancel calls `oncancel` and changes nothing.
-		 */
-		keepOnOpen?: { oncancel: () => void; onkeep?: (draft: Draft) => void };
 		/** Opened from a Map: what its conversion left out or changed, noted as Show as notes it. */
 		startNotes?: Omit<NowConversion, "draft">;
 	} = $props();
@@ -244,12 +241,16 @@
 	/** A now type proper: no When (the Map has one, with a Now choice). */
 	const nowOnly = $derived(type?.time === "now");
 	const range = $derived<DateRangeSpec>(plain.data.dateRange ?? DEFAULT_RANGE);
-	// A Forecast strip's one layer has no entry type, so isn't a `mainLayer`; it holds the place.
-	const main = $derived(isNow ? placesLayer(plain.data, known) : mainLayer(plain.data, known));
-	const mainIndex = $derived(main ? plain.data.layers.indexOf(main) : -1);
-	const picks = $derived(main ? fromLayer(main) : []);
-	/** Whether the Where control renders; a Show as keep request needs it to open its dialog. */
-	const showsWhere = $derived(!!(main?.entryType || (isNow && main)));
+	const main = $derived(mainLayer(plain.data, known));
+	const picks = $derived(fromWhere(plain.data));
+	/** The Chart's lines: its searched monitors, else its Where's places ("Overlay for"). */
+	const lines = $derived(
+		lineRefs({
+			place: plain.data.place,
+			selection: plain.data.selection,
+			monitors: widgetMonitors(plain.data).monitors
+		})
+	);
 	/** Only level layers (smoke, burn status): nothing to chart, so no Add, Save or Download. */
 	const levelOnly = $derived(layers.levelOnly(plain.data, known));
 
@@ -259,12 +260,9 @@
 			: []
 	);
 	// A now type is never blocked: choosing it converts the draft (`toNowDraft`). A Map, in its
-	// shape or not, is checked as what `fromMapDraft` converts it to: the pollutant showing, at its
-	// places.
+	// shape or not, is checked as what `fromMapDraft` converts it to: its pollutant, at its places.
 	const blockData = $derived(
-		known && plain.type === MAP_TYPE
-			? mapShowingOnly(plain, known, mapPollutants).draft.data
-			: plain.data
+		known && plain.type === MAP_TYPE ? mapShowingOnly(plain, known).draft.data : plain.data
 	);
 	const showAs = $derived(
 		dataTypes().map((t) => {
@@ -284,7 +282,7 @@
 		})
 	);
 	/** Where the places are fetched for, as the dataset rules count it. */
-	const placeKind = $derived(widgetPlaceKind(plain.data, known));
+	const placeKind = $derived(widgetPlaceKind(plain.data));
 	/** A Map on Now, or a now type: no range, so no data resolution. */
 	const hasRange = $derived(!nowOnly && (!isMap || !!plain.data.dateRange));
 	/**
@@ -438,38 +436,45 @@
 	// with different caps, would undo each other forever), and a Forecast strip's place is named
 	// through a PM2.5 layer, as its picker offers places.
 	const namesWidget = $derived.by<WidgetInstance>(() => {
-		// A now type's places are on its places layer (a Map's other layers have none).
-		const layers = isNow ? (main ? [placesQueryLayer(main)] : []) : plain.data.layers;
+		// A now type's names come from its main layer (a Map's other layers are place-less).
+		const layers = isNow
+			? [main ?? { ...DEFAULT_LAYER }]
+			: plain.data.layers.length > 0
+				? plain.data.layers
+				: [{ ...DEFAULT_LAYER }];
 		return { ...previewWidget, id: `${PREVIEW_ID}-names`, data: { ...plain.data, layers } };
 	});
-	const data = new DataWidget(() => namesWidget, LIMITS.SELECTION_MAX);
+	const data = new DataWidget(() => namesWidget);
 
-	// The last data's names stay up while another range or type loads (a new query starts with
-	// no data); they're dropped once the places change.
-	const picksKey = $derived(JSON.stringify(picks));
-	let lastNames = $state.raw<{ key: string; names: string[] } | null>(null);
-	$effect(() => {
-		const shown = data.shown;
-		if (!("data" in shown) || !shown.data) return;
-		const names = shown.data.places.map((p) => placeLabel(p, "owner"));
-		const key = untrack(() => picksKey);
-		lastNames = { key, names };
+	/** The draft has ticked monitor types: its lines are a monitor set's monitors. */
+	const setLines = $derived(widgetMonitors(plain.data).types.length > 0);
+	/**
+	 * What Where says with no places, instead of "Everywhere": a single-place widget takes one place
+	 * or one monitor, so it asks for one, or says it shows its monitor.
+	 */
+	const whereEmptyText = $derived.by(() => {
+		if (placeLimit(type) !== 1) return undefined;
+		return widgetMonitors(plain.data).monitors.length > 0
+			? m.get_data_where_one_monitor()
+			: m.get_data_where_place_or_monitor();
 	});
-	const names = $derived(lastNames?.key === picksKey ? lastNames.names : null);
-	/** No names are coming: the query failed or can't run. */
-	const namesSettled = $derived(data.shown.status !== "loading");
-
-	/** "Overlay for": a Chart choice, only when the places' overlays differ (different zones). */
+	/**
+	 * "Overlay for": a Chart choice, listing its lines (areas or monitors). With ticked types,
+	 * whenever the set has two or more monitors (its overlay is fetched for the one chosen, spec
+	 * decision 37); otherwise only when the lines' overlays differ (different zones).
+	 */
 	const overlayFor = $derived.by(() => {
-		if (plain.type !== CHART_TYPE || picks.length < 2) return null;
+		if (plain.type !== CHART_TYPE || data.overlays.length === 0) return null;
+		if (!setLines && lines.length < 2) return null;
 		const shown = data.shown;
 		if (shown.status !== "ready") return null;
-		const differ = data.overlays.some(
-			(o) => o.state.status === "ready" && !sharedSource(o.state.data.series)
-		);
-		if (!differ) return null;
 		const places = shown.data.places;
-		const key = overlayPlaceFor(plain.options, places, picks);
+		if (places.length < 2) return null;
+		const differ =
+			setLines ||
+			data.overlays.some((o) => o.state.status === "ready" && !sharedSource(o.state.data.series));
+		if (!differ) return null;
+		const key = overlayPlaceFor(plain.options, places, lines);
 		return {
 			places,
 			index: Math.max(
@@ -511,65 +516,32 @@
 		if (keepsDraft) flushDraft();
 	});
 
-	let root = $state<HTMLElement>();
+	/**
+	 * Keeps `--get-data-top` at the view's distance from the top of the page, so on two columns it
+	 * fills the screen below the top nav and the heading, whatever their height (a notice bar can
+	 * come and go).
+	 */
+	const fillsView: Attachment<HTMLElement> = (node) => {
+		const update = () => {
+			const top = node.getBoundingClientRect().top + window.scrollY;
+			node.style.setProperty("--get-data-top", `${Math.max(0, top)}px`);
+		};
+		const resize = new ResizeObserver(update);
+		resize.observe(document.body);
+		window.addEventListener("resize", update);
+		update();
+		return () => {
+			resize.disconnect();
+			window.removeEventListener("resize", update);
+		};
+	};
+
 	let size = $state<PreviewSize>("large");
 	let width = $state(0);
 	const phone = new MediaQuery(PHONE_QUERY);
 
-	// Edits. The main layer holds the places and the level; overlays follow it (see `layers.ts`).
-	function mainDraftLayer(): Layer | undefined {
-		return mainIndex >= 0 ? draft.data.layers[mainIndex] : undefined;
-	}
-
-	// Choosing which places to keep (D17) ----------------------------------------------------
-
-	type Keeping = {
-		max: number;
-		onkeep: (picks: Picks) => void;
-		oncancel: () => void;
-		restoreFocus?: () => boolean;
-	};
-
-	/** A keep request for the Where dialog; answered once, then dropped. */
-	function keepRequest(
-		max: number,
-		onkeep: (picks: Picks) => void,
-		oncancel: () => void,
-		restoreFocus?: () => boolean
-	): Keeping {
-		return {
-			max,
-			...(restoreFocus ? { restoreFocus } : {}),
-			onkeep: (picks) => {
-				keeping = undefined;
-				onkeep(picks);
-			},
-			oncancel: () => {
-				keeping = undefined;
-				oncancel();
-			}
-		};
-	}
-
-	const opening = untrack(() => keepOnOpen);
-	const openingCap = untrack(() => getWidgetType(initial.type)?.accepts?.maxPlaces);
-	/** The Where dialog's keep request, while one is open. */
-	let keeping = $state.raw<Keeping | undefined>(
-		opening && openingCap !== undefined
-			? keepRequest(
-					openingCap,
-					(kept) => {
-						applyPlaces(kept);
-						// Passing the dialog isn't an edit: the Map's notes stay up (D24).
-						noteStart();
-						opening.onkeep?.($state.snapshot(draft) as Draft);
-					},
-					opening.oncancel
-				)
-			: undefined
-	);
-	/** Bumped for each later keep request: the Where control remounts to open its dialog. */
-	let keepKey = $state(0);
+	// Edits. Where is on the draft's data; the main layer decides the level, and overlays follow
+	// it (see `layers.ts`).
 
 	/** Sets the range, or (`undefined`, for a type with `now`) Now. */
 	function setRange(spec: DateRangeSpec | undefined): void {
@@ -592,22 +564,28 @@
 
 	/** Change places' Done: the places the person chose (the hidden-marks note goes with them). */
 	function setPlaces(next: Picks): void {
+		// Clear (no places): said once, in the view's polite status region.
+		if (next.length === 0) announcement = m.get_data_places_cleared();
 		leftOutShown = false;
-		applyPlaces(next);
-	}
-
-	/** Replaces the main layer's places. */
-	function applyPlaces(next: Picks): void {
-		const layer = mainDraftLayer();
-		if (!layer) return;
-		delete layer.place;
-		delete layer.selection;
-		Object.assign(layer, toLayerPlaces(next));
+		delete draft.data.place;
+		delete draft.data.selection;
+		Object.assign(draft.data, toWhere(next));
 		layers.dropStationOnPlaceChange(draft.data);
+		layers.dropMonitorsForPlace(draft.data, placeLimit(getWidgetType(draft.type)));
 	}
 
 	function setPollutant(pick: layers.EntryPick | null): void {
 		layers.setPollutant(draft.data, known, pick);
+	}
+
+	function setMonitorTypes(types: string[]): void {
+		layers.setMonitorTypes(draft.data, known, types);
+	}
+
+	/** The searched monitors; a single-place widget's one monitor replaces its Where (decision 11). */
+	function setMonitors(ids: string[]): void {
+		layers.setMonitors(draft.data, known, ids);
+		layers.dropWhereForMonitor(draft.data, placeLimit(getWidgetType(draft.type)));
 	}
 
 	function toggleLayer(pick: layers.EntryPick, on: boolean): void {
@@ -619,7 +597,7 @@
 	}
 
 	function removeLayer(index: number): void {
-		layers.removeLayer(draft.data, known, index);
+		layers.removeLayer(draft.data, index);
 	}
 
 	function setFilters(index: number, filters: PesticideFilters): void {
@@ -644,7 +622,7 @@
 		const out: string[] = [];
 		if (what.includes("dates")) out.push(m.get_data_dates_left_out());
 		if (what.includes("overlays")) out.push(m.get_data_overlays_left_out());
-		const cap = getWidgetType(plain.type)?.accepts?.maxPlaces ?? 1;
+		const cap = placeLimit(getWidgetType(plain.type));
 		if (what.includes("places")) {
 			out.push(
 				cap > 1
@@ -652,6 +630,8 @@
 					: m.get_data_extra_places_left_out()
 			);
 		}
+		if (what.includes("monitor-types")) out.push(m.get_data_monitor_types_left_out());
+		if (what.includes("area")) out.push(m.get_data_school_point_left_out());
 		if (pollutant) {
 			const label = (dataset: string, entryType: string) =>
 				entryMeta(known, { dataset, entryType })?.entryType.label ?? entryType;
@@ -747,12 +727,6 @@
 		return t.type === MAP_TYPE ? isMapShaped(d, now, known) : isNowShaped(d, t);
 	}
 
-	/** The type `snapshot` converts from: none for a range draft already marked as a now type. */
-	function sourceType(snapshot: Draft): WidgetType | undefined {
-		const from = getWidgetType(snapshot.type);
-		return from && offersNow(from) && !shaped(snapshot, from) ? undefined : from;
-	}
-
 	/** The draft as now type `next`, once its pollutant's scale has loaded. */
 	async function convertToNow(next: WidgetType, catalog: CatalogEntry[]): Promise<void> {
 		const id = ++changeId;
@@ -762,16 +736,19 @@
 			const allowed = await loadMapPollutants();
 			if (id !== changeId) return;
 			mapPollutants = allowed;
-			const converted = toMapDraft($state.snapshot(draft) as Draft, catalog, allowed, now);
+			const converted = showAsDraft($state.snapshot(draft) as Draft, next, {
+				catalog,
+				allowed,
+				levels: "unavailable",
+				now
+			});
 			defaultOwed = false;
 			replaceDraft(converted.draft);
 			noteConversion(converted);
 			return;
 		}
-		// From a Map, the pollutant showing is the one that converts.
-		const drawable = plain.type === MAP_TYPE ? await loadMapPollutants() : undefined;
-		const base = (d: Draft) =>
-			d.type === MAP_TYPE ? mapShowingOnly(d, catalog, drawable).draft : d;
+		// From a Map, its pollutant is the one that converts.
+		const base = (d: Draft) => (d.type === MAP_TYPE ? mapShowingOnly(d, catalog).draft : d);
 		const pollutant = nowPollutant(base($state.snapshot(draft) as Draft), next, catalog);
 		const levels = await levelsOf(pollutant);
 		if (id !== changeId) return;
@@ -781,10 +758,7 @@
 		if (nowPollutant(base(fresh), next, catalog) !== pollutant) {
 			return convertToNow(next, catalog);
 		}
-		const converted =
-			fresh.type === MAP_TYPE
-				? fromMapDraft(fresh, next, catalog, levels, drawable, now)
-				: toNowDraft(fresh, next, catalog, levels, sourceType(fresh));
+		const converted = showAsDraft(fresh, next, { catalog, allowed: [], levels, now });
 		alertLevels = { entryType: nowEntryType(converted.draft), levels };
 		defaultOwed = !!converted.defaultOwed;
 		replaceDraft(converted.draft);
@@ -794,35 +768,6 @@
 	function setType(next: string): void {
 		const to = getWidgetType(next);
 		if (!to) return;
-		// More places than a Chart or Table takes: the person chooses which to keep first, and
-		// Cancel changes nothing (D17). Kept within the cap, the conversion cuts none.
-		const cap = to.accepts?.maxPlaces;
-		if (
-			keepsOnSwitch(to) &&
-			cap !== undefined &&
-			picks.length > cap &&
-			showsWhere &&
-			mainDraftLayer()
-		) {
-			keeping = keepRequest(
-				cap,
-				(kept) => {
-					applyPlaces(kept);
-					switchType(to);
-				},
-				() => {},
-				// Done or Cancel, focus goes back to the Show as button pressed.
-				() => {
-					const pressed = root?.querySelector<HTMLElement>(
-						`[data-show-as="${CSS.escape(to.type)}"]`
-					);
-					pressed?.focus();
-					return !!pressed;
-				}
-			);
-			keepKey++;
-			return;
-		}
 		switchType(to);
 	}
 
@@ -832,36 +777,46 @@
 			void convertToNow(to, known);
 			return;
 		}
-		changeId++;
+		const id = ++changeId;
 		defaultOwed = false;
-		if (!offersNow(to) && isNow) {
-			const converted =
-				plain.type === MAP_TYPE
-					? fromMapDraft(plain, to, known ?? [], "unavailable", mapPollutants, now)
-					: fromNowDraft(plain, to);
-			replaceDraft(converted.draft);
-			noteConversion(converted);
+		const school = areaToLookUp(plain, next);
+		if (school) {
+			// A Chart or Table holds areas only: the school or point's area first (as the starter
+			// looks it up), else it's left out with a note.
+			void (async () => {
+				const area = await import("$lib/starter/area")
+					.then(({ starterAreaOf }) => starterAreaOf(school))
+					.catch((error: unknown) => {
+						report(error, { operation: "show-as-area" });
+						return null;
+					});
+				if (id === changeId) convertRange(to, area);
+			})();
+			return;
 		}
+		if (!offersNow(to)) convertRange(to, null);
 		// A now type chosen before the catalog is known is converted once it is (below).
 		else {
 			const moved = switchRange($state.snapshot(draft.data), type, to, now);
 			if (moved.dateRange) draft.data.dateRange = moved.dateRange;
 			if (!moved.timeSubRange) delete draft.data.timeSubRange;
 			draft.type = next;
-			const days = moved.left ?? moved.outside;
-			const dropped: NowDropped[] = moved.left ? ["selection"] : moved.outside ? ["outside"] : [];
-			// A line the new type can't hold is left out, with a note.
-			if (!to.thresholds && draft.thresholds) {
-				delete draft.thresholds;
-				dropped.push("alert");
-			}
-			if (dropped.length) {
-				noteConversion({
-					draft: $state.snapshot(draft) as Draft,
-					dropped,
-					...(days ? { selection: days } : {})
-				});
-			}
+		}
+	}
+
+	/** Show as a range type: `area` stands in for a school or point the type can't show. */
+	function convertRange(to: WidgetType, area: ChosenPlace | null): void {
+		if (isNow) {
+			const converted = withArea(
+				showAsDraft(plain, to, { catalog: known ?? [], allowed: [], levels: "unavailable", now }),
+				area
+			);
+			replaceDraft(converted.draft);
+			noteConversion(converted);
+		} else {
+			const converted = withArea(fromRangeDraft(plain, type, to, now), area);
+			replaceDraft(converted.draft);
+			if (converted.dropped.length) noteConversion(converted);
 		}
 	}
 
@@ -961,7 +916,8 @@
 	}
 
 	function setOverlayFor(index: number): void {
-		const ref = picks[index];
+		const place = overlayFor?.places[index];
+		const ref = place ? overlayRefOf(place, index, lines) : null;
 		if (ref) draft.options = { ...draft.options, overlayFor: ref };
 	}
 
@@ -971,16 +927,30 @@
 			plain.data,
 			(name, contents, mime) => app.platform.files.save(name, contents, mime),
 			"owner",
-			plain.type
+			plain.type,
+			plain.options
 		);
 	}
 </script>
 
-<div class="flex min-h-full flex-col" bind:this={root} bind:clientWidth={width}>
+<!-- On two columns the view fills the screen below what's above it (the top nav, the heading):
+     the left column scrolls on its own and Show as, the preview and the action bar stay in view
+     (spec decision 18). On a phone the columns stack and the page scrolls. -->
+<div
+	class="flex min-h-full flex-col md:h-[calc(100dvh-var(--get-data-top,0px))] md:min-h-0"
+	bind:clientWidth={width}
+	{@attach fillsView}
+>
 	<div
-		class="grid flex-1 gap-(--grid-gap) p-(--grid-gap) md:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]"
+		class="grid flex-1 gap-(--grid-gap) p-(--grid-gap) md:min-h-0 md:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)] md:grid-rows-[minmax(0,1fr)]"
 	>
-		<div class="flex min-w-0 flex-col gap-4">
+		<div
+			class="focus-visible:ring-ring flex min-w-0 flex-col gap-4 rounded-sm focus-visible:ring-2 focus-visible:outline-none md:relative md:-m-1 md:min-h-0 md:overflow-y-auto md:overscroll-contain md:p-1"
+			role="group"
+			aria-label={m.get_data_choices_label()}
+			data-testid="get-data-choices"
+			{@attach scrollFocusable}
+		>
 			{#if allNotes.length > 0}
 				<div role="status" class="flex flex-col gap-1">
 					{#each allNotes as note (note)}
@@ -988,6 +958,72 @@
 					{/each}
 				</div>
 			{/if}
+
+			{#snippet catalogState()}
+				{#if catalog === undefined}
+					<p role="status" class="text-muted-foreground text-sm">{m.get_data_loading()}</p>
+				{:else if catalog === "unavailable"}
+					<div class="flex flex-wrap items-center gap-2">
+						<p role="status" class="text-sm">{m.get_data_catalog_unavailable()}</p>
+						<Button variant="outline" size="sm" onclick={() => catalogTry++}>
+							{m.get_data_retry()}
+						</Button>
+					</div>
+				{/if}
+			{/snippet}
+
+			<section class="flex flex-col gap-2" aria-labelledby="{uid}-what">
+				<h2 id="{uid}-what" class="text-primary text-sm font-semibold">{m.get_data_what()}</h2>
+				{#if !known || !type}
+					{@render catalogState()}
+				{:else}
+					<WhatSections
+						{type}
+						types={dataTypes()}
+						{sections}
+						data={plain.data}
+						catalog={known}
+						places={picks.length}
+						limit={placeLimit(type)}
+						maxOverlays={MAX_OVERLAYS}
+						onpollutant={setPollutant}
+						onnowpollutant={(e) => void setNowPollutant(e)}
+						onmonitortypes={setMonitorTypes}
+						onmonitors={setMonitors}
+						ontoggle={toggleLayer}
+						onaddpesticide={addPesticideLayer}
+						onremove={removeLayer}
+						onfilters={setFilters}
+						onstation={setStation}
+						blocked={datasetReason}
+						map={{
+							pollutants: offeredPollutants(known, mapPollutants ?? []),
+							onsmoke: (on) => setSmokeAndFire(draft.data, on),
+							onnotices: (on) => setNotices(draft.data, on),
+							onfilters: (filters) => setMapPesticideFilters(draft.data, filters),
+							years: useYears,
+							onuse: (on) => setUse(draft, on),
+							onretryyears: () => {
+								useYears = undefined;
+								useYearsTry++;
+							},
+							fill: mapOptions(plain).fill,
+							fillTypes,
+							onfill: (type) => setMapFill(draft, type),
+							blocks: mapBlocks
+						}}
+					/>
+					{#if isNow && type.thresholds}
+						<!-- A now type's alert level (its pollutant is chosen in Air quality). -->
+						<NowControls
+							levels={shownLevels}
+							thresholds={plain.thresholds}
+							onthreshold={setThreshold}
+							onretry={() => alertTry++}
+						/>
+					{/if}
+				{/if}
+			</section>
 
 			{#if !nowOnly}
 				<section class="flex flex-col gap-2" aria-labelledby="{uid}-when">
@@ -1016,105 +1052,16 @@
 
 			<section class="flex flex-col gap-2" aria-labelledby="{uid}-where">
 				<h2 id="{uid}-where" class="text-primary text-sm font-semibold">{m.get_data_where()}</h2>
-				{#if showsWhere && main}
-					{#key keepKey}
-						<WhereControl
-							{picks}
-							{names}
-							{namesSettled}
-							max={type?.accepts?.maxPlaces ?? 1}
-							purpose={{
-								dataset: main.dataset,
-								// A Forecast strip's place is any place PM2.5 is offered for.
-								entryType: placesEntryType(main)
-							}}
-							onchange={setPlaces}
-							keep={keeping}
-						/>
-					{/key}
-				{/if}
+				<WhereControl
+					{picks}
+					max={placeLimit(type)}
+					offer={areasOnly(plain.type) ? "areas" : "where"}
+					purpose={wherePurpose(plain.data, known)}
+					emptyText={whereEmptyText}
+					clearable={placeLimit(type) !== 1}
+					onchange={setPlaces}
+				/>
 			</section>
-
-			{#snippet catalogState()}
-				{#if catalog === undefined}
-					<p role="status" class="text-muted-foreground text-sm">{m.get_data_loading()}</p>
-				{:else if catalog === "unavailable"}
-					<div class="flex flex-wrap items-center gap-2">
-						<p role="status" class="text-sm">{m.get_data_catalog_unavailable()}</p>
-						<Button variant="outline" size="sm" onclick={() => catalogTry++}>
-							{m.get_data_retry()}
-						</Button>
-					</div>
-				{/if}
-			{/snippet}
-
-			{#if isNow}
-				{#if !known}
-					{@render catalogState()}
-				{:else if plain.type === MAP_TYPE}
-					<section class="flex flex-col gap-2" aria-labelledby="{uid}-what">
-						<h2 id="{uid}-what" class="text-primary text-sm font-semibold">
-							{m.get_data_what()}
-						</h2>
-						<MapSections
-							data={plain.data}
-							catalog={known}
-							offered={offeredPollutants(known, mapPollutants ?? [])}
-							onpollutant={(e, on) => setMapPollutant(draft.data, known, e, on)}
-							onsmoke={(on) => setSmokeAndFire(draft.data, on)}
-							onnotices={(on) => setNotices(draft.data, on)}
-							onfilters={(filters) => setMapPesticideFilters(draft.data, filters)}
-							years={useYears}
-							onuse={(on) => setUse(draft, on)}
-							onretryyears={() => {
-								useYears = undefined;
-								useYearsTry++;
-							}}
-							fill={mapOptions(plain).fill}
-							blocks={mapBlocks}
-							{fillTypes}
-							onfill={(type) => setMapFill(draft, type)}
-						/>
-					</section>
-				{:else if plain.type === CURRENT_TYPE || type?.thresholds}
-					<section class="flex flex-col gap-3" aria-labelledby="{uid}-what">
-						<h2 id="{uid}-what" class="text-primary text-sm font-semibold">
-							{m.get_data_what()}
-						</h2>
-						<NowControls
-							pollutants={plain.type === CURRENT_TYPE ? nowPollutants(known) : null}
-							entryType={main?.entryType}
-							levels={type?.thresholds ? shownLevels : null}
-							thresholds={plain.thresholds}
-							onpollutant={(e) => void setNowPollutant(e)}
-							onthreshold={setThreshold}
-							onretry={() => alertTry++}
-						/>
-					</section>
-				{/if}
-			{:else}
-				<section class="flex flex-col gap-2" aria-labelledby="{uid}-what">
-					<h2 id="{uid}-what" class="text-primary text-sm font-semibold">{m.get_data_what()}</h2>
-					{#if !known}
-						{@render catalogState()}
-					{:else}
-						<WhatSections
-							{sections}
-							data={plain.data}
-							catalog={known}
-							places={picks.length}
-							maxOverlays={MAX_OVERLAYS}
-							onpollutant={setPollutant}
-							ontoggle={toggleLayer}
-							onaddpesticide={addPesticideLayer}
-							onremove={removeLayer}
-							onfilters={setFilters}
-							onstation={setStation}
-							blocked={datasetReason}
-						/>
-					{/if}
-				</section>
-			{/if}
 
 			{#if choices}
 				<DataResolutionControl
@@ -1152,7 +1099,12 @@
 			{/if}
 		</div>
 
-		<div class="flex min-w-0 flex-col gap-2">
+		<div
+			class="focus-visible:ring-ring flex min-w-0 flex-col gap-2 rounded-sm focus-visible:ring-2 focus-visible:outline-none md:relative md:-m-1 md:min-h-0 md:overflow-y-auto md:overscroll-contain md:p-1"
+			role="group"
+			aria-label={m.get_data_preview_column_label()}
+			{@attach scrollFocusable}
+		>
 			<ShowAs types={showAs} value={plain.type} onchange={setType} />
 			{#if overlayFor}
 				<label class="flex flex-wrap items-center gap-2 text-sm">

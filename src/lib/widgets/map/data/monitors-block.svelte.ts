@@ -9,6 +9,8 @@ import { todayPacific } from "$lib/format";
 import { mapMessages } from "../host/messages";
 import { monitorIds } from "../sources";
 import { filterMonitors, placeMonitors } from "../toolbar/values";
+import { singleMonitor } from "../../shared/input";
+import { monitorMain } from "../../shared/overlays";
 import { AHEAD } from "./day-layer.svelte";
 import type { MapDataInput } from "./loaded.svelte";
 import {
@@ -87,10 +89,21 @@ export class MonitorsBlock {
 	/** Whether the map is worth drawing (on screen, the page visible). */
 	#polling = $state(true);
 
-	/** The places, as a key: the monitors' scope is resolved again only when they change. */
+	/**
+	 * The places, as a key (the Where and the layer's ticked types and searched monitors): the
+	 * monitors' scope is resolved again only when they change.
+	 */
 	readonly #placesKey = $derived.by(() => {
-		const layer = this.#getInput().layer;
-		return layer ? JSON.stringify([layer.place ?? null, layer.selection ?? null]) : "";
+		const { layer, widget } = this.#getInput();
+		const { place, selection } = widget.data;
+		return layer
+			? JSON.stringify([
+					place ?? null,
+					selection ?? null,
+					layer.monitorTypes ?? null,
+					layer.monitors ?? null
+				])
+			: "";
 	});
 	/** Narrow deriveds, so an effect re-runs only when the one value it needs changes. */
 	readonly #entryType = $derived.by(() => this.#getInput().entryType);
@@ -192,7 +205,9 @@ export class MonitorsBlock {
 	readonly exempt = $derived.by(() => {
 		// Keyed by the places, so a new layer object with the same places changes nothing.
 		void this.#placesKey;
-		return untrack(() => placeMonitors(this.#getInput().layer));
+		return untrack(() => {
+			return placeMonitors(this.#getInput().layer);
+		});
 	});
 	/** The monitors drawn: those loaded, after the toolbar's filters (the places' own kept). */
 	readonly monitorsShown = $derived.by(() => {
@@ -202,9 +217,18 @@ export class MonitorsBlock {
 	});
 	/** One source for the monitors plugin, reading the query's current state. */
 	readonly monitorsSource: DataSource<MonitorFeatureProperties>;
+	/**
+	 * The air-quality layer asks for monitors: a pollutant with ticked types or searched monitors.
+	 * With none (or no pollutant) nothing is loaded, and the other layers draw at once.
+	 */
+	readonly #asks = $derived.by(() => {
+		const { layer, entryType } = this.#getInput();
+		return !!entryType && !!layer && monitorMain(layer);
+	});
 	/** Loading the monitors for the first time (the skeleton shows over the map). */
 	readonly monitorsLoading = $derived(
 		this.#loads &&
+			this.#asks &&
 			!this.#monitorsUnavailable &&
 			this.monitorsData === undefined &&
 			this.monitorsState.status !== "error"
@@ -213,14 +237,16 @@ export class MonitorsBlock {
 	readonly monitorsRefreshFailed = $derived(
 		this.monitorsCurrent && this.monitorsState.status === "error" && this.monitorsData !== undefined
 	);
-	/** A monitor place the loaded readings don't list (retired, say): the map still draws. */
+	/**
+	 * A single-place Map's one searched monitor the loaded readings don't list (retired, say): the
+	 * map still draws.
+	 */
 	readonly unlisted = $derived.by(() => {
-		const place = this.#getInput().layer?.place;
+		const { layer, widget } = this.#getInput();
+		const id = layer ? singleMonitor(widget.data) : undefined;
 		const state = this.listState;
-		if (!this.monitorsCurrent || state.status !== "ready" || place?.kind !== "monitor") {
-			return false;
-		}
-		return !state.data.some((reading) => reading.id === place.id);
+		if (!this.monitorsCurrent || state.status !== "ready" || !id) return false;
+		return !state.data.some((reading) => reading.id === id);
 	});
 
 	constructor(getInput: () => MapDataInput, deps: { now: NowClient; rating: DayRating }) {

@@ -1,27 +1,32 @@
 import type { Change } from "$lib/changes/types";
-import type { ChosenPlace, Layer } from "$lib/data/schema";
+import type { ChosenPlace } from "$lib/data/schema";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { readingOrder } from "$lib/layout/engine";
+import { CHART_TYPE } from "$lib/widgets/chart";
+import { DATA_TABLE_TYPE } from "$lib/widgets/table";
 import { sameRef } from "./types";
 
+/** Whether a widget of `type` holds areas only in its Where (a Chart or Table, decision 2). */
+export function areasOnly(type: string): boolean {
+	return type === CHART_TYPE || type === DATA_TABLE_TYPE;
+}
+
+/** Whether `widget` can show `to`: a school or point never goes to an areas-only widget. */
+function canShow(widget: WidgetInstance, to: ChosenPlace): boolean {
+	return !(areasOnly(widget.type) && (to.kind === "location" || to.kind === "point"));
+}
+
 /**
- * The one place all of a widget's place-bearing layers share; `"mixed"` for a selection, layers
- * at different places, or a place-tied choice (a weather layer's chosen `station`; the layer
- * schema has no other place-tied field: pesticide `filters` are not tied to a place); `null`
- * when no layer has a place (a Note). The starter-only `default-place` counts as mixed, so it
- * is never rewritten.
+ * A widget's one place (its Where); `"mixed"` for a selection or a place-tied choice (a weather
+ * layer's chosen `station`; the layer schema has no other place-tied field: pesticide `filters`
+ * are not tied to a place); `null` when it has no place (a Note, or everywhere). The
+ * starter-only `default-place` counts as mixed, so it is never rewritten.
  */
 export function widgetPlace(widget: WidgetInstance): ChosenPlace | "mixed" | null {
-	let found: ChosenPlace | null = null;
-	for (const layer of widget.data.layers) {
-		if (layer.selection || layer.station) return "mixed";
-		const place = layer.place;
-		if (!place) continue;
-		if (place.kind === "default-place") return "mixed";
-		if (found && !sameRef(found, place)) return "mixed";
-		found = place;
-	}
-	return found;
+	const { place, selection, layers } = widget.data;
+	if (selection || layers.some((l) => l.station)) return "mixed";
+	if (!place) return null;
+	return place.kind === "default-place" ? "mixed" : place;
 }
 
 function single(widget: WidgetInstance): ChosenPlace | null {
@@ -30,13 +35,13 @@ function single(widget: WidgetInstance): ChosenPlace | null {
 }
 
 function moved(widget: WidgetInstance, to: ChosenPlace): WidgetInstance {
-	const layers: Layer[] = widget.data.layers.map((l) => (l.place ? { ...l, place: to } : l));
-	return { ...widget, data: { ...widget.data, layers } };
+	return { ...widget, data: { ...widget.data, place: to } };
 }
 
 /**
  * Widgets at `from` (and, with `others`, every single-place widget) switch to `to`. Mixed
- * widgets and Notes never change, nor do widgets already at `to`. The bar moves when it is at
+ * widgets and Notes never change, nor do widgets already at `to`, nor a Chart or Table when `to`
+ * is a school or point (they hold areas only and keep their own Where). The bar moves when it is at
  * `from`. `doc` itself when nothing moves (`from` is `to` without `others`), so it gives no
  * change; with `others`, picking the bar's own place brings the other widgets to it.
  */
@@ -49,7 +54,7 @@ export function replacePlace(
 	if (sameRef(from, to) && !opts.others) return doc;
 	const widgets = doc.body.widgets.map((w) => {
 		const place = single(w);
-		if (!place || sameRef(place, to)) return w;
+		if (!place || sameRef(place, to) || !canShow(w, to)) return w;
 		return sameRef(place, from) || opts.others ? moved(w, to) : w;
 	});
 	const bar = doc.body.placeBar;
@@ -57,11 +62,14 @@ export function replacePlace(
 	return { ...doc, body: { ...doc.body, widgets, ...(placeBar ? { placeBar } : {}) } };
 }
 
-/** Single-place widgets at a place other than `place`. */
-export function othersCount(doc: Dashboard, place: ChosenPlace): number {
+/**
+ * Single-place widgets at a place other than `place`; with `to`, only those `to` would change (a
+ * school or point leaves Charts and Tables alone).
+ */
+export function othersCount(doc: Dashboard, place: ChosenPlace, to?: ChosenPlace): number {
 	return doc.body.widgets.filter((w) => {
 		const p = single(w);
-		return p !== null && !sameRef(p, place);
+		return p !== null && !sameRef(p, place) && (!to || (!sameRef(p, to) && canShow(w, to)));
 	}).length;
 }
 

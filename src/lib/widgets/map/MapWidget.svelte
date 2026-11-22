@@ -21,10 +21,16 @@
 	import type { QueryState, UnavailableReason } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { formatNumber, pacificDay, parseDateKey } from "$lib/format";
-	import { HMS_FIRE, HMS_SMOKE } from "$lib/get-data/map";
+	import { HMS_FIRE, HMS_SMOKE, hasNotices, hasSmokeAndFire } from "$lib/get-data/map";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
-	import { entryMeta, placesLayer, widgetEffective, widgetPlaceKind } from "../shared/input";
+	import {
+		entryMeta,
+		mainLayer,
+		wherePurpose,
+		widgetEffective,
+		widgetPlaceKind
+	} from "../shared/input";
 	import { useTileOptions } from "../shared/tile-options.svelte";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 	import WidgetSkeleton from "../shared/WidgetSkeleton.svelte";
@@ -48,7 +54,7 @@
 	import { mapFormat } from "./host/format";
 	import { mapMessages } from "./host/messages";
 	import { mapMetadata } from "./host/metadata";
-	import { syncMapTitle } from "./map-title.svelte";
+	import { mapShowsLabel, syncMapTitle } from "./map-title.svelte";
 	import { MapNoteLines } from "./note-lines.svelte";
 	import { setMapSend } from "./send-registry";
 	import { runShowIn } from "./show-in-items";
@@ -69,7 +75,7 @@
 		mapOptions,
 		PESTICIDE_NOTICES,
 		PESTICIDE_USE,
-		pollutantLayers
+		pollutantLayer
 	} from "./options";
 	import type { NoticesDay } from "./section-links";
 	import { mapNotShown, notShownNotes } from "./not-shown";
@@ -107,13 +113,13 @@
 	loadPollutants();
 
 	const known = $derived(Array.isArray(catalog) ? catalog : undefined);
-	const layer = $derived(placesLayer(widget.data, known));
+	const layer = $derived(mainLayer(widget.data, known));
 	/** A dataset's name from the catalog (smoke and fire's layer labels). */
 	const datasetLabel = (id: string) => known?.find((d) => d.id === id)?.label;
 
-	/** The tile's pesticide use layer (place-less), if it has one. */
+	/** The tile's own pesticide use layer (no entry type: its figure is an option), if any. */
 	const useLayer = $derived(
-		widget.data.layers.find((l) => l.dataset === PESTICIDE_USE && !l.place && !l.selection)
+		widget.data.layers.find((l) => l.dataset === PESTICIDE_USE && !l.entryType)
 	);
 	/** The catalog's pesticide use figures the map draws (its labels, units and precision). */
 	const useFigures = $derived(
@@ -187,7 +193,7 @@
 	const effective = $derived.by(() => {
 		const range = widget.data.dateRange;
 		if (!range) return null;
-		const place = widgetPlaceKind(widget.data, known);
+		const place = widgetPlaceKind(widget.data);
 		const now = pacificDay(days.today, 12);
 		return widgetEffective(widget, known, place, range, now);
 	});
@@ -223,17 +229,9 @@
 	/** The region type filled, when the metadata lists it; null for no fill. */
 	const fillType = $derived(fillTypes.type);
 	const fillInfo = $derived(fillTypes.info);
-	/**
-	 * The pollutant drawn now: the one showing, or (when the server's map no longer offers it) the
-	 * first layer pollutant it does. Never saved back into the options.
-	 */
+	/** The pollutant drawn: the Map's one (unavailable when the server's map doesn't offer it). */
 	const entryType: string | undefined = $derived(wiring.drawn);
-	const entryInfo = $derived(
-		entryMeta(
-			known,
-			pollutantLayers(widget.data, known).find((l) => l.entryType === entryType)
-		)?.entryType
-	);
+	const entryInfo = $derived(entryMeta(known, pollutantLayer(widget.data, known))?.entryType);
 	const entryLabel = $derived(entryInfo?.label);
 	const periodFigure = new MapPeriodFigure(
 		{
@@ -272,17 +270,41 @@
 			units: entryInfo?.units
 		})
 	);
-	const idle = $derived(
-		!layer || (!layer.place && !layer.selection) || layer.place?.kind === "default-place"
+	/**
+	 * The Map has a pollutant to draw (an air-quality layer with an entry type: None keeps the
+	 * layer's types and monitors with none). A pollutant is optional (spec decision 6).
+	 */
+	const hasPollutant = $derived(!!pollutantLayer(widget.data, known)?.entryType);
+	/**
+	 * The Map has something to draw: a pollutant, smoke and fire, spray notices, pesticide use or
+	 * a region fill. With none, it says what to add.
+	 */
+	const drawsAnything = $derived(
+		hasPollutant ||
+			hasSmokeAndFire(widget.data) ||
+			hasNotices(widget.data) ||
+			!!useLayer ||
+			!!savedFill
 	);
+	/**
+	 * No map is made: nothing to draw, or only the starter's unresolved place. No Where is
+	 * everywhere (spec decision 1), never idle.
+	 */
+	const idle = $derived(!drawsAnything || widget.data.place?.kind === "default-place");
 	/**
 	 * Whether the map can show a pollutant of the tile: none the server's map offers is never drawn.
 	 */
 	const support = $derived.by<"loading" | "ok" | "pollutants-failed" | UnavailableReason>(() => {
 		if (catalog === "unavailable") return "catalog-unavailable";
-		if (catalog === undefined || pollutants === undefined) return "loading";
-		if (pollutants === "unavailable") return "pollutants-failed";
-		if (!entryType || !entryLabel || !pollutants.includes(entryType)) return "unknown-entry-type";
+		if (catalog === undefined) return "loading";
+		// With no pollutant the server's map pollutants don't matter: the other layers draw.
+		if (hasPollutant) {
+			if (pollutants === undefined) return "loading";
+			if (pollutants === "unavailable") return "pollutants-failed";
+			if (!entryType || !entryLabel || !pollutants.includes(entryType)) {
+				return "unknown-entry-type";
+			}
+		}
 		// A stored level outside the Map's (hour or raw, from untrusted input) draws nothing.
 		if (effective?.unusable) return "no-resolution";
 		return "ok";
@@ -291,7 +313,12 @@
 	/** Whether the tile loads its data: a map is (or will be) drawn, with now or a day to show. */
 	const loads = $derived(!!config && supported && !idle && days.at !== null);
 
-	const frame = new MapFrame(() => layer);
+	// The Where frames the map whatever it draws: with no pollutant, a point's region is looked
+	// up as a new widget's (PM2.5, `wherePurpose`). Nothing is framed while idle.
+	const frame = new MapFrame(
+		() => (idle ? undefined : (layer ?? wherePurpose(widget.data, known))),
+		() => widget.data
+	);
 	onDestroy(() => frame.destroy());
 
 	// The map: made once per mount (again after "Retry" when making it failed).
@@ -539,7 +566,10 @@
 	const useGone = $derived(useDrawn && data.useUnavailable === "filter-gone");
 	const useSectionsFailed = $derived(useDrawn && data.useBlock.sectionsFailed);
 
-	/** The fill is on the map: the tile has one the metadata lists, and its row hasn't hidden it. */
+	/**
+	 * The fill is on the map: the tile has one the metadata lists, and its row hasn't hidden it.
+	 * With no pollutant it is the regions' outlines alone, with no legend section.
+	 */
 	const fillDrawn = $derived(!!fillInfo && wiring.fillShown);
 	/**
 	 * The fill's layer label: on now it says the figure is today's so far, and on the current month
@@ -548,6 +578,8 @@
 	const fillLabel = $derived.by(() => {
 		if (!fillInfo) return undefined;
 		const regionType = fillInfo.plural;
+		// Outlines alone (no pollutant) have no figure to be "so far".
+		if (!hasPollutant) return regionType;
 		if (!days.onDay) return m.map_fill_today_so_far({ regionType });
 		if (!days.soFar) return regionType;
 		return days.resolution === "year"
@@ -745,11 +777,17 @@
 			get widgetId() {
 				return widget.id;
 			},
+			get data() {
+				return widget.data;
+			},
 			get layer() {
-				return layer;
+				return layer ?? wherePurpose(widget.data, known);
 			},
 			get entryLabel() {
-				return entryLabel;
+				return hasPollutant ? entryLabel : showsLabel;
+			},
+			get monitorsShown() {
+				return hasPollutant;
 			},
 			get idle() {
 				return idle;
@@ -759,6 +797,18 @@
 			}
 		},
 		viewer
+	);
+	/**
+	 * What a Map with no pollutant shows, for its title (so its map has an accessible name): its
+	 * layers' names, the catalog's where it has one ("Pesticide Use, ZIP Codes").
+	 */
+	const showsLabel = $derived(
+		mapShowsLabel([
+			hasSmokeAndFire(widget.data) ? m.get_data_smoke_and_fire() : undefined,
+			hasNotices(widget.data) ? noticesLabel : undefined,
+			useLayer ? datasetLabel(PESTICIDE_USE) : undefined,
+			savedFill ? fillInfo?.plural : undefined
+		])
 	);
 	const title = $derived(widget.title ?? generatedTitle(widget.id));
 
@@ -902,6 +952,15 @@
 				message: m.map_use_failed(),
 				hook: "map-use-failed",
 				action: { label: m.widget_state_retry(), onclick: retryUse }
+			});
+		}
+		// A Map with a pollutant but no ticked types and no searched monitors (a new Map whose
+		// catalog couldn't be read, say) draws no monitors: say so, and how to choose some.
+		if (layer?.entryType && !layer.monitorTypes?.length && !layer.monitors?.length) {
+			notes.push({
+				message: m.map_no_monitors_chosen(),
+				hook: "map-no-monitors-chosen",
+				...(markable && { action: { label: m.widget_edit_data(), onclick: editData } })
 			});
 		}
 		if (useGone) {
@@ -1083,11 +1142,14 @@
 			{m.map_unavailable_no_key()}
 		</p>
 	{:else if instead}
+		<!-- With nothing to draw it says what to add (never "Choose a place": a Where alone draws
+			nothing); only the starter's unresolved place asks for a place. -->
 		<WidgetState
 			state={instead}
 			{widget}
 			onretry={retry}
-			onchoose={() => openPlacePicker({ widgetId: widget.id })}
+			onchoose={drawsAnything ? () => openPlacePicker({ widgetId: widget.id }) : undefined}
+			idleText={drawsAnything ? undefined : m.map_empty_add_layers()}
 			children={nothing}
 		/>
 	{:else if map}

@@ -23,10 +23,10 @@ import {
 import { resolveRange } from "$lib/format/range";
 import { createWebMetadata } from "../metadata";
 import { createQueryClient } from "../query/client";
-import type { DateRangeSpec, Layer, PesticideFilters, Resolution } from "../schema";
+import type { DateRangeSpec, PesticideFilters, Resolution } from "../schema";
 import { PESTICIDE_USE_DATASET, SDK_DATASET_CATALOG } from "../testing/dataset-catalog";
 import { fixtureMetadata } from "../testing/fixtures";
-import type { QueryState, Target } from "../types";
+import type { QueryLayer, QueryState, Target } from "../types";
 import {
 	FilterGone,
 	filterLabels,
@@ -348,15 +348,51 @@ describe("pesticidesAdapter", () => {
 		await expect(pesticidesAdapter.fetch(request(county), ctx, signal)).rejects.toBe(boom);
 	});
 
-	it("whole-layer and unsupported places are unavailable", async () => {
-		expect(await pesticidesAdapter.target({ dataset: "pesticide-use" } as Layer, ctx)).toEqual({
-			unavailable: "place-unsupported"
-		});
+	it("no Where is the whole layer", async () => {
+		expect(await pesticidesAdapter.target({ dataset: "pesticide-use" } as QueryLayer, ctx)).toEqual(
+			{ kind: "all" }
+		);
+	});
+
+	it("no Where asks for the valley, with the filters", async () => {
+		vi.mocked(getPesticidesForPlace).mockResolvedValue({
+			place: null,
+			months: [month(2023, 12, 900)],
+			years: []
+		} as never);
+		const data = await pesticidesAdapter.fetch(
+			request({ kind: "all" }, { filters: { category: ["carcinogen"] } }),
+			ctx,
+			signal
+		);
+		expect(getPesticidesForPlace).toHaveBeenCalledExactlyOnceWith(
+			null,
+			{ category: ["carcinogen"], year__gte: 2023, year__lte: 2024 },
+			{ signal }
+		);
+		expect(data.places).toEqual([
+			{ place: "valley", name: "Whole valley", filters: ["Carcinogen"] }
+		]);
+		expect(data.series[0].points.map((p) => p.mean)).toEqual([0, 900]);
+	});
+
+	it("a not_found filter on the valley is an error, not an empty series", async () => {
+		vi.mocked(getPesticidesForPlace).mockRejectedValue(
+			badRequest({ chemical: [{ code: "not_found" }] })
+		);
+		vi.mocked(getChemicalDetails).mockResolvedValue({ display_name: "Glyphosate" } as never);
+		await expect(
+			pesticidesAdapter.fetch(
+				request({ kind: "all" }, { filters: { chemical: "c1" } }),
+				ctx,
+				signal
+			)
+		).rejects.toBeInstanceOf(FilterGone);
 	});
 });
 
 describe("target", () => {
-	const layer = (filters?: PesticideFilters): Layer => ({
+	const layer = (filters?: PesticideFilters): QueryLayer => ({
 		dataset: "pesticide-use",
 		entryType: "pounds-applied",
 		place: { kind: "region", type: "county", code: "06019" },

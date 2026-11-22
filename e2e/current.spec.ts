@@ -16,7 +16,7 @@ const tile = (id: string, monitor: string, y: number) => ({
 	title: null,
 	rect: { x: 0, y, w: 6, h: 6 },
 	data: {
-		layers: [{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: monitor } }]
+		layers: [{ dataset: "air-quality", entryType: "pm25", monitors: [monitor] }]
 	}
 });
 

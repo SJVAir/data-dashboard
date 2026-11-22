@@ -67,9 +67,10 @@ function type(extra: Partial<WidgetType> = {}): WidgetType {
 	};
 }
 
-const monitors = (n: number) => ({
-	kind: "monitors" as const,
-	ids: Array.from({ length: n }, (_, i) => `m${i}`)
+/** A selection of `n` areas (counties). */
+const areas = (n: number) => ({
+	kind: "regions" as const,
+	ids: Array.from({ length: n }, (_, i) => `county:m${i}`)
 });
 
 /** Adapters with only an id: none of them offers overlays. */
@@ -185,8 +186,8 @@ describe("typeBlock for the calendars", () => {
 	});
 
 	it("two places block; another dataset blocks", () => {
-		const two = { ...pm25, selection: monitors(2) };
-		expect(typeBlock(monthCalendarType, data([two]), CATALOG, NOW)).toBe("places");
+		const two = { ...data([pm25]), selection: areas(2) };
+		expect(typeBlock(monthCalendarType, two, CATALOG, NOW)).toBe("places");
 		expect(
 			typeBlock(monthCalendarType, data([{ dataset: "census", entryType: "people" }]), CATALOG, NOW)
 		).toBe("dataset");
@@ -197,9 +198,7 @@ describe("typeBlock for the calendars", () => {
 			dataset("air-quality", [entryType("pm25", { resolutions: levels })])
 		];
 		const map = (resolution?: "day" | "month") => ({
-			layers: [
-				{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor" as const, id: "m" } }
-			],
+			layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m"] }],
 			dateRange: { kind: "custom" as const, start: "2024-01-01", end: "2026-06-30" },
 			...(resolution ? { resolution } : {})
 		});
@@ -227,9 +226,42 @@ describe("typeBlock", () => {
 		expect(typeBlock(chartType, data(), CATALOG, NOW)).toBeNull();
 	});
 
-	it("places over the cap never block Chart or Table (Show as asks which to keep)", () => {
+	it("a Chart takes 40 areas", () => {
+		const d = data({ selection: areas(40) });
+		expect(typeBlock(chartType, d, CATALOG, NOW)).toBeNull();
+		expect(typeBlock(dataTableType, d, CATALOG, NOW)).toBeNull();
+	});
+
+	it('Current conditions with two areas is blocked "places"', () => {
+		expect(typeBlock(currentType, data({ selection: areas(2) }), CATALOG, NOW)).toBe("places");
+	});
+
+	it("Current conditions with one searched monitor and no Where isn't blocked", () => {
+		const one = data({ layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }] });
+		expect(typeBlock(currentType, one, CATALOG, NOW)).toBeNull();
+		const ticked = data({
+			layers: [{ dataset: "air-quality", entryType: "pm25", monitorTypes: ["sensor", "bam"] }]
+		});
+		expect(typeBlock(currentType, ticked, CATALOG, NOW)).toBeNull();
+	});
+
+	it('Current conditions with a county and a monitor is blocked "places"', () => {
+		const both = data({
+			place: { kind: "region", type: "county", code: "06019" },
+			layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }]
+		});
+		expect(typeBlock(currentType, both, CATALOG, NOW)).toBe("places");
+		const two = data({
+			layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1", "m2"] }]
+		});
+		expect(typeBlock(currentType, two, CATALOG, NOW)).toBe("places");
+		expect(typeBlock(chartType, both, CATALOG, NOW)).toBeNull();
+	});
+
+	it("places never block Chart or Table", () => {
 		const d = data({
-			layers: [{ dataset: "air-quality", entryType: "pm25", selection: monitors(7) }]
+			selection: areas(7),
+			layers: [{ dataset: "air-quality", entryType: "pm25" }]
 		});
 		expect(typeBlock(chartType, d, CATALOG, NOW)).toBeNull();
 		expect(typeBlock(dataTableType, d, CATALOG, NOW)).toBeNull();
@@ -237,7 +269,8 @@ describe("typeBlock", () => {
 
 	it("a 25-place Map's draft isn't blocked for Chart or Table; a one-place type still is", () => {
 		const d = data({
-			layers: [{ dataset: "air-quality", entryType: "pm25", selection: monitors(25) }]
+			selection: areas(25),
+			layers: [{ dataset: "air-quality", entryType: "pm25" }]
 		});
 		expect(typeBlock(chartType, d, CATALOG, NOW)).toBeNull();
 		expect(typeBlock(dataTableType, d, CATALOG, NOW)).toBeNull();

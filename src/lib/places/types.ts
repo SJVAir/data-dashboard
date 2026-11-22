@@ -1,4 +1,4 @@
-import type { PlaceRef } from "$lib/data/schema";
+import type { MonitorRef, PlaceRef } from "$lib/data/schema";
 
 export type RegionTypeInfo = {
 	type: string;
@@ -39,7 +39,15 @@ export type PlaceOption = MonitorOption | RegionOption | LocationOption;
 
 export type PointPlace = Extract<PlaceRef, { kind: "point" }>;
 
-export function refOf(option: PlaceOption): PlaceRef {
+/** What a picker picks: a Where place, or (the Monitors search) a monitor. */
+export type PickRef = PlaceRef | MonitorRef;
+
+/** Whether a pick is a Where place (not a monitor). */
+export function isPlaceRef(ref: PickRef): ref is PlaceRef {
+	return ref.kind !== "monitor";
+}
+
+export function refOf(option: PlaceOption): PickRef {
 	switch (option.kind) {
 		case "monitor":
 			return { kind: "monitor", id: option.id };
@@ -50,7 +58,7 @@ export function refOf(option: PlaceOption): PlaceRef {
 	}
 }
 
-export function sameRef(a: PlaceRef, b: PlaceRef): boolean {
+export function sameRef(a: PickRef, b: PickRef): boolean {
 	if (a.kind === "monitor" && b.kind === "monitor") return a.id === b.id;
 	if (a.kind === "region" && b.kind === "region") return a.type === b.type && a.code === b.code;
 	if (a.kind === "location" && b.kind === "location") {

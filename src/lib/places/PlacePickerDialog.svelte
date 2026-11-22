@@ -12,7 +12,7 @@
 	import * as Dialog from "$lib/components/ui/dialog";
 	import { getMetadata, getResolvers, placeRegion } from "$lib/data";
 	import type { CatalogEntry } from "$lib/data/metadata";
-	import type { ChosenPlace, Layer, WidgetDataConfig } from "$lib/data/schema";
+	import type { ChosenPlace, PlaceRef, WidgetDataConfig } from "$lib/data/schema";
 	import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 	import { formatNumber } from "$lib/format";
 	import { requestFocus } from "$lib/layout/focus-request.svelte";
@@ -23,25 +23,24 @@
 	import { calendarInput } from "$lib/calendars/input";
 	import { isCalendarType } from "$lib/calendars/types";
 	import { DEFAULT_LAYER } from "$lib/widgets/defaults";
-	import { getWidgetType } from "$lib/widgets/registry";
+	import { getWidgetType, placeLimit } from "$lib/widgets/registry";
 	import { offersNow } from "$lib/widgets/time";
 	import {
 		nowInput,
-		placesEntryType,
-		placesLayer,
-		placesQueryLayer,
+		mainLayer,
+		wherePurpose,
 		widgetInputs,
 		widgetPlaceKind
 	} from "$lib/widgets/shared/input";
-	import { pickedData } from "./apply";
+	import { pickedData, replacedMonitor } from "./apply";
 	import type { PlaceDirectory } from "./directory";
 	import { directoryFor, resolvePicks, type Resolvers } from "./host";
 	import PlacePicker from "./PlacePicker.svelte";
 	import { addRecent, readRecent } from "./recent";
-	import { barChange, othersCount, widgetPlace } from "./replace";
+	import { areasOnly, barChange, othersCount, widgetPlace } from "./replace";
 	import { regionName as nameOf } from "./region-name";
-	import { fromLayer, type PickerMode, type Picks } from "./selection";
-	import { sameRef, type PlaceOption, type PointPlace } from "./types";
+	import { fromWhere, type PickerMode, type Picks } from "./selection";
+	import { isPlaceRef, sameRef, type PlaceOption, type PointPlace } from "./types";
 
 	const app = useApp();
 
@@ -54,6 +53,13 @@
 		max: number;
 		purpose: { dataset: string; entryType: string };
 		mode: PickerMode;
+		/**
+		 * What the picker offers: areas only for a Chart or Table (decision 2), else the full Where;
+		 * only monitors when it replaces a gone monitor (`gone`).
+		 */
+		offer: "where" | "areas" | "monitors";
+		/** The widget's searched monitors no longer listed: the pick replaces the first one. */
+		gone?: string[];
 		initial: Picks;
 		known: PlaceOption[];
 		recent: PlaceOption[];
@@ -83,9 +89,11 @@
 	const failed = $derived(phase === "failed");
 
 	const title = $derived(
-		ready?.mode.kind === "multiple"
-			? m.place_picker_dialog_title_multiple()
-			: m.place_picker_dialog_title()
+		ready?.offer === "monitors"
+			? m.get_data_monitors_dialog_title_single()
+			: ready?.mode.kind === "multiple"
+				? m.place_picker_dialog_title_multiple()
+				: m.place_picker_dialog_title()
 	);
 
 	// Each opening starts fresh; closing aborts whatever it was doing.
@@ -123,7 +131,10 @@
 		return bar ? { session, place: bar.place } : null;
 	}
 
-	/** The first widget the bar's change switches (at the bar's place), for a point's lookup. */
+	/**
+	 * The first widget the bar's change switches (at the bar's place), for a point's lookup on a
+	 * live link (saved as its region, which a Chart or Table can show too).
+	 */
 	function firstSwitching(doc: Dashboard, place: ChosenPlace): WidgetInstance | undefined {
 		return doc.body.widgets.find((w) => {
 			const at = widgetPlace(w);
@@ -158,15 +169,20 @@
 				return;
 			}
 			const target = find();
-			const max = target ? (getWidgetType(target.widget.type)?.accepts?.maxPlaces ?? 0) : 0;
-			const layer = target ? placesLayer(target.widget.data, catalog) : undefined;
-			if (!target || max < 1 || !layer) {
+			const max = target ? placeLimit(getWidgetType(target.widget.type)) : 0;
+			// A widget with no layers (a Note) has no Where.
+			if (!target || max < 1 || target.widget.data.layers.length === 0) {
 				close();
 				return;
 			}
-			// A Forecast strip's layer has no entry type: its places are picked as PM2.5's are.
-			const entryType = placesEntryType(layer);
-			const initial = fromLayer(layer);
+			// A Forecast strip has no pollutant: its places are picked as PM2.5's are.
+			const purpose = wherePurpose(target.widget.data, catalog);
+			if (placePicker.monitor) {
+				await loadMonitor({ directory, resolvers, catalog }, target.widget, purpose, signal);
+				return;
+			}
+			const { entryType } = purpose;
+			const initial = fromWhere(target.widget.data);
 			const recentRefs = await readRecent(app.platform, app.space).catch((error: unknown) => {
 				report(error);
 				return [];
@@ -184,8 +200,9 @@
 				resolvers,
 				catalog,
 				max,
-				purpose: { dataset: layer.dataset, entryType },
+				purpose,
 				mode: max > 1 ? { kind: "multiple", max } : { kind: "single" },
+				offer: areasOnly(target.widget.type) ? "areas" : "where",
 				others: 0,
 				pick: null,
 				...picks
@@ -196,6 +213,45 @@
 			report(error);
 			phase = "failed";
 		}
+	}
+
+	/**
+	 * Choose another for a widget's gone searched monitor: monitors only (those measuring its
+	 * pollutant), one pick, which replaces the gone monitor.
+	 */
+	async function loadMonitor(
+		ctx: Pick<Ready, "directory" | "resolvers" | "catalog">,
+		widget: WidgetInstance,
+		purpose: Ready["purpose"],
+		signal: AbortSignal
+	): Promise<void> {
+		const listed = new Set((await getMetadata().monitors(signal)).map((mon) => mon.id));
+		const saved = widget.data.layers.flatMap((l) => l.monitors ?? []);
+		const gone = saved.filter((id) => !listed.has(id));
+		const recentRefs = await readRecent(app.platform, app.space).catch((error: unknown) => {
+			report(error);
+			return [];
+		});
+		const picks = await resolvePicks(
+			[],
+			recentRefs,
+			{ directory: ctx.directory, resolvers: ctx.resolvers, entryType: purpose.entryType },
+			signal
+		);
+		if (signal.aborted) return;
+		ready = {
+			...ctx,
+			widgetId: widget.id,
+			max: 1,
+			purpose,
+			mode: { kind: "single" },
+			offer: "monitors",
+			gone,
+			others: 0,
+			pick: null,
+			...picks
+		};
+		phase = "ready";
 	}
 
 	/** The dashboard's place: one place, picked as PM2.5's are (as a new widget's). */
@@ -226,6 +282,7 @@
 			max: 1,
 			purpose: { dataset: DEFAULT_LAYER.dataset, entryType },
 			mode: { kind: "single" },
+			offer: "where",
 			// The starter's widgets all show its place; only a copy can have others.
 			others: app.current.isStarter ? 0 : othersCount(target.session.doc, target.place),
 			pick: null,
@@ -258,6 +315,7 @@
 			max: 1,
 			purpose: { dataset: DEFAULT_LAYER.dataset, entryType },
 			mode: { kind: "single" },
+			offer: "where",
 			others: 0,
 			pick,
 			...picks
@@ -265,45 +323,49 @@
 		phase = "ready";
 	}
 
-	/** The data with the main layer's places swapped for `point`. */
-	function withPoint(data: WidgetDataConfig, layer: Layer, point: PointPlace): WidgetDataConfig {
+	/**
+	 * The data with its Where swapped for `point`, and no monitors: the lookup is of the point's
+	 * region, never a monitor's.
+	 */
+	function withPoint(data: WidgetDataConfig, point: PointPlace): WidgetDataConfig {
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropped from the copy
-		const { place, selection, ...rest } = layer;
-		return {
-			...data,
-			layers: data.layers.map((l) => (l === layer ? { ...rest, place: point } : l))
-		};
+		const { place, selection, layers, ...rest } = data;
+		const bare = layers.map((l) => {
+			// eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropped from the copy
+			const { monitors, monitorTypes, ...layer } = l;
+			return layer;
+		});
+		return { ...rest, layers: bare, place: point };
+	}
+
+	/** Whether a widget of `type` is single-place: a picked place replaces its monitor. */
+	function onePlace(type: string): boolean {
+		return placeLimit(getWidgetType(type)) === 1;
 	}
 
 	/** The region the widget would use for `point`, aborted with the dialog or after a timeout. */
 	async function regionOf(
-		ctx: Ready,
+		ctx: Pick<Ready, "catalog">,
 		widgetType: string,
 		data: WidgetDataConfig,
 		point: PointPlace,
 		signal: AbortSignal
 	): Promise<{ type: string; code: string } | null> {
-		const layer = placesLayer(data, ctx.catalog);
-		if (!layer) return null;
-		// A Forecast strip's layer is looked up as a PM2.5 one at the same place.
-		const pointData = withPoint(data, layer, point);
-		const lookup = {
-			...pointData,
-			layers: pointData.layers.map(placesQueryLayer)
-		};
+		if (data.layers.length === 0) return null;
+		// A widget with no main layer (a Forecast strip's) is looked up as a PM2.5 one at the place.
+		const pointData = withPoint(data, point);
+		const lookup = mainLayer(pointData, ctx.catalog)
+			? pointData
+			: { ...pointData, layers: [{ ...DEFAULT_LAYER }] };
 		// A now tile reads the layer's hourly averages, not 30 days of them; a Map frames its places
 		// the same way, with a range or not. A calendar reads one daily row per day.
 		const type = getWidgetType(widgetType);
 		const input = isCalendarType(widgetType)
 			? calendarInput(lookup, ctx.catalog, widgetType)
 			: type && offersNow(type)
-				? nowInput(placesLayer(lookup, ctx.catalog))
-				: widgetInputs(
-						{ type: widgetType, data: lookup },
-						ctx.catalog,
-						widgetPlaceKind(lookup, ctx.catalog),
-						ctx.max
-					).main;
+				? nowInput(lookup, mainLayer(lookup, ctx.catalog))
+				: widgetInputs({ type: widgetType, data: lookup }, ctx.catalog, widgetPlaceKind(lookup))
+						.main;
 		if (!input) return null;
 		const timed = new AbortController();
 		const stop = () => timed.abort();
@@ -317,7 +379,13 @@
 		}
 	}
 
-	async function done(picks: Picks): Promise<void> {
+	async function done(picked: Picks): Promise<void> {
+		if (ready?.offer === "monitors") {
+			doneMonitor(ready, picked);
+			return;
+		}
+		// This picker offers Where places only, never monitors.
+		const picks = picked.filter(isPlaceRef);
 		const ctx = ready;
 		const signal = controller?.signal;
 		if (!ctx || !signal || signal.aborted) return;
@@ -351,7 +419,7 @@
 		try {
 			result = await pickedData(target.widget.data, picks, {
 				liveLink,
-				catalog: ctx.catalog,
+				onePlace: onePlace(target.widget.type),
 				regionOf: (point) => regionOf(ctx, target.widget.type, target.widget.data, point, signal)
 			});
 		} catch {
@@ -373,7 +441,7 @@
 			const final = saved ? [{ kind: "region" as const, ...saved }] : picks;
 			const next = await pickedData(latest.widget.data, final, {
 				liveLink: false,
-				catalog: ctx.catalog,
+				onePlace: onePlace(latest.widget.type),
 				regionOf: async () => null
 			});
 			if (stale()) return;
@@ -398,6 +466,30 @@
 		}
 	}
 
+	/** A monitor picked for a gone one: it replaces it in one undoable edit. */
+	function doneMonitor(ctx: Ready, picked: Picks): void {
+		const ref = picked.find((p) => p.kind === "monitor");
+		const target = find();
+		if (ref?.kind === "monitor" && target) {
+			const next = replacedMonitor(
+				target.widget.data,
+				ctx.gone ?? [],
+				ref.id,
+				onePlace(target.widget.type)
+			);
+			if (next) {
+				target.session.apply({
+					op: "setWidgetData",
+					target: { widgetId: target.widget.id },
+					from: target.widget.data,
+					to: next
+				});
+			}
+			void remember([ref]);
+		}
+		close();
+	}
+
 	/**
 	 * The bar's Done. On the starter: its place changes (every widget, no copy, no undo; a starter
 	 * already handing off changes its copy). On a dashboard with a bar: the widgets at the bar's
@@ -407,7 +499,7 @@
 	 */
 	async function doneDashboard(
 		ctx: Ready,
-		picks: Picks,
+		picks: PlaceRef[],
 		signal: AbortSignal,
 		stale: () => boolean
 	): Promise<void> {
@@ -432,12 +524,9 @@
 		if (liveLink && pick.kind === "point") {
 			lookup = "looking";
 			const widget = firstSwitching(session.doc, target.place);
-			const max = widget ? (getWidgetType(widget.type)?.accepts?.maxPlaces ?? 1) : 1;
 			let region: { type: string; code: string } | null;
 			try {
-				region = widget
-					? await regionOf({ ...ctx, max }, widget.type, widget.data, pick, signal)
-					: null;
+				region = widget ? await regionOf(ctx, widget.type, widget.data, pick, signal) : null;
 			} catch {
 				// Failed or aborted: Retry offers another try.
 				region = null;
@@ -538,6 +627,7 @@
 				directory={ready.directory}
 				purpose={ready.purpose}
 				mode={ready.mode}
+				offer={ready.offer}
 				initial={ready.initial}
 				known={ready.known}
 				recent={ready.recent}
@@ -550,7 +640,9 @@
 		<!-- One persistent status for loading and failure, so either is announced. -->
 		<div class={["flex flex-wrap items-center gap-2 text-sm", showPicker && "sr-only"]}>
 			<p role="status" data-place-picker-load-status class={[!failed && "text-muted-foreground"]}>
-				{#if failed}{m.place_picker_dialog_failed()}{:else if !showPicker}{m.place_picker_dialog_loading()}{/if}
+				{#if failed}{m.place_picker_dialog_failed()}{:else if !showPicker}{placePicker.monitor
+						? m.get_data_monitors_dialog_loading()
+						: m.place_picker_dialog_loading()}{/if}
 			</p>
 			{#if failed}
 				<Button

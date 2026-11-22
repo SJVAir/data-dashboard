@@ -5,8 +5,9 @@ import type { Platform, SpaceId } from "$lib/platform/types";
 import { copiesOf, rememberCopy } from "$lib/sharing/fingerprints";
 import { defaultStarterPlace } from "$lib/starter/place.svelte";
 import type { ChosenPlace } from "$lib/data/schema";
+import { fromWhere, toWhere } from "$lib/places/selection";
 import { STARTER_ID, blankDashboard, copyOfStarter } from "$lib/starter/starter";
-import { DEFAULT_LAYER } from "$lib/widgets/defaults";
+import { DEFAULT_LAYER, DEFAULT_PLACE } from "$lib/widgets/defaults";
 import { DashboardIndex } from "./dashboard-index.svelte";
 import { createMemoryTabHub } from "./tab-channel";
 
@@ -131,7 +132,7 @@ describe("DashboardIndex", () => {
 	});
 
 	describe("duplicate with a place replaced", () => {
-		const FRESNO = DEFAULT_LAYER.place as ChosenPlace;
+		const FRESNO = DEFAULT_PLACE as ChosenPlace;
 		const SCHOOL: ChosenPlace = { kind: "location", source: "schools", code: "123" };
 		const KERN: ChosenPlace = { kind: "region", type: "county", code: "06029" };
 
@@ -141,12 +142,14 @@ describe("DashboardIndex", () => {
 				type: "chart",
 				title: null,
 				rect: { x: 0, y, w: 6, h: 4 },
-				data: { layers: places.map((place) => ({ ...DEFAULT_LAYER, place })) }
+				data: { ...toWhere(places), layers: [{ ...DEFAULT_LAYER }] }
 			};
 		}
 
+		const sameAs = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
 		function places(doc: Dashboard) {
-			return doc.body.widgets.map((w) => w.data.layers.map((l) => l.place));
+			return doc.body.widgets.map((w) => fromWhere(w.data));
 		}
 
 		it("replaces one place in the copy; mixed and other places stay, the original is untouched", async () => {
@@ -161,9 +164,9 @@ describe("DashboardIndex", () => {
 			};
 			await store(platform, source, "src");
 			const index = new DashboardIndex({ platform, space: SPACE, now });
-			const id = await index.duplicate("src", { from: FRESNO, to: SCHOOL });
+			const id = await index.duplicate("src", { from: FRESNO, to: KERN });
 			const copy = (await platform.documents.get(SPACE, id)) as Dashboard;
-			expect(places(copy)).toEqual([[SCHOOL], [FRESNO, KERN], [KERN]]);
+			expect(places(copy)).toEqual([[KERN], [FRESNO, KERN], [KERN]]);
 			expect(copy.copiedFrom).toBe("src");
 			// A dashboard without a bar doesn't gain one.
 			expect(copy.body.placeBar).toBeUndefined();
@@ -181,8 +184,12 @@ describe("DashboardIndex", () => {
 			const id = await index.duplicate(mine.id, { from: FRESNO, to: SCHOOL });
 			const copy = (await platform.documents.get(SPACE, id)) as Dashboard;
 			expect(copy.body.placeBar).toEqual({ place: SCHOOL });
-			expect(places(copy).flat()).not.toContainEqual(FRESNO);
 			expect(places(copy).flat()).toContainEqual(SCHOOL);
+			// A Chart's Where holds areas only: it keeps its own place; the other widgets move.
+			const left = copy.body.widgets.filter((w) =>
+				fromWhere(w.data).some((p) => sameAs(p, FRESNO))
+			);
+			expect(left.map((w) => w.type)).toEqual(["chart"]);
 		});
 
 		it("the starter duplicates with its chosen place replaced", async () => {
@@ -193,7 +200,11 @@ describe("DashboardIndex", () => {
 			const copy = (await platform.documents.get(SPACE, id)) as Dashboard;
 			expect(copy).toMatchObject({ copiedFrom: STARTER_ID, body: { placeBar: { place: SCHOOL } } });
 			expect(places(copy).flat()).toContainEqual(SCHOOL);
-			expect(places(copy).flat()).not.toContainEqual(FRESNO);
+			// Only the Chart (areas only) keeps the starter's place.
+			const left = copy.body.widgets.filter((w) =>
+				fromWhere(w.data).some((p) => sameAs(p, FRESNO))
+			);
+			expect(left.map((w) => w.type)).toEqual(["chart"]);
 		});
 
 		it("the starter's plain Duplicate keeps its place (the same place twice)", async () => {

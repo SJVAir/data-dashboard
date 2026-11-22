@@ -17,6 +17,9 @@ export type WidgetMenuEnv = { app: AppContext; widget: () => WidgetInstance | nu
  * A widget type's descriptor. It's in the initial bundle, so it imports neither the data layer
  * nor its component: those come with `load`.
  */
+/** What a direct add gives a new widget (`WidgetType.addable`). */
+export type Addable = { data: WidgetDataConfig; options?: Record<string, unknown> };
+
 export type WidgetType = {
 	type: string;
 	label: () => string;
@@ -36,6 +39,10 @@ export type WidgetType = {
 	accepts?: {
 		datasets?: string[];
 		maxPollutantLayers?: number;
+		/**
+		 * The most places a single-place type (or the Map) takes; none for a type that takes any
+		 * number (a Chart, a Table). Read it through `placeLimit`.
+		 */
 		maxPlaces?: number;
 		/** Only a pollutant (a layer with a daily scale) can be added. */
 		onlyPollutant?: boolean;
@@ -57,9 +64,10 @@ export type WidgetType = {
 	 * A direct add: Add widget adds the type with this data. Data types (those with
 	 * `accepts.datasets`) go through Get data unless they're also `addable`, which adds them
 	 * directly. Gets the dashboard it's added to; returns the new widget's data and, if it has
-	 * any, its `options`.
+	 * any, its `options` (or a promise of them, when they need a lookup first: the Map's monitor
+	 * types).
 	 */
-	addable?: (doc: Dashboard) => { data: WidgetDataConfig; options?: Record<string, unknown> };
+	addable?: (doc: Dashboard) => Addable | Promise<Addable>;
 	/** Runs right after Add widget adds a widget of this type (e.g. opening its editor). */
 	onAdded?: (app: AppContext, widgetId: string) => void;
 };
@@ -70,6 +78,15 @@ const loaded = new WeakMap<WidgetType, WidgetModule>();
 
 export function registerWidgetType(t: WidgetType): void {
 	types.set(t.type, t);
+}
+
+/**
+ * How many places `type` takes: its `accepts.maxPlaces`, any number (`Infinity`) for a data type
+ * without one (a Chart, a Table), none for a type that takes no data (a Note) or isn't known.
+ */
+export function placeLimit(type: WidgetType | undefined): number {
+	if (!type?.accepts?.datasets?.length) return 0;
+	return type.accepts.maxPlaces ?? Infinity;
 }
 
 export function getWidgetType(type: string): WidgetType | undefined {

@@ -39,7 +39,7 @@ function setup() {
 	const adapter: DatasetAdapter = {
 		id: "air-quality",
 		async target(layer) {
-			if (layer.place?.kind === "monitor") return { kind: "monitors", ids: [layer.place.id] };
+			if (layer.monitors?.length) return { kind: "monitors", ids: [...layer.monitors] };
 			return { unavailable: "place-unsupported" };
 		},
 		offered: (base) => base,
@@ -73,7 +73,7 @@ function setup() {
 /** `resolution` defaults to a week's (the range ladder's hourly). */
 function input(dateRange: DateRangeSpec, resolution: Resolution = "hour"): QueryInput {
 	return {
-		layer: { dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m-pa" } },
+		layer: { dataset: "air-quality", entryType: "pm25", monitors: ["m-pa"] },
 		dateRange,
 		resolution
 	};

@@ -10,11 +10,15 @@ vi.mock("@sjvair/sdk", async (importOriginal) => ({
 	getMonitorSummariesQuarterly: vi.fn(),
 	getMonitorSummariesSeasonal: vi.fn(),
 	getMonitorSummariesYearly: vi.fn(),
+	getMonitorSummariesBulkDaily: vi.fn(),
+	getMonitorSummariesBulkHourly: vi.fn(),
 	getMonitorEntries: vi.fn()
 }));
 
 import {
 	getDatasetCatalog,
+	getMonitorSummariesBulkDaily,
+	getMonitorSummariesBulkHourly,
 	getMonitorSummariesDaily,
 	getMonitorSummariesHourly,
 	getMonitorSummariesMonthly,
@@ -134,6 +138,8 @@ beforeEach(async () => {
 	vi.mocked(getMonitorSummariesDaily).mockResolvedValue([] as never);
 	vi.mocked(getMonitorSummariesHourly).mockResolvedValue([] as never);
 	vi.mocked(getMonitorSummariesMonthly).mockResolvedValue([] as never);
+	vi.mocked(getMonitorSummariesBulkDaily).mockResolvedValue([] as never);
+	vi.mocked(getMonitorSummariesBulkHourly).mockResolvedValue([] as never);
 	const catalog = createWebMetadata().catalog;
 	ctx = ctxOf(fixtureMetadata({ catalog }));
 });
@@ -179,11 +185,62 @@ describe("stationsFor", () => {
 });
 
 describe("weatherAdapter", () => {
-	it("offers the levels without raw, and nothing for the whole layer", async () => {
+	it("offers the levels without raw; no Where is the whole layer", async () => {
 		expect(weatherAdapter.offered(["raw", "hour", "day"], county)).toEqual(["hour", "day"]);
 		expect(await weatherAdapter.target({ dataset: "weather" } as Layer, ctx)).toEqual({
+			kind: "all"
+		});
+	});
+
+	it("no Where is unavailable when the catalog names no station types", async () => {
+		vi.mocked(getDatasetCatalog).mockResolvedValue({
+			...SDK_DATASET_CATALOG,
+			datasets: [...SDK_DATASET_CATALOG.datasets, { ...WEATHER_DATASET, monitor_types: null }]
+		});
+		const bare = ctxOf(fixtureMetadata({ catalog: createWebMetadata().catalog }));
+		expect(await weatherAdapter.target({ dataset: "weather" } as Layer, bare)).toEqual({
 			unavailable: "place-unsupported"
 		});
+	});
+
+	it("no Where gives a line per station, named from the response", async () => {
+		vi.mocked(getMonitorSummariesBulkDaily).mockResolvedValue([
+			{
+				id: "s2",
+				name: "CIMIS #2 - FivePoints",
+				type: "cimis",
+				summaries: [row("2026-09-10T07:00:00Z", 0.01, 0.2), row("2026-09-11T07:00:00Z", 0, 0)]
+			},
+			{
+				id: "s5",
+				name: "CIMIS #5 - Shafter",
+				type: "cimis",
+				summaries: [row("2026-09-10T07:00:00Z", 0.02, 0.4, { is_complete: false })]
+			}
+		] as never);
+		const data = await weatherAdapter.fetch(
+			request({ kind: "all" }, { entryType: "precipitation" }),
+			ctx,
+			signal
+		);
+		// The catalog's weather monitor_types, never a station list per place.
+		expect(getMonitorSummariesBulkDaily).toHaveBeenCalledExactlyOnceWith(
+			{ entryType: "precipitation", start: "2026-09-01", end: "2026-09-30", type: ["cimis"] },
+			{ signal }
+		);
+		expect(getWeatherStationsForPlace).not.toHaveBeenCalled();
+		expect(data.places).toEqual([
+			{ place: "monitor:s2", name: "CIMIS #2 - FivePoints" },
+			{ place: "monitor:s5", name: "CIMIS #5 - Shafter" }
+		]);
+		// A total reads each station's own `sum`; an incomplete day is partial.
+		expect(data.series.map((s) => s.points.map((p) => [p.mean, p.partial]))).toEqual([
+			[
+				[0.2, false],
+				[0, false]
+			],
+			[[0.4, true]]
+		]);
 	});
 
 	it("wind direction is not offered", async () => {

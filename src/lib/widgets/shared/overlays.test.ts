@@ -4,10 +4,16 @@ import type { WidgetDataConfig } from "$lib/data/schema";
 import type { PlaceInfo, QueryInput, Series, SeriesPoint } from "$lib/data/types";
 import type { Picks } from "$lib/places/selection";
 import {
+	ChartOptionsSchema,
 	MAX_OVERLAYS,
 	overlayInput,
+	everywhereMain,
+	overlayInputsFor,
 	overlayLayers,
+	overlayMonitor,
 	overlayPlaceFor,
+	overlayRefOf,
+	pairsByKey,
 	sharedSource
 } from "./overlays";
 
@@ -126,8 +132,9 @@ test("an overlay carries its station and filters, never places of its own", () =
 
 test("a third overlay is ignored", () => {
 	const data: WidgetDataConfig = {
+		place: FRESNO,
 		layers: [
-			{ dataset: "air-quality", entryType: "pm25", place: FRESNO },
+			{ dataset: "air-quality", entryType: "pm25" },
 			{ dataset: "forecasts", entryType: "burn-status" },
 			{ dataset: "forecasts", entryType: "aqi-forecast" },
 			{ dataset: "forecasts", entryType: "burn-status" }
@@ -183,4 +190,106 @@ test("sharedSource true for identical zone series", () => {
 	expect(sharedSource([a, { ...b, points: [day(1, "a"), day(2, "a")] }])).toBe(false);
 	expect(sharedSource([a, { ...b, points: [day(1, "a")] }])).toBe(false);
 	expect(sharedSource([a, { ...b, points: [] }])).toBe(false);
+});
+
+const MONITORS: PlaceInfo[] = [
+	{ place: "monitor:p1", name: "P1" },
+	{ place: "monitor:p2", name: "P2" },
+	{ place: "monitor:p3", name: "P3" }
+];
+const SET: QueryInput = {
+	layer: { dataset: "air-quality", entryType: "pm25", place: FRESNO, monitorTypes: ["purpleair"] },
+	dateRange: { kind: "trailing", amount: 30, unit: "day" },
+	resolution: "day"
+};
+
+test("overlayFor names a monitor (decision 37): a monitor-only shape", () => {
+	expect(ChartOptionsSchema.parse({ overlayFor: { kind: "monitor", id: "p2" } })).toEqual({
+		overlayFor: { kind: "monitor", id: "p2" }
+	});
+	expect(ChartOptionsSchema.safeParse({ overlayFor: { kind: "monitor" } }).success).toBe(false);
+});
+
+test("a monitor set's overlay monitor is Overlay for's once loaded, else the first", () => {
+	const p2 = { overlayFor: { kind: "monitor", id: "p2" } };
+	// The set's monitors aren't known before it loads.
+	expect(overlayMonitor(p2)).toBeNull();
+	expect(overlayMonitor(p2, MONITORS)).toBe("p2");
+	expect(overlayMonitor({ overlayFor: { kind: "monitor", id: "gone" } }, MONITORS)).toBe("p1");
+	expect(overlayMonitor({ overlayFor: FRESNO }, MONITORS)).toBe("p1");
+	expect(overlayMonitor(undefined, [])).toBeNull();
+});
+
+test("a monitor set's overlays are fetched for one monitor; others are unchanged", () => {
+	const base = [overlayInput(SET, { dataset: "forecasts", entryType: "burn-status" }), null];
+	const options = { overlayFor: { kind: "monitor", id: "p3" } };
+	expect(overlayInputsFor(SET, base, options)).toEqual([null, null]);
+	const [forP3, misfit] = overlayInputsFor(SET, base, options, MONITORS);
+	expect(forP3?.layer).toEqual({
+		dataset: "forecasts",
+		entryType: "burn-status",
+		monitors: ["p3"]
+	});
+	expect(misfit).toBeNull();
+	// Areas, and searched monitors alone, keep one overlay per line.
+	const area = [overlayInput(MAIN, { dataset: "forecasts", entryType: "burn-status" })];
+	expect(overlayInputsFor(MAIN, area, options, places)).toBe(area);
+	const searched = { ...MAIN, layer: { ...MAIN.layer, monitors: ["p1", "p2"] } };
+	expect(overlayInputsFor(searched, area, options, MONITORS)).toBe(area);
+});
+
+test("searched monitors' overlays ask only for the monitors the main fetched", () => {
+	const searched: QueryInput = {
+		...MAIN,
+		layer: { dataset: "air-quality", entryType: "o3", monitors: ["x", "y"] }
+	};
+	const base = [overlayInput(searched, { dataset: "weather", entryType: "temperature" })];
+	// Before the main loads, and when it fetched every one, the overlay is unchanged.
+	expect(overlayInputsFor(searched, base, undefined)).toBe(base);
+	const both = [
+		{ place: "monitor:x", name: "X" },
+		{ place: "monitor:y", name: "Y" }
+	];
+	expect(overlayInputsFor(searched, base, undefined, both)).toBe(base);
+	// X doesn't measure ozone, so the main has Y alone: so does the overlay.
+	const [onlyY] = overlayInputsFor(searched, base, undefined, [both[1]]);
+	expect(onlyY?.layer.monitors).toEqual(["y"]);
+	expect(overlayInputsFor(searched, base, undefined, [])).toEqual([null]);
+});
+
+test("an everywhere main's overlays are never fetched", () => {
+	const valley: QueryInput = {
+		layer: { dataset: "pesticide-use", entryType: "pounds-applied" },
+		dateRange: MAIN.dateRange,
+		resolution: "month"
+	};
+	const base = [overlayInput(valley, { dataset: "weather", entryType: "temperature" })];
+	// The overlay alone would be the whole layer (every station): never fetched.
+	expect(base[0]?.layer).toEqual({ dataset: "weather", entryType: "temperature" });
+	expect(everywhereMain(valley)).toBe(true);
+	expect(overlayInputsFor(valley, base, undefined, [])).toEqual([null]);
+	// A Where, searched monitors or ticked types are places to pair with.
+	expect(everywhereMain(MAIN)).toBe(false);
+	expect(everywhereMain({ ...valley, layer: { ...valley.layer, monitors: ["p1"] } })).toBe(false);
+	expect(everywhereMain({ ...valley, layer: { ...valley.layer, monitorTypes: ["airnow"] } })).toBe(
+		false
+	);
+	expect(everywhereMain(null)).toBe(false);
+});
+
+test("an overlay of the main's own keys pairs by key, any other by index", () => {
+	expect(pairsByKey(MONITORS, [MONITORS[1]])).toBe(true);
+	expect(pairsByKey(places, [{ place: "region:city:clovis", name: "Clovis" }])).toBe(false);
+	// Monitor lines always pair by key, even with an overlay monitor the main hasn't.
+	expect(pairsByKey(MONITORS, [])).toBe(true);
+	expect(pairsByKey(MONITORS, [{ place: "monitor:x", name: "X" }, MONITORS[0]])).toBe(true);
+	expect(pairsByKey(places, [])).toBe(false);
+});
+
+test("Overlay for finds a saved monitor among a monitor set's lines, and saves one", () => {
+	expect(overlayPlaceFor({ overlayFor: { kind: "monitor", id: "p3" } }, MONITORS, picks)).toBe(
+		"monitor:p3"
+	);
+	expect(overlayRefOf(MONITORS[1], 1, picks)).toEqual({ kind: "monitor", id: "p2" });
+	expect(overlayRefOf(places[1], 1, picks)).toEqual(KERN);
 });

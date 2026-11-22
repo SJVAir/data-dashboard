@@ -74,6 +74,46 @@ describe("monitorDaySource", () => {
 		expect(stub).toHaveBeenCalledWith({ entryType: "pm25", start: DAY, end: DAY }, { signal });
 	});
 
+	it("a monitor set asks for its types in its regions, and its searched monitors valley-wide", async () => {
+		stub.mockImplementation(async (config: { type?: string[] }) =>
+			config.type
+				? [{ id: "a", summaries: [row(DAY, 5)] }]
+				: [
+						{ id: "a", summaries: [row(DAY, 6)] },
+						{ id: "far", summaries: [row(DAY, 30)] },
+						{ id: "other", summaries: [row(DAY, 40)] }
+					]
+		);
+		const scope: MonitorScope = {
+			kind: "monitor-set",
+			types: ["purpleair"],
+			regionIds: ["r1"],
+			ids: ["far"]
+		};
+		const snap = await source({ scope }).fetch(signal);
+		expect(stub.mock.calls.map(([c]) => c)).toEqual([
+			{ entryType: "pm25", start: DAY, end: DAY, region: ["r1"], type: ["purpleair"] },
+			{ entryType: "pm25", start: DAY, end: DAY }
+		]);
+		expect([...snap.figures.keys()]).toEqual(["a", "far"]);
+		// The typed request's row wins for a monitor both return.
+		expect(snap.figures.get("a")?.value).toBe(5);
+	});
+
+	it("a monitor set with no regions sends only its types", async () => {
+		const scope: MonitorScope = {
+			kind: "monitor-set",
+			types: ["airnow"],
+			regionIds: null,
+			ids: []
+		};
+		await source({ scope }).fetch(signal);
+		expect(stub).toHaveBeenCalledExactlyOnceWith(
+			{ entryType: "pm25", start: DAY, end: DAY, type: ["airnow"] },
+			{ signal }
+		);
+	});
+
 	it("sends the region ids for a regions scope", async () => {
 		await source({ scope: { kind: "regions", ids: ["r1", "r2"] } }).fetch(signal);
 		expect(stub.mock.calls[0][0]).toEqual({

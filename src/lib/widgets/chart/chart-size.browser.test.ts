@@ -9,7 +9,7 @@ import { createQueryClient, type QueryClient } from "$lib/data/query/client";
 import { mapDatasetCatalog } from "$lib/data/metadata";
 import { PESTICIDE_USE_DATASET, WEATHER_DATASET } from "$lib/data/testing/dataset-catalog";
 import { FIXTURE_CATALOG, fixtureMetadata } from "$lib/data/testing/fixtures";
-import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
+import type { Dashboard, Rect, WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
@@ -91,20 +91,31 @@ test("the default size leaves a usable plot under the six-level key", async () =
 	expect(height).toBeGreaterThanOrEqual(120);
 });
 
-test("with the hidden-places note the plot stays usable", async () => {
-	const ids = ["m1", "m2", "m3", "m4", "m5", "m6", "m7"];
-	const screen = await showInDashboard(chartWidget(ids, {}, rect));
-	await expect.element(screen.getByText("2 more places aren't shown.")).toBeVisible();
+/** A Chart of PM2.5 in seven counties (a Where selection: five are drawn, two counted). */
+function areas(at: Rect): WidgetInstance {
+	const widget = chartWidget([], {}, at);
+	widget.data.layers = [{ dataset: "air-quality", entryType: "pm25" }];
+	widget.data.selection = {
+		kind: "regions",
+		ids: ["a1", "a2", "a3", "a4", "a5", "a6", "a7"].map((c) => `county:${c}`)
+	};
+	return widget;
+}
+
+test("with seven places in the key the plot stays usable", async () => {
+	const screen = await showInDashboard(areas(rect));
+	const key = screen.getByRole("list", { name: m.chart_series_key() });
+	await expect.poll(() => key.getByRole("listitem").elements().length).toBe(7);
 	const height = await plotHeight();
-	console.log(`plot height, default size, with note: ${height}px`);
+	console.log(`plot height, default size, seven places: ${height}px`);
 	expect(height).toBeGreaterThanOrEqual(80);
 });
 
-test("the minimum size still leaves a usable plot, even with the note", async () => {
+test("the minimum size still leaves a usable plot, even with seven places", async () => {
 	const min = { x: 0, y: 0, ...chartType.minSize };
-	const ids = ["m1", "m2", "m3", "m4", "m5", "m6", "m7"];
-	const screen = await showInDashboard(chartWidget(ids, {}, min));
-	await expect.element(screen.getByText("2 more places aren't shown.")).toBeVisible();
+	const screen = await showInDashboard(areas(min));
+	const key = screen.getByRole("list", { name: m.chart_series_key() });
+	await expect.poll(() => key.getByRole("listitem").elements().length).toBe(7);
 	const height = await plotHeight();
 	console.log(
 		`plot height, minimum size ${chartType.minSize.w}×${chartType.minSize.h}: ${height}px`

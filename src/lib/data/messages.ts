@@ -13,7 +13,8 @@ const UNAVAILABLE: Record<UnavailableReason, () => string> = {
 	"point-outside": m.data_unavailable_point_outside,
 	"monitor-unlisted": m.data_unavailable_monitor_unlisted,
 	"whole-layer-raw": m.data_unavailable_whole_layer_raw,
-	"filter-gone": m.data_unavailable_filter_gone
+	"filter-gone": m.data_unavailable_filter_gone,
+	"none-measure": m.data_unavailable_none_measure
 };
 
 /** The message a widget shows for an `unavailable` query state. */

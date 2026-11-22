@@ -2,34 +2,38 @@
  * Get data for the Map: its pollutants, smoke and fire, spray notices and pesticide use, and
  * converting a draft to and from it.
  */
+import { everyMonitorType } from "$lib/data/layer-kind";
 import type { CatalogEntry, Level } from "$lib/data/metadata";
 import type { DateRangeSpec, Layer, PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
 import { addDays, parseDateKey } from "$lib/format";
 import { resolveRange } from "$lib/format/range";
-import { fromLayer } from "$lib/places/selection";
+import { fromWhere } from "$lib/places/selection";
 import { mapType } from "$lib/widgets/map";
 import {
 	AIR_QUALITY,
 	HMS_FIRE,
 	HMS_SMOKE,
 	MAP_MAX_STOPS,
-	MAP_POLLUTANTS_MAX,
 	MAP_TYPE,
 	PESTICIDE_NOTICES,
 	PESTICIDE_USE,
-	drawableShowing,
 	mapOptions,
-	pollutantLayers,
+	pollutantLayer,
 	useFigureOf,
 	type MapOptions
 } from "$lib/widgets/map/options";
 import { CHART_TYPE } from "$lib/widgets/chart";
 import { getWidgetType, type WidgetType } from "$lib/widgets/registry";
 import { mapLevel, type MapLevel } from "$lib/widgets/map/days";
-import { mainLayer, widgetEffective, widgetPlaceKind } from "$lib/widgets/shared/input";
+import {
+	isStripLayer,
+	mainLayer,
+	widgetEffective,
+	widgetPlaceKind,
+	widgetWhere
+} from "$lib/widgets/shared/input";
 import { blockedBySpan } from "./date-presets";
 import type { Draft } from "./draft.svelte";
-import { keepingPlaces } from "./layers";
 import {
 	fromNowDraft,
 	isDefaultRange,
@@ -38,33 +42,7 @@ import {
 	type NowDropped
 } from "./now";
 
-export { HMS_FIRE, HMS_SMOKE, MAP_POLLUTANTS_MAX } from "$lib/widgets/map/options";
-
-/**
- * Adds or removes an air-quality layer of `entryType`. The places stay on the first pollutant
- * layer (they move on when it's removed); the last pollutant can't be removed and no more than
- * `MAP_POLLUTANTS_MAX` fit. Pollutants stay ahead of smoke and fire.
- */
-export function setMapPollutant(
-	data: WidgetDataConfig,
-	catalog: CatalogEntry[] | undefined,
-	entryType: string,
-	on: boolean
-): void {
-	const pollutants = pollutantLayers(data, catalog);
-	const existing = pollutants.find((l) => l.entryType === entryType);
-	if (on && !existing) {
-		if (pollutants.length >= MAP_POLLUTANTS_MAX) return;
-		const last = pollutants[pollutants.length - 1];
-		const at = last ? data.layers.indexOf(last) + 1 : data.layers.length;
-		keepingPlaces(data, catalog, () =>
-			data.layers.splice(at, 0, { dataset: AIR_QUALITY, entryType })
-		);
-	} else if (!on && existing) {
-		if (pollutants.length <= 1) return;
-		keepingPlaces(data, catalog, () => data.layers.splice(data.layers.indexOf(existing), 1));
-	}
-}
+export { HMS_FIRE, HMS_SMOKE } from "$lib/widgets/map/options";
 
 /** Fills the Map's regions by `type` (a region type id), or with none (`undefined`). */
 export function setMapFill(draft: Draft, type: string | undefined): void {
@@ -113,16 +91,18 @@ function copyFilters(filters: PesticideFilters): PesticideFilters {
 	) as PesticideFilters;
 }
 
-/** Whether `layer` holds no places (a Map's pesticide layers never do). */
-function placeLess(layer: Layer): boolean {
-	return !layer.place && !layer.selection;
+/**
+ * Whether `layer` is the Map's own pesticide use layer: one with no entry type (its figure is the
+ * `useFigure` option). A Chart's use layer has one. An untrusted Chart pesticide layer with no
+ * entry type (from a share link or an import) counts as the Map's use too.
+ */
+function isMapUse(layer: Layer): boolean {
+	return layer.dataset === PESTICIDE_USE && !layer.entryType;
 }
 
-/** Whether `layer` is the Map's notices layer or its (place-less) use layer. */
+/** Whether `layer` is the Map's notices layer or its own use layer. */
 function isMapPesticide(layer: Layer): boolean {
-	return (
-		layer.dataset === PESTICIDE_NOTICES || (layer.dataset === PESTICIDE_USE && placeLess(layer))
-	);
+	return layer.dataset === PESTICIDE_NOTICES || isMapUse(layer);
 }
 
 /**
@@ -133,7 +113,7 @@ export function setNotices(data: WidgetDataConfig, on: boolean): void {
 	if (on) {
 		if (hasNotices(data)) return;
 		const filters = mapPesticideFilters(data);
-		const at = data.layers.findIndex((l) => l.dataset === PESTICIDE_USE && placeLess(l));
+		const at = data.layers.findIndex(isMapUse);
 		data.layers.splice(at < 0 ? data.layers.length : at, 0, {
 			dataset: PESTICIDE_NOTICES,
 			...(filters ? { filters: copyFilters(filters) } : {})
@@ -143,9 +123,9 @@ export function setNotices(data: WidgetDataConfig, on: boolean): void {
 	}
 }
 
-/** Whether `data` has the Map's pesticide use layer (place-less; a chart's never counts). */
+/** Whether `data` has the Map's own pesticide use layer (a chart's never counts). */
 export function hasUse(data: WidgetDataConfig): boolean {
-	return data.layers.some((l) => l.dataset === PESTICIDE_USE && placeLess(l));
+	return data.layers.some(isMapUse);
 }
 
 /** The use options, which go with the use layer. */
@@ -173,12 +153,12 @@ export function setUse(draft: Draft, on: boolean): void {
 		return;
 	}
 	const options = { ...mapOptions(draft) };
-	data.layers = data.layers.filter((l) => !(l.dataset === PESTICIDE_USE && placeLess(l)));
+	data.layers = data.layers.filter((l) => !isMapUse(l));
 	for (const key of USE_OPTIONS) delete options[key];
 	writeOptions(draft, options);
 }
 
-/** The layers that take the Map's pesticide filters: the notices and the place-less use. */
+/** The layers that take the Map's pesticide filters: the notices and the Map's own use. */
 function pesticideLayers(data: WidgetDataConfig): Layer[] {
 	return data.layers.filter(isMapPesticide);
 }
@@ -207,11 +187,9 @@ export function setMapPesticideFilters(
 /**
  * Whether `draft` already has the Map's shape, so opening it as a Map converts nothing: no day
  * selection and no date range the Map's span rules out at its resolution (`mapLevelOf`, with
- * `catalog`; none is Now); one to
- * `MAP_POLLUTANTS_MAX` air-quality layers first, the first holding at most `maxPlaces` places and
- * the others none; then only place-less smoke and fire layers, then at most one spray notices
- * layer and, last, at most one use layer (each place-less, with no entry type, and optional
- * filters).
+ * `catalog`; none is Now); zero or one air-quality layer first, and at most `maxPlaces` places in
+ * its Where; then only smoke and fire layers, then at most one spray notices layer and, last, at
+ * most one use layer (each with no entry type, and optional filters).
  */
 export function isMapShaped(
 	draft: Draft,
@@ -227,10 +205,9 @@ export function isMapShaped(
 	const count = data.layers.findIndex((l) => l.dataset !== AIR_QUALITY);
 	const pollutants = count < 0 ? data.layers : data.layers.slice(0, count);
 	const rest = count < 0 ? [] : data.layers.slice(count);
-	if (pollutants.length < 1 || pollutants.length > MAP_POLLUTANTS_MAX) return false;
+	if (pollutants.length > 1) return false;
 	if (pollutants.some((l) => !l.entryType)) return false;
-	if (fromLayer(pollutants[0]).length > (mapType.accepts?.maxPlaces ?? 1)) return false;
-	if (pollutants.slice(1).some((l) => fromLayer(l).length > 0)) return false;
+	if (fromWhere(data).length > (mapType.accepts?.maxPlaces ?? 1)) return false;
 	// Smoke and fire, then the notices, then the use, each a step that never goes back.
 	const step = (l: Layer) =>
 		isHms(l) ? 0 : l.dataset === PESTICIDE_NOTICES ? 1 : l.dataset === PESTICIDE_USE ? 2 : -1;
@@ -238,15 +215,15 @@ export function isMapShaped(
 	for (const layer of rest) {
 		const at = step(layer);
 		if (at < last || (at > 0 && at === last)) return false;
-		if (layer.entryType || !placeLess(layer) || fromLayer(layer).length > 0) return false;
+		if (layer.entryType) return false;
 		last = at;
 	}
 	return true;
 }
 
-/** The Map's own use layer: the place-less one. */
+/** The Map's own use layer. */
 function mapUseLayer(data: WidgetDataConfig): Layer | undefined {
-	return data.layers.find((l) => l.dataset === PESTICIDE_USE && placeLess(l));
+	return data.layers.find(isMapUse);
 }
 
 /**
@@ -268,7 +245,7 @@ export function mapLevelOf(
 	range: DateRangeSpec,
 	now: Date
 ): MapLevel {
-	const place = widgetPlaceKind(data, catalog);
+	const place = widgetPlaceKind(data);
 	return mapLevel(widgetEffective({ type: MAP_TYPE, data }, catalog, place, range, now).resolution);
 }
 
@@ -312,19 +289,33 @@ function mapRange(
 }
 
 /**
- * `draft` (any type) as a Map: the source's pollutant (or the first offered), its places (≤ 25),
+ * A draft becoming a Map with no monitors of its own (no ticked types, no searched monitors) is a
+ * new Map: its air-quality layer ticks every monitor type (`everyMonitorType`, spec decision 8). A
+ * draft with ticks or searched monitors keeps them. Nothing is ticked when the catalog lacks them.
+ */
+export function tickEveryTypeIfNone(data: WidgetDataConfig, catalog: CatalogEntry[]): void {
+	const layer = data.layers.find((l) => l.dataset === AIR_QUALITY && l.entryType);
+	if (!layer || layer.monitors?.length || layer.monitorTypes?.length) return;
+	const types = everyMonitorType(catalog);
+	if (types.length > 0) layer.monitorTypes = types;
+}
+
+/**
+ * `draft` (any type) as a Map: the source's pollutant (the first offered when the Map doesn't
+ * offer it, or for a Forecast strip; none when the source has none: None, or only other data,
+ * whose ticks and searched monitors under None are kept), its places (≤ 25),
  * smoke and fire on when the source had a smoke layer, and the range the person chose
  * (`chosenRange`, then `mapRange`: cut to the Map's 366 stops at its resolution with a
  * `"range-cut"` note and `cutAt`, the level; none,
  * or a default range, is Now). A day selection is dropped with
- * a `"selection"` note. A Map draft (one opened over its place cap, say) keeps its other offered
- * pollutants, its smoke and fire, its notices and use, and its options.
+ * a `"selection"` note. A Map draft (one opened over its place cap, say) keeps its one pollutant,
+ * its smoke and fire, its notices and use, and its options.
  *
  * From another type, the first pesticide use layer becomes the Map's use: its filters are the
  * Map's filter set and its entry type the `useFigure` (unless it's the catalog's first, the
  * default); the source's range is kept even when it's the type's untouched default, since use
  * isn't drawn on Now. Other use layers are left out (`"overlays"`). A chart of pesticide use only
- * gets the first offered pollutant, holding its places. The Map's resolution (and so its cut) is
+ * gets no pollutant. The Map's resolution (and so its cut) is
  * that of the layers it ends with.
  */
 export function toMapDraft(
@@ -335,21 +326,30 @@ export function toMapDraft(
 ): NowConversion {
 	const converted = toNowDraft(draft, mapType, catalog, [], undefined, allowed);
 	const data = converted.draft.data;
-	const selection = draft.data.timeSubRange;
-	const first = data.layers[0];
-	const fromMap = draft.type === MAP_TYPE;
 	const kept = new Set<Layer>();
+	// A source with no pollutant (None, or only other data; a Forecast strip's forecasts aside)
+	// gets none on the Map either (decision 6). An air-quality layer kept with None keeps its
+	// ticks and searched monitors (decision 31).
+	const aq = draft.data.layers.find((l) => l.dataset === AIR_QUALITY);
+	const strip = draft.data.layers.length === 1 && isStripLayer(draft.data, draft.data.layers[0]);
+	const noPollutant = !aq?.entryType && !strip;
+	if (noPollutant) {
+		const none: Layer = {
+			dataset: AIR_QUALITY,
+			...(aq?.monitors?.length ? { monitors: [...aq.monitors] } : {}),
+			...(aq?.monitorTypes?.length ? { monitorTypes: [...aq.monitorTypes] } : {})
+		};
+		data.layers = none.monitors || none.monitorTypes ? [none] : [];
+		if (aq) kept.add(aq);
+	}
+	// From another type it's a new Map; a Map's own ticks (or none) are kept.
+	if (draft.type !== MAP_TYPE) tickEveryTypeIfNone(data, catalog);
+	const selection = draft.data.timeSubRange;
+	const fromMap = draft.type === MAP_TYPE;
 	if (fromMap) {
-		const sources = pollutantLayers(draft.data, catalog);
-		// The first is the converted layer's source (its places and pollutant).
-		if (sources[0]) kept.add(sources[0]);
-		for (const layer of sources.slice(1)) {
-			const entryType = layer.entryType;
-			if (!entryType || !allowed.includes(entryType) || entryType === first?.entryType) continue;
-			if (data.layers.length >= MAP_POLLUTANTS_MAX) break;
-			data.layers.push({ dataset: AIR_QUALITY, entryType });
-			kept.add(layer);
-		}
+		// The converted layer's source (its pollutant).
+		const source = pollutantLayer(draft.data, catalog);
+		if (source) kept.add(source);
 	}
 	if (draft.data.layers.some(isHms)) setSmokeAndFire(data, true);
 	const notices = fromMap
@@ -377,14 +377,16 @@ export function toMapDraft(
 	const level = shown ? mapLevelOf(data, catalog, shown, now) : "day";
 	const range = shown ? mapRange(shown, now, level) : {};
 	if (range.range) data.dateRange = range.range;
-	// The places' layer, the pollutants kept, smoke (carried over as smoke and fire) and the use
+	// The source layer, the pollutants kept, smoke (carried over as smoke and fire) and the use
 	// taken aren't left out.
 	const source = mainLayer(draft.data, catalog) ?? draft.data.layers[0];
+	// With no pollutant, nothing takes the source layer's place, so it counts as left out too.
 	const others = draft.data.layers.some(
-		(l) => l !== source && !kept.has(l) && !isHms(l) && l !== notices && l !== use
+		(l) => (noPollutant || l !== source) && !kept.has(l) && !isHms(l) && l !== notices && l !== use
 	);
-	// A use-only chart's use is kept as the Map's: the pollutant it gets replaces nothing.
-	const replaced = !(use && source === use);
+	// A pollutant replaces the source layer only when the Map has one and the source wasn't the
+	// use, which the Map keeps as its own.
+	const replaced = !noPollutant && !(use && source === use);
 	const dropped: NowDropped[] = converted.dropped.filter(
 		(d) => d !== "dates" && (d !== "overlays" || others) && (d !== "pollutant" || replaced)
 	);
@@ -404,23 +406,19 @@ export function toMapDraft(
 }
 
 /**
- * A Map draft cut to one layer: its first pollutant layer (holding the places) as the pollutant
- * showing, over its range (if it has one), with no options. `dropped` says when other pollutants
- * or smoke and fire were left out (`"overlays"`), when marks were (`"marks"`) and when a
- * region fill was (`"fill"`).
+ * A Map draft cut to its pollutant (no layers with none), at its Where, over its range (if it has
+ * one), with no options. `dropped` says when other layers (smoke and fire, notices, use) were left
+ * out (`"overlays"`), when marks were (`"marks"`) and when a region fill was (`"fill"`).
  */
 export function mapShowingOnly(
 	draft: Draft,
-	catalog: CatalogEntry[],
-	drawable: readonly string[] | undefined
+	catalog: CatalogEntry[]
 ): { draft: Draft; dropped: NowDropped[] } {
 	const options = mapOptions(draft);
-	const pollutants = pollutantLayers(draft.data, catalog);
-	const showing = drawableShowing(draft.data, options, catalog, drawable);
-	const first = pollutants[0] ?? draft.data.layers[0];
-	const layer: Layer = structuredClone({ ...first, ...(showing ? { entryType: showing } : {}) });
+	const pollutant = pollutantLayer(draft.data, catalog);
+	const layer: Layer | undefined = pollutant ? structuredClone({ ...pollutant }) : undefined;
 	const dropped: NowDropped[] = [];
-	if (draft.data.layers.length > 1) dropped.push("overlays");
+	if (draft.data.layers.some((l) => l !== pollutant)) dropped.push("overlays");
 	if (options.marks?.length) dropped.push("marks");
 	if (options.fill) dropped.push("fill");
 	return {
@@ -428,7 +426,8 @@ export function mapShowingOnly(
 			type: draft.type,
 			data: {
 				...(draft.data.dateRange ? { dateRange: structuredClone(draft.data.dateRange) } : {}),
-				layers: first ? [layer] : []
+				...widgetWhere(draft.data),
+				layers: layer ? [layer] : []
 			},
 			...(draft.thresholds ? { thresholds: structuredClone(draft.thresholds) } : {})
 		},
@@ -437,7 +436,7 @@ export function mapShowingOnly(
 }
 
 /**
- * A Map draft as `type`: the pollutant showing at the places; smoke, fire and marks dropped with
+ * A Map draft as `type`: its pollutant at the places; smoke, fire and marks dropped with
  * notes. A now type then follows its own rules (`toNowDraft`, with `levels`: the alert level's
  * scale, or `"unavailable"` to leave the default owed; a range is left out with a note); a range
  * type takes the Map's range when it fits the type's span (else, and for a Map on Now, the
@@ -453,10 +452,9 @@ export function fromMapDraft(
 	type: WidgetType,
 	catalog: CatalogEntry[],
 	levels: Level[] | "unavailable" = "unavailable",
-	drawable?: readonly string[],
 	now: Date = new Date()
 ): NowConversion {
-	const one = mapShowingOnly(draft, catalog, drawable);
+	const one = mapShowingOnly(draft, catalog);
 	// `type` is never the Map (Map to Map goes through `toMapDraft`), so a now type here is one.
 	const converted =
 		type.time === "now"
@@ -478,8 +476,8 @@ export function fromMapDraft(
 	let dropped = [...one.dropped];
 	if (use && type.type === CHART_TYPE && figure) {
 		// The use has its own outcome, so "overlays" stays only for the other layers left out.
-		const first = pollutantLayers(draft.data, catalog)[0] ?? draft.data.layers[0];
-		const others = draft.data.layers.some((l) => l !== first && l !== use);
+		const pollutant = pollutantLayer(draft.data, catalog);
+		const others = draft.data.layers.some((l) => l !== pollutant && l !== use);
 		if (!others) dropped = dropped.filter((d) => d !== "overlays");
 		converted.draft.data.layers.push({
 			dataset: PESTICIDE_USE,

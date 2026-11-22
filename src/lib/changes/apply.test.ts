@@ -25,11 +25,11 @@ function makeDoc(overrides: Partial<Dashboard> = {}): Dashboard {
 const emptyData: WidgetDataConfig = { layers: [] };
 const otherData: WidgetDataConfig = {
 	dateRange: { kind: "trailing", amount: 7, unit: "day" },
+	place: { kind: "region", type: "county", code: "06019" },
 	layers: [
 		{
 			dataset: "air-quality",
-			entryType: "pm25",
-			place: { kind: "region", type: "county", code: "06019" }
+			entryType: "pm25"
 		}
 	]
 };

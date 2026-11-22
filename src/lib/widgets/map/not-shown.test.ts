@@ -5,11 +5,7 @@ import type { Layer, WidgetDataConfig } from "$lib/data/schema";
 import { m } from "$lib/paraglide/messages.js";
 import { mapNotShown, notShownNotes } from "./not-shown";
 
-const pm25: Layer = {
-	dataset: "air-quality",
-	entryType: "pm25",
-	place: { kind: "monitor", id: "a" }
-};
+const pm25: Layer = { dataset: "air-quality", entryType: "pm25" };
 const smoke: Layer = { dataset: "hms-smoke" };
 const fire: Layer = { dataset: "hms-fire" };
 const use: Layer = { dataset: "pesticide-use" };

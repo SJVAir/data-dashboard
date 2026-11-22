@@ -6,19 +6,17 @@
 	import { layerKind } from "$lib/data/layer-kind";
 	import { unavailableMessage } from "$lib/data/messages";
 	import type { QueryData } from "$lib/data/types";
-	import { fromLayer } from "$lib/places/selection";
 	import type { WidgetInstance } from "$lib/documents/schema";
-	import { formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
 	import { DataWidget, type WidgetOverlay } from "../shared/data-widget.svelte";
-	import { misfitNotes } from "../shared/misfit-notes";
-	import { overlayPlaceFor, sharedSource } from "../shared/overlays";
+	import { misfitNotes, noWhereNotes } from "../shared/misfit-notes";
+	import { lineRefs, overlayPlaceFor, sharedSource } from "../shared/overlays";
 	import { sourceLabel } from "../shared/source-label";
 	import WidgetState from "../shared/WidgetState.svelte";
+	import { idleText, offersChoosePlace } from "../shared/idle-text";
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 	import { placeLabel } from "../title";
-	import { chartType } from "./index";
 
 	let { widget }: { widget: WidgetInstance } = $props();
 
@@ -26,8 +24,7 @@
 	/** Whether notes can point at Edit data: the dashboard isn't read-only. */
 	const editable = $derived(!!app.current.session && !app.current.session.readOnly);
 
-	const MAX_PLACES = chartType.accepts?.maxPlaces ?? 5;
-	const w = new DataWidget(() => widget, MAX_PLACES);
+	const w = new DataWidget(() => widget);
 
 	/** The pesticide-use dataset: its empty range has its own wording (nothing was reported). */
 	const PESTICIDE_USE = "pesticide-use";
@@ -53,7 +50,8 @@
 	 * overlay as one place's strip (the saved "Overlay for" place, or the first, when the places'
 	 * overlays differ), every one at the dataset's resolution. A level overlay with none or that
 	 * failed gets a note; a number overlay shows why in its strip's place, so the main chart is
-	 * never affected. Overlays still loading, not fetched (a misfit: `misfitNotes` says why), or
+	 * never affected. Overlays still loading, not fetched (a misfit or a main with no Where:
+	 * `misfitNotes` and `noWhereNotes` say why), or
 	 * whose dataset the catalog doesn't list, show nothing yet.
 	 */
 	function drawn(overlays: WidgetOverlay[], main: QueryData) {
@@ -90,7 +88,7 @@
 			const { places, series } = s.data;
 			const key = sharedSource(series)
 				? (places[0]?.place ?? "")
-				: overlayPlaceFor(widget.options, places, fromLayer(input.layer));
+				: overlayPlaceFor(widget.options, places, lineRefs(input.layer));
 			const info = places.find((p) => p.place === key);
 			if (!info) continue;
 			const place = placeLabel(info, w.viewer);
@@ -124,19 +122,18 @@
 </script>
 
 <div class="flex h-full flex-col">
-	{#if w.picked.hidden > 0}
-		<p class="bg-muted text-muted-foreground mb-2 rounded-(--radius-control) px-2 py-1 text-sm">
-			{m.chart_hidden_places({ count: formatNumber(w.picked.hidden), countValue: w.picked.hidden })}
-		</p>
-	{/if}
 	<div class="min-h-0 flex-1">
 		<WidgetState
 			state={w.shown}
 			{widget}
 			retired={w.retired}
+			pollutant={w.meta?.entryType.label}
 			onretry={w.retry}
-			onchoose={() => openPlacePicker({ widgetId: widget.id })}
+			onchoose={offersChoosePlace(w.picked.empty)
+				? () => openPlacePicker({ widgetId: widget.id })
+				: undefined}
 			emptyText={pesticideMain ? m.data_none_pesticides() : undefined}
+			idleText={idleText(w.picked.empty)}
 		>
 			{#snippet children(data)}
 				{@const overlays = drawn(w.overlays, data)}
@@ -151,6 +148,7 @@
 					overlays={overlays.bands}
 					notes={[
 						...misfitNotes(w.overlays, w.picked.effective, editable),
+						...noWhereNotes(w.overlays, w.picked.input),
 						...overlays.notes,
 						...(threshold.missing ? [m.chart_level_line_missing()] : [])
 					]}

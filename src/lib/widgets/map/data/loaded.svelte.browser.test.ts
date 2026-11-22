@@ -127,11 +127,11 @@ const WIDGET: WidgetInstance = {
 	title: null,
 	rect: { x: 0, y: 0, w: 4, h: 4 },
 	data: {
+		place: { kind: "region", type: "county", code: "fresno" },
 		layers: [
 			{
 				dataset: "air-quality",
-				entryType: "pm25",
-				place: { kind: "region", type: "county", code: "fresno" }
+				entryType: "pm25"
 			},
 			{ dataset: "hms-smoke" },
 			{ dataset: "hms-fire" }

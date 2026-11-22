@@ -19,8 +19,7 @@ import { PESTICIDE_USE } from "$lib/widgets/map/options";
 import { DATA_TABLE_TYPE, dataTableType } from "$lib/widgets/table";
 import { hasPoints, pointSwaps } from "$lib/sharing/points";
 import { navigate } from "../../../router";
-import { registerWidgetType } from "$lib/widgets/registry";
-import { overCap } from "./hand-off";
+import { typeBlock } from "$lib/get-data/offer";
 import { setMapSend } from "./send-registry";
 import { runShowIn, showInItems } from "./show-in-items";
 import {
@@ -41,6 +40,8 @@ vi.mock("$lib/data", async (original) => ({
 		mapPollutants: async () => DRAWABLE
 	})
 }));
+const areaOf = vi.fn(async (): Promise<unknown> => null);
+vi.mock("$lib/starter/area", () => ({ starterAreaOf: () => areaOf() }));
 const toastError = vi.fn();
 vi.mock("svelte-sonner", () => ({ toast: { error: (...a: unknown[]) => toastError(...a) } }));
 
@@ -74,8 +75,9 @@ const send = (ids: string[], leftOut = 0): MapSend => ({ kind: "monitors", ids, 
 const mapDraft = (pollutants: string[], options?: Draft["options"]): Draft => {
 	const data: WidgetDataConfig = {
 		dateRange: { kind: "set", unit: "month", start: "2026-09-01" },
+		place: FRESNO,
 		layers: [
-			{ dataset: "air-quality", entryType: pollutants[0], place: FRESNO },
+			{ dataset: "air-quality", entryType: pollutants[0] },
 			...pollutants.slice(1).map((entryType) => ({ dataset: "air-quality", entryType }))
 		]
 	};
@@ -84,8 +86,7 @@ const mapDraft = (pollutants: string[], options?: Draft["options"]): Draft => {
 
 /** A Map with every overlay: smoke and fire, notices, use (filtered), a fill and marks. */
 const fullMap = (): Draft => {
-	const d = mapDraft(["pm25", "o3"], {
-		showing: "o3",
+	const d = mapDraft(["o3"], {
 		fill: "zipcode",
 		marks: ["m1", "m2"],
 		useFigure: "acres-treated"
@@ -98,73 +99,76 @@ const fullMap = (): Draft => {
 };
 
 describe("showInDraft: monitors", () => {
-	it("is fromMapDraft's Chart with the main layer's places swapped for the ids, in order", () => {
+	it("is fromMapDraft's Chart with the ids as its air-quality layer's monitors, in order", () => {
 		const map = mapDraft(["pm25"]);
-		const shown = fromMapDraft(map, chartType, CATALOG, "unavailable", DRAWABLE, NOW).draft;
-		const h = showInDraft(map, send(["m3", "m1"]), chartType, CATALOG, DRAWABLE, NOW);
-		const [main, ...rest] = shown.data.layers;
-		// eslint-disable-next-line @typescript-eslint/no-unused-vars -- swapped below
-		const { place, ...bare } = main;
+		const shown = fromMapDraft(map, chartType, CATALOG, "unavailable", NOW).draft;
+		const h = showInDraft(map, send(["m3", "m1"]), chartType, CATALOG, NOW);
 		expect(h.draft).toEqual({
 			...shown,
 			data: {
 				...shown.data,
-				layers: [{ ...bare, selection: { kind: "monitors", ids: ["m3", "m1"] } }, ...rest]
+				layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m3", "m1"] }]
 			}
 		});
 		expect(h.draft.type).toBe(CHART_TYPE);
 	});
 
-	it("one id gives a place, several a monitors selection", () => {
-		const one = showInDraft(mapDraft(["pm25"]), send(["m7"]), chartType, CATALOG, DRAWABLE, NOW);
-		expect(one.draft.data.layers[0].place).toEqual({ kind: "monitor", id: "m7" });
-		expect(one.draft.data.layers[0].selection).toBeUndefined();
-		const two = showInDraft(mapDraft(["pm25"]), send(["a", "b"]), chartType, CATALOG, [], NOW);
-		expect(two.draft.data.layers[0].place).toBeUndefined();
-		expect(two.draft.data.layers[0].selection).toEqual({ kind: "monitors", ids: ["a", "b"] });
+	it("show in: marks arrive as the Chart's searched monitors with the Map's Where", () => {
+		const map = mapDraft(["pm25"]);
+		map.data.layers[0].monitorTypes = ["purpleair", "airnow"];
+		const h = showInDraft(map, send(["m7", "m2"]), chartType, CATALOG, NOW);
+		expect(h.draft.data.place).toEqual(FRESNO);
+		expect(h.draft.data.selection).toBeUndefined();
+		// The marks, not every monitor the Map's ticked types draw.
+		expect(h.draft.data.layers[0]).toEqual({
+			dataset: "air-quality",
+			entryType: "pm25",
+			monitors: ["m7", "m2"]
+		});
 	});
 
-	it("is over the cap past 5 for a Chart and 10 for a Table, keeping every id", () => {
-		registerWidgetType(chartType);
-		registerWidgetType(dataTableType);
+	it("show in: 30 marks open the Chart with all 30, no keep dialog", () => {
 		const at = (n: number, type = chartType) =>
-			showInDraft(mapDraft(["pm25"]), send(monitors(n)), type, CATALOG, DRAWABLE, NOW);
-		expect(overCap(at(5).draft)).toBe(false);
-		expect(overCap(at(6).draft)).toBe(true);
-		expect(at(6).draft.data.layers[0].selection).toEqual({ kind: "monitors", ids: monitors(6) });
-		expect(overCap(at(10, dataTableType).draft)).toBe(false);
-		expect(overCap(at(11, dataTableType).draft)).toBe(true);
+			showInDraft(mapDraft(["pm25"]), send(monitors(n)), type, CATALOG, NOW);
+		const chart = at(30);
+		expect(chart.draft.type).toBe(CHART_TYPE);
+		expect(chart.draft.data.layers[0].monitors).toEqual(monitors(30));
+		// Nothing over a cap: a Chart and a Table take every place, so nothing asks which to keep.
+		expect(typeBlock(chartType, chart.draft.data, CATALOG, NOW)).toBeNull();
+		const table = at(30, dataTableType);
+		expect(table.draft.data.layers[0].monitors).toEqual(monitors(30));
+		expect(typeBlock(dataTableType, table.draft.data, CATALOG, NOW)).toBeNull();
 	});
 
 	it("carries the left-out count and no skip", () => {
-		const h = showInDraft(mapDraft(["pm25"]), send(["m1"], 3), chartType, CATALOG, [], NOW);
+		const h = showInDraft(mapDraft(["pm25"]), send(["m1"], 3), chartType, CATALOG, NOW);
 		expect(h.leftOut).toBe(3);
 		expect(h.skip).toBeUndefined();
 	});
 
 	it("an Automatic Map gives no resolution; a Now Map gives the Chart's default range", () => {
-		const auto = showInDraft(mapDraft(["pm25"]), send(["m1"]), chartType, CATALOG, [], NOW);
+		const auto = showInDraft(mapDraft(["pm25"]), send(["m1"]), chartType, CATALOG, NOW);
 		expect(auto.draft.data.resolution).toBeUndefined();
 		expect(auto.draft.data.dateRange).toEqual({ kind: "set", unit: "month", start: "2026-09-01" });
 		const onNow = mapDraft(["pm25"]);
 		delete onNow.data.dateRange;
-		const now = showInDraft(onNow, send(["m1"]), dataTableType, CATALOG, [], NOW);
+		const now = showInDraft(onNow, send(["m1"]), dataTableType, CATALOG, NOW);
 		expect(now.draft.data.dateRange).toEqual(DEFAULT_RANGE);
 	});
 
 	it("a Monthly Map gives a Monthly Chart and Table, as Show as does (fromMapDraft)", () => {
 		const monthly = mapDraft(["pm25"]);
 		monthly.data.resolution = "month";
-		const shown = fromMapDraft(monthly, chartType, CATALOG, "unavailable", [], NOW).draft;
-		const h = showInDraft(monthly, send(["m1"]), chartType, CATALOG, [], NOW);
+		const shown = fromMapDraft(monthly, chartType, CATALOG, "unavailable", NOW).draft;
+		const h = showInDraft(monthly, send(["m1"]), chartType, CATALOG, NOW);
 		expect(h.draft.data.resolution).toEqual(shown.data.resolution);
 		expect(h.draft.data.resolution).toBe("month");
-		const table = showInDraft(monthly, send(["m1"]), dataTableType, CATALOG, [], NOW);
+		const table = showInDraft(monthly, send(["m1"]), dataTableType, CATALOG, NOW);
 		expect(table.draft.data.resolution).toBe("month");
 	});
 
 	it("leaves out smoke and fire, notices, fill and marks; use reaches a Chart, not a Table", () => {
-		const chart = showInDraft(fullMap(), send(["m1", "m2"]), chartType, CATALOG, DRAWABLE, NOW);
+		const chart = showInDraft(fullMap(), send(["m1", "m2"]), chartType, CATALOG, NOW);
 		expect(chart.draft.data.layers.map((l) => l.dataset)).toEqual(["air-quality", PESTICIDE_USE]);
 		expect(chart.draft.data.layers[1]).toEqual({
 			dataset: PESTICIDE_USE,
@@ -172,41 +176,29 @@ describe("showInDraft: monitors", () => {
 			filters: { chemical: "c1", category: ["A"] }
 		});
 		expect(chart.draft.options).toBeUndefined();
-		const table = showInDraft(fullMap(), send(["m1", "m2"]), dataTableType, CATALOG, DRAWABLE, NOW);
+		const table = showInDraft(fullMap(), send(["m1", "m2"]), dataTableType, CATALOG, NOW);
 		expect(table.draft.data.layers.map((l) => l.dataset)).toEqual(["air-quality"]);
 		expect(table.draft.options).toBeUndefined();
 	});
 
-	it("the pollutant is the passed draft's showing (a viewer's held one), as the Map draws it", () => {
-		const saved = mapDraft(["pm25", "o3"]);
-		const held = mapDraft(["pm25", "o3"], { showing: "o3" });
-		const at = (d: Draft) =>
-			showInDraft(d, send(["m1"]), chartType, CATALOG, DRAWABLE, NOW).draft.data.layers[0]
-				.entryType;
-		expect(at(saved)).toBe("pm25");
-		expect(at(held)).toBe("o3");
-		// A showing the Map can't draw falls back to the pollutant it draws.
-		expect(at(mapDraft(["pm25", "pm10"], { showing: "pm10" }))).toBe("pm25");
-	});
-
 	it("carries the conversion's notes, less the marks and places ones", () => {
 		const map = fullMap();
-		const converted = fromMapDraft(map, chartType, CATALOG, "unavailable", DRAWABLE, NOW);
+		const converted = fromMapDraft(map, chartType, CATALOG, "unavailable", NOW);
 		expect(converted.dropped).toEqual(expect.arrayContaining(["marks", "fill"]));
-		const h = showInDraft(map, send(monitors(6)), chartType, CATALOG, DRAWABLE, NOW);
+		const h = showInDraft(map, send(monitors(6)), chartType, CATALOG, NOW);
 		expect(h.notes?.dropped).toEqual(
 			converted.dropped.filter((d) => d !== "marks" && d !== "places")
 		);
 		expect(h.notes?.dropped).toContain("fill");
 		// A plain Map's conversion leaves nothing out.
-		const plain = showInDraft(mapDraft(["pm25"]), send(["m1"]), chartType, CATALOG, [], NOW);
+		const plain = showInDraft(mapDraft(["pm25"]), send(["m1"]), chartType, CATALOG, NOW);
 		expect(plain.notes).toEqual({ dropped: [] });
 	});
 
 	it("never changes the passed draft", () => {
 		const map = fullMap();
 		const before = structuredClone(map);
-		showInDraft(map, send(["m1", "m2"]), chartType, CATALOG, DRAWABLE, NOW);
+		showInDraft(map, send(["m1", "m2"]), chartType, CATALOG, NOW);
 		expect(map).toEqual(before);
 	});
 });
@@ -215,18 +207,18 @@ describe("showInDraft: a section", () => {
 	it("is a Chart of the figure drawn at the section, over the Map's range and resolution", () => {
 		const map = fullMap();
 		map.data.resolution = "month";
-		const h = showInDraft(map, { kind: "section", code: "M15S20E07" }, chartType, CATALOG, [], NOW);
+		const h = showInDraft(map, { kind: "section", code: "M15S20E07" }, chartType, CATALOG, NOW);
 		expect(h).toEqual({
 			draft: {
 				type: CHART_TYPE,
 				data: {
 					dateRange: { kind: "set", unit: "month", start: "2026-09-01" },
 					resolution: "month",
+					place: { kind: "region", type: "mtrs", code: "M15S20E07" },
 					layers: [
 						{
 							dataset: PESTICIDE_USE,
 							entryType: "acres-treated",
-							place: { kind: "region", type: "mtrs", code: "M15S20E07" },
 							filters: { chemical: "c1", category: ["A"] }
 						}
 					]
@@ -239,20 +231,17 @@ describe("showInDraft: a section", () => {
 	it("an Automatic Map stays Automatic; no filters, none copied", () => {
 		const map = mapDraft(["pm25"]);
 		setUse(map, true);
-		const h = showInDraft(map, { kind: "section", code: "X" }, chartType, CATALOG, [], NOW);
+		const h = showInDraft(map, { kind: "section", code: "X" }, chartType, CATALOG, NOW);
 		expect(h.draft.data.resolution).toBeUndefined();
-		expect(h.draft.data.layers[0]).toEqual({
-			dataset: PESTICIDE_USE,
-			entryType: "pounds-applied",
-			place: { kind: "region", type: "mtrs", code: "X" }
-		});
+		expect(h.draft.data.layers[0]).toEqual({ dataset: PESTICIDE_USE, entryType: "pounds-applied" });
+		expect(h.draft.data.place).toEqual({ kind: "region", type: "mtrs", code: "X" });
 	});
 
 	it("a Map with no range gives a Chart (whatever the type) over its default range, at Automatic", () => {
 		const map = mapDraft(["pm25"]);
 		delete map.data.dateRange;
 		map.data.resolution = "year";
-		const h = showInDraft(map, { kind: "section", code: "X" }, dataTableType, CATALOG, [], NOW);
+		const h = showInDraft(map, { kind: "section", code: "X" }, dataTableType, CATALOG, NOW);
 		expect(h.draft.type).toBe(CHART_TYPE);
 		expect(h.draft.data.dateRange).toEqual(DEFAULT_RANGE);
 		expect(h.draft.data).not.toHaveProperty("resolution");
@@ -260,7 +249,7 @@ describe("showInDraft: a section", () => {
 
 	it("copies the filters, so editing the Chart leaves the Map's alone", () => {
 		const map = fullMap();
-		const h = showInDraft(map, { kind: "section", code: "X" }, chartType, CATALOG, [], NOW);
+		const h = showInDraft(map, { kind: "section", code: "X" }, chartType, CATALOG, NOW);
 		h.draft.data.layers[0].filters!.category!.push("B");
 		expect(map.data.layers.at(-1)!.filters).toEqual({ chemical: "c1", category: ["A"] });
 	});
@@ -278,7 +267,7 @@ describe("showInDraft: the new widget type checklist", () => {
 		({ id: "d", version: 1, title: "D", body: { widgets: [chartDoc(draft)] } }) as never;
 
 	it("a Chart made from the monitors needs no point swap on share", async () => {
-		const h = showInDraft(fullMap(), send(["m1", "m2"]), chartType, CATALOG, DRAWABLE, NOW);
+		const h = showInDraft(fullMap(), send(["m1", "m2"]), chartType, CATALOG, NOW);
 		expect(hasPoints(docOf(h.draft))).toBe(false);
 		expect(await pointSwaps(docOf(h.draft))).toEqual([]);
 	});
@@ -289,10 +278,9 @@ describe("showInDraft: the new widget type checklist", () => {
 			{ kind: "section", code: "M12S01E01" },
 			chartType,
 			CATALOG,
-			DRAWABLE,
 			NOW
 		);
-		expect(h.draft.data.layers[0].place).toEqual({
+		expect(h.draft.data.place).toEqual({
 			kind: "region",
 			type: "mtrs",
 			code: "M12S01E01"
@@ -338,7 +326,7 @@ describe("showInDraft: the new widget type checklist", () => {
 		it(`${name}: the hand-off's notes are exactly overlays and fill`, () => {
 			const map = fullMap();
 			frame(map);
-			const h = showInDraft(map, send(monitors(6)), chartType, CATALOG, DRAWABLE, NOW);
+			const h = showInDraft(map, send(monitors(6)), chartType, CATALOG, NOW);
 			expect(h.notes).toEqual({ dropped: ["overlays", "fill"] });
 			const r = HandOffSchema.safeParse(h);
 			expect(r.success, JSON.stringify(r.error?.issues)).toBe(true);
@@ -350,7 +338,7 @@ describe("showInDraft: the new widget type checklist", () => {
 		expect(map.data.layers.map((l) => l.dataset)).toEqual(
 			expect.arrayContaining(["hms-smoke", "hms-fire", PESTICIDE_USE])
 		);
-		const h = showInDraft(map, send(["m1"]), chartType, CATALOG, DRAWABLE, NOW);
+		const h = showInDraft(map, send(["m1"]), chartType, CATALOG, NOW);
 		// Smoke and fire and notices are left out (the "overlays" note); use reaches the Chart.
 		expect(h.draft.data.layers.map((l) => l.dataset)).toEqual(["air-quality", PESTICIDE_USE]);
 		expect(h.draft.options).toBeUndefined();
@@ -365,17 +353,13 @@ describe("showInDraft: the new widget type checklist", () => {
 });
 
 describe("sendPlaces", () => {
-	it("gives monitor refs or one mtrs region, never a point", () => {
+	it("gives no Where for monitors (never a Where) or one mtrs region, never a point", () => {
 		const cases = [
 			sendPlaces(send(["m1"])),
 			sendPlaces(send(["m1", "m2"])),
 			sendPlaces({ kind: "section", code: "S" })
 		];
-		expect(cases).toEqual([
-			{ place: { kind: "monitor", id: "m1" } },
-			{ selection: { kind: "monitors", ids: ["m1", "m2"] } },
-			{ place: { kind: "region", type: "mtrs", code: "S" } }
-		]);
+		expect(cases).toEqual([{}, {}, { place: { kind: "region", type: "mtrs", code: "S" } }]);
 		for (const c of cases) expect(c.place?.kind).not.toBe("point");
 	});
 });
@@ -433,19 +417,18 @@ describe("showInTarget", () => {
 });
 
 describe("HandOffSchema", () => {
-	const handOff = () =>
-		showInDraft(fullMap(), send(monitors(6), 2), chartType, CATALOG, DRAWABLE, NOW);
+	const handOff = () => showInDraft(fullMap(), send(monitors(6), 2), chartType, CATALOG, NOW);
 
 	it("accepts showInDraft's output, a section's, and one with skip", () => {
 		expect(HandOffSchema.safeParse(handOff()).success).toBe(true);
-		const section = showInDraft(fullMap(), { kind: "section", code: "S" }, chartType, CATALOG, []);
+		const section = showInDraft(fullMap(), { kind: "section", code: "S" }, chartType, CATALOG);
 		expect(HandOffSchema.safeParse(section).success).toBe(true);
 		expect(HandOffSchema.safeParse({ ...handOff(), skip: "d1" }).success).toBe(true);
 	});
 
 	it("rejects a draft DraftSchema rejects, a negative left-out count, and missing fields", () => {
 		const bad = handOff();
-		bad.draft.data.layers[0] = { dataset: "air-quality", place: { kind: "nowhere" } } as never;
+		bad.draft.data.place = { kind: "nowhere" } as never;
 		expect(HandOffSchema.safeParse(bad).success).toBe(false);
 		expect(HandOffSchema.safeParse({ ...handOff(), leftOut: -1 }).success).toBe(false);
 		expect(HandOffSchema.safeParse({ ...handOff(), leftOut: 1.5 }).success).toBe(false);
@@ -474,6 +457,34 @@ describe("HandOffSchema", () => {
 	});
 });
 
+describe("showInDraft: a school or point Where (a Chart or Table holds areas only)", () => {
+	const SCHOOL = { kind: "location", source: "schools", code: "s1" } as const;
+	const COUNTY = { kind: "region", type: "county", code: "06019" } as const;
+	const atSchool = () => {
+		const map = mapDraft(["pm25"]);
+		map.data.place = { ...SCHOOL };
+		return map;
+	};
+
+	it("takes the area the caller looked up", () => {
+		const h = showInDraft(atSchool(), send(["m1"]), chartType, CATALOG, NOW, COUNTY);
+		expect(h.draft.data.place).toEqual(COUNTY);
+		expect(h.notes?.dropped).not.toContain("area");
+	});
+
+	it("with no area, leaves the school out with a note", () => {
+		const h = showInDraft(atSchool(), send(["m1"]), dataTableType, CATALOG, NOW, null);
+		expect(h.draft.data.place).toBeUndefined();
+		expect(h.notes?.dropped).toContain("area");
+		expect(HandOffSchema.safeParse(h).success).toBe(true);
+	});
+
+	it("an area Where is never looked up or changed", () => {
+		const h = showInDraft(mapDraft(["pm25"]), send(["m1"]), chartType, CATALOG, NOW, COUNTY);
+		expect(h.draft.data.place).toEqual(FRESNO);
+	});
+});
+
 describe("showIn", () => {
 	const app = {
 		current: {
@@ -487,7 +498,7 @@ describe("showIn", () => {
 		const clear = setMapSend("w1", owner, {
 			marks: ["m1", "m2"],
 			leftOut: 1,
-			draft: () => mapDraft(["pm25", "o3"], { showing: "o3" })
+			draft: () => mapDraft(["o3"])
 		});
 		await showIn(app, "w1", send(["m1", "m2"], 1), "table");
 		clear();
@@ -499,6 +510,26 @@ describe("showIn", () => {
 		expect(getData.draft.type).toBe(DATA_TABLE_TYPE);
 		expect(getData.draft.data.layers[0].entryType).toBe("o3");
 		expect(getData.leftOut).toBe(1);
+	});
+
+	it("looks up a school Where's area before building the hand-off", async () => {
+		const county = { kind: "region", type: "county", code: "06019" };
+		areaOf.mockResolvedValueOnce(county);
+		const clear = setMapSend("w1", Symbol(), {
+			marks: ["m1"],
+			leftOut: 0,
+			draft: () => {
+				const map = mapDraft(["pm25"]);
+				map.data.place = { kind: "location", source: "schools", code: "s1" };
+				return map;
+			}
+		});
+		await showIn(app, "w1", send(["m1"]), "chart");
+		clear();
+		const [, opts] = vi.mocked(navigate).mock.calls.at(-1)!;
+		const getData = HandOffSchema.parse((opts as { state: { getData: unknown } }).state.getData);
+		expect(getData.draft.data.place).toEqual(county);
+		expect(areaOf).toHaveBeenCalledOnce();
 	});
 
 	it("opens /data with skip for a read-only dashboard", async () => {

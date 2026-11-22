@@ -1,22 +1,17 @@
 <script lang="ts">
 	import { Button } from "$lib/components/ui/button";
-	import type { EntryTypeMeta, Level } from "$lib/data/metadata";
+	import type { Level } from "$lib/data/metadata";
 	import { m } from "$lib/paraglide/messages.js";
 	import { resolveThreshold } from "$lib/thresholds/levels";
 	import type { Threshold } from "$lib/thresholds/schema";
 
+	/** A now type's alert level (its pollutant is chosen in What's Air quality section). */
 	let {
-		pollutants,
-		entryType,
 		levels,
 		thresholds,
-		onpollutant,
 		onthreshold,
 		onretry
 	}: {
-		/** Current conditions' pollutant choices; `null` shows no pollutant control. */
-		pollutants: EntryTypeMeta[] | null;
-		entryType: string | undefined;
 		/**
 		 * The pollutant's scale for the alert level; `null` shows no alert level (a type without
 		 * thresholds, a scale with no levels, or one still loading); `"unavailable"` when it couldn't
@@ -24,7 +19,6 @@
 		 */
 		levels: Level[] | "unavailable" | null;
 		thresholds: Threshold[] | undefined;
-		onpollutant: (entryType: string) => void;
 		/** A level key, or `null` for Off. */
 		onthreshold: (level: string | null) => void;
 		/** Loads the scale again after it couldn't be. */
@@ -35,25 +29,6 @@
 
 	const resolved = $derived(Array.isArray(levels) ? resolveThreshold(thresholds, levels) : null);
 </script>
-
-{#if pollutants}
-	<fieldset class="flex flex-col gap-1">
-		<legend class="mb-1 text-sm font-medium">{m.get_data_pollutant()}</legend>
-		{#each pollutants as entry (entry.id)}
-			<label class="flex min-h-6 items-center gap-2 text-sm">
-				<input
-					type="radio"
-					class="accent-primary size-4"
-					name="{uid}-pollutant"
-					value={entry.id}
-					checked={entry.id === entryType}
-					onchange={() => onpollutant(entry.id)}
-				/>
-				<span>{entry.label}</span>
-			</label>
-		{/each}
-	</fieldset>
-{/if}
 
 {#if levels === "unavailable"}
 	<div class="flex flex-wrap items-center gap-2">

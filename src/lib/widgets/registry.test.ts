@@ -5,6 +5,7 @@ import {
 	dataTypes,
 	getWidgetType,
 	loadWidget,
+	placeLimit,
 	registerWidgetType,
 	type WidgetModule,
 	type WidgetType
@@ -57,6 +58,17 @@ describe("widget registry", () => {
 		const names = dataTypes().map((t) => t.type);
 		expect(names).toContain("registry-data");
 		expect(names).not.toContain("registry-no-data");
+	});
+
+	test("placeLimit: a type's cap, any number for a data type without one, none for a Note", () => {
+		const data = (maxPlaces?: number) =>
+			type("registry-limit", {
+				accepts: { datasets: ["air-quality"], ...(maxPlaces ? { maxPlaces } : {}) }
+			});
+		expect(placeLimit(data(1))).toBe(1);
+		expect(placeLimit(data())).toBe(Infinity);
+		expect(placeLimit(noteType)).toBe(0);
+		expect(placeLimit(undefined)).toBe(0);
 	});
 
 	test("the Notes type is added directly but not a data type", () => {

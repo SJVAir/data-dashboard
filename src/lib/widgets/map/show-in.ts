@@ -5,11 +5,12 @@
  */
 import { getMetadata } from "$lib/data";
 import type { CatalogEntry } from "$lib/data/metadata";
-import type { Layer, PlaceRef, SpatialSelection } from "$lib/data/schema";
+import type { ChosenPlace, Layer, PlaceRef, SpatialSelection } from "$lib/data/schema";
 import { fromMapDraft, mapPesticideFilters } from "$lib/get-data/map";
-import type { NowConversion } from "$lib/get-data/now";
+import { areaToLookUp, withArea, type NowConversion } from "$lib/get-data/now";
+import { report } from "$lib/safety/report";
+import { starterAreaOf } from "$lib/starter/area";
 import type { Draft } from "$lib/get-data/draft.svelte";
-import { toLayerPlaces } from "$lib/places/selection";
 import { STARTER_ID } from "$lib/starter/starter";
 import type { AppContext } from "$lib/store/app.svelte";
 import { CHART_TYPE, chartType } from "$lib/widgets/chart";
@@ -18,22 +19,34 @@ import { dataTableType } from "$lib/widgets/table";
 import { DEFAULT_RANGE } from "$lib/widgets/defaults";
 import { navigate } from "../../../router";
 import { HAND_OFF_DROPPED, type HandOff, type HandOffNotes } from "./hand-off";
-import { PESTICIDE_USE, mapOptions, useFigureOf } from "./options";
+import { AIR_QUALITY, PESTICIDE_USE, mapOptions, useFigureOf } from "./options";
 import { mapSend } from "./send-registry";
 
 /** What a Map sends: its sent marks (in mark order), or one pinned section card. */
 export type MapSend =
 	{ kind: "monitors"; ids: string[]; leftOut: number } | { kind: "section"; code: string };
-// spec 7 adds a kind here and a case in sendPlaces; nothing else changes.
 
-/** The main layer's places for a send (the plug-in point). Never a `point`. */
+/**
+ * The Where for a send (the plug-in point). Never a `point`. Monitors are never a Where: their
+ * draft keeps the Map's Where (`showInDraft`), so they give none here.
+ */
 export function sendPlaces(send: MapSend): { place?: PlaceRef; selection?: SpatialSelection } {
 	switch (send.kind) {
 		case "monitors":
-			return toLayerPlaces(send.ids.map((id) => ({ kind: "monitor" as const, id })));
+			return {};
 		case "section":
 			return { place: { kind: "region", type: "mtrs", code: send.code } };
 	}
+}
+
+/**
+ * The air-quality layer with the marks as its searched monitors, and no ticked types: the Chart
+ * or Table shows the marked monitors, not every monitor the Map's types draw (spec decision 13).
+ */
+function withMarks(layer: Layer, ids: string[]): Layer {
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars -- replaced in the copy
+	const { monitors, monitorTypes, ...rest } = layer;
+	return { ...rest, ...(ids.length > 0 ? { monitors: [...ids] } : {}) };
 }
 
 export { HandOffSchema, type HandOff, type HandOffNotes } from "./hand-off";
@@ -72,21 +85,15 @@ function handOffNotes(converted: NowConversion): HandOffNotes {
 	};
 }
 
-/** `layer` with its places replaced by `places`. */
-function withPlaces(layer: Layer, places: ReturnType<typeof sendPlaces>): Layer {
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars -- replaced in the copy
-	const { place, selection, ...rest } = layer;
-	return { ...rest, ...places };
-}
-
 /**
  * The Data Portal's starting draft for `send` to `type` (Chart or Table), from `map` (the Map's
  * dataset as this person sees it).
  *
- * Monitors: exactly what Show as gives for this Map (`fromMapDraft`, with `"unavailable"` levels
- * and `drawable` the Map's pollutants, as `GetDataView`'s `setType` calls it), with the main
- * layer's places swapped for the ids (D7, D19). Over the type's cap every id is kept (the Data
- * Portal asks which to keep; `overCap`).
+ * Monitors: exactly what Show as gives for this Map (`fromMapDraft`, with `"unavailable"` levels,
+ * as `GetDataView`'s `setType` calls it), with the Map's Where, and the ids as its air-quality
+ * layer's searched monitors in place of its ticked types (spec decision 13; D7, D19). A school or
+ * point Where becomes `area`, the caller's lookup of its area (`withArea`; with none it's left
+ * out, with a note).
  *
  * A section: always a Chart, whatever `type` says (D1, D15: the card offers only "Show in a
  * chart"), of the use figure the Map draws at that section, with the Map's use filters, over the
@@ -98,8 +105,8 @@ export function showInDraft(
 	send: MapSend,
 	type: WidgetType,
 	catalog: CatalogEntry[],
-	drawable: readonly string[],
-	now: Date = new Date()
+	now: Date = new Date(),
+	area: ChosenPlace | null = null
 ): HandOff {
 	if (send.kind === "section") {
 		const figure = useFigureOf(mapOptions(map), catalog);
@@ -109,7 +116,6 @@ export function showInDraft(
 		const layer: Layer = {
 			dataset: PESTICIDE_USE,
 			...(figure ? { entryType: figure } : {}),
-			...sendPlaces(send),
 			...(filters ? { filters: structuredClone(filters) } : {})
 		};
 		return {
@@ -118,28 +124,27 @@ export function showInDraft(
 				data: {
 					dateRange: structuredClone(dateRange ?? chartType.defaultRange ?? DEFAULT_RANGE),
 					...(resolution ? { resolution } : {}),
+					...sendPlaces(send),
 					layers: [layer]
 				}
 			},
 			leftOut: 0
 		};
 	}
-	const converted = fromMapDraft(map, type, catalog, "unavailable", drawable, now);
+	const converted = withArea(fromMapDraft(map, type, catalog, "unavailable", now), area);
 	const { draft } = converted;
-	const [main, ...rest] = draft.data.layers;
-	const places = sendPlaces(send);
+	const layers = draft.data.layers.map((l) =>
+		l.dataset === AIR_QUALITY ? withMarks(l, send.ids) : l
+	);
 	return {
-		draft: {
-			...draft,
-			data: { ...draft.data, layers: main ? [withPlaces(main, places), ...rest] : [] }
-		},
+		draft: { ...draft, data: { ...draft.data, layers } },
 		leftOut: send.leftOut,
 		notes: handOffNotes(converted)
 	};
 }
 
 /**
- * Loads what the conversion needs (the catalog, the Map's pollutants), builds the hand-off from
+ * Loads what the conversion needs (the catalog), builds the hand-off from
  * the Map's registry entry, and opens the Data Portal with it in history state. Nothing happens
  * when the Map isn't mounted (its entry is gone).
  */
@@ -152,13 +157,24 @@ export async function showIn(
 	const entry = mapSend(widgetId);
 	if (!entry) return;
 	const metadata = getMetadata();
-	const [catalog, pollutants] = await Promise.all([metadata.catalog(), metadata.mapPollutants()]);
+	const catalog = await metadata.catalog();
+	const map = entry.draft() as Draft;
+	const to = type === "chart" ? chartType : dataTableType;
+	// A Chart or Table holds areas only: a school or point Where's area, looked up as the starter's.
+	const school = send.kind === "monitors" ? areaToLookUp(map, to.type) : null;
+	const area = school
+		? await starterAreaOf(school).catch((error: unknown) => {
+				report(error, { operation: "show-in-area" });
+				return null;
+			})
+		: null;
 	const handOff = showInDraft(
-		entry.draft() as Draft,
+		map,
 		send,
-		type === "chart" ? chartType : dataTableType,
+		to,
 		Array.isArray(catalog) ? catalog : [],
-		pollutants === "unavailable" ? [] : pollutants
+		new Date(),
+		area
 	);
 	const { target, skip } = showInTarget(app, widgetId);
 	const getData: HandOff = { ...handOff, ...(skip ? { skip } : {}) };

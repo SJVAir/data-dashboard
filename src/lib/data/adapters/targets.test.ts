@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Layer } from "../schema";
+import type { QueryLayer } from "../types";
 import { fixtureMetadata } from "../testing/fixtures";
 import type { LocationResolver, PointResolver, RegionResolver } from "./registry";
 import { layerTarget, regionPlace, splitRegionKey } from "./targets";
@@ -28,27 +28,118 @@ const points: PointResolver = {
 
 const ctx = { regions, locations, points, metadata: fixtureMetadata() };
 
-const base: Layer = { dataset: "air-quality", entryType: "pm25" };
+const base: QueryLayer = { dataset: "air-quality", entryType: "pm25" };
 
 describe("layerTarget", () => {
-	it("maps a monitor place to its id", async () => {
-		const layer: Layer = { ...base, place: { kind: "monitor", id: "m-pa" } };
+	it("maps one searched monitor to its id", async () => {
+		const layer: QueryLayer = { ...base, monitors: ["m-pa"] };
 		expect(await layerTarget(layer, ctx)).toEqual({ kind: "monitors", ids: ["m-pa"] });
 	});
 
 	it("reports a monitor absent from a loaded monitors list as monitor-unlisted", async () => {
-		const layer: Layer = { ...base, place: { kind: "monitor", id: "m-gone" } };
+		const layer: QueryLayer = { ...base, monitors: ["m-gone"] };
 		expect(await layerTarget(layer, ctx)).toEqual({ unavailable: "monitor-unlisted" });
 	});
 
-	it("reports a monitor selection with any absent id as monitor-unlisted", async () => {
-		const layer: Layer = { ...base, selection: { kind: "monitors", ids: ["m-pa", "m-gone"] } };
+	it("reports searched monitors with any absent id as monitor-unlisted", async () => {
+		const layer: QueryLayer = { ...base, monitors: ["m-pa", "m-gone"] };
 		expect(await layerTarget(layer, ctx)).toEqual({ unavailable: "monitor-unlisted" });
 	});
 
-	it("keeps a monitor selection whose ids are all listed", async () => {
-		const layer: Layer = { ...base, selection: { kind: "monitors", ids: ["m-pa", "m-bam"] } };
+	it("keeps searched monitors whose ids are all listed", async () => {
+		const layer: QueryLayer = { ...base, monitors: ["m-pa", "m-bam"] };
 		expect(await layerTarget(layer, ctx)).toEqual({ kind: "monitors", ids: ["m-pa", "m-bam"] });
+	});
+
+	it("takes searched monitors wherever they are: the Where doesn't narrow them", async () => {
+		const layer: QueryLayer = {
+			...base,
+			place: { kind: "region", type: "county", code: "06019" },
+			monitors: ["m-pa"]
+		};
+		expect(await layerTarget(layer, ctx)).toEqual({ kind: "monitors", ids: ["m-pa"] });
+	});
+
+	it("ticked types in a county give a monitor-set with its region key", async () => {
+		const layer: QueryLayer = {
+			...base,
+			place: { kind: "region", type: "county", code: "06019" },
+			monitorTypes: ["purpleair"],
+			monitors: ["m-bam"]
+		};
+		expect(await layerTarget(layer, ctx)).toEqual({
+			kind: "monitor-set",
+			ids: ["m-bam"],
+			types: ["purpleair"],
+			regionKeys: ["county:06019"]
+		});
+	});
+
+	it("no Where and types give a monitor-set with regionKeys null", async () => {
+		const layer: QueryLayer = { ...base, monitorTypes: ["purpleair", "airnow"] };
+		expect(await layerTarget(layer, ctx)).toEqual({
+			kind: "monitor-set",
+			ids: [],
+			types: ["purpleair", "airnow"],
+			regionKeys: null
+		});
+	});
+
+	it("ticked types and searched monitors that don't measure the pollutant aren't fetched", async () => {
+		// PurpleAir and the BAM measure PM2.5, not ozone; AirNow isn't in the meta (unknown: kept).
+		const ozone: QueryLayer = {
+			...base,
+			entryType: "o3",
+			monitorTypes: ["purpleair", "airnow"],
+			monitors: ["m-bam"]
+		};
+		expect(await layerTarget(ozone, ctx)).toEqual({
+			kind: "monitor-set",
+			ids: [],
+			types: ["airnow"],
+			regionKeys: null
+		});
+		// Every ticked type dropped: never an empty type list (the bulk endpoint would send every type),
+		// and nothing fetched: the widget says none of them measure it.
+		expect(
+			await layerTarget({ ...ozone, monitorTypes: ["purpleair"], monitors: ["m-bam"] }, ctx)
+		).toEqual({ unavailable: "none-measure" });
+		expect(
+			await layerTarget({ ...ozone, monitorTypes: ["bam1022"], monitors: ["m-bam", "m-x"] }, ctx)
+		).toEqual({ unavailable: "monitor-unlisted" });
+		const pm25: QueryLayer = { ...base, monitorTypes: ["purpleair"], monitors: ["m-bam"] };
+		expect(await layerTarget(pm25, ctx)).toMatchObject({ types: ["purpleair"], ids: ["m-bam"] });
+	});
+
+	it("another dataset's layer at the monitors takes them as places, whatever they measure", async () => {
+		// A weather overlay at a Chart's searched monitors: the monitors are where, not what.
+		const weather: QueryLayer = {
+			dataset: "weather",
+			entryType: "temperature",
+			monitors: ["m-bam"]
+		};
+		expect(await layerTarget(weather, ctx)).toEqual({ kind: "monitors", ids: ["m-bam"] });
+	});
+
+	it("scopes ticked types by a school's first region", async () => {
+		const layer: QueryLayer = {
+			...base,
+			place: { kind: "location", source: "cde-public", code: "10621661035023" },
+			monitorTypes: ["purpleair"]
+		};
+		expect(await layerTarget(layer, ctx)).toMatchObject({
+			kind: "monitor-set",
+			regionKeys: ["zipcode:93702"]
+		});
+	});
+
+	it("reports ticked types in an unknown region as region-unresolved", async () => {
+		const layer: QueryLayer = {
+			...base,
+			selection: { kind: "regions", ids: ["county:06019", "county:06039"] },
+			monitorTypes: ["purpleair"]
+		};
+		expect(await layerTarget(layer, ctx)).toEqual({ unavailable: "region-unresolved" });
 	});
 
 	it("runs the query as before when the monitors list fails to load", async () => {
@@ -60,12 +151,12 @@ describe("layerTarget", () => {
 				}
 			})
 		};
-		const layer: Layer = { ...base, place: { kind: "monitor", id: "m-gone" } };
+		const layer: QueryLayer = { ...base, monitors: ["m-gone"] };
 		expect(await layerTarget(layer, failing)).toEqual({ kind: "monitors", ids: ["m-gone"] });
 	});
 
 	it("keys a resolvable region place by type and code, not sqid", async () => {
-		const layer: Layer = { ...base, place: { kind: "region", type: "county", code: "06019" } };
+		const layer: QueryLayer = { ...base, place: { kind: "region", type: "county", code: "06019" } };
 		expect(await layerTarget(layer, ctx)).toEqual({
 			kind: "regions",
 			keys: ["county:06019"]
@@ -73,17 +164,17 @@ describe("layerTarget", () => {
 	});
 
 	it("reports a region the resolver doesn't know as region-unresolved", async () => {
-		const layer: Layer = { ...base, place: { kind: "region", type: "county", code: "06039" } };
+		const layer: QueryLayer = { ...base, place: { kind: "region", type: "county", code: "06039" } };
 		expect(await layerTarget(layer, ctx)).toEqual({ unavailable: "region-unresolved" });
 	});
 
 	it("reports a default place as place-unsupported", async () => {
-		const layer: Layer = { ...base, place: { kind: "default-place" } };
+		const layer: QueryLayer = { ...base, place: { kind: "default-place" } };
 		expect(await layerTarget(layer, ctx)).toEqual({ unavailable: "place-unsupported" });
 	});
 
 	it("tries a school's own regions in order, named by the school", async () => {
-		const layer: Layer = {
+		const layer: QueryLayer = {
 			...base,
 			place: { kind: "location", source: "cde-public", code: "10621661035023" }
 		};
@@ -104,7 +195,10 @@ describe("layerTarget", () => {
 			since: "2026-06-30",
 			replacedBy: { source: "cde-public", code: "10621661035024" }
 		};
-		const layer: Layer = { ...base, place: { kind: "location", source: "cde-public", code: "1" } };
+		const layer: QueryLayer = {
+			...base,
+			place: { kind: "location", source: "cde-public", code: "1" }
+		};
 		const target = await layerTarget(layer, {
 			...ctx,
 			locations: { resolve: async () => ({ name: "Old School", keys: ["county:06019"], retired }) }
@@ -117,12 +211,18 @@ describe("layerTarget", () => {
 	});
 
 	it("reports a school that doesn't resolve as location-unresolved", async () => {
-		const layer: Layer = { ...base, place: { kind: "location", source: "cde-public", code: "0" } };
+		const layer: QueryLayer = {
+			...base,
+			place: { kind: "location", source: "cde-public", code: "0" }
+		};
 		expect(await layerTarget(layer, ctx)).toEqual({ unavailable: "location-unresolved" });
 	});
 
 	it("reports a school in no region as location-unresolved", async () => {
-		const layer: Layer = { ...base, place: { kind: "location", source: "cde-public", code: "1" } };
+		const layer: QueryLayer = {
+			...base,
+			place: { kind: "location", source: "cde-public", code: "1" }
+		};
 		const target = await layerTarget(layer, {
 			...ctx,
 			locations: { resolve: async () => ({ name: "Nowhere School", keys: [] }) }
@@ -131,7 +231,7 @@ describe("layerTarget", () => {
 	});
 
 	it("tries a point's containing regions in order", async () => {
-		const layer: Layer = { ...base, place: { kind: "point", lat: 36.737, lon: -119.787 } };
+		const layer: QueryLayer = { ...base, place: { kind: "point", lat: 36.737, lon: -119.787 } };
 		expect(await layerTarget(layer, ctx)).toEqual({
 			kind: "fallback",
 			via: { kind: "point" },
@@ -140,7 +240,7 @@ describe("layerTarget", () => {
 	});
 
 	it("leaves out candidates the region resolver doesn't know", async () => {
-		const layer: Layer = { ...base, place: { kind: "point", lat: 36.737, lon: -119.787 } };
+		const layer: QueryLayer = { ...base, place: { kind: "point", lat: 36.737, lon: -119.787 } };
 		const target = await layerTarget(layer, {
 			...ctx,
 			points: { keys: async () => ["zipcode:99999", "county:06019"] }
@@ -149,23 +249,15 @@ describe("layerTarget", () => {
 	});
 
 	it("reports a point in no region as point-outside", async () => {
-		const layer: Layer = { ...base, place: { kind: "point", lat: 45, lon: -119.787 } };
+		const layer: QueryLayer = { ...base, place: { kind: "point", lat: 45, lon: -119.787 } };
 		expect(await layerTarget(layer, ctx)).toEqual({ unavailable: "point-outside" });
-	});
-
-	it("maps a monitor selection to its ids", async () => {
-		const layer: Layer = { ...base, selection: { kind: "monitors", ids: ["m-pa", "m-bam"] } };
-		expect(await layerTarget(layer, ctx)).toEqual({
-			kind: "monitors",
-			ids: ["m-pa", "m-bam"]
-		});
 	});
 
 	it("maps a region selection when every region resolves", async () => {
 		const both: RegionResolver = {
 			resolve: async (_t, code) => ({ id: `sq-${code}`, name: code })
 		};
-		const layer: Layer = {
+		const layer: QueryLayer = {
 			...base,
 			selection: { kind: "regions", ids: ["county:06019", "county:06039"] }
 		};
@@ -176,7 +268,7 @@ describe("layerTarget", () => {
 	});
 
 	it("reports a region selection with any unresolved region as region-unresolved", async () => {
-		const layer: Layer = {
+		const layer: QueryLayer = {
 			...base,
 			selection: { kind: "regions", ids: ["county:06019", "county:06039"] }
 		};

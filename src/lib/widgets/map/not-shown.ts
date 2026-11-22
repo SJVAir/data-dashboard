@@ -15,9 +15,7 @@ export function mapNotShown(data: WidgetDataConfig, effective: Effective | null)
 	const layers = effective
 		? effective.misfits
 		: data.layers.filter((l) => l.dataset === PESTICIDE_USE);
-	const datasets = layers
-		.filter((l) => l.dataset !== AIR_QUALITY && !l.place && !l.selection)
-		.map((l) => l.dataset);
+	const datasets = layers.filter((l) => l.dataset !== AIR_QUALITY).map((l) => l.dataset);
 	return datasets.filter((d, i) => datasets.indexOf(d) === i);
 }
 

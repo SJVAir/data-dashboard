@@ -1,9 +1,8 @@
 import type { AdapterContext, RegionResolver } from "$lib/data/adapters/registry";
 import type { MetadataSource } from "$lib/data/metadata";
-import type { PlaceRef } from "$lib/data/schema";
 import { createPlaceDirectory, type PlaceDirectory } from "./directory";
 import type { Picks } from "./selection";
-import type { PlaceOption } from "./types";
+import type { PickRef, PlaceOption } from "./types";
 
 /** What a place picker's host looks places up with. */
 export type Resolvers = Pick<AdapterContext, "regions" | "locations" | "points">;
@@ -24,7 +23,7 @@ export function directoryFor(metadata: MetadataSource, regions: RegionResolver):
 
 /** A place's option with its current name; null when it no longer resolves. */
 export async function resolveOption(
-	ref: PlaceRef,
+	ref: PickRef,
 	ctx: { directory: PlaceDirectory; resolvers: Resolvers; entryType: string },
 	signal: AbortSignal
 ): Promise<PlaceOption | null> {
@@ -84,12 +83,12 @@ const RESOLVED = new Set(["monitor", "region", "location"]);
  */
 export async function resolvePicks(
 	initial: Picks,
-	recentRefs: PlaceRef[],
+	recentRefs: PickRef[],
 	ctx: { directory: PlaceDirectory; resolvers: Resolvers; entryType: string },
 	signal: AbortSignal
 ): Promise<{ initial: Picks; known: PlaceOption[]; recent: PlaceOption[] }> {
 	// `null`: the place no longer resolves; `undefined`: its lookup failed.
-	const resolve = (ref: PlaceRef) => resolveOption(ref, ctx, signal).catch(() => undefined);
+	const resolve = (ref: PickRef) => resolveOption(ref, ctx, signal).catch(() => undefined);
 	const [known, recent] = await Promise.all([
 		Promise.all(initial.map(resolve)),
 		Promise.all(recentRefs.map(resolve))

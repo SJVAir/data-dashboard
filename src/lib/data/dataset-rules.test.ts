@@ -34,6 +34,10 @@ describe("layerOffers", () => {
 	it("has no raw at regions", () => {
 		expect(layerOffers(pm25, catalog, "regions")).toEqual(["hour", "day", "month", "year"]);
 	});
+	it("has no raw at monitor-types (bulk summaries), and a raw-only type offers nothing there", () => {
+		expect(layerOffers(pm25, catalog, "monitor-types")).toEqual(["hour", "day", "month", "year"]);
+		expect(layerOffers(humidity, catalog, "monitor-types")).toEqual([]);
+	});
 	it("offers day for smoke and month, year for pesticide use", () => {
 		expect(layerOffers(smoke, catalog, "none")).toEqual(["day"]);
 		expect(layerOffers(use, catalog, "regions")).toEqual(["month", "year"]);

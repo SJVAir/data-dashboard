@@ -17,6 +17,15 @@ export const SDK_DATASET_CATALOG: DatasetCatalog = {
 			geographies: ["monitor", "region"],
 			meta_url: "/api/2.0/monitors/meta/",
 			places_url: "/api/2.0/monitors/places/",
+			monitor_types: [
+				"airgradient",
+				"airnow",
+				"aqlite",
+				"aqview",
+				"bam1022",
+				"purpleair",
+				"vozbox"
+			],
 			entry_types: [
 				{
 					id: "humidity",
@@ -72,6 +81,7 @@ export const SDK_DATASET_CATALOG: DatasetCatalog = {
 			geographies: ["polygon"],
 			meta_url: "",
 			places_url: "",
+			monitor_types: null,
 			entry_types: [
 				{
 					id: "smoke-density",
@@ -100,6 +110,7 @@ export const WEATHER_DATASET: DatasetCatalog["datasets"][number] = {
 	geographies: ["monitor"],
 	meta_url: "/api/2.0/monitors/meta/",
 	places_url: "/api/2.0/monitors/?dataset=weather",
+	monitor_types: ["cimis"],
 	entry_types: [
 		{
 			id: "eto",
@@ -155,6 +166,7 @@ export const PESTICIDE_USE_DATASET: DatasetCatalog["datasets"][number] = {
 	geographies: ["region"],
 	meta_url: "/api/2.0/pesticides/meta/",
 	places_url: "",
+	monitor_types: null,
 	entry_types: [
 		{
 			id: "pounds-applied",

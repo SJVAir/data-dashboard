@@ -18,6 +18,13 @@ function sortedTarget(target: Target): Target {
 			return { kind: "monitors", ids: [...target.ids].sort() };
 		case "regions":
 			return { kind: "regions", keys: [...target.keys].sort() };
+		case "monitor-set":
+			return {
+				kind: "monitor-set",
+				ids: [...target.ids].sort(),
+				types: [...target.types].sort(),
+				regionKeys: target.regionKeys ? [...target.regionKeys].sort() : null
+			};
 		// A fallback's keys are tried in order, so their order is part of the request.
 		case "fallback":
 			return target;

@@ -1,7 +1,7 @@
 /**
  * "Show in a chart" and "Show in a table" from a Map, end to end on the fixtures: the Map's marks
  * (or a pinned pesticide section card) open the Data Portal on a Chart or Table of them, with the
- * Map's range; over the type's cap it asks which places to keep; "Add to …" adds the widget (for a
+ * Map's range, never asking which places to keep (no cap); "Add to …" adds the widget (for a
  * viewer on a live link, to their own dashboard). Fresno County gets six made-up monitors beside
  * Drummond Street (`routeMoreMonitors`), so a county Map draws seven, all Good. The clock stands
  * at noon Pacific, as in the Map's other day tests.
@@ -22,6 +22,7 @@ import {
 	widgetTitles
 } from "./helpers";
 import {
+	EVERY_MONITOR_TYPE,
 	routeMapMeta,
 	routeMapUse,
 	routeMoreMonitors,
@@ -81,11 +82,12 @@ function countyDoc(marks: string[], range: Record<string, unknown> | null = PAST
 					title: null,
 					rect: { x: 0, y: 0, w: 12, h: 8 },
 					data: {
+						place: { kind: "region", type: "county", code: "06019" },
 						layers: [
 							{
 								dataset: "air-quality",
 								entryType: "pm25",
-								place: { kind: "region", type: "county", code: "06019" }
+								monitorTypes: EVERY_MONITOR_TYPE
 							}
 						],
 						...(range && { dateRange: range })
@@ -122,8 +124,8 @@ function whereSummary(page: Page): Locator {
 	return page.getByTestId("where-summary");
 }
 
-/** The place picker, opened to choose which places to keep. */
-function keepDialog(page: Page): Locator {
+/** The place picker: it never opens by itself, since a Chart or Table takes every place. */
+function placesDialog(page: Page): Locator {
 	return page.getByRole("dialog", { name: /^Choose (a place|places)$/ });
 }
 
@@ -152,13 +154,17 @@ test.describe("from a Map's marks", () => {
 		await expect(page).toHaveURL(NEW_WIDGET_URL);
 		await expect(page.getByRole("heading", GET_DATA)).toBeVisible();
 		await expect(page.getByRole("radio", { name: "Chart" })).toBeChecked();
-		await expect(whereSummary(page)).toHaveText(
-			"Fresno - Drummond Street, Fresno - Test Site A, and Fresno - Test Site B"
-		);
+		// The Where is the county; the marked monitors are What, not named here.
+		await expect(whereSummary(page)).toHaveText("Fresno County");
 		// The Map's range.
 		await expect(page.getByTestId("resolved-range")).toHaveText("Nov 9 – 11, 2026");
-		// Nothing was over the cap or left out.
-		await expect(keepDialog(page)).toHaveCount(0);
+		// The three marks are the Chart's searched monitors, listed in Air quality.
+		const searched = page.getByRole("list", { name: "Chosen monitors" }).getByRole("listitem");
+		await expect(searched).toHaveCount(3);
+		await expect(searched.filter({ hasText: "Fresno - Drummond Street" })).toHaveCount(1);
+		await expect(searched.filter({ hasText: "Fresno - Test Site" })).toHaveCount(2);
+		// No dialog asked which places to keep, and nothing was left out.
+		await expect(placesDialog(page)).toHaveCount(0);
 		await expect(page.getByText(/aren't shown on the map|isn't shown on the map/)).toHaveCount(0);
 
 		// A reload keeps the history entry's hand-off: the same Chart comes back (D16).
@@ -166,9 +172,8 @@ test.describe("from a Map's marks", () => {
 		await expect(page).toHaveURL(NEW_WIDGET_URL);
 		await expect(page.getByRole("heading", GET_DATA)).toBeVisible();
 		await expect(page.getByRole("radio", { name: "Chart" })).toBeChecked();
-		await expect(whereSummary(page)).toHaveText(
-			"Fresno - Drummond Street, Fresno - Test Site A, and Fresno - Test Site B"
-		);
+		// The Where is the county; the marked monitors are What, not named here.
+		await expect(whereSummary(page)).toHaveText("Fresno County");
 		await expect(page.getByTestId("resolved-range")).toHaveText("Nov 9 – 11, 2026");
 
 		await expect(addToButton(page)).toHaveText("Add to County map");
@@ -182,38 +187,19 @@ test.describe("from a Map's marks", () => {
 		await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
 	});
 
-	test("Show in a chart with seven marks asks which five to keep", async ({ page }) => {
+	test("Show in a chart takes seven marks without asking: they're its searched monitors", async ({
+		page
+	}) => {
 		const map = await openCountyMap(page, SEVEN);
 		await expect(selectionLine(map)).toHaveText("PM2.5: 7 selected");
 
 		await widgetMenuItem(page, FRESNO_MAP, "Show in a chart");
 		await expect(page).toHaveURL(NEW_WIDGET_URL);
-		const dialog = keepDialog(page);
-		await expect(dialog).toBeVisible();
-		await expect(dialog.getByText("Choose up to 5 places to keep.")).toBeVisible();
-		// Every mark is kept to start with; Done waits until no more than five are.
-		for (const name of ["Fresno - Drummond Street", ...EXTRAS.map((m) => m.name)]) {
-			await expect(dialog.getByRole("button", { name: `Remove ${name}` })).toBeVisible();
-		}
-		const done = dialog.getByRole("button", { name: "Done" });
-		await expect(done).toHaveAttribute("aria-disabled", "true");
-		await expectNoViolations(page);
-
-		await dialog.getByRole("button", { name: `Remove ${EXTRAS[4].name}` }).click();
-		await expect(done).toHaveAttribute("aria-disabled", "true");
-		await dialog.getByRole("button", { name: `Remove ${EXTRAS[5].name}` }).click();
-		await expect(done).not.toHaveAttribute("aria-disabled", "true");
-		await done.click();
-		await expect(dialog).toBeHidden();
 		await expect(page.getByRole("radio", { name: "Chart" })).toBeChecked();
-		// The two left out are gone.
-		await expect(whereSummary(page)).toHaveText(
-			"Fresno - Drummond Street, Fresno - Test Site A, Fresno - Test Site B, Fresno - Test Site C, and Fresno - Test Site D"
-		);
-
-		await addToButton(page).click();
-		await expect(page).toHaveURL(DASHBOARD_URL);
-		await expect(widgetTitles(page).last()).toHaveText(/^PM2\.5 · 5 places · /);
+		// No cap: no dialog asks which to keep.
+		await expect(placesDialog(page)).toHaveCount(0);
+		await expect(whereSummary(page)).toHaveText("Fresno County");
+		await expectNoViolations(page);
 	});
 
 	test("Show in a table takes seven marks without asking, and notes a hidden one", async ({
@@ -226,11 +212,11 @@ test.describe("from a Map's marks", () => {
 		await widgetMenuItem(page, FRESNO_MAP, "Show in a table");
 		await expect(page).toHaveURL(NEW_WIDGET_URL);
 		await expect(page.getByRole("radio", { name: "Data table" })).toBeChecked();
-		await expect(whereSummary(page)).toHaveText("7 places");
+		await expect(whereSummary(page)).toHaveText("Fresno County");
 		await expect(
 			page.getByText("1 marked monitor isn't shown on the map, so it was left out.")
 		).toBeVisible();
-		await expect(keepDialog(page)).toHaveCount(0);
+		await expect(placesDialog(page)).toHaveCount(0);
 	});
 });
 
@@ -243,7 +229,13 @@ test.describe("shared by a live link", () => {
 	}) => {
 		const doc = countyDoc([DRUMMOND], null);
 		doc.name = "Monitor map";
-		doc.body.widgets[0].data.layers[0].place = { kind: "monitor", id: DRUMMOND } as never;
+		// A Map of the one searched monitor, with no Where.
+		delete (doc.body.widgets[0].data as { place?: unknown }).place;
+		doc.body.widgets[0].data.layers[0] = {
+			dataset: "air-quality",
+			entryType: "pm25",
+			monitors: [DRUMMOND]
+		} as never;
 		await openSharedDoc(page, doc);
 		await expect(nav(page).getByText("Saved to your account", { exact: true })).toBeVisible();
 		await openPicker(page, doc.name);
@@ -268,7 +260,7 @@ test.describe("shared by a live link", () => {
 		await widgetMenuItem(viewer.page, DRUMMOND_MAP, "Show in a chart");
 		await expect(viewer.page).toHaveURL(/\/workspace\/data$/);
 		await expect(viewer.page.getByRole("radio", { name: "Chart" })).toBeChecked();
-		await expect(whereSummary(viewer.page)).toHaveText("Fresno - Drummond Street");
+		await expect(whereSummary(viewer.page)).toHaveText("Everywhere");
 		await expect(addToButton(viewer.page)).toHaveText("Add to My dashboard");
 		await addToButton(viewer.page).click();
 		await expect(viewer.page).toHaveURL(own);

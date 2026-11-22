@@ -40,7 +40,7 @@ const preSpec: WidgetInstance = {
 	type: "chart",
 	title: "My chart",
 	rect: { x: 10, y: 2, w: 2, h: 4 },
-	data: { layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }] }
+	data: { place: FRESNO, layers: [{ dataset: "air-quality", entryType: "pm25" }] }
 };
 
 const workers: SyncWorker[] = [];
@@ -223,11 +223,11 @@ describe("saveEdit", () => {
 
 		const draft: Draft = {
 			...editDraft(preSpec),
-			data: { layers: [{ ...preSpec.data.layers[0], place: POINT }] }
+			data: { place: POINT, layers: [{ ...preSpec.data.layers[0] }] }
 		};
 		expect(saveEdit(session, "w1", draft)).toBe(true);
 
-		const placeIn = (doc: Dashboard) => doc.body.widgets[0].data.layers[0].place;
+		const placeIn = (doc: Dashboard) => doc.body.widgets[0].data.place;
 		await expect.poll(() => placeIn(session.doc)).toEqual(ZIP);
 		const stored = async () => (await platform.documents.get(SPACE, "d1")) as Dashboard;
 		await expect.poll(async () => placeIn(await stored())).toEqual(ZIP);
