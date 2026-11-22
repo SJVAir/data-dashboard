@@ -102,18 +102,20 @@ function areas(at: Rect): WidgetInstance {
 	return widget;
 }
 
-test("with the hidden-places note the plot stays usable", async () => {
+test("with seven places in the key the plot stays usable", async () => {
 	const screen = await showInDashboard(areas(rect));
-	await expect.element(screen.getByText("2 more places aren't shown.")).toBeVisible();
+	const key = screen.getByRole("list", { name: m.chart_series_key() });
+	await expect.poll(() => key.getByRole("listitem").elements().length).toBe(7);
 	const height = await plotHeight();
-	console.log(`plot height, default size, with note: ${height}px`);
+	console.log(`plot height, default size, seven places: ${height}px`);
 	expect(height).toBeGreaterThanOrEqual(80);
 });
 
-test("the minimum size still leaves a usable plot, even with the note", async () => {
+test("the minimum size still leaves a usable plot, even with seven places", async () => {
 	const min = { x: 0, y: 0, ...chartType.minSize };
 	const screen = await showInDashboard(areas(min));
-	await expect.element(screen.getByText("2 more places aren't shown.")).toBeVisible();
+	const key = screen.getByRole("list", { name: m.chart_series_key() });
+	await expect.poll(() => key.getByRole("listitem").elements().length).toBe(7);
 	const height = await plotHeight();
 	console.log(
 		`plot height, minimum size ${chartType.minSize.w}×${chartType.minSize.h}: ${height}px`

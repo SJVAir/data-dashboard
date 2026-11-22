@@ -180,12 +180,12 @@ describe("widgetInputs", () => {
 			layers: [pm25, use]
 		};
 		const figure = { field: "daily_statistic_mean", label: "Average of 24-hour averages" };
-		const got = widgetInputs(chart(data), RULES_CATALOG, "regions", undefined, undefined, figure);
+		const got = widgetInputs(chart(data), RULES_CATALOG, "regions", undefined, figure);
 		expect(got.figureFor).toEqual({ entryType: "pm25", resolution: "month" });
 		expect(got.main?.figure).toBe("daily_statistic_mean");
 		// The figure is the main's: an overlay never carries it.
 		expect(got.overlays[0]).not.toHaveProperty("figure");
-		const none = widgetInputs(chart(data), RULES_CATALOG, "regions", undefined, undefined, null);
+		const none = widgetInputs(chart(data), RULES_CATALOG, "regions", undefined, null);
 		expect(none.main).not.toHaveProperty("figure");
 	});
 
@@ -291,27 +291,25 @@ describe("queryLayer", () => {
 describe("chartInput", () => {
 	it("asks for searched monitors with no Where", () => {
 		const layer: Layer = { ...PM, monitors: ["m1", "m2"] };
-		const { input } = chartInput({ layers: [layer] }, CATALOG, Infinity, "day");
+		const { input } = chartInput({ layers: [layer] }, CATALOG, "day");
 		expect(input?.layer).toEqual(layer);
 	});
 
 	it("asks for nothing with no Where and no monitors", () => {
-		expect(chartInput({ layers: [PM] }, CATALOG, Infinity, "day").input).toBeNull();
+		expect(chartInput({ layers: [PM] }, CATALOG, "day").input).toBeNull();
 	});
 
 	it("a Chart with PM2.5, no Where and no monitors asks for nothing and says what to add", () => {
-		const got = chartInput({ layers: [PM] }, CATALOG, Infinity, "day");
+		const got = chartInput({ layers: [PM] }, CATALOG, "day");
 		expect(got.input).toBeNull();
 		expect(got.empty).toBe("add-where-or-monitors");
-		expect(chartInput({ layers: [] }, CATALOG, Infinity, "day").empty).toBe("add-layers");
-		expect(chartInput({ layers: [PM], place: FRESNO }, CATALOG, Infinity, "day").empty).toBe(
-			undefined
-		);
+		expect(chartInput({ layers: [] }, CATALOG, "day").empty).toBe("add-layers");
+		expect(chartInput({ layers: [PM], place: FRESNO }, CATALOG, "day").empty).toBe(undefined);
 	});
 
 	it("a Chart with Reference-grade ticked and no Where asks for every reference monitor", () => {
 		const layer: Layer = { ...PM, monitorTypes: ["airnow"] };
-		const { input, empty } = chartInput({ layers: [layer] }, CATALOG, Infinity, "day");
+		const { input, empty } = chartInput({ layers: [layer] }, CATALOG, "day");
 		expect(empty).toBeUndefined();
 		expect(input?.layer).toEqual(layer);
 		expect(input?.layer.place).toBeUndefined();

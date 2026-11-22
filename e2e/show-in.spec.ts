@@ -1,7 +1,7 @@
 /**
  * "Show in a chart" and "Show in a table" from a Map, end to end on the fixtures: the Map's marks
  * (or a pinned pesticide section card) open the Data Portal on a Chart or Table of them, with the
- * Map's range; over the type's cap it asks which places to keep; "Add to …" adds the widget (for a
+ * Map's range, never asking which places to keep (no cap); "Add to …" adds the widget (for a
  * viewer on a live link, to their own dashboard). Fresno County gets six made-up monitors beside
  * Drummond Street (`routeMoreMonitors`), so a county Map draws seven, all Good. The clock stands
  * at noon Pacific, as in the Map's other day tests.
@@ -124,8 +124,8 @@ function whereSummary(page: Page): Locator {
 	return page.getByTestId("where-summary");
 }
 
-/** The place picker, opened to choose which places to keep. */
-function keepDialog(page: Page): Locator {
+/** The place picker: it never opens by itself, since a Chart or Table takes every place. */
+function placesDialog(page: Page): Locator {
 	return page.getByRole("dialog", { name: /^Choose (a place|places)$/ });
 }
 
@@ -158,8 +158,8 @@ test.describe("from a Map's marks", () => {
 		await expect(whereSummary(page)).toHaveText("Fresno County");
 		// The Map's range.
 		await expect(page.getByTestId("resolved-range")).toHaveText("Nov 9 – 11, 2026");
-		// Nothing was over the cap or left out.
-		await expect(keepDialog(page)).toHaveCount(0);
+		// No dialog asked which places to keep, and nothing was left out.
+		await expect(placesDialog(page)).toHaveCount(0);
 		await expect(page.getByText(/aren't shown on the map|isn't shown on the map/)).toHaveCount(0);
 
 		// A reload keeps the history entry's hand-off: the same Chart comes back (D16).
@@ -191,8 +191,8 @@ test.describe("from a Map's marks", () => {
 		await widgetMenuItem(page, FRESNO_MAP, "Show in a chart");
 		await expect(page).toHaveURL(NEW_WIDGET_URL);
 		await expect(page.getByRole("radio", { name: "Chart" })).toBeChecked();
-		// Searched monitors are never over a cap: no dialog asks which to keep.
-		await expect(keepDialog(page)).toHaveCount(0);
+		// No cap: no dialog asks which to keep.
+		await expect(placesDialog(page)).toHaveCount(0);
 		await expect(whereSummary(page)).toHaveText("Fresno County");
 		await expectNoViolations(page);
 	});
@@ -211,7 +211,7 @@ test.describe("from a Map's marks", () => {
 		await expect(
 			page.getByText("1 marked monitor isn't shown on the map, so it was left out.")
 		).toBeVisible();
-		await expect(keepDialog(page)).toHaveCount(0);
+		await expect(placesDialog(page)).toHaveCount(0);
 	});
 });
 

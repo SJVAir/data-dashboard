@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { QueryData, SeriesPoint } from "$lib/data/types";
-import { alignSeries, chartXRange, seriesStyle } from "./series";
+import { alignSeries, chartXRange, seriesShape, seriesStyle } from "./series";
 
 function fakeCss(): CSSStyleDeclaration {
 	const vars: Record<string, string> = {
@@ -35,6 +35,28 @@ describe("seriesStyle", () => {
 				expect(sameDash && sameMarker).toBe(false);
 			}
 		}
+	});
+
+	it("the first 125 lines all differ", () => {
+		const css = fakeCss();
+		const looks = Array.from({ length: 125 }, (_, i) => JSON.stringify(seriesStyle(i, css)));
+		expect(new Set(looks).size).toBe(125);
+		expect(seriesStyle(0, css)).toEqual({ color: "c1", dash: [], marker: "circle" });
+		expect(seriesShape(125)).toEqual(seriesShape(0));
+	});
+
+	it("any five lines in a row differ in dash or marker (never color alone)", () => {
+		const look = (i: number) => {
+			const { dash, marker } = seriesShape(i);
+			return `${dash.join()}/${marker}`;
+		};
+		for (let i = 0; i < 250; i++) {
+			for (let j = i + 1; j < i + 5; j++) expect(look(j), `${i}, ${j}`).not.toBe(look(i));
+		}
+	});
+
+	it("the sixth line repeats the first color with another dash", () => {
+		expect(seriesShape(5)).toEqual({ token: 1, dash: [6, 3], marker: "circle" });
 	});
 });
 
@@ -104,12 +126,10 @@ describe("alignSeries", () => {
 		expect(aligned.points[1].map((p) => p?.mean ?? null)).toEqual([null, 20]);
 	});
 
-	it("keeps at most five places", () => {
-		const series = ["a", "b", "c", "d", "e", "f"].map((place) => ({
-			place,
-			points: [point(day(1), 1)]
-		}));
-		expect(alignSeries(query(series, "day")).places).toEqual(["a", "b", "c", "d", "e"]);
+	it("keeps every place", () => {
+		const places = Array.from({ length: 30 }, (_, i) => `p${i}`);
+		const series = places.map((place) => ({ place, points: [point(day(1), 1)] }));
+		expect(alignSeries(query(series, "day")).places).toEqual(places);
 	});
 
 	it("fills null periods across the whole range, before the first and after the last point", () => {

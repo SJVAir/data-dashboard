@@ -80,14 +80,6 @@ export function resolutionBlock(type: WidgetType, data: WidgetDataConfig): Level
 	return type.resolution && type.resolution !== chosen ? chosen : null;
 }
 
-/**
- * Whether switching to `type` with more places than it takes asks which to keep (D5, D17): a type
- * that takes several places, other than the Map (whose cap no other type's places exceed).
- */
-export function keepsOnSwitch(type: WidgetType): boolean {
-	return (type.accepts?.maxPlaces ?? 0) > 1 && type.type !== MAP_TYPE;
-}
-
 /** Why `type` can't show `data` as it stands, or `null` when it can. */
 export function typeBlock(
 	type: WidgetType,
@@ -98,10 +90,9 @@ export function typeBlock(
 	const accepts = type.accepts ?? {};
 	const accepted = accepts.datasets ?? [];
 	if (data.layers.some((l) => !accepted.includes(l.dataset))) return "dataset";
-	// Over a several-place cap (Chart, Table) Show as asks which places to keep instead (D17); a
-	// one-place type, and the Map, still block.
-	if (accepts.maxPlaces !== undefined && !keepsOnSwitch(type)) {
-		if (fromWhere(data).length > accepts.maxPlaces) return "places";
+	// Only a type with a cap (the one-place types, and the Map) blocks on places.
+	if (accepts.maxPlaces !== undefined && fromWhere(data).length > accepts.maxPlaces) {
+		return "places";
 	}
 	if (data.dateRange) {
 		// A span that counts stops (the Map's) counts them at the dataset's resolution.

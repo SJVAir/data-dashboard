@@ -18,13 +18,12 @@ import { PLACE_VIEWER_KEY, type PlaceViewer } from "./viewer";
 type Levels = Level[] | { error: unknown } | undefined;
 
 /**
- * What a widget asks the query client for: its main layer, the main query (`input`), the places
- * cut, and one query per overlay (`null`: not fetched), all at the dataset's resolution.
+ * What a widget asks the query client for: its main layer, the main query (`input`), and one
+ * query per overlay (`null`: not fetched), all at the dataset's resolution.
  */
 export type WidgetPicked = {
 	layer: Layer | undefined;
 	input: QueryInput | null;
-	hidden: number;
 	/** What to add when the widget asks for nothing (`WidgetInputs.empty`). */
 	empty?: WidgetInputs["empty"];
 	overlays: (QueryInput | null)[];
@@ -49,7 +48,6 @@ export type FigureOf = (entryType: string, resolution: DatasetLevel) => Figure |
 export type WidgetInputBuilder = (
 	widget: WidgetInstance,
 	catalog: CatalogEntry[] | undefined,
-	maxPlaces: number,
 	now: number,
 	figureOf: FigureOf
 ) => WidgetPicked;
@@ -61,17 +59,16 @@ export type WidgetInputBuilder = (
 function defaultInputs(
 	widget: WidgetInstance,
 	catalog: CatalogEntry[] | undefined,
-	maxPlaces: number,
 	now: number,
 	figureOf: FigureOf
 ): WidgetPicked {
 	const place = widgetPlaceKind(widget.data);
-	const plain = widgetInputs(widget, catalog, place, maxPlaces, now);
+	const plain = widgetInputs(widget, catalog, place, now);
 	const need = plain.figureFor;
 	if (!need) return { ...plain, input: plain.main };
 	const figure = figureOf(need.entryType, need.resolution);
 	if (figure === undefined) return { ...plain, input: null, figurePending: true };
-	const got = widgetInputs(widget, catalog, place, maxPlaces, now, figure);
+	const got = widgetInputs(widget, catalog, place, now, figure);
 	return { ...got, input: got.main };
 }
 
@@ -97,7 +94,7 @@ function withLevels(s: QueryState, levels: Levels): QueryState {
 }
 
 /**
- * What a widget that shows one pollutant for up to `maxPlaces` places over a date range needs:
+ * What a widget that shows one pollutant for its places over a date range needs:
  * the live query, its entry type's levels, the retirement notice, and the generated title. Call
  * during component initialization (it registers effects and cleanup).
  */
@@ -136,11 +133,7 @@ export class DataWidget {
 	readonly overlays: WidgetOverlay[];
 
 	/** `opts.input` builds the queries (default `widgetInputs`). */
-	constructor(
-		widget: () => WidgetInstance,
-		maxPlaces: number,
-		opts: { input?: WidgetInputBuilder } = {}
-	) {
+	constructor(widget: () => WidgetInstance, opts: { input?: WidgetInputBuilder } = {}) {
 		const build = opts.input ?? defaultInputs;
 		const viewer = getContext<PlaceViewer | undefined>(PLACE_VIEWER_KEY) ?? "owner";
 		this.viewer = viewer;
@@ -162,7 +155,7 @@ export class DataWidget {
 			const f = this.#figure;
 			return f && f.key === `${entryType}/${resolution}` ? f.figure : undefined;
 		};
-		this.picked = $derived(build(widget(), this.catalog, maxPlaces, hour * HOUR_MS, figureOf));
+		this.picked = $derived(build(widget(), this.catalog, hour * HOUR_MS, figureOf));
 		const figureFor = $derived(this.picked.figureFor);
 		const figureKey = $derived(
 			figureFor ? `${figureFor.entryType}/${figureFor.resolution}` : undefined

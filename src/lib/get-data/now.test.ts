@@ -251,7 +251,7 @@ describe("fromNowDraft", () => {
 		expect(fromNowDraft(strip, chartType).draft.data.place).toEqual(FRESNO);
 	});
 
-	it("fromNowDraft from a 25-place Map to Chart keeps 5 with a places note", () => {
+	it("fromNowDraft from a 25-place Map to Chart keeps all 25; a one-place type keeps the first", () => {
 		const ids = Array.from({ length: 25 }, (_, i) => `county:m${i + 1}`);
 		const map: Draft = {
 			type: "map",
@@ -265,7 +265,7 @@ describe("fromNowDraft", () => {
 				type: CHART_TYPE,
 				data: {
 					dateRange: DEFAULT_RANGE,
-					selection: { kind: "regions", ids: ids.slice(0, 5) },
+					selection: { kind: "regions", ids },
 					layers: [
 						{
 							dataset: "air-quality",
@@ -274,7 +274,7 @@ describe("fromNowDraft", () => {
 					]
 				}
 			},
-			dropped: ["places"]
+			dropped: []
 		});
 		// A one-place target gets the first as its `place`.
 		const one = { ...chartType, accepts: { ...chartType.accepts, maxPlaces: 1 } };
@@ -286,10 +286,11 @@ describe("fromNowDraft", () => {
 			type: "county",
 			code: "m1"
 		});
-		// Data table's cap is 10.
+		expect(fromNowDraft(map, one).dropped).toEqual(["places"]);
+		// A Data table takes every place too.
 		const table = fromNowDraft(map, dataTableType);
-		expect(table.draft.data.selection?.ids).toEqual(ids.slice(0, 10));
-		expect(table.dropped).toEqual(["places"]);
+		expect(table.draft.data.selection?.ids).toEqual(ids);
+		expect(table.dropped).toEqual([]);
 	});
 
 	it("fromNowDraft from a one-place now tile is unchanged", () => {

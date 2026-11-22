@@ -6,13 +6,11 @@
 import { LIMITS, TimeSubRangeSchema, type TimeSubRange } from "$lib/data/schema";
 import { DraftSchema, type Draft } from "$lib/get-data/draft.svelte";
 import type { NowDropped } from "$lib/get-data/now";
-import { fromWhere } from "$lib/places/selection";
-import { getWidgetType } from "$lib/widgets/registry";
 import { z } from "$lib/zod";
 
 /**
  * The conversion's notes the Data Portal shows, as Show as shows them: never "marks" (the marks
- * are the places) or "places" (over the cap, the person chooses which to keep).
+ * are the places) or "places" (a Chart and a Table take any number).
  */
 export const HAND_OFF_DROPPED = [
 	"dates",
@@ -59,12 +57,3 @@ export const HandOffSchema: z.ZodType<HandOff> = z.object({
 		})
 		.optional()
 });
-
-/**
- * The draft's Where holds more places than its type takes: the Data Portal opens the keep
- * dialog (D17). Derived from the draft, never read from history state.
- */
-export function overCap(draft: Draft): boolean {
-	const max = getWidgetType(draft.type)?.accepts?.maxPlaces;
-	return max !== undefined && fromWhere(draft.data).length > max;
-}

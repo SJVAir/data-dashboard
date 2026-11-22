@@ -18,8 +18,7 @@ export const chartType: WidgetType = {
 	downloadable: true,
 	accepts: {
 		datasets: ["air-quality", "forecasts", "weather", "hms-smoke", "pesticide-use"],
-		maxPollutantLayers: 1,
-		maxPlaces: 5
+		maxPollutantLayers: 1
 	},
 	// Type-specific items only; the widget frame adds the common widget actions.
 	menu: () => [],

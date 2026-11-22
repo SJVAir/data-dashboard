@@ -89,7 +89,7 @@ function lookupInput(
 	// A Map is looked up as it frames its places now, whether or not it has a range.
 	const type = getWidgetType(widget.type);
 	if (type && offersNow(type)) return nowInput(data, layer);
-	return widgetInputs({ type: widget.type, data }, catalog, widgetPlaceKind(data), 1).main;
+	return widgetInputs({ type: widget.type, data }, catalog, widgetPlaceKind(data)).main;
 }
 
 /**

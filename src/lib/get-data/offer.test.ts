@@ -226,7 +226,17 @@ describe("typeBlock", () => {
 		expect(typeBlock(chartType, data(), CATALOG, NOW)).toBeNull();
 	});
 
-	it("places over the cap never block Chart or Table (Show as asks which to keep)", () => {
+	it("a Chart takes 40 areas", () => {
+		const d = data({ selection: areas(40) });
+		expect(typeBlock(chartType, d, CATALOG, NOW)).toBeNull();
+		expect(typeBlock(dataTableType, d, CATALOG, NOW)).toBeNull();
+	});
+
+	it('Current conditions with two areas is blocked "places"', () => {
+		expect(typeBlock(currentType, data({ selection: areas(2) }), CATALOG, NOW)).toBe("places");
+	});
+
+	it("places never block Chart or Table", () => {
 		const d = data({
 			selection: areas(7),
 			layers: [{ dataset: "air-quality", entryType: "pm25" }]

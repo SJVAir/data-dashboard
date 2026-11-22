@@ -194,36 +194,28 @@ export type ChartEmpty = "add-where-or-monitors" | "add-layers";
 
 /**
  * What a Chart asks the query client for: its `mainLayer` over the widget's date range at
- * `resolution` (the dataset's), with each day's worst hour, and at most `maxPlaces` of a
- * selection's places. `hidden` counts the places cut. A widget with no Where and no monitors
+ * `resolution` (the dataset's), with each day's worst hour, at every place of its Where (there is
+ * no cap on a Chart's lines or a Table's columns). A widget with no Where and no monitors
  * asks for nothing (`input` is null) and says what to add (`empty`): monitors or a Where, or, with
  * no layers at all, what to show.
  */
 export function chartInput(
 	data: WidgetDataConfig,
 	catalog: CatalogEntry[] | undefined,
-	maxPlaces: number,
 	resolution: Resolution
-): { layer: Layer | undefined; input: QueryInput | null; hidden: number; empty?: ChartEmpty } {
+): { layer: Layer | undefined; input: QueryInput | null; empty?: ChartEmpty } {
 	const layer = mainLayer(data, catalog);
-	if (data.layers.length === 0) return { layer, input: null, hidden: 0, empty: "add-layers" };
-	if (!hasPlaces(data)) return { layer, input: null, hidden: 0, empty: "add-where-or-monitors" };
-	if (!layer) return { layer, input: null, hidden: 0 };
-	let shown = queryLayer(data, layer);
-	let hidden = 0;
-	const { selection } = data;
-	if (selection && selection.ids.length > maxPlaces) {
-		hidden = selection.ids.length - maxPlaces;
-		shown = { ...shown, selection: { ...selection, ids: selection.ids.slice(0, maxPlaces) } };
-	}
+	if (data.layers.length === 0) return { layer, input: null, empty: "add-layers" };
+	if (!hasPlaces(data)) return { layer, input: null, empty: "add-where-or-monitors" };
+	if (!layer) return { layer, input: null };
 	const input: QueryInput = {
-		layer: shown,
+		layer: queryLayer(data, layer),
 		dateRange: data.dateRange ?? DEFAULT_RANGE,
 		resolution,
 		worstHour: true
 	};
 	if (data.timeSubRange) input.timeSubRange = data.timeSubRange;
-	return { layer, input, hidden };
+	return { layer, input };
 }
 
 /** Everything a Chart or Data table asks the query client for (see `widgetInputs`). */
@@ -231,8 +223,6 @@ export type WidgetInputs = {
 	/** The main layer (`mainLayer`); every input uses the widget's Where. */
 	layer: Layer | undefined;
 	main: QueryInput | null;
-	/** Places of the widget's selection cut to fit `maxPlaces`. */
-	hidden: number;
 	/** What the widget asks to be given when it has nothing to ask for (`chartInput`). */
 	empty?: ChartEmpty;
 	/** One per `overlayLayers` entry; `null` for a misfit (it doesn't offer the resolution). */
@@ -260,7 +250,6 @@ export function widgetInputs(
 	widget: { type: string; data: WidgetDataConfig },
 	catalog: CatalogEntry[] | undefined,
 	place: PlaceKind,
-	maxPlaces: number = Infinity,
 	now: Date | number = new Date(),
 	figure?: Figure | null
 ): WidgetInputs {
@@ -268,14 +257,9 @@ export function widgetInputs(
 	if (effective.unusable) {
 		// A stored level the widget doesn't offer: nothing is fetched (the widget says why).
 		const layer = mainLayer(widget.data, catalog);
-		return { layer, main: null, hidden: 0, overlays: [], effective, figureFor: null };
+		return { layer, main: null, overlays: [], effective, figureFor: null };
 	}
-	const { layer, input, hidden, empty } = chartInput(
-		widget.data,
-		catalog,
-		maxPlaces,
-		effective.resolution
-	);
+	const { layer, input, empty } = chartInput(widget.data, catalog, effective.resolution);
 	const overlays = input
 		? overlayLayers(widget.data, catalog).map((l) =>
 				effective.misfits.includes(l) ? null : overlayInput(input, queryLayer(widget.data, l))
@@ -286,5 +270,5 @@ export function widgetInputs(
 			? { entryType: layer.entryType, resolution: effective.resolution }
 			: null;
 	const main = input && figureFor && figure ? { ...input, figure: figure.field } : input;
-	return { layer, main, hidden, ...(empty ? { empty } : {}), overlays, effective, figureFor };
+	return { layer, main, ...(empty ? { empty } : {}), overlays, effective, figureFor };
 }

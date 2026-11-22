@@ -39,6 +39,10 @@ export type WidgetType = {
 	accepts?: {
 		datasets?: string[];
 		maxPollutantLayers?: number;
+		/**
+		 * The most places a single-place type (or the Map) takes; none for a type that takes any
+		 * number (a Chart, a Table). Read it through `placeLimit`.
+		 */
 		maxPlaces?: number;
 		/** Only a pollutant (a layer with a daily scale) can be added. */
 		onlyPollutant?: boolean;
@@ -74,6 +78,15 @@ const loaded = new WeakMap<WidgetType, WidgetModule>();
 
 export function registerWidgetType(t: WidgetType): void {
 	types.set(t.type, t);
+}
+
+/**
+ * How many places `type` takes: its `accepts.maxPlaces`, any number (`Infinity`) for a data type
+ * without one (a Chart, a Table), none for a type that takes no data (a Note) or isn't known.
+ */
+export function placeLimit(type: WidgetType | undefined): number {
+	if (!type?.accepts?.datasets?.length) return 0;
+	return type.accepts.maxPlaces ?? Infinity;
 }
 
 export function getWidgetType(type: string): WidgetType | undefined {

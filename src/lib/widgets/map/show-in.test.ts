@@ -19,8 +19,7 @@ import { PESTICIDE_USE } from "$lib/widgets/map/options";
 import { DATA_TABLE_TYPE, dataTableType } from "$lib/widgets/table";
 import { hasPoints, pointSwaps } from "$lib/sharing/points";
 import { navigate } from "../../../router";
-import { registerWidgetType } from "$lib/widgets/registry";
-import { overCap } from "./hand-off";
+import { typeBlock } from "$lib/get-data/offer";
 import { setMapSend } from "./send-registry";
 import { runShowIn, showInItems } from "./show-in-items";
 import {
@@ -126,14 +125,17 @@ describe("showInDraft: monitors", () => {
 		});
 	});
 
-	it("keeps every id for a Chart or a Table: marks are never over a places cap", () => {
-		registerWidgetType(chartType);
-		registerWidgetType(dataTableType);
+	it("show in: 30 marks open the Chart with all 30, no keep dialog", () => {
 		const at = (n: number, type = chartType) =>
 			showInDraft(mapDraft(["pm25"]), send(monitors(n)), type, CATALOG, NOW);
-		expect(overCap(at(6).draft)).toBe(false);
-		expect(at(6).draft.data.layers[0].monitors).toEqual(monitors(6));
-		expect(overCap(at(11, dataTableType).draft)).toBe(false);
+		const chart = at(30);
+		expect(chart.draft.type).toBe(CHART_TYPE);
+		expect(chart.draft.data.layers[0].monitors).toEqual(monitors(30));
+		// Nothing over a cap: a Chart and a Table take every place, so nothing asks which to keep.
+		expect(typeBlock(chartType, chart.draft.data, CATALOG, NOW)).toBeNull();
+		const table = at(30, dataTableType);
+		expect(table.draft.data.layers[0].monitors).toEqual(monitors(30));
+		expect(typeBlock(dataTableType, table.draft.data, CATALOG, NOW)).toBeNull();
 	});
 
 	it("carries the left-out count and no skip", () => {

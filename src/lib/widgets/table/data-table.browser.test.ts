@@ -131,14 +131,14 @@ test("narrow shows date, value and level; wide adds worst hour, lowest and highe
 	await expect.element(screen.getByRole("columnheader", { name: /Worst hour/ })).toBeVisible();
 });
 
-test("ten places at most, and the rest are counted", async () => {
+test("twelve places: every one is asked for, with no cut", async () => {
 	const ids = Array.from({ length: 12 }, (_, i) => `county:a${i + 1}`);
 	const widget = tableWidget([]);
 	widget.data.layers = [{ dataset: "air-quality", entryType: "pm25" }];
 	widget.data.selection = { kind: "regions", ids };
 	const screen = await show(widget);
-	await expect.element(screen.getByText("2 more places aren't shown.")).toBeVisible();
-	expect(requests.at(-1)!.target).toEqual({ kind: "regions", keys: ids.slice(0, 10) });
+	await expect.poll(() => requests.at(-1)?.target).toEqual({ kind: "regions", keys: ids });
+	expect(screen.getByText(/more places? (aren't|isn't) shown/).query()).toBeNull();
 });
 
 test("the caption names the figure at the resolution", async () => {

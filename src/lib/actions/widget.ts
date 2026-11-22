@@ -47,7 +47,7 @@ import {
 	type PhoneSpan
 } from "$lib/layout/steps";
 import { copyPlacement, minimizeChange, restoreChange } from "$lib/layout/windowing";
-import { getWidgetType } from "$lib/widgets/registry";
+import { getWidgetType, placeLimit } from "$lib/widgets/registry";
 import { generatedTitle } from "$lib/widgets/titles.svelte";
 import type { PlaceViewer } from "$lib/widgets/shared/viewer";
 import { navigate } from "../../router";
@@ -402,12 +402,12 @@ export function downloadItems(
 }
 
 /**
- * "Change place" for an editable widget whose type has `accepts.maxPlaces`; none otherwise. The
+ * "Change place" for an editable widget whose type takes places (`placeLimit`); none otherwise. The
  * picker opens once the menu has closed, from what opened the menu (focus returns there).
  */
 export function placeItems(app: AppContext, widget: () => WidgetInstance | null): MenuItem[] {
 	const current = widget();
-	if (!current || !getWidgetType(current.type)?.accepts?.maxPlaces) return [];
+	if (!current || placeLimit(getWidgetType(current.type)) < 1) return [];
 	if (!find(app, current.id)) return [];
 	const widgetId = current.id;
 	return [

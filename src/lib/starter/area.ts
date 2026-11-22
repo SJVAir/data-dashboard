@@ -24,7 +24,7 @@ export async function starterAreaOf(
 		place: structuredClone(place),
 		layers: [structuredClone(DEFAULT_LAYER)]
 	};
-	const input = widgetInputs({ type: CHART_TYPE, data }, catalog, widgetPlaceKind(data), 1).main;
+	const input = widgetInputs({ type: CHART_TYPE, data }, catalog, widgetPlaceKind(data)).main;
 	const region = input ? await placeRegion(input, signal) : null;
 	return region ? { kind: "region", ...region } : null;
 }

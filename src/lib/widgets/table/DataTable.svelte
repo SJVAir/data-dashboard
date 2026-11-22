@@ -13,13 +13,12 @@
 	import { levelFor } from "$lib/data/metadata";
 	import type { PlaceInfo, QueryData } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
-	import { formatHourRange, formatNumber, formatPeriod, formatValue } from "$lib/format";
+	import { formatHourRange, formatPeriod, formatValue } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import { DataWidget } from "../shared/data-widget.svelte";
 	import WidgetState from "../shared/WidgetState.svelte";
 	import { idleText } from "../shared/idle-text";
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
-	import { dataTableType } from "./index";
 	import { sourceLabel } from "../shared/source-label";
 	import { placeLabel } from "../title";
 	import { misfitNotes } from "../shared/misfit-notes";
@@ -30,14 +29,13 @@
 	const app = useApp();
 	/** Whether notes can point at Edit data: the dashboard isn't read-only. */
 	const editable = $derived(!!app.current.session && !app.current.session.readOnly);
-	const MAX_PLACES = dataTableType.accepts?.maxPlaces ?? 10;
 	/**
 	 * "Wide enough" for the extra columns: the widget body is as wide as six grid columns. The grid
 	 * exposes no column width to widgets, so this is six of twelve columns of a 1280 px page (about
 	 * 100 px a column with 16 px gaps), rounded down.
 	 */
 	const WIDE_PX = 600;
-	const w = new DataWidget(() => widget, MAX_PLACES);
+	const w = new DataWidget(() => widget);
 
 	let width = $state(0);
 	const wide = $derived(width >= WIDE_PX);
@@ -153,11 +151,6 @@
 </script>
 
 <div class="flex h-full flex-col" bind:clientWidth={width}>
-	{#if w.picked.hidden > 0}
-		<p class="bg-muted text-muted-foreground mb-2 rounded-(--radius-control) px-2 py-1 text-sm">
-			{m.table_hidden_places({ count: formatNumber(w.picked.hidden), countValue: w.picked.hidden })}
-		</p>
-	{/if}
 	<div class="min-h-0 flex-1">
 		<WidgetState
 			state={w.shown}

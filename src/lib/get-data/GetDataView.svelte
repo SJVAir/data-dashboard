@@ -33,7 +33,7 @@
 		PESTICIDE_USE,
 		mapOptions
 	} from "$lib/widgets/map/options";
-	import { dataTypes, getWidgetType, type WidgetType } from "$lib/widgets/registry";
+	import { dataTypes, getWidgetType, placeLimit, type WidgetType } from "$lib/widgets/registry";
 	import { offersNow } from "$lib/widgets/time";
 	import { DataWidget } from "$lib/widgets/shared/data-widget.svelte";
 	import {
@@ -89,7 +89,7 @@
 	import { isCalendarType } from "$lib/calendars/types";
 	import ThresholdLineControl from "./ThresholdLineControl.svelte";
 	import { formatDate, formatDateRange, formatList, formatNumber } from "$lib/format";
-	import { keepsOnSwitch, offeredDatasets, resolutionBlock, typeBlock } from "./offer";
+	import { offeredDatasets, resolutionBlock, typeBlock } from "./offer";
 	import { datasetBlock, datasetBlockText } from "./dataset-offer";
 	import { LEVEL_BY, LEVEL_LABEL } from "./level-phrases";
 	import Preview, { type PreviewSize } from "./Preview.svelte";
@@ -115,7 +115,6 @@
 		onchange,
 		saves = true,
 		leftOut = 0,
-		keepOnOpen,
 		startNotes
 	}: {
 		mode: GetDataMode;
@@ -140,12 +139,6 @@
 		saves?: boolean;
 		/** Opened from a Map: the marks left out because they're hidden (a note, D4). */
 		leftOut?: number;
-		/**
-		 * Opened from a Map with more places than the type takes: the Where dialog opens at once
-		 * to choose which to keep (D17). Done keeps them (`onkeep` gets the draft with them);
-		 * Cancel calls `oncancel` and changes nothing.
-		 */
-		keepOnOpen?: { oncancel: () => void; onkeep?: (draft: Draft) => void };
 		/** Opened from a Map: what its conversion left out or changed, noted as Show as notes it. */
 		startNotes?: Omit<NowConversion, "draft">;
 	} = $props();
@@ -451,7 +444,7 @@
 				: [{ ...DEFAULT_LAYER }];
 		return { ...previewWidget, id: `${PREVIEW_ID}-names`, data: { ...plain.data, layers } };
 	});
-	const data = new DataWidget(() => namesWidget, Infinity);
+	const data = new DataWidget(() => namesWidget);
 
 	/** "Overlay for": a Chart choice, only when the places' overlays differ (different zones). */
 	const overlayFor = $derived.by(() => {
@@ -505,63 +498,12 @@
 		if (keepsDraft) flushDraft();
 	});
 
-	let root = $state<HTMLElement>();
 	let size = $state<PreviewSize>("large");
 	let width = $state(0);
 	const phone = new MediaQuery(PHONE_QUERY);
 
 	// Edits. Where is on the draft's data; the main layer decides the level, and overlays follow
 	// it (see `layers.ts`).
-
-	// Choosing which places to keep (D17) ----------------------------------------------------
-
-	type Keeping = {
-		max: number;
-		onkeep: (picks: Picks) => void;
-		oncancel: () => void;
-		restoreFocus?: () => boolean;
-	};
-
-	/** A keep request for the Where dialog; answered once, then dropped. */
-	function keepRequest(
-		max: number,
-		onkeep: (picks: Picks) => void,
-		oncancel: () => void,
-		restoreFocus?: () => boolean
-	): Keeping {
-		return {
-			max,
-			...(restoreFocus ? { restoreFocus } : {}),
-			onkeep: (picks) => {
-				keeping = undefined;
-				onkeep(picks);
-			},
-			oncancel: () => {
-				keeping = undefined;
-				oncancel();
-			}
-		};
-	}
-
-	const opening = untrack(() => keepOnOpen);
-	const openingCap = untrack(() => getWidgetType(initial.type)?.accepts?.maxPlaces);
-	/** The Where dialog's keep request, while one is open. */
-	let keeping = $state.raw<Keeping | undefined>(
-		opening && openingCap !== undefined
-			? keepRequest(
-					openingCap,
-					(kept) => {
-						applyPlaces(kept);
-						// Passing the dialog isn't an edit: the Map's notes stay up (D24).
-						noteStart();
-						opening.onkeep?.($state.snapshot(draft) as Draft);
-					},
-					opening.oncancel
-				)
-			: undefined
-	);
-	/** Bumped for each later keep request: the Where control remounts to open its dialog. */
-	let keepKey = $state(0);
 
 	/** Sets the range, or (`undefined`, for a type with `now`) Now. */
 	function setRange(spec: DateRangeSpec | undefined): void {
@@ -585,11 +527,6 @@
 	/** Change places' Done: the places the person chose (the hidden-marks note goes with them). */
 	function setPlaces(next: Picks): void {
 		leftOutShown = false;
-		applyPlaces(next);
-	}
-
-	/** Replaces the draft's Where. */
-	function applyPlaces(next: Picks): void {
 		delete draft.data.place;
 		delete draft.data.selection;
 		Object.assign(draft.data, toWhere(next));
@@ -634,7 +571,7 @@
 		const out: string[] = [];
 		if (what.includes("dates")) out.push(m.get_data_dates_left_out());
 		if (what.includes("overlays")) out.push(m.get_data_overlays_left_out());
-		const cap = getWidgetType(plain.type)?.accepts?.maxPlaces ?? 1;
+		const cap = placeLimit(getWidgetType(plain.type));
 		if (what.includes("places")) {
 			out.push(
 				cap > 1
@@ -782,29 +719,6 @@
 	function setType(next: string): void {
 		const to = getWidgetType(next);
 		if (!to) return;
-		// More places than a Chart or Table takes: the person chooses which to keep first, and
-		// Cancel changes nothing (D17). Kept within the cap, the conversion cuts none.
-		const cap = to.accepts?.maxPlaces;
-		if (keepsOnSwitch(to) && cap !== undefined && picks.length > cap) {
-			keeping = keepRequest(
-				cap,
-				(kept) => {
-					applyPlaces(kept);
-					switchType(to);
-				},
-				() => {},
-				// Done or Cancel, focus goes back to the Show as button pressed.
-				() => {
-					const pressed = root?.querySelector<HTMLElement>(
-						`[data-show-as="${CSS.escape(to.type)}"]`
-					);
-					pressed?.focus();
-					return !!pressed;
-				}
-			);
-			keepKey++;
-			return;
-		}
 		switchType(to);
 	}
 
@@ -958,7 +872,7 @@
 	}
 </script>
 
-<div class="flex min-h-full flex-col" bind:this={root} bind:clientWidth={width}>
+<div class="flex min-h-full flex-col" bind:clientWidth={width}>
 	<div
 		class="grid flex-1 gap-(--grid-gap) p-(--grid-gap) md:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]"
 	>
@@ -998,16 +912,13 @@
 
 			<section class="flex flex-col gap-2" aria-labelledby="{uid}-where">
 				<h2 id="{uid}-where" class="text-primary text-sm font-semibold">{m.get_data_where()}</h2>
-				{#key keepKey}
-					<WhereControl
-						{picks}
-						max={type?.accepts?.maxPlaces ?? 1}
-						offer={plain.type === CHART_TYPE || plain.type === DATA_TABLE_TYPE ? "areas" : "where"}
-						purpose={wherePurpose(plain.data, known)}
-						onchange={setPlaces}
-						keep={keeping}
-					/>
-				{/key}
+				<WhereControl
+					{picks}
+					max={placeLimit(type)}
+					offer={plain.type === CHART_TYPE || plain.type === DATA_TABLE_TYPE ? "areas" : "where"}
+					purpose={wherePurpose(plain.data, known)}
+					onchange={setPlaces}
+				/>
 			</section>
 
 			{#snippet catalogState()}

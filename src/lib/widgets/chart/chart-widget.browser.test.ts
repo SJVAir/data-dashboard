@@ -111,30 +111,32 @@ function areasChart(codes: string[]): WidgetInstance {
 	return widget;
 }
 
-test("seven areas draw five series and say two aren't shown", async () => {
+test("seven areas draw seven series, each named in the key, with no cut", async () => {
 	const codes = ["a1", "a2", "a3", "a4", "a5", "a6", "a7"];
 	const widget = areasChart(codes);
 	const screen = await show(widget);
 	const key = screen.getByRole("list", { name: m.chart_series_key() });
 	await expect.element(key).toBeVisible();
-	expect(key.getByRole("listitem").elements()).toHaveLength(5);
-	await expect.element(screen.getByText("2 more places aren't shown.")).toBeVisible();
+	await expect.poll(() => key.getByRole("listitem").elements().length).toBe(7);
+	expect(screen.getByText(/more places? (aren't|isn't) shown/).query()).toBeNull();
 	expect(requests.at(-1)!.target).toEqual({
 		kind: "regions",
-		keys: codes.slice(0, 5).map((c) => `county:${c}`)
+		keys: codes.map((c) => `county:${c}`)
 	});
-	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 · 5 places · Last 30 days");
+	// The sixth line repeats the first color, so it differs by its dash.
+	const samples = key
+		.getByRole("listitem")
+		.elements()
+		.map((li) => li.querySelector("svg")!);
+	expect(samples[5].style.color).toBe(samples[0].style.color);
+	expect(samples[5].dataset.dash).not.toBe(samples[0].dataset.dash);
+	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 · 7 places · Last 30 days");
 });
 
 test("searched monitors are never cut: all seven are asked for", async () => {
 	const ids = ["m1", "m2", "m3", "m4", "m5", "m6", "m7"];
 	await show(chartWidget(ids));
 	await expect.poll(() => requests.at(-1)?.target).toEqual({ kind: "monitors", ids });
-});
-
-test("one hidden place is worded singular", async () => {
-	const screen = await show(areasChart(["a1", "a2", "a3", "a4", "a5", "a6"]));
-	await expect.element(screen.getByText("1 more place isn't shown.")).toBeVisible();
 });
 
 test("a minimized widget's query stops polling", async () => {

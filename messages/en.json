@@ -836,16 +836,6 @@
 	"table_partial": "(so far)",
 	"table_caption": "{resolution}",
 	"table_caption_raw": "{resolution} · computed from raw data",
-	"table_hidden_places": [
-		{
-			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
-			"selectors": ["countPlural"],
-			"match": {
-				"countPlural=one": "{count} more place isn't shown.",
-				"countPlural=other": "{count} more places aren't shown."
-			}
-		}
-	],
 	"range_set_week": "Week of {date}",
 	"range_to_date_year": "This year so far",
 	"range_to_date_month": "This month so far",
@@ -901,16 +891,6 @@
 	"place_via_point_shared": "{region} (shared location)",
 	"place_via_location": "{region} ({location})",
 	"widget_title_no_place": "{entry} · {range}",
-	"chart_hidden_places": [
-		{
-			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
-			"selectors": ["countPlural"],
-			"match": {
-				"countPlural=one": "{count} more place isn't shown.",
-				"countPlural=other": "{count} more places aren't shown."
-			}
-		}
-	],
 	"place_picker_label": "Search for a place",
 	"place_picker_placeholder": "Search for a city, ZIP, or school",
 	"place_picker_placeholder_areas": "Search for a city, ZIP, or county",

@@ -23,7 +23,7 @@
 	import { calendarInput } from "$lib/calendars/input";
 	import { isCalendarType } from "$lib/calendars/types";
 	import { DEFAULT_LAYER } from "$lib/widgets/defaults";
-	import { getWidgetType } from "$lib/widgets/registry";
+	import { getWidgetType, placeLimit } from "$lib/widgets/registry";
 	import { offersNow } from "$lib/widgets/time";
 	import {
 		nowInput,
@@ -162,7 +162,7 @@
 				return;
 			}
 			const target = find();
-			const max = target ? (getWidgetType(target.widget.type)?.accepts?.maxPlaces ?? 0) : 0;
+			const max = target ? placeLimit(getWidgetType(target.widget.type)) : 0;
 			// A widget with no layers (a Note) has no Where.
 			if (!target || max < 1 || target.widget.data.layers.length === 0) {
 				close();
@@ -282,7 +282,7 @@
 
 	/** The region the widget would use for `point`, aborted with the dialog or after a timeout. */
 	async function regionOf(
-		ctx: Ready,
+		ctx: Pick<Ready, "catalog">,
 		widgetType: string,
 		data: WidgetDataConfig,
 		point: PointPlace,
@@ -301,12 +301,8 @@
 			? calendarInput(lookup, ctx.catalog, widgetType)
 			: type && offersNow(type)
 				? nowInput(lookup, mainLayer(lookup, ctx.catalog))
-				: widgetInputs(
-						{ type: widgetType, data: lookup },
-						ctx.catalog,
-						widgetPlaceKind(lookup),
-						ctx.max
-					).main;
+				: widgetInputs({ type: widgetType, data: lookup }, ctx.catalog, widgetPlaceKind(lookup))
+						.main;
 		if (!input) return null;
 		const timed = new AbortController();
 		const stop = () => timed.abort();
@@ -435,12 +431,9 @@
 		if (liveLink && pick.kind === "point") {
 			lookup = "looking";
 			const widget = firstSwitching(session.doc, target.place);
-			const max = widget ? (getWidgetType(widget.type)?.accepts?.maxPlaces ?? 1) : 1;
 			let region: { type: string; code: string } | null;
 			try {
-				region = widget
-					? await regionOf({ ...ctx, max }, widget.type, widget.data, pick, signal)
-					: null;
+				region = widget ? await regionOf(ctx, widget.type, widget.data, pick, signal) : null;
 			} catch {
 				// Failed or aborted: Retry offers another try.
 				region = null;

@@ -3,33 +3,43 @@ import { subRangeBounds } from "$lib/data/sub-range";
 import { byPlaceOrder, type QueryData, type SeriesPoint } from "$lib/data/types";
 import { nextPeriodStart, periodStart, resolveRange } from "$lib/format/range";
 
-/** A Chart draws at most this many places, one per series color. */
-export const MAX_CHART_PLACES = 5;
-
 export type Marker = "circle" | "square" | "triangle" | "diamond" | "cross";
 
 export type SeriesStyle = { color: string; dash: number[]; marker: Marker };
 
+/** The series color tokens (`--chart-1`…`--chart-5`). */
+const COLORS = 5;
 /** Dash patterns in CSS px; the first place is solid. */
 const DASHES: number[][] = [[], [6, 3], [2, 3], [9, 3, 2, 3], [4, 2]];
 const MARKERS: Marker[] = ["circle", "square", "triangle", "diamond", "cross"];
 
-/** The i-th place's dash and marker, which differ for every place (color is never the only cue). */
-export function seriesShape(i: number): Omit<SeriesStyle, "color"> {
-	const n = i % MAX_CHART_PLACES;
-	return { dash: DASHES[n], marker: MARKERS[n] };
+/**
+ * The i-th place's look: its `--chart-N` token (`token`), dash and marker. The color is
+ * `c = i % 5`; with `b = ⌊i/25⌋ % 5` and `a = (⌊i/5⌋ + b) % 5`, the dash is `(c + a) % 5` and the
+ * marker `(c + b) % 5`. The first 125 places all differ, and any five in a row differ in dash or
+ * marker, so color is never the only cue (the first five each have their own dash and marker).
+ */
+export function seriesShape(i: number): Omit<SeriesStyle, "color"> & { token: number } {
+	const c = i % COLORS;
+	const b = Math.floor(i / (COLORS * DASHES.length)) % MARKERS.length;
+	const a = (Math.floor(i / COLORS) + b) % DASHES.length;
+	return {
+		token: c + 1,
+		dash: DASHES[(c + a) % DASHES.length],
+		marker: MARKERS[(c + b) % MARKERS.length]
+	};
 }
 
-/** Style for the i-th place: --chart-(i+1) read from CSS, plus a distinct dash and marker. */
+/** Style for the i-th place: its `--chart-N` color read from CSS, its dash and marker. */
 export function seriesStyle(i: number, css: CSSStyleDeclaration): SeriesStyle {
-	const n = i % MAX_CHART_PLACES;
-	return { color: css.getPropertyValue(`--chart-${n + 1}`).trim(), ...seriesShape(n) };
+	const { token, dash, marker } = seriesShape(i);
+	return { color: css.getPropertyValue(`--chart-${token}`).trim(), dash, marker };
 }
 
 export type AlignedSeries = {
 	/** Shared x values (period starts, epoch ms), with every missing expected period included. */
 	xs: number[];
-	/** Place keys, in `data.places` order, at most `MAX_CHART_PLACES`. */
+	/** Place keys, in `data.places` order. */
 	places: string[];
 	/** One row per place, aligned to `xs`; `null` where the place has no point (a gap). */
 	points: (SeriesPoint | null)[][];
@@ -78,7 +88,7 @@ export function chartXRange(
  */
 export function alignSeries(data: QueryData, range?: XRange): AlignedSeries {
 	const order = new Map(data.places.map((p, i) => [p.place, i]));
-	const series = [...data.series].sort(byPlaceOrder(order)).slice(0, MAX_CHART_PLACES);
+	const series = [...data.series].sort(byPlaceOrder(order));
 
 	const resolution = data.resolution;
 	const anchors = range && resolution !== "raw" ? [range.min, range.max] : [];

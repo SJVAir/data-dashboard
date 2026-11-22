@@ -39,8 +39,6 @@ import { makeDoc } from "$lib/sync/test-support";
 import { defaultDraft, type Draft } from "./draft.svelte";
 import { editDraft, saveEdit } from "./edit";
 import GetDataView from "./GetDataView.svelte";
-import WhereControl from "./WhereControl.svelte";
-import type { Picks } from "$lib/places/selection";
 
 type Hit = { id: string; name: string; detail: string; placeholder?: boolean };
 type Station = { id: string; name: string; distance: number; inside: boolean; active: boolean };
@@ -527,62 +525,24 @@ test("Overlay for appears only when places are in different zones", async () => 
 	expect((await second.current()).options).toEqual({ overlayFor: { kind: "monitor", id: "m2" } });
 });
 
-describe("Show as over the cap", () => {
-	const ids = ["k1", "k2", "k3", "k4", "k5", "k6", "k7"];
+describe("Show as with many places", () => {
+	const ids = Array.from({ length: 40 }, (_, i) => `k${i + 1}`);
 	const selected = (d: Draft) => d.data.selection?.ids.map((id) => id.slice("county:".length));
 
-	beforeEach(() => {
-		fake.metadata = fixtureMetadata({
-			catalog: async () => CATALOG,
-			monitors: async () =>
-				ids.map((id) => ({
-					id,
-					name: `Monitor ${id}`,
-					type: "purpleair",
-					county: "Fresno",
-					active: true,
-					inside: false
-				}))
-		});
-		makeClient();
-	});
-
-	test("Chart from a 7-place Table asks which 5 to keep; Cancel keeps the Table and its 7", async () => {
+	test("a 40-area Table shows as a Chart of all 40, with no keep dialog", async () => {
 		const { latest } = await show(areasDraft(ids, { type: "data-table" }));
 		const chart = page.getByRole("radio", { name: "Chart" });
 		await expect.element(chart).toBeEnabled();
 		await expect.element(chart).not.toHaveAccessibleDescription();
 		await chart.click();
-		const dialog = page.getByRole("dialog");
-		await expect.element(dialog.getByText("Choose up to 5 places to keep.")).toBeVisible();
-		await dialog.getByRole("button", { name: "Cancel" }).click();
-		await expect.element(dialog).not.toBeInTheDocument();
-		// Focus goes back to the button pressed.
-		await expect.element(chart).toHaveFocus();
-		await expect.element(page.getByRole("radio", { name: "Data table" })).toBeChecked();
-		expect(latest().type).toBe("data-table");
-		expect(selected(latest())).toEqual(ids);
-	});
-
-	test("Done with 5 gives a Chart of those 5, with no places-left-out note", async () => {
-		const { latest } = await show(areasDraft(ids, { type: "data-table" }));
-		await page.getByRole("radio", { name: "Chart" }).click();
-		const dialog = page.getByRole("dialog");
-		await expect.element(dialog.getByText("Choose up to 5 places to keep.")).toBeVisible();
-		await dialog.getByRole("button", { name: "Remove Area k2" }).click();
-		await dialog.getByRole("button", { name: "Remove Area k4" }).click();
-		await dialog.getByRole("button", { name: "Done" }).click();
-		await expect.element(dialog).not.toBeInTheDocument();
-		await expect.element(page.getByRole("radio", { name: "Chart" })).toBeChecked();
-		await expect.element(page.getByRole("radio", { name: "Chart" })).toHaveFocus();
+		await expect.element(chart).toBeChecked();
+		expect(page.getByRole("dialog").query()).toBeNull();
 		expect(latest().type).toBe("chart");
-		expect(selected(latest())).toEqual(["k1", "k3", "k5", "k6", "k7"]);
-		const cut = m.get_data_places_over_cap_left_out({ count: "5", countValue: 5 });
-		expect(page.getByText(cut).query()).toBeNull();
-		// Change places afterwards opens the picker as usual, not to choose which to keep.
-		await page.getByRole("button", { name: "Change places" }).click();
-		await expect.element(page.getByRole("dialog")).toBeVisible();
-		expect(page.getByText("Choose up to 5 places to keep.").query()).toBeNull();
+		expect(selected(latest())).toEqual(ids);
+		expect(page.getByText(/places, so the others were left out/).query()).toBeNull();
+		// Back to the Table: all 40 still.
+		await page.getByRole("radio", { name: "Data table" }).click();
+		expect(selected(latest())).toEqual(ids);
 	});
 });
 
@@ -2369,101 +2329,5 @@ describe("calendar types", () => {
 		const { current } = await show(rangedMonth(daysAgo(2), daysAgo(1)));
 		await chooseDates("Last 90 days");
 		expect((await current()).data.timeSubRange).toEqual({ start: daysAgo(2), end: daysAgo(1) });
-	});
-});
-
-describe("Where in keep mode", () => {
-	const ids = ["k1", "k2", "k3", "k4", "k5", "k6", "k7"];
-	const picks: Picks = ids.map((id) => ({ kind: "monitor", id }));
-
-	async function showWhere() {
-		fake.metadata = fixtureMetadata({
-			catalog: async () => CATALOG,
-			monitors: async () =>
-				ids.map((id) => ({
-					id,
-					name: `Monitor ${id}`,
-					type: "purpleair",
-					county: "Fresno",
-					active: true,
-					inside: false
-				}))
-		});
-		const platform = createMemoryPlatform();
-		const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
-		const host = document.createElement("div");
-		host.dataset.getDataHost = "";
-		document.body.appendChild(host);
-		const onkeep = vi.fn();
-		const oncancel = vi.fn();
-		const onchange = vi.fn();
-		const screen = await render(WhereControl, {
-			target: host,
-			props: {
-				picks,
-				max: 5,
-				offer: "areas",
-				purpose: { dataset: "air-quality", entryType: "pm25" },
-				onchange,
-				keep: { max: 5, onkeep, oncancel }
-			},
-			context: new Map([[APP_CONTEXT_KEY, app]])
-		});
-		const dialog = page.getByRole("dialog");
-		await expect.element(dialog).toBeVisible();
-		await expect.element(dialog.getByText("Choose up to 5 places to keep.")).toBeVisible();
-		return { screen, dialog, onkeep, oncancel, onchange };
-	}
-
-	test("opens its picker at once; Done hands over the places to keep", async () => {
-		const { dialog, onkeep, oncancel, onchange } = await showWhere();
-		// The keep line is announced up front: it describes the dialog and the search box.
-		await expect.element(dialog).toHaveAccessibleDescription("Choose up to 5 places to keep.");
-		await expect
-			.element(dialog.getByRole("combobox"))
-			.toHaveAccessibleDescription("Choose up to 5 places to keep.");
-		const done = dialog.getByRole("button", { name: "Done" });
-		await expect.element(done).toHaveAttribute("aria-disabled", "true");
-		await dialog.getByRole("button", { name: "Remove Monitor k6" }).click();
-		await dialog.getByRole("button", { name: "Remove Monitor k7" }).click();
-		// Within the cap the keep line goes, and the dialog no longer names it.
-		await expect
-			.element(dialog.getByText("Choose up to 5 places to keep."))
-			.not.toBeInTheDocument();
-		await expect.element(dialog).not.toHaveAttribute("aria-describedby");
-		await done.click();
-		expect(onkeep).toHaveBeenCalledWith(picks.slice(0, 5));
-		expect(oncancel).not.toHaveBeenCalled();
-		expect(onchange).not.toHaveBeenCalled();
-		await expect.element(dialog).not.toBeInTheDocument();
-		await expect.element(page.getByRole("button", { name: "Change places" })).toHaveFocus();
-	});
-
-	test("Cancel calls oncancel once and returns focus to the Change button", async () => {
-		const { dialog, onkeep, oncancel } = await showWhere();
-		await dialog.getByRole("button", { name: "Cancel" }).click();
-		await expect.element(dialog).not.toBeInTheDocument();
-		expect(oncancel).toHaveBeenCalledOnce();
-		expect(onkeep).not.toHaveBeenCalled();
-		await expect.element(page.getByRole("button", { name: "Change places" })).toHaveFocus();
-	});
-
-	test("Escape cancels once", async () => {
-		const { dialog, onkeep, oncancel } = await showWhere();
-		await expect.element(dialog.getByRole("combobox")).toHaveFocus();
-		await userEvent.keyboard("{Escape}");
-		await expect.element(dialog).not.toBeInTheDocument();
-		expect(oncancel).toHaveBeenCalledOnce();
-		expect(onkeep).not.toHaveBeenCalled();
-		await expect.element(page.getByRole("button", { name: "Change places" })).toHaveFocus();
-	});
-
-	test("the dialog's close button cancels once", async () => {
-		const { dialog, onkeep, oncancel } = await showWhere();
-		await dialog.getByRole("button", { name: /close/i }).click();
-		await expect.element(dialog).not.toBeInTheDocument();
-		expect(oncancel).toHaveBeenCalledOnce();
-		expect(onkeep).not.toHaveBeenCalled();
-		await expect.element(page.getByRole("button", { name: "Change places" })).toHaveFocus();
 	});
 });
