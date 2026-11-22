@@ -1171,8 +1171,11 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   2); reworded 2026-11-22 (step 5 spec 7a)._ The Monitors search in the Air quality section offers
   monitors by type (`monitors/meta/` `monitors[<type>].entries`), so a site whose type takes the
   pollutant but that doesn't measure it (an AirNow site without ozone) can still be picked and then
-  shows "No data". Ticked types behave the same way. **Revisit when** the server exposes
-  per-monitor entry types.
+  shows "No data". Ticked types behave the same way. With several pollutants ticked on Current
+  conditions (step 5 spec 7b, 2026-11-22), the Monitors search and its rows judge only the first
+  ticked pollutant (`AirQualitySection.svelte` `purpose`/`monitorRows`): a monitor lacking it is
+  greyed out though the card would read it for another pollutant. **Revisit when** the server
+  exposes per-monitor entry types, or a monitor type measures a later pollutant but not the first.
 - **Location type and region filters in the place picker.** _Deferred 2026-11-04 (step 4 spec
   2)._ One search box covers the brief; `searchLocations`' `type` and `region` options stay
   unused. **Revisit if** school searches return too many unrelated rows.
@@ -2918,6 +2921,12 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
 - **Toasts or notifications from Chart threshold lines.** _(step 4 spec 4, 2026-11-08)_ Charts only display the line,
   to avoid noise from widgets people are not watching. **Revisit if** people ask to be told
   from a Chart.
+- **A minimized untitled card's notifications use the type's name.** _Deferred 2026-11-22 (step 5
+  spec 7b)._ Generated titles live only in memory and are set by the mounted component
+  (`widgets/titles.svelte.ts`), so a minimized untitled card is never mounted and its notification
+  title stays the type label (e.g. "Current conditions") until the card is shown; the body still
+  names the pollutant and place. Pre-dates 7b. **Revisit if** someone reports it: work out the
+  generated title in a shared helper the watcher can call.
 - **A client-side daily "still bad" reminder.** _(step 4 spec 4, 2026-11-08)_ The server's 10 AM reminder is for
   texts; the dashboard tells you once per rise. **Revisit if** people keep a dashboard open all
   day and ask for one.

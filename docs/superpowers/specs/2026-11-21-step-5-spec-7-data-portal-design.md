@@ -448,8 +448,8 @@ The user's calls, 2026-11-22:
   they were ticked in.
 - **R13:** screenshots of a marked one-pollutant card and a two-pollutant card were taken for a
   visual check the tests can't do (not committed).
-- **R14:** changing a card's alert levels forgets "last told" for every pollutant watched on it,
-  as Off and back On already did: lowering a level below the current reading shows the mark
-  without a toast. **A behaviour change; say so in the PR.**
+- **R14:** changing a pollutant's alert level forgets that pollutant's "last told" (other
+  pollutants on the card keep theirs), on any watched type, as Off and back On already did:
+  lowering a level below the current reading shows the mark without a toast. **A behaviour change; say so in the PR.**
 - **R15:** an untitled two-pollutant card's notification is titled with both pollutants (the
   saved card's generated title); a browser test covers it.

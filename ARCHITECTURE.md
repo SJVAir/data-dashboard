@@ -515,10 +515,11 @@ notify.
   rows each show their own mark, and the taskbar entry and the fullscreen button show
   **`widgetMark`**: the first marked pollutant in layer order, in its level's colour. Removing a
   card prunes every pollutant's "last told".
-- **Changing a watch's alert level starts it afresh.** The watch's key includes its thresholds,
-  so changing a card's alert levels forgets the "last told" of every pollutant watched on that
-  card, as turning a level Off and back On does: the next reading seeds again, so lowering a level
-  below the current reading shows the mark without a toast.
+- **Changing a watch's alert level starts it afresh.** The watch's key includes its threshold,
+  so changing a pollutant's alert level forgets that pollutant's "last told" (other pollutants on
+  the card keep theirs), on any watched type, as turning a level Off and back On does: the next
+  reading seeds again, so lowering a level below the current reading shows the mark without a
+  toast.
 
 **2. Automated alerting — server-side, requires an account.** The dashboard only
 _creates rules_; the server evaluates them on its periodic task and delivers through a
@@ -2908,9 +2909,9 @@ strip**, and **"Can we go outside?"** are `time: "now"` with `placePicker: true`
 Get data hides the date section and shows **the shared place picker** instead of
 the dataset accordions, plus a **separate pollutant control** for Current conditions and
 "Can we go outside?" (a checkbox per pollutant for Current conditions; for "Can we go outside?"
-the pollutants with school guidelines); in `WidgetDataConfig` that's a
-**single layer whose `place` holds the picked place** (decided 2026-10-14: the separate
-`target` field was removed so every widget type stores places the same way). Current
+the pollutants with school guidelines); in `WidgetDataConfig` the picked place is the widget's
+Where, **`place`** on the widget's data, and layers hold no place (step 5 spec 7a; every widget
+type stores places the same way). Current
 conditions holds one air-quality layer per pollutant (step 5 spec 7b; see "The three
 "now" widgets as built"), and "Can we go outside?" one pollutant layer (heat follows from the
 same place); the Forecast strip has one forecasts layer. **Chart** is `time: "range"` and accepts multiple layers. **Map** is `time: "range"` with the
