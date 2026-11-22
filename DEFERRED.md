@@ -366,7 +366,9 @@ string`) now get the union return type. The mobile app passes a string token, so
 - **CI and dependency loose ends.** _Deferred 2026-10-20 (Foundations spec 1 review)._ None
   affects what ships: Playwright runs with no retries in CI. (Resolved in the design pass: the
   inert `--duration-*` `@theme` aliases became `--transition-duration-*`, so `duration-fast` and
-  `duration-base` work. Resolved in spec 5a: the inlang plugin is a named exception in
+  `duration-base` work. Resolved in spec 7a Task 1: three timing-based browser tests that flaked
+  in CI (keyboard resize animation, keyboard stepping of strip cursors, resize-animation redraw)
+  now wait on state instead of time. Resolved in spec 5a: the inlang plugin is a named exception in
   the license check; sharp's install script is allowed, see the Task 7 commit, because it is
   dev-only through `@sveltejs/enhanced-img` and needs the script to fetch its binary.)
   **Revisit when** CI first flakes (retries).

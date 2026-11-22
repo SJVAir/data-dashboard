@@ -263,10 +263,13 @@ test("a resize animation redraws once, after it ends", async () => {
 		duration: 300,
 		fill: "forwards"
 	});
-	// Mid-animation the box has shrunk, but the chart hasn't redrawn yet.
-	await new Promise((r) => setTimeout(r, 120));
-	expect(frame.getBoundingClientRect().width).toBeLessThan(640);
+	// Hold it mid-way: the box has shrunk, but the chart hasn't redrawn yet.
+	animation.pause();
+	animation.currentTime = 150;
+	await expect.poll(() => frame.getBoundingClientRect().width).toBeLessThan(640);
+	await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 	expect(canvasWidth()).toBe(before);
+	animation.finish();
 	await animation.finished;
 	await expect.poll(canvasWidth).toBeLessThan(before);
 	animation.cancel();
@@ -413,7 +416,7 @@ test("keyboard stepping moves the strips' cursors with the main one", async () =
 	await expect.poll(() => cursorX(strips()[0])).toBeGreaterThan(home);
 	// The strip's cursor sits where the main plot's does.
 	const main = frame.querySelector(".u-over")!.parentElement!;
-	expect(cursorX(strips()[0])).toBeCloseTo(cursorX(main), 0);
+	await expect.poll(() => Math.abs(cursorX(strips()[0]) - cursorX(main))).toBeLessThan(0.5);
 });
 
 test("a monthly chart's strip draws plain monthly bars with no whole-period tag", async () => {

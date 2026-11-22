@@ -157,20 +157,37 @@ test("a keyboard resize animates the frame's size, not under reduced motion", as
 	await seed(halves());
 	await focusBar("Readings");
 	const before = page.getByTestId("widget-a").element().getBoundingClientRect();
+	// Record the animations the frame starts, so the test doesn't race a 200 ms animation that may
+	// finish before a poll sees it on a loaded machine.
+	const frame = page.getByTestId("widget-a").element();
+	const started: Animation[] = [];
+	const animate = frame.animate.bind(frame);
+	frame.animate = ((...args: Parameters<Element["animate"]>) => {
+		const a = animate(...args);
+		started.push(a);
+		return a;
+	}) as typeof frame.animate;
+	const sizeStarted = () =>
+		started.filter((a) =>
+			(a.effect as KeyframeEffect).getKeyframes().some((k) => k.width !== undefined)
+		);
 	await press("{Enter}");
 	await press("{Shift>}{ArrowLeft}{/Shift}");
-	await expect.poll(() => sizeAnimations("a").length).toBe(1);
-	const first = (sizeAnimations("a")[0].effect as KeyframeEffect).getKeyframes()[0];
+	await expect.poll(() => sizeStarted().length).toBe(1);
+	const first = (sizeStarted()[0].effect as KeyframeEffect).getKeyframes()[0];
 	expect(parseFloat(first.width as string)).toBeCloseTo(before.width, 0);
-	expect(sizeAnimations("a")[0].effect!.getTiming().duration).toBe(200);
+	expect(sizeStarted()[0].effect!.getTiming().duration).toBe(200);
 	await press("{Escape}");
+	await expect.poll(() => sizeAnimations("a")).toEqual([]);
 
 	await commands.setReducedMotion(true);
 	try {
+		started.length = 0;
 		await press("{Enter}");
 		await press("{Shift>}{ArrowLeft}{/Shift}");
 		await announced("5 columns wide, 4 rows tall.");
 		await nextFrame();
+		expect(sizeStarted()).toEqual([]);
 		expect(sizeAnimations("a")).toEqual([]);
 		await press("{Escape}");
 	} finally {
