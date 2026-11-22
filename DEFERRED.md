@@ -1165,16 +1165,19 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   map-sdk. **Revisit when** map-sdk offers an outline-only (no-wording) mode for regions (raised
   with the coordinator).
 
-- **Comparing mixed kinds of place in one widget.** _Deferred 2026-11-04 (step 4 spec 2)._ A
-  school, a monitor and a county side by side in one Chart: several places are one
-  `SpatialSelection`, which is all monitors or all regions, so the picker greys out the other
-  kind (with a reason) and schools and "your location" are single-place only. Mixing needs a new
-  shape across map-sdk and the data layer. **Revisit if** users ask, or when Release 3 analysis
-  needs it.
-- **Per-monitor pollutant coverage in the place picker.** _Deferred 2026-11-04 (step 4 spec
-  2)._ Monitors are offered by type (`monitors/meta/` `monitors[<type>].entries`), so a site
-  whose type takes a pollutant but that doesn't measure it (an AirNow site without ozone) can be
-  picked and then shows "No data". **Revisit when** the server exposes per-monitor entry types.
+- **Comparing mixed kinds of place in one widget.** _Deferred 2026-11-04 (step 4 spec 2);
+  rewritten 2026-11-22 (step 5 spec 7a)._ Monitors and areas now combine: a Chart or Table's areas
+  filter, its monitors (ticked types or searched) are listed. Schools and points stay single and are
+  offered only for the Map and the single-place types, so what is left is a school or point beside
+  other places in one widget. Why: a school or point has no data of its own (it stands for the
+  areas it sits in), so there is nothing to draw beside other lines. **Revisit if** users ask, or
+  when Release 3 analysis needs it.
+- **Per-monitor pollutant coverage in the Monitors search.** _Deferred 2026-11-04 (step 4 spec
+  2); reworded 2026-11-22 (step 5 spec 7a)._ The Monitors search in the Air quality section offers
+  monitors by type (`monitors/meta/` `monitors[<type>].entries`), so a site whose type takes the
+  pollutant but that doesn't measure it (an AirNow site without ozone) can still be picked and then
+  shows "No data". Ticked types behave the same way. **Revisit when** the server exposes
+  per-monitor entry types.
 - **Location type and region filters in the place picker.** _Deferred 2026-11-04 (step 4 spec
   2)._ One search box covers the brief; `searchLocations`' `type` and `region` options stay
   unused. **Revisit if** school searches return too many unrelated rows.
@@ -1333,8 +1336,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   sdk `5.0.0-beta.14`). **Revisit when** the server gives per-chemical acres and applications.
 - **The Map widget's 25-place cap.** _Deferred 2026-11-11 (step 5 spec 1, the user)._ A map
   holds at most 25 places (`accepts.maxPlaces`). Picking more than 25 by hand is rare, but every
-  ZIP code in Fresno County (about 60) would go over it. The document-wide `SELECTION_MAX` (500)
-  is unchanged. **Revisit when** drawn shapes (method C) or a "select all in this region" option
+  ZIP code in Fresno County (about 60) would go over it. (The document-wide `SELECTION_MAX` was
+  removed in spec 7a, 2026-11-22; Chart and Table have no cap, and the Map's is the only one left.)
+  **Revisit when** drawn shapes (method C) or a "select all in this region" option
   arrive: raise the cap then.
 - **`land_use` / `mtrs` region browsing ("progressive unlock").** _Deferred 2026-09-17
   (multi-region selector spec)._ These tables have roughly 66k and 28k rows. Browsing them
@@ -1475,21 +1479,23 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   region mode and a follow-the-view mode. Why: the dashboard loads its own data and passes plain
   `DataSource`s, and no other host (monitor-map 5.0, mobile) draws schools. The schools preset
   documents the feature properties a host supplies. **Revisit if** monitor-map, mobile, or another
-  host wants schools without its own data layer.
+  host wants schools without its own data layer. (Spec 7c, the dashboard's schools spec, builds the
+  schools data on the dashboard side; this item stays for other hosts.)
 - **map-sdk: a focus point under a school, edge cases.** _Deferred 2026-11-12 (map-sdk part 4,
   reviews)._ The focus row is left out only while the school's badge is drawn at exactly the focus
   point's coordinates: a camera on a world copy (longitude past ±180), focus coordinates that lost
   digits (a URL, `toFixed`), or a basemap/theme switch (until the map settles) bring the row back.
   The view summary may still count the place twice right after a bubble splits, until the next
   move. Why: the dashboard takes the focus point from the school feature itself, at SJV zooms.
-  **Revisit if** the dashboard's schools spec shows the place twice in practice.
+  **Revisit if** the dashboard's schools spec (spec 7c) shows the place twice in practice.
 - **map-sdk: schools' count bubbles, small gaps.** _Deferred 2026-11-12 (map-sdk part 4, final
   review)._ A type a newer server adds is drawn (no filter) and counted in a bubble's number but has
   no line in the bubble's tooltip; and `drawnAt` keeps every focus point it was asked about until
   teardown, re-checking each when the map settles. Why: three known types today, one focus point
   per tile. Also, a points plugin's `drawnAt` doesn't guard against a point layer missing from the
   style (unreachable today: teardown runs before every style change). **Revisit when** the server
-  adds a location type, or a host moves the focus point often.
+  adds a location type, or a host moves the focus point often; check it when spec 7c (schools on the
+  Map) is built.
 - **map-sdk: the focus area's wash at the poles and the date line.** _Deferred 2026-11-11 (map-sdk
   part 3; seen in the globe screenshots)._ The wash's world polygon stops at ±85°, so on the globe
   the polar caps stay unwashed, and a faint seam shows along the antimeridian when zoomed far out.
@@ -1515,7 +1521,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   the dashboard's `LOCATION_SOURCES` table (`src/lib/data/adapters/places.ts`) is keyed on the
   open type, so the compiler no longer flags a new source, and an unlisted one resolves to
   nothing. **Revisit when** sjvair.com adds a location source: add it to the table in the same
-  change.
+  change, and when spec 7c (schools on the Map) is built, which reads the same sources.
 
 - **One figure per place for a whole range ("where was it worst over the period").**
   _Deferred 2026-11-15 (step 5 spec 4)._ The Map shows one day at a time (the stepper), not a
@@ -1528,7 +1534,8 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   is to keep it in the schools data with the focus ring around the badge and one feature-list row.
   map-sdk-c0 says both fit: the badge (about 20 px) sits inside the ring's hole (about 26 px), and
   the focus row drops only on an exact coordinate match, so the focus point must take the school
-  feature's own coordinates. **Revisit with** the dashboard's schools spec.
+  feature's own coordinates. **Revisit with** spec 7c (schools and child care on the Map; its
+  decision 28 takes the lean above).
 
 - **Schools and child care as a Map data set.** _Deferred 2026-11-12 (step 5 spec 2; the user)._
   `@sjvair/map-sdk` `0.1.0-beta.12` (map-sdk #28, published) adds `schoolsPlugin({ id?, source,
@@ -1545,14 +1552,16 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   (2026-11-16), then to after spec 6 (2026-11-17): it becomes its own small spec in step 5 (spec
   7), since spec 6b decides how a Map's layers reach charts and tables. Spec 6b is built
   (2026-11-20): a `MapSend` kind and one case in `show-in.ts` take a new layer (see
-  `ARCHITECTURE.md` → "Widget catalog" → Map). **Revisit with** spec 7.
+  `ARCHITECTURE.md` → "Widget catalog" → Map). Spec 7 was rescoped 2026-11-21 and split in three;
+  this item is **spec 7c** (7a built the Data Portal's What and monitors; 7b is Current
+  conditions). **Revisit with** spec 7c.
 
-- **More than 4 pollutants on one Map.** _Deferred 2026-11-12 (step 5 spec 2); lowered from 6 on
-  2026-11-16 (step 5 spec 5)._ A tile holds at most `LAYERS_MAX` (8) less smoke, fire, spray
-  notices and pesticide use, so 4 pollutants (`MAP_POLLUTANTS_MAX`), and Get data stops offering
-  more. The server offers 2 today (ozone and PM2.5). A saved Map with 5 or 6 pollutants no
-  longer counts as Map-shaped in Get data (`isMapShaped`), which can't happen while the server
-  offers 2. **Revisit when** the server's `available_pollutants` grows past 4.
+- **More than one pollutant on one Map.** _Deferred 2026-11-12 (step 5 spec 2); lowered from 6 on
+  2026-11-16 (step 5 spec 5); rewritten 2026-11-22 (step 5 spec 7a)._ A Map holds one pollutant or
+  none (spec 7a, decision 5: `MAP_POLLUTANTS_MAX` and the several-pollutant handling were
+  removed). Why: the Data Portal's one What gives every widget type the same radios with None, and
+  the toolbar's pollutant group shows only with two or more pollutants. **Revisit when** someone
+  asks to see two pollutants on one Map.
 
 - **A Map draws no smoke or fire, and says nothing, without catalog labels.** _Found 2026-11-12
   (step 5 spec 2)._ If the dataset catalog lacks `hms-smoke` or `hms-fire`, that layer isn't drawn

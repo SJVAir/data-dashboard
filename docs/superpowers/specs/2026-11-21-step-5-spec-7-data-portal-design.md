@@ -362,3 +362,52 @@ of them.
 - "Where: Everywhere" as the empty Where's wording (decision 17; final copy in the build).
 - The Map's toolbar monitor-type switches stay as a view filter over what the Data Portal asked for
   (decision 10).
+
+## Calls made during the build (2026-11-21/22)
+
+Rulings by the session lead while building 7a (the ledger's R2–R24; R1 is only the commit-trailer
+rule), then the user's calls.
+
+- **R2:** Task 15's E2E asserts the region-scoped bulk request only; the `type=purpleair`
+  assertion was added when the SDK beta arrived.
+- **R3:** if vitest has no `--repeat` flag, a flake check runs the test 20 times in a shell loop.
+- **R4:** the Where-picker callers that kept places on open were found by grep in `src/routes/`
+  (the plan named the wrong folder).
+- **R5:** the SDK pin moved to `5.0.0-beta.16` at the start of the monitors task and uses the real
+  `type` parameter, so no type filter is ever written in the dashboard.
+- **R6:** a Map with no pollutant draws its other layers (smoke, fire, notices, use, fill), per
+  decision 6.
+- **R7:** converting to a Map never adds a pollutant when the source has None.
+- **R8:** a widget with no layers but a Where gets an empty-state prompt of its own; Chart and
+  Table own that copy (decision 9), the Map its own.
+- **R9:** ticked monitor types are their own place kind, `monitor-types`: no raw, like regions,
+  because the bulk summaries have none (raw for them is in `DEFERRED.md`).
+- **R10:** an overlay copies the main layer's searched monitor ids, not its types.
+- **R11:** a Forecast strip's one monitor is `monitors: [id]` on its own forecasts layer.
+- **R12:** a new Map's ticks (decision 8) moved into the monitors task: it ticks the catalog's
+  air-quality monitor types; with no catalog it ticks none and says why. Choosing None keeps an
+  air-quality layer that holds monitors or types (decision 31).
+- **R13:** a gone searched monitor's "Choose another" opens the Monitors search.
+- **R14:** a school or point starter place leaves a Chart or Table alone (decision 2), and the
+  place bar's count counts only widgets that change.
+- **R15:** the starter's Chart and Table take a school or point starter place's area (the first
+  fallback region with data), never the school or point itself.
+- **R16:** Where names its picks by resolving them through the place directory, not from preview
+  data.
+- **R17/R18:** line styles are colour `i % 5`, with dash and marker stepped so the first 125 lines
+  all differ and no five in a row differ by colour alone (R18 replaced R17's formula).
+- **R19:** a Map with None and a region fill draws the region outlines uncoloured with no legend
+  (the user's "only outlines of counties"); the map-sdk wording gap is in `DEFERRED.md`.
+- **R20:** the Forecast strip's What gets the Monitors search (single mode, PM2.5 purpose).
+- **R21:** a greyed-out ticked type can still be unticked, so a choice can always be removed.
+- **R22:** "now" types convert (the first monitor wins, with notes) while the calendars are greyed
+  out with "places", as before 7a.
+- **R23:** the remaining tasks ran in the order 14, 15, 13, so the docs describe the final code.
+- **R24:** an overlay whose main has no Where and no monitors stays unavailable, with "Add a place
+  to show {overlay} beside it" (`DEFERRED.md` → "Overlays with no Where").
+
+The user's calls, 2026-11-22:
+
+- **No compatibility work for old saved dashboards** (nobody has any): decision 30 above.
+- **Remove the existing compatibility code** (`dropMonitorWhere`, `dropMonitorBar`, the Map
+  options' `showing` preprocess, the older several-pollutant Map handling, and their tests).
