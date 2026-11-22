@@ -1,5 +1,5 @@
 import type { ResolvedRegion } from "./adapters/registry";
-import type { DateRangeSpec, Layer, Resolution, TimeSubRange } from "./schema";
+import type { ChosenPlace, DateRangeSpec, Layer, Resolution, TimeSubRange } from "./schema";
 
 /** `t` is the period start in epoch ms. A raw point has `mean = min = max = value`, `count = 1`. */
 export type SeriesPoint = {
@@ -23,6 +23,19 @@ export type SeriesPoint = {
 	 * number: `mean = min = max = NaN`, so nothing may aggregate, downsample or plot it as a value.
 	 */
 	level?: string;
+};
+
+export type QueryPlace = ChosenPlace | { kind: "default-place" } | { kind: "monitor"; id: string };
+export type QuerySelection = { kind: "regions" | "monitors"; ids: string[] };
+
+/** What one layer asks the query client for: its own fields plus where (never saved). */
+export type QueryLayer = Pick<Layer, "dataset" | "entryType" | "station" | "filters"> & {
+	place?: QueryPlace;
+	selection?: QuerySelection;
+	/** Every monitor of these types inside `place`/`selection` (none: everywhere). */
+	monitorTypes?: string[];
+	/** Monitors picked one by one, wherever they are. */
+	monitors?: string[];
 };
 
 /**
@@ -120,7 +133,7 @@ export type Target =
  * for date-times); it never changes the cache key, the resolution, or the fetch.
  */
 export type QueryInput = {
-	layer: Layer;
+	layer: QueryLayer;
 	dateRange: DateRangeSpec;
 	/**
 	 * The dataset's resolution (`effectiveResolution`), fetched exactly: the level itself, raw

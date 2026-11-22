@@ -1,7 +1,7 @@
 import { onDestroy } from "svelte";
 import { getQueryClient } from "$lib/data";
 import { LiveQuery } from "$lib/data/live-query.svelte";
-import type { Layer } from "$lib/data/schema";
+import type { Layer, WidgetDataConfig } from "$lib/data/schema";
 import { formatNumber } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";
 import { nowInput } from "../shared/input";
@@ -12,6 +12,7 @@ import { setGeneratedTitle } from "../titles.svelte";
 /** What the title reads from the tile; each field read on its own. */
 export interface MapTitleInput {
 	readonly widgetId: string;
+	readonly data: WidgetDataConfig;
 	readonly layer: Layer | undefined;
 	readonly entryLabel: string | undefined;
 	readonly idle: boolean;
@@ -28,7 +29,9 @@ export function syncMapTitle(input: MapTitleInput, viewer: PlaceViewer): void {
 	onDestroy(() => titleQuery.destroy());
 	const count = $derived(input.layer?.selection?.ids.length ?? (input.layer?.place ? 1 : 0));
 	$effect(() => {
-		titleQuery.set(!input.idle && input.supported && count === 1 ? nowInput(input.layer) : null);
+		titleQuery.set(
+			!input.idle && input.supported && count === 1 ? nowInput(input.data, input.layer) : null
+		);
 	});
 	$effect(() => {
 		const label = input.entryLabel;

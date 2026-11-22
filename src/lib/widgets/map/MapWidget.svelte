@@ -291,7 +291,10 @@
 	/** Whether the tile loads its data: a map is (or will be) drawn, with now or a day to show. */
 	const loads = $derived(!!config && supported && !idle && days.at !== null);
 
-	const frame = new MapFrame(() => layer);
+	const frame = new MapFrame(
+		() => layer,
+		() => widget.data
+	);
 	onDestroy(() => frame.destroy());
 
 	// The map: made once per mount (again after "Retry" when making it failed).
@@ -744,6 +747,9 @@
 		{
 			get widgetId() {
 				return widget.id;
+			},
+			get data() {
+				return widget.data;
 			},
 			get layer() {
 				return layer;

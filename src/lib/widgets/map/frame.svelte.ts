@@ -1,6 +1,6 @@
 import type { Feature } from "geojson";
 import { getResolvers, placeRegion } from "$lib/data";
-import type { Layer } from "$lib/data/schema";
+import type { Layer, WidgetDataConfig } from "$lib/data/schema";
 import type { UnavailableReason } from "$lib/data/types";
 import { nowInput } from "../shared/input";
 import { frameOf, type Frame } from "./framing";
@@ -39,13 +39,13 @@ export class MapFrame {
 	/** The places `frame` was made for. */
 	#frameFor: string | null = null;
 
-	constructor(layer: () => Layer | undefined) {
+	constructor(layer: () => Layer | undefined, data: () => WidgetDataConfig) {
 		this.#stop = $effect.root(() => {
 			$effect(() => {
 				const current = layer();
 				void this.#tries;
 				const controller = new AbortController();
-				this.#load(current, controller.signal);
+				this.#load(current, data(), controller.signal);
 				return () => controller.abort();
 			});
 		});
@@ -67,7 +67,7 @@ export class MapFrame {
 		this.state = state;
 	}
 
-	#load(layer: Layer | undefined, signal: AbortSignal) {
+	#load(layer: Layer | undefined, data: WidgetDataConfig, signal: AbortSignal) {
 		const key = placesKey(layer);
 		const { needs, ...rest } = frameOf(layer);
 		const frame: Frame = { ...rest, regions: [], pin: null };
@@ -82,7 +82,7 @@ export class MapFrame {
 			this.#frameFor = null;
 		}
 		this.state = "loading";
-		this.#resolve(frame, needs, signal).then(
+		this.#resolve(frame, needs, data, signal).then(
 			({ frame, shapes, state }) => {
 				if (!signal.aborted) this.#set(key, frame, shapes, state);
 			},
@@ -96,6 +96,7 @@ export class MapFrame {
 	async #resolve(
 		frame: Frame,
 		needs: ReturnType<typeof frameOf>["needs"],
+		data: WidgetDataConfig,
 		signal: AbortSignal
 	): Promise<{ frame: Frame; shapes: Map<string, Feature>; state: FrameState }> {
 		let regions: RegionRef[] = [];
@@ -116,7 +117,7 @@ export class MapFrame {
 			} else {
 				const place = need.layer.place;
 				if (place?.kind === "point") pin = { kind: "point", lat: place.lat, lon: place.lon };
-				const input = nowInput(need.layer);
+				const input = nowInput(data, need.layer);
 				const region = input ? await placeRegion(input, signal) : null;
 				const withPin = { ...frame, pin };
 				if (!region) {

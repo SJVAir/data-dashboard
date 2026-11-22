@@ -1,6 +1,6 @@
 import type { CatalogEntry } from "$lib/data/metadata";
 import { PlaceRefSchema, type Layer, type WidgetDataConfig } from "$lib/data/schema";
-import type { PlaceInfo, QueryInput, Series } from "$lib/data/types";
+import type { PlaceInfo, QueryInput, QueryLayer, Series } from "$lib/data/types";
 import type { Picks } from "$lib/places/selection";
 import { sameRef } from "$lib/places/types";
 import { z } from "$lib/zod";
@@ -24,8 +24,8 @@ export function overlayLayers(
  * resolution (the dataset's: every layer is fetched at it). No worst hour: that is about the main
  * layer's values.
  */
-export function overlayInput(main: QueryInput, overlay: Layer): QueryInput {
-	const layer: Layer = { dataset: overlay.dataset, entryType: overlay.entryType };
+export function overlayInput(main: QueryInput, overlay: QueryLayer): QueryInput {
+	const layer: QueryLayer = { dataset: overlay.dataset, entryType: overlay.entryType };
 	if (overlay.station) layer.station = overlay.station;
 	if (overlay.filters) layer.filters = overlay.filters;
 	if (main.layer.place) layer.place = main.layer.place;

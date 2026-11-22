@@ -100,7 +100,7 @@ function lookupInput(
 		return calendarInput({ ...data, layers: [query] }, undefined, widget.type);
 	// A Map is looked up as it frames its places now, whether or not it has a range.
 	const type = getWidgetType(widget.type);
-	if (type && offersNow(type)) return nowInput(query);
+	if (type && offersNow(type)) return nowInput({ ...data, layers: [query] }, query);
 	const lookup = { ...data, layers: [query] };
 	return widgetInputs(
 		{ type: widget.type, data: lookup },

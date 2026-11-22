@@ -4,7 +4,7 @@ import type { QueryInput } from "$lib/data/types";
 import { DEFAULT_RANGE } from "$lib/widgets/defaults";
 import { CONTRIBUTION_CALENDAR_TYPE, isCalendarType, MONTH_CALENDAR_TYPE } from "./types";
 import type { Level } from "$lib/data/dataset-rules";
-import { mainLayer } from "$lib/widgets/shared/input";
+import { mainLayer, queryLayer } from "$lib/widgets/shared/input";
 
 /** A calendar shows one value a day: its types' pinned resolution (their registry `resolution`). */
 const CALENDAR_RESOLUTION: Level = "day";
@@ -30,5 +30,5 @@ export function calendarInput(
 	const layer = mainLayer(data, catalog);
 	if (!layer || (!layer.place && !layer.selection)) return null;
 	const dateRange = data.dateRange ?? CALENDAR_DEFAULT_RANGES[type] ?? DEFAULT_RANGE;
-	return { layer, dateRange, resolution: CALENDAR_RESOLUTION };
+	return { layer: queryLayer(data, layer), dateRange, resolution: CALENDAR_RESOLUTION };
 }

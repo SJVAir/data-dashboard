@@ -1,8 +1,7 @@
-import type { Layer } from "$lib/data/schema";
+import { currentInput } from "$lib/data/now/current";
 import type { RegionResolver } from "$lib/data/adapters/registry";
-import type { UnavailableReason } from "$lib/data/types";
+import type { QueryLayer, UnavailableReason } from "$lib/data/types";
 import type { placeRegion } from "$lib/data";
-import { nowInput } from "../../shared/input";
 
 /** Which monitors the places allow: server region ids, or explicit monitor ids. */
 export type MonitorScope =
@@ -23,7 +22,7 @@ function scopeOf(kind: MonitorScope["kind"], ids: string[]): MonitorScope {
  * those monitors. The key holds server ids or monitor ids, never coordinates.
  */
 export async function monitorScope(
-	layer: Layer,
+	layer: QueryLayer,
 	ctx: ScopeContext,
 	signal?: AbortSignal
 ): Promise<MonitorScope | { unavailable: UnavailableReason }> {
@@ -40,7 +39,7 @@ export async function monitorScope(
 	} else if (place?.kind === "region") {
 		refs = [{ type: place.type, code: place.code }];
 	} else if (place?.kind === "location" || place?.kind === "point") {
-		const input = nowInput(layer);
+		const input = layer.place || layer.selection ? currentInput(layer) : null;
 		const region = input ? await ctx.placeRegion(input, signal) : null;
 		if (!region) return { unavailable: "point-outside" };
 		refs = [region];

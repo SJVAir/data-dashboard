@@ -15,7 +15,7 @@ import {
 	type Resolution,
 	type WidgetDataConfig
 } from "$lib/data/schema";
-import type { QueryInput } from "$lib/data/types";
+import type { QueryInput, QueryLayer } from "$lib/data/types";
 import { calendarSpanDays, resolveRange } from "$lib/format/range";
 import { DEFAULT_LAYER, DEFAULT_RANGE } from "../defaults";
 import { MAP_TYPE } from "../map/options";
@@ -83,11 +83,20 @@ export function placesQueryLayer(layer: Layer): Layer {
 }
 
 /**
+ * The layer as the query client reads it: its own fields and where it looks. The one place a
+ * query layer is built, so the saved shape can change behind it.
+ */
+export function queryLayer(data: WidgetDataConfig, layer: Layer): QueryLayer {
+	void data;
+	return { ...layer };
+}
+
+/**
  * What a "now" tile asks the query client for: the layer's hourly averages (`currentInput`). A
  * layer with no place or selection asks for nothing (null): a tile of every monitor isn't offered.
  */
-export function nowInput(layer: Layer | undefined): QueryInput | null {
-	return layer && (layer.place || layer.selection) ? currentInput(layer) : null;
+export function nowInput(data: WidgetDataConfig, layer: Layer | undefined): QueryInput | null {
+	return layer && (layer.place || layer.selection) ? currentInput(queryLayer(data, layer)) : null;
 }
 
 /**
@@ -157,12 +166,12 @@ export function chartInput(
 ): { layer: Layer | undefined; input: QueryInput | null; hidden: number } {
 	const layer = mainLayer(data, catalog);
 	if (!layer || (!layer.place && !layer.selection)) return { layer, input: null, hidden: 0 };
-	let shown = layer;
+	let shown = queryLayer(data, layer);
 	let hidden = 0;
 	if (layer.selection && layer.selection.ids.length > maxPlaces) {
 		hidden = layer.selection.ids.length - maxPlaces;
 		shown = {
-			...layer,
+			...shown,
 			selection: { ...layer.selection, ids: layer.selection.ids.slice(0, maxPlaces) }
 		};
 	}
@@ -226,7 +235,7 @@ export function widgetInputs(
 	);
 	const overlays = input
 		? overlayLayers(widget.data, catalog).map((l) =>
-				effective.misfits.includes(l) ? null : overlayInput(input, l)
+				effective.misfits.includes(l) ? null : overlayInput(input, queryLayer(widget.data, l))
 			)
 		: [];
 	const figureFor =

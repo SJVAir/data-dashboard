@@ -1,3 +1,4 @@
+import { queryLayer } from "../../shared/input";
 import { getMonitors, type MonitorEntryType, type MonitorLatest } from "@sjvair/sdk";
 import {
 	encodeRef,
@@ -179,7 +180,7 @@ export function createMonitorsEntry(ctx: MonitorsEntryContext): MonitorsEntry {
 		async source({ data, entryType }, signal) {
 			const layer = pollutantLayers(data, undefined)[0];
 			if (!layer) return null;
-			const scope = await monitorScope(layer, ctx, signal);
+			const scope = await monitorScope(queryLayer(data, layer), ctx, signal);
 			if ("unavailable" in scope) return scope;
 			const type = entryType as MonitorEntryType;
 			const source: MonitorsListSource = {

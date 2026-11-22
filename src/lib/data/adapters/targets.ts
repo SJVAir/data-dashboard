@@ -1,6 +1,5 @@
 import type { getForecastForPlace } from "@sjvair/sdk";
-import type { Layer } from "../schema";
-import type { PlaceInfo, Target, UnavailableReason, Via } from "../types";
+import type { PlaceInfo, QueryLayer, Target, UnavailableReason, Via } from "../types";
 import type { AdapterContext, RegionResolver, ResolvedRegion } from "./registry";
 
 /** Splits a region key (`<type>:<code>`, the document's region reference) into its parts. */
@@ -65,7 +64,7 @@ async function anyUnlisted(
  * coordinates never reach a cache key or a request beyond the point lookup.
  */
 export async function layerTarget(
-	layer: Layer,
+	layer: QueryLayer,
 	ctx: Pick<AdapterContext, "regions" | "locations" | "points" | "metadata">,
 	signal?: AbortSignal
 ): Promise<Target | { unavailable: UnavailableReason }> {

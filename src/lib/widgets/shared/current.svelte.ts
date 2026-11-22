@@ -64,7 +64,7 @@ export class CurrentConditions {
 		});
 
 		const layer = $derived(mainLayer(widget().data, catalog));
-		const input = $derived(nowInput(layer));
+		const input = $derived(nowInput(widget().data, layer));
 		const meta = $derived(entryMeta(catalog, layer));
 		const entryTypeId = $derived(layer?.entryType);
 

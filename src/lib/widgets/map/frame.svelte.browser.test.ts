@@ -25,7 +25,7 @@ const shape: Feature = {
 let frames: MapFrame[] = [];
 
 function track(layer: () => Layer | undefined) {
-	const f = new MapFrame(layer);
+	const f = new MapFrame(layer, () => ({ layers: [] }) as never);
 	frames.push(f);
 	return f;
 }

@@ -6,7 +6,7 @@ import {
 	SDK_DATASET_CATALOG,
 	WEATHER_DATASET
 } from "$lib/data/testing/dataset-catalog";
-import { mainLayer, widgetEffective, widgetInputs, widgetPlaceKind } from "./input";
+import { mainLayer, queryLayer, widgetEffective, widgetInputs, widgetPlaceKind } from "./input";
 
 const entry = (id: string, kind: "pollutant" | "other") => ({
 	id,
@@ -217,5 +217,16 @@ describe("widgetEffective", () => {
 			layers: [pm25]
 		};
 		expect(widgetEffective(chart(data), undefined, "monitors").resolution).toBe("day");
+	});
+});
+
+describe("queryLayer", () => {
+	it("copies the layer's fields and its places", () => {
+		const layer: Layer = {
+			dataset: "air-quality",
+			entryType: "pm25",
+			place: { kind: "region", type: "county", code: "06019" }
+		};
+		expect(queryLayer({ layers: [layer] } as WidgetDataConfig, layer)).toEqual(layer);
 	});
 });

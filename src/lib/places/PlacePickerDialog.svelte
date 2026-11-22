@@ -297,7 +297,7 @@
 		const input = isCalendarType(widgetType)
 			? calendarInput(lookup, ctx.catalog, widgetType)
 			: type && offersNow(type)
-				? nowInput(placesLayer(lookup, ctx.catalog))
+				? nowInput(lookup, placesLayer(lookup, ctx.catalog))
 				: widgetInputs(
 						{ type: widgetType, data: lookup },
 						ctx.catalog,
