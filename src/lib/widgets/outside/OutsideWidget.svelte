@@ -195,7 +195,14 @@
 				<p
 					class="text-muted-foreground flex flex-1 items-center justify-center px-2 text-center text-sm"
 				>
-					{stale ? m.current_no_recent_data() : emptyText(reading, m.current_no_data())}
+					{stale
+						? m.current_no_recent_data()
+						: emptyText(
+								reading,
+								meta
+									? m.outside_no_pollutant_data({ pollutant: meta.entryType.label })
+									: m.current_no_data()
+							)}
 				</p>
 			{/if}
 		</div>

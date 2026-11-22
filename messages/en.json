@@ -1596,6 +1596,7 @@
 	"widget_outside_title": "Can we go outside?",
 	"outside_heat_today": "Heat today",
 	"outside_heat_highest": "Highest in {place} (ZIP {zip})",
+	"outside_no_pollutant_data": "No {pollutant} data for this place",
 	"outside_no_heat_score_today": "No heat score today",
 	"outside_heat_load_failed": "Heat score couldn't be loaded",
 	"outside_no_guidance_for_level": "No guidance for this level",

@@ -297,6 +297,13 @@ describe("Show as from Current conditions with PM2.5 and ozone", () => {
 		});
 	}
 
+	it("→ the Forecast strip: no pollutant, so none noted as left out", () => {
+		const c = convert(two(), forecastType);
+		expect(c.draft.data.layers.some((l) => l.entryType)).toBe(false);
+		expect(c.dropped).not.toContain("pollutants");
+		expect(c.leftOut).toBeUndefined();
+	});
+
 	it("isn't greyed out for the Chart once cut to its first pollutant", () => {
 		expect(typeBlock(chartType, firstPollutantOnly(two()).data, CATALOG, NOW)).toBeNull();
 	});

@@ -35,7 +35,10 @@ export class ThresholdWatch {
 		}
 	) {}
 
-	/** Shows or clears the mark under `id` (a `markKey`) for its current reading (see `markLevel`), keeping its pulse count. */
+	/**
+	 * Shows or clears the mark under `id` (a `markKey`) for its current reading (see `markLevel`),
+	 * keeping its pulse count.
+	 */
 	mark(
 		id: string,
 		reading: CurrentReading | undefined,
@@ -54,9 +57,9 @@ export class ThresholdWatch {
 
 	/**
 	 * Drops what this browser was told about `ids` (`markKey`s): watches that ended (the widget
-	 * removed, or its alert level turned Off), or now of another place, pollutant or alert level, so watching starts again
-	 * from their next reading. The lock is asked for at once, so a reading handled after this
-	 * call is decided after the drop.
+	 * removed, or its alert level turned Off), or now of another place, pollutant or alert level,
+	 * so watching starts again from their next reading. The lock is asked for at once, so a
+	 * reading handled after this call is decided after the drop.
 	 */
 	async forget(ids: string[]): Promise<void> {
 		for (const id of ids) this.#lastAt.delete(id);

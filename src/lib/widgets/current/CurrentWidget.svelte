@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { getContext } from "svelte";
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
+	import { scrollFocusable } from "$lib/components/shared/scroll-focusable";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { formatList } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
@@ -58,12 +59,12 @@
 		children={nothing}
 	/>
 {:else}
-	<!-- Several rows can overflow with nothing focusable in them: the column takes focus to scroll. -->
-	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+	<!-- Several rows can overflow with nothing focusable in them: while it overflows, the column
+	takes focus to scroll. -->
 	<div
 		class="flex h-full flex-col overflow-y-auto"
-		tabindex={several ? 0 : undefined}
-		role={several ? "region" : undefined}
+		{@attach several && scrollFocusable}
+		role={several ? "group" : undefined}
 		aria-label={several ? m.current_rows_label() : undefined}
 	>
 		{#each rows as row (row.entryType)}

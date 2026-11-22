@@ -306,9 +306,11 @@ test("a level with no sentences says there is no guidance, never another level's
 	expect(screen.getByText("Keep recess short.").elements()).toHaveLength(0);
 });
 
-test("no data says so and keeps the heat line", async () => {
+test("no data says so, naming the pollutant, and keeps the heat line", async () => {
 	const screen = await show(outsideWidget("none"));
-	await expect.element(screen.getByText(m.current_no_data()), { timeout: 5000 }).toBeVisible();
+	await expect
+		.element(screen.getByText("No PM2.5 data for this place"), { timeout: 5000 })
+		.toBeVisible();
 	await expect.element(screen.getByText(m.outside_heat_today()), { timeout: 5000 }).toBeVisible();
 	await expect.element(screen.getByText("Severe", { exact: true })).toBeVisible();
 });
@@ -318,7 +320,7 @@ test("a stale reading says there is no recent data and keeps the heat line", asy
 	await expect
 		.element(screen.getByText(m.current_no_recent_data()), { timeout: 5000 })
 		.toBeVisible();
-	expect(screen.getByText(m.current_no_data()).elements()).toHaveLength(0);
+	expect(screen.getByText(/^No .*data for this place$/).elements()).toHaveLength(0);
 	await expect.element(screen.getByText("Severe", { exact: true })).toBeVisible();
 });
 

@@ -15,8 +15,8 @@ export function markKey(widgetId: string, entryType?: string): string {
 export const thresholdMarks = $state<Record<string, ThresholdMark>>({});
 
 /**
- * A widget's mark when it has one per pollutant: the first of `keys` (its `markKey`s, in layer order)
- * that is marked (decision C4), or with no keys the mark under its own id.
+ * A widget's mark when it has one per pollutant: the first of `keys` (its `markKey`s, in layer
+ * order) that is marked (decision C4), or with no keys the mark under its own id.
  */
 export function widgetMark(widgetId: string, keys: string[]): ThresholdMark | undefined {
 	for (const key of keys.length ? keys : [markKey(widgetId)]) {

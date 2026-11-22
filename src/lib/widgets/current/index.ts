@@ -4,7 +4,9 @@ import type { WidgetType } from "../registry";
 
 export const CURRENT_TYPE = "current-conditions";
 
-/** Current values of one or more pollutants at one place, with their levels, trends and guidance. */
+/**
+ * Current values of one or more pollutants at one place, with their levels, trends and guidance.
+ */
 export const currentType: WidgetType = {
 	type: CURRENT_TYPE,
 	label: () => m.widget_current_title(),

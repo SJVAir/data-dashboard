@@ -146,6 +146,16 @@ describe("widget thresholds", () => {
 			).success
 		).toBe(true);
 	});
+	it("rejects more than one threshold without an entryType", () => {
+		expect(
+			DashboardSchema.safeParse(withWidgets([widget([{ level: "a" }, { level: "b" }])])).success
+		).toBe(false);
+		expect(
+			DashboardSchema.safeParse(
+				withWidgets([widget([{ level: "a" }, { level: "b", entryType: "x" }])])
+			).success
+		).toBe(true);
+	});
 	it("rejects a level key over the code limit", () => {
 		expect(
 			DashboardSchema.safeParse(withWidgets([widget([{ level: "x".repeat(65) }])])).success

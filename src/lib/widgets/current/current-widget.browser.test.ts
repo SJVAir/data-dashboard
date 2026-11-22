@@ -721,8 +721,15 @@ test("several pollutants are headed, each row a group named by its heading", asy
 	await expect.element(screen.getByRole("heading", { level: 3, name: "Ozone" })).toBeVisible();
 	expect(screen.getByRole("heading", { level: 3 }).elements()).toHaveLength(2);
 	await expect.element(screen.getByRole("group", { name: "Ozone" })).toBeVisible();
-	const column = screen.getByRole("region", { name: m.current_rows_label() });
+	// A group, not a landmark: two cards would make same-named landmarks.
+	const column = screen.getByRole("group", { name: m.current_rows_label() });
+	await expect.element(column).toBeVisible();
+	expect(screen.getByRole("region").elements()).toHaveLength(0);
+	// A Tab stop only while it overflows.
+	frame.style.height = "200px";
 	await expect.element(column).toHaveAttribute("tabindex", "0");
+	frame.style.height = "2000px";
+	await expect.element(column).toHaveAttribute("tabindex", "-1");
 });
 
 test("one pollutant has no heading, group or focusable column", async () => {

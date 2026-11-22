@@ -26,11 +26,12 @@
 
 	/**
 	 * The Air quality section (spec decisions 4, 6, 7, 31–33, 36): the pollutant radios with None
-	 * (or, with `multiple`, a checkbox per pollutant), then Monitors: a checkbox per monitor type in the monitors meta's groups, the searched
-	 * monitors' list (each removable) and the Monitors search. A single-place widget shows only the
-	 * search (one monitor). With None the ticks and monitors stay, greyed out with their reason; a
-	 * type or monitor that doesn't measure the pollutant is greyed out with its reason, kept. Greyed
-	 * means it can't be newly ticked and isn't fetched: a ticked one can always be unticked.
+	 * (or, with `multiple`, a checkbox per pollutant), then Monitors: a checkbox per monitor type
+	 * in the monitors meta's groups, the searched monitors' list (each removable) and the Monitors
+	 * search. A single-place widget shows only the search (one monitor). With None the ticks and
+	 * monitors stay, greyed out with their reason; a type or monitor that doesn't measure the
+	 * pollutant is greyed out with its reason, kept. Greyed means it can't be newly ticked and
+	 * isn't fetched: a ticked one can always be unticked.
 	 */
 	let {
 		data,

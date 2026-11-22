@@ -81,14 +81,19 @@
 </script>
 
 {#snippet message(text: string)}
-	<p class="text-muted-foreground flex h-full items-center justify-center text-center text-sm">
+	<p
+		class={[
+			"text-muted-foreground text-sm",
+			named ? "px-2" : "flex h-full items-center justify-center text-center"
+		]}
+	>
 		{text}
 	</p>
 {/snippet}
 
 {#snippet body()}
 	{#if ok && !stale && meta}
-		<div class="flex h-full flex-col justify-center gap-2">
+		<div class={["flex h-full flex-col gap-2", !named && "justify-center"]}>
 			<div class="flex flex-wrap items-baseline gap-x-2 px-2">
 				<span class="text-3xl leading-none font-semibold tabular-nums">
 					{formatValue(ok.value, meta.entryType.precision)}

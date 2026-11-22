@@ -226,7 +226,8 @@ export function toNowDraft(
 /**
  * `convert` applied to `draft`, a Current conditions draft cut to its first pollutant
  * (`firstPollutantOnly`) first; the pollutants that cut left out are noted (`"pollutants"`, with
- * `leftOut`), never as `"overlays"`. Another type's draft is converted as it is.
+ * `leftOut`), never as `"overlays"`, unless the new type shows no pollutant (the Forecast strip).
+ * Another type's draft is converted as it is.
  */
 function cutToFirstPollutant(
 	draft: Draft,
@@ -236,6 +237,8 @@ function cutToFirstPollutant(
 	const converted = convert(firstPollutantOnly(draft));
 	const left = currentPollutants(draft.data).slice(1);
 	if (left.length === 0) return converted;
+	// A type that shows no pollutant left none out: there is nothing to note.
+	if (!converted.draft.data.layers.some((l) => l.entryType)) return converted;
 	return {
 		...converted,
 		dropped: [...converted.dropped, "pollutants"],

@@ -1020,8 +1020,8 @@
 
 	/**
 	 * Current conditions' ticked pollutants (C2, C3): their layers, in the order given (the offered
-	 * order; the monitor stays on the first); a newly ticked one gets its scale's default alert level (owed until the
-	 * scale loads), an unticked one's goes.
+	 * order; the monitor stays on the first); a newly ticked one gets its scale's default alert
+	 * level (owed until the scale loads), an unticked one's goes.
 	 */
 	function setNowPollutants(entryTypes: string[]): void {
 		const before = currentPollutants(draft.data);

@@ -673,7 +673,8 @@ describe("alert levels per pollutant", () => {
 			WidgetInstanceSchema.safeParse({ ...widget, thresholds }).success;
 		expect(parse([a, { level: "good", entryType: "pm25" }])).toBe(false);
 		expect(parse([a, b])).toBe(true);
-		expect(parse([{ level: "usg" }, { level: "good" }])).toBe(true);
+		// At most one without an entryType (every type but Current conditions has one threshold).
+		expect(parse([{ level: "usg" }, { level: "good" }])).toBe(false);
 		// One per pollutant layer at most (R6).
 		const many = (n: number) =>
 			Array.from({ length: n }, (_, i) => ({ level: "usg", entryType: `p${i}` }));
