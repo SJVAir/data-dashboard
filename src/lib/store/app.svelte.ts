@@ -144,6 +144,8 @@ class App implements AppContext {
 	// Raw: places are cloned into documents, and a deep proxy can't be.
 	starterPlace = $state.raw<ChosenPlace>(defaultStarterPlace());
 	starterArea = $state.raw<ChosenPlace | null>(null);
+	/** Counts starter place changes: a lookup answered after a newer change (or a reset) is stale. */
+	#starterChange = 0;
 	readonly index: DashboardIndex;
 	readonly protection: StorageProtection;
 	readonly account: AccountState;
@@ -371,6 +373,7 @@ class App implements AppContext {
 		// has this place and this reset's count.
 		this.starterPlace = defaultStarterPlace();
 		this.starterArea = null;
+		this.#starterChange++;
 		this.resetCount++;
 		await this.index.refresh();
 	}
@@ -384,33 +387,49 @@ class App implements AppContext {
 	/**
 	 * The starter's area for `place` (a school or point): its region, looked up as the Chart reads
 	 * it, saved for later visits. A failed lookup keeps the area it had (the Chart keeps its place).
+	 * Resolves `false` when a newer change superseded it (`#superseded`): nothing was written.
 	 */
-	async #lookUpStarterArea(place: ChosenPlace): Promise<void> {
+	async #lookUpStarterArea(place: ChosenPlace): Promise<boolean> {
+		const change = ++this.#starterChange;
+		const shown = this.starterPlace;
 		if (place.kind === "region") {
 			// An area is its own: kept, so a later school whose lookup fails keeps the Chart here.
 			this.starterArea = place;
 			await saveStarterArea(this.platform, this.space, place).catch((error: unknown) =>
 				report(error, { operation: "starter-area" })
 			);
-			return;
+			return true;
 		}
-		if (place.kind !== "location" && place.kind !== "point") return;
+		if (place.kind !== "location" && place.kind !== "point") return true;
 		try {
 			const { starterAreaOf } = await import("$lib/starter/area");
 			const area = await starterAreaOf(place);
-			if (!area) return;
+			if (this.#superseded(change, shown)) return false;
+			// Handed off meanwhile: the copy's bar changes instead, and the starter keeps its area.
+			if (!area || this.#handedOff()) return true;
 			this.starterArea = area;
 			await saveStarterArea(this.platform, this.space, area);
 		} catch (error) {
+			if (this.#superseded(change, shown)) return false;
 			report(error, { operation: "starter-area" });
 		}
+		return true;
+	}
+
+	/**
+	 * Whether a lookup that started at `change`, with `shown` the starter's place, answered too
+	 * late: a newer place change or a reset started since, or the starter's place changed.
+	 */
+	#superseded(change: number, shown: ChosenPlace): boolean {
+		return change !== this.#starterChange || !sameRef(shown, this.starterPlace);
 	}
 
 	async changeStarterPlace(place: ChosenPlace): Promise<void> {
 		// The place it shows already: nothing to change (unless a copy shows another).
 		if (!this.#handedOff() && sameRef(place, this.starterPlace)) return;
-		// A school or point: the Chart's region first, so the fresh starter is built with it.
-		if (!this.#handedOff()) await this.#lookUpStarterArea(place);
+		// A school or point: the Chart's region first, so the fresh starter is built with it. A
+		// newer change made while it was looked up wins: this one changes nothing.
+		if (!this.#handedOff() && !(await this.#lookUpStarterArea(place))) return;
 		const starter = this.#live.get(STARTER_ID) ?? null;
 		// The starter's first edit started (or finished: it's gone from here) its hand-off: the
 		// copy is what's shown, and its bar changes.

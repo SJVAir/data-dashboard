@@ -314,6 +314,28 @@ describe("Change place on the starter", () => {
 		expect(app.starterArea).toEqual(ZIP);
 	});
 
+	it("an older lookup answering last changes nothing: the newer place and area stay", async () => {
+		const { platform, app } = await setup();
+		const OTHER: ChosenPlace = { kind: "location", source: "schools", code: "456" };
+		const CLOVIS = { type: "zipcode", code: "93612" };
+		let answerSchool!: (r: { type: string; code: string }) => void;
+		vi.mocked(placeRegion)
+			.mockImplementationOnce(() => new Promise((resolve) => (answerSchool = resolve)))
+			.mockResolvedValueOnce(CLOVIS);
+		const first = app.changeStarterPlace(SCHOOL);
+		await vi.waitFor(() => expect(answerSchool).toBeDefined());
+		await app.changeStarterPlace(OTHER);
+		answerSchool({ type: "zipcode", code: "93721" });
+		await first;
+		expect(app.starterPlace).toEqual(OTHER);
+		expect(app.starterArea).toEqual({ kind: "region", ...CLOVIS });
+		expect(await platform.preferences.get("anonymous", STARTER_AREA_KEY)).toEqual({
+			kind: "region",
+			...CLOVIS
+		});
+		expect(await platform.preferences.get("anonymous", STARTER_PLACE_KEY)).toEqual(OTHER);
+	});
+
 	it("survives a reload", async () => {
 		const { platform, app } = await setup();
 		await app.changeStarterPlace(SCHOOL);
