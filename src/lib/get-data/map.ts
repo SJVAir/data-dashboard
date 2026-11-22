@@ -185,8 +185,8 @@ export function setMapPesticideFilters(
  * Whether `draft` already has the Map's shape, so opening it as a Map converts nothing: no day
  * selection and no date range the Map's span rules out at its resolution (`mapLevelOf`, with
  * `catalog`; none is Now); zero or one air-quality layer first, and at most `maxPlaces` places in
- * its Where; then only smoke and fire layers, then at most one spray notices layer and, last, at most one
- * use layer (each with no entry type, and optional filters).
+ * its Where; then only smoke and fire layers, then at most one spray notices layer and, last, at
+ * most one use layer (each with no entry type, and optional filters).
  */
 export function isMapShaped(
 	draft: Draft,
@@ -371,20 +371,20 @@ export function toMapDraft(
 }
 
 /**
- * A Map draft cut to one layer: its pollutant (or, with none, its first layer), at its Where, over
- * its range (if it has one), with no options. `dropped` says when other layers (smoke and fire,
- * an older Map's other pollutants) were left out (`"overlays"`), when marks were (`"marks"`) and
- * when a region fill was (`"fill"`).
+ * A Map draft cut to its pollutant (no layers with none), at its Where, over its range (if it has
+ * one), with no options. `dropped` says when other layers (smoke and fire, notices, use, an older
+ * Map's other pollutants) were left out (`"overlays"`), when marks were (`"marks"`) and when a
+ * region fill was (`"fill"`).
  */
 export function mapShowingOnly(
 	draft: Draft,
 	catalog: CatalogEntry[]
 ): { draft: Draft; dropped: NowDropped[] } {
 	const options = mapOptions(draft);
-	const first = pollutantLayer(draft.data, catalog) ?? draft.data.layers[0];
-	const layer: Layer | undefined = first ? structuredClone({ ...first }) : undefined;
+	const pollutant = pollutantLayer(draft.data, catalog);
+	const layer: Layer | undefined = pollutant ? structuredClone({ ...pollutant }) : undefined;
 	const dropped: NowDropped[] = [];
-	if (draft.data.layers.length > 1) dropped.push("overlays");
+	if (draft.data.layers.some((l) => l !== pollutant)) dropped.push("overlays");
 	if (options.marks?.length) dropped.push("marks");
 	if (options.fill) dropped.push("fill");
 	return {
@@ -442,8 +442,8 @@ export function fromMapDraft(
 	let dropped = [...one.dropped];
 	if (use && type.type === CHART_TYPE && figure) {
 		// The use has its own outcome, so "overlays" stays only for the other layers left out.
-		const first = pollutantLayer(draft.data, catalog) ?? draft.data.layers[0];
-		const others = draft.data.layers.some((l) => l !== first && l !== use);
+		const pollutant = pollutantLayer(draft.data, catalog);
+		const others = draft.data.layers.some((l) => l !== pollutant && l !== use);
 		if (!others) dropped = dropped.filter((d) => d !== "overlays");
 		converted.draft.data.layers.push({
 			dataset: PESTICIDE_USE,

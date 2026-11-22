@@ -1,5 +1,5 @@
 import type { CatalogEntry } from "$lib/data/metadata";
-import { layerKind } from "$lib/data/layer-kind";
+import { isPollutantLayer, layerKind } from "$lib/data/layer-kind";
 import type { Layer, PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
 import { mainLayer } from "$lib/widgets/shared/input";
 import { MAX_OVERLAYS } from "$lib/widgets/shared/overlays";
@@ -7,9 +7,9 @@ import { MAX_OVERLAYS } from "$lib/widgets/shared/overlays";
 /**
  * Get data's edits to a draft's layers, each mutating `data` in place (the view's draft). Where
  * is on the data, not a layer, so no edit here touches it. An edit that would break a rule (too
- * many overlays) changes nothing; any layer can be removed (a widget may hold none). The dataset's resolution
- * (`data.resolution`) always stays: a specific resolution never changes by itself (Get data shows
- * it blocked, with its reason, when a layer doesn't offer it).
+ * many overlays) changes nothing; any layer can be removed (a widget may hold none). The
+ * dataset's resolution (`data.resolution`) always stays: a specific resolution never changes by
+ * itself (Get data shows it blocked, with its reason, when a layer doesn't offer it).
  *
  * Kept free of the SDK and adapters, so it can be unit-tested and stays out of the initial bundle.
  */
@@ -38,14 +38,15 @@ export function canAddLayer(data: WidgetDataConfig, catalog: CatalogEntry[] | un
 /**
  * Chooses the widget's pollutant, or (`null`) removes it. A pollutant chosen where there was
  * none becomes the main layer, unless the old main would then be one overlay too many. None
- * always removes it, even when it was the last layer.
+ * always removes it, even when it was the last layer. The pollutant is `isPollutantLayer`'s (an
+ * air-quality layer the catalog doesn't know counts), so it's replaced or removed, never doubled.
  */
 export function setPollutant(
 	data: WidgetDataConfig,
 	catalog: CatalogEntry[] | undefined,
 	pick: EntryPick | null
 ): void {
-	const at = data.layers.findIndex((l) => layerKind(l, catalog) === "pollutant");
+	const at = data.layers.findIndex((l) => isPollutantLayer(l, catalog));
 	if (pick === null) {
 		if (at >= 0) removeLayer(data, at);
 		return;

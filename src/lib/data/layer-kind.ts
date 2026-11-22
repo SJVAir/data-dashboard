@@ -18,3 +18,19 @@ export function layerKind(
 	if (entryType.kind === "pollutant") return "pollutant";
 	return drawsAsBands(layer.dataset) ? "level" : "number";
 }
+
+/** The air-quality dataset, whose layers are a widget's pollutant. */
+const AIR_QUALITY = "air-quality";
+
+/**
+ * Whether `layer` is a widget's pollutant: a pollutant by the catalog's kind, or an air-quality
+ * layer whose entry type the catalog doesn't know (still the pollutant, so choosing another or
+ * None replaces or removes it).
+ */
+export function isPollutantLayer(
+	layer: Pick<Layer, "dataset" | "entryType">,
+	catalog: CatalogEntry[] | undefined
+): boolean {
+	const kind = layerKind(layer, catalog);
+	return kind === "pollutant" || (kind === undefined && layer.dataset === AIR_QUALITY);
+}

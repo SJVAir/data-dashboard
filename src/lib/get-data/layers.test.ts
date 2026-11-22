@@ -57,6 +57,22 @@ const precipitation = { dataset: "weather", entryType: "precipitation" };
 const smoke = { dataset: "hms-smoke", entryType: "smoke-density" };
 
 describe("draft layers", () => {
+	it("layers: an air-quality layer the catalog doesn't know is the pollutant: replaced or removed", () => {
+		const unknown = (): WidgetDataConfig => ({
+			place: FRESNO,
+			layers: [{ dataset: "air-quality", entryType: "mystery" }, { ...temperature }]
+		});
+		const picked = unknown();
+		setPollutant(picked, CATALOG, { dataset: "air-quality", entryType: "o3" });
+		expect(picked.layers).toEqual([
+			{ dataset: "air-quality", entryType: "o3" },
+			{ ...temperature }
+		]);
+		const none = unknown();
+		setPollutant(none, CATALOG, null);
+		expect(none.layers).toEqual([{ ...temperature }]);
+	});
+
 	it("layers: None removes the last number layer", () => {
 		const data = pm25With();
 		setPollutant(data, CATALOG, null);

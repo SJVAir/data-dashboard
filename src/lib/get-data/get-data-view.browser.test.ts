@@ -676,7 +676,7 @@ test("keyboard: the date list, accordion and Show as work without a mouse", asyn
 
 test("get data view: None is never disabled", async () => {
 	for (const type of ["chart", "map"]) {
-		const { current, host } = await show(monitorsDraft(["m1"], { type }));
+		const { current, host, screen } = await show(monitorsDraft(["m1"], { type }));
 		// The Map's Fill regions by has a None of its own.
 		const scope = type === "map" ? page.getByRole("group", { name: "Air quality" }) : page;
 		const none = scope.getByRole("radio", { name: "None" });
@@ -685,6 +685,7 @@ test("get data view: None is never disabled", async () => {
 		await none.click();
 		await expect.element(none).toBeChecked();
 		expect((await current()).data.layers).toEqual([]);
+		screen.unmount();
 		host.remove();
 	}
 });
@@ -708,6 +709,32 @@ test("get data view: the Map offers radios, one pollutant", async () => {
 	await expect.element(group.getByRole("radio", { name: "PM2.5" })).not.toBeChecked();
 	expect((await current()).data.layers).toEqual([{ dataset: "air-quality", entryType: "o3" }]);
 	expect((await current()).data.selection).toEqual({ kind: "monitors", ids: ["m1"] });
+});
+
+test("get data view: a pollutant the catalog doesn't know is replaced or removed, never doubled", async () => {
+	for (const type of ["map", "chart"]) {
+		const unknown = (): Draft => {
+			const draft = monitorsDraft(["m1"], { type });
+			draft.data.layers = [{ dataset: "air-quality", entryType: "mystery" }];
+			return draft;
+		};
+		const scope = () => (type === "map" ? page.getByRole("group", { name: "Air quality" }) : page);
+		let shown = await show(unknown());
+		// It's the pollutant chosen: None isn't checked.
+		await expect.element(scope().getByRole("radio", { name: "None" })).not.toBeChecked();
+		await scope().getByRole("radio", { name: "PM2.5" }).click();
+		expect((await shown.current()).data.layers).toEqual([
+			{ dataset: "air-quality", entryType: "pm25" }
+		]);
+		shown.screen.unmount();
+		shown.host.remove();
+		shown = await show(unknown());
+		await scope().getByRole("radio", { name: "None" }).click();
+		await expect.element(scope().getByRole("radio", { name: "None" })).toBeChecked();
+		expect((await shown.current()).data.layers).toEqual([]);
+		shown.screen.unmount();
+		shown.host.remove();
+	}
 });
 
 test("the pollutant radios switch the pollutant; overlays follow the main layer", async () => {

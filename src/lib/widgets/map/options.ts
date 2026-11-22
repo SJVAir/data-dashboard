@@ -1,4 +1,4 @@
-import { layerKind } from "$lib/data/layer-kind";
+import { isPollutantLayer } from "$lib/data/layer-kind";
 import type { CatalogEntry } from "$lib/data/metadata";
 import { SafeIdSchema, type Layer, type WidgetDataConfig } from "$lib/data/schema";
 import type { WidgetInstance } from "$lib/documents/schema";
@@ -106,11 +106,7 @@ export function pollutantLayer(
 	data: WidgetDataConfig,
 	catalog: CatalogEntry[] | undefined
 ): Layer | undefined {
-	return data.layers.find((l) => {
-		if (l.dataset !== AIR_QUALITY) return false;
-		const kind = layerKind(l, catalog);
-		return kind === undefined || kind === "pollutant";
-	});
+	return data.layers.find((l) => l.dataset === AIR_QUALITY && isPollutantLayer(l, catalog));
 }
 
 /**

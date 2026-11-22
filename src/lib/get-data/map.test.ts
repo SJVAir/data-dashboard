@@ -444,6 +444,17 @@ describe("converting to and from the Map", () => {
 		expect(c.draft.data.layers[0].entryType).toBe("no2");
 	});
 
+	it("a Map with None and smoke and fire hands no layer on: the pollutant part is empty", () => {
+		const none = mapDraft(["pm25"], undefined, true);
+		none.data.layers.shift();
+		const one = mapShowingOnly(none, CATALOG);
+		expect(one.draft.data.layers).toEqual([]);
+		expect(one.dropped).toContain("overlays");
+		const c = fromMapDraft(none, chartType, CATALOG);
+		expect(c.draft.data.layers.some((l) => l.dataset === HMS_SMOKE)).toBe(false);
+		expect(c.draft.data.layers.some((l) => !l.entryType)).toBe(false);
+	});
+
 	it("says nothing was left out from a Map of one pollutant with no marks", () => {
 		const c = fromMapDraft(mapDraft(["pm25"], { marks: [] }, false), chartType, CATALOG);
 		expect(c.dropped).toEqual([]);
@@ -673,6 +684,16 @@ describe("pesticide use on a Map", () => {
 			NOW
 		);
 		expect(plain.draft.data.dateRange).toBeUndefined();
+	});
+
+	it("a use-only Map (None) shown as a Chart gets one use layer, not a copy of the Map's", () => {
+		const d = mapOf({ useFigure: "acres-treated" });
+		d.data.dateRange = { kind: "custom", start: "2023-01-01", end: "2023-12-31" };
+		d.data.layers = [];
+		setUse(d, true);
+		const c = fromMapDraft(d, chartType, USE_CATALOG, "unavailable", NOW);
+		expect(c.draft.data.layers).toEqual([{ dataset: "pesticide-use", entryType: "acres-treated" }]);
+		expect(c.dropped).not.toContain("overlays");
 	});
 
 	it("a Map's use shown as a chart becomes a pesticide layer of the figure drawn, with the Map's filters", () => {

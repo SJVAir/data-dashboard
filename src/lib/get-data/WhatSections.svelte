@@ -3,7 +3,7 @@
 	import type { CatalogEntry } from "$lib/data/metadata";
 	import type { Layer, PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
 	import Toggletip from "$lib/components/Toggletip.svelte";
-	import { layerKind } from "$lib/data/layer-kind";
+	import { isPollutantLayer } from "$lib/data/layer-kind";
 	import { formatList, formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import { mainLayer } from "$lib/widgets/shared/input";
@@ -55,7 +55,8 @@
 	const uid = $props.id();
 
 	const main = $derived(mainLayer(data, catalog));
-	const pollutantAt = $derived(data.layers.findIndex((l) => layerKind(l, catalog) === "pollutant"));
+	// An air-quality layer the catalog doesn't know is still the pollutant (no radio, not None).
+	const pollutantAt = $derived(data.layers.findIndex((l) => isPollutantLayer(l, catalog)));
 	const pollutant = $derived(pollutantAt >= 0 ? data.layers[pollutantAt] : undefined);
 
 	// The main layer's section starts open (Air Quality).
