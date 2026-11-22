@@ -218,6 +218,9 @@ test("a Map from Add widget has every monitor type ticked in its Data Portal, an
 	await page.clock.install({ time: "2026-11-15T12:00:00-08:00" });
 	const map = await addMap(page);
 	await expect(inView(map)).toHaveText(FRESNO_VIEW);
+	// A drawn monitor: a fixture monitor in Fresno County is a row of the feature list.
+	const list = await featureList(map);
+	await expect(list.getByRole("option", { name: /Fresno - Drummond Street/ })).toBeVisible();
 	await widgetMenuItem(page, FRESNO_MAP, "Open in Data Portal");
 	await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeVisible();
 	const types = page.getByRole("group", { name: "Monitors" }).getByRole("checkbox");

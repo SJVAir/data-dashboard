@@ -522,6 +522,7 @@ for (const width of [390, 320]) {
 test("Show as keeps the ticked monitor types from a Map to a Chart, and a calendar notes them left out", async ({
 	page
 }) => {
+	await page.clock.install({ time: "2026-11-15T12:00:00-08:00" });
 	await page.goto("data");
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
 	const purple = page.getByRole("checkbox", { name: "PurpleAir" });
