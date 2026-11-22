@@ -288,6 +288,18 @@ function mapRange(
 }
 
 /**
+ * A draft becoming a Map with no monitors of its own (no ticked types, no searched monitors) is a
+ * new Map: its air-quality layer ticks every monitor type (`everyMonitorType`, spec decision 8). A
+ * draft with ticks or searched monitors keeps them. Nothing is ticked when the catalog lacks them.
+ */
+export function tickEveryTypeIfNone(data: WidgetDataConfig, catalog: CatalogEntry[]): void {
+	const layer = data.layers.find((l) => l.dataset === AIR_QUALITY && l.entryType);
+	if (!layer || layer.monitors?.length || layer.monitorTypes?.length) return;
+	const types = everyMonitorType(catalog);
+	if (types.length > 0) layer.monitorTypes = types;
+}
+
+/**
  * `draft` (any type) as a Map: the source's pollutant (or the first offered), its places (≤ 25),
  * smoke and fire on when the source had a smoke layer, and the range the person chose
  * (`chosenRange`, then `mapRange`: cut to the Map's 366 stops at its resolution with a
@@ -304,18 +316,6 @@ function mapRange(
  * gets the first offered pollutant. The Map's resolution (and so its cut) is
  * that of the layers it ends with.
  */
-/**
- * A draft becoming a Map with no monitors of its own (no ticked types, no searched monitors) is a
- * new Map: its air-quality layer ticks every monitor type (`everyMonitorType`, spec decision 8). A
- * draft with ticks or searched monitors keeps them. Nothing is ticked when the catalog lacks them.
- */
-export function tickEveryTypeIfNone(data: WidgetDataConfig, catalog: CatalogEntry[]): void {
-	const layer = data.layers.find((l) => l.dataset === AIR_QUALITY && l.entryType);
-	if (!layer || layer.monitors?.length || layer.monitorTypes?.length) return;
-	const types = everyMonitorType(catalog);
-	if (types.length > 0) layer.monitorTypes = types;
-}
-
 export function toMapDraft(
 	draft: Draft,
 	catalog: CatalogEntry[],

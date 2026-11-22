@@ -13,7 +13,8 @@ import { DocumentSession, type DocumentSessionOptions } from "$lib/store/documen
 import type { TabChannel } from "$lib/store/tab-channel";
 import { CHART_TYPE } from "$lib/widgets/chart";
 import { CURRENT_TYPE } from "$lib/widgets/current";
-import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
+import { DEFAULT_LAYER, DEFAULT_PLACE, DEFAULT_RANGE } from "$lib/widgets/defaults";
+import { areasOnly } from "$lib/places/replace";
 import { FORECAST_TYPE } from "$lib/widgets/forecast";
 import { OUTSIDE_TYPE } from "$lib/widgets/outside";
 import { resolveDefaultPlace } from "./resolve";
@@ -83,9 +84,27 @@ export function starterTemplate(): Dashboard {
 	};
 }
 
-/** The starter at `place` (the space's chosen place), with its "Change place" bar. Never stored. */
-export function starterDashboard(place: ChosenPlace): Dashboard {
+/**
+ * The place a starter's Chart or Table shows (their Where holds areas only, decision 2): the
+ * starter's place when it's an area, else `area` (the school's or point's region, looked up when
+ * the place was chosen; `starterAreaOf`), else Fresno County.
+ */
+export function starterAreaFor(place: ChosenPlace, area?: ChosenPlace | null): ChosenPlace {
+	return place.kind === "region" ? place : (area ?? DEFAULT_PLACE);
+}
+
+/**
+ * The starter at `place` (the space's chosen place), with its "Change place" bar; its Chart (and
+ * any Table) at `starterAreaFor(place, area)`. Never stored.
+ */
+export function starterDashboard(place: ChosenPlace, area?: ChosenPlace | null): Dashboard {
 	const doc = resolveDefaultPlace(starterTemplate(), place);
+	const forAreas = starterAreaFor(place, area);
+	for (const widget of doc.body.widgets) {
+		if (areasOnly(widget.type) && widget.data.place) {
+			widget.data.place = structuredClone(forAreas);
+		}
+	}
 	doc.body.placeBar = { place: structuredClone(place) };
 	return doc;
 }
@@ -107,8 +126,8 @@ function freshCopy(source: Dashboard, now: Date, copiedFrom?: string): Dashboard
 }
 
 /** The starter at `place`, as a new document of this person's own. */
-export function copyOfStarter(now: Date, place: ChosenPlace): Dashboard {
-	return freshCopy(starterDashboard(place), now, STARTER_ID);
+export function copyOfStarter(now: Date, place: ChosenPlace, area?: ChosenPlace | null): Dashboard {
+	return freshCopy(starterDashboard(place, area), now, STARTER_ID);
 }
 
 export function blankDashboard(now: Date): Dashboard {
@@ -146,6 +165,8 @@ export type StarterSessionOptions = {
 	now?: () => Date;
 	/** The place the starter shows (the space's chosen place); its copy keeps it. */
 	place: ChosenPlace;
+	/** The region its Chart shows when `place` is a school or point (`starterAreaFor`). */
+	area?: ChosenPlace | null;
 	/** Called once the copy is stored, holding the first edit (if one started the hand-off). */
 	onCopied?: (copy: DocumentSession) => void;
 } & Pick<DocumentSessionOptions, "onNeedsReload" | "onCleared" | "onEdit">;
@@ -168,13 +189,13 @@ export function starterSession(opts: StarterSessionOptions): DocumentSession {
 		now,
 		onNeedsReload,
 		onCleared,
-		doc: starterDashboard(place),
+		doc: starterDashboard(place, opts.area),
 		onBeforeFirstEdit: async (change) => {
 			if (platform.reset.generation() !== generation) {
 				onCleared?.();
 				return null;
 			}
-			const doc = copyOfStarter(now(), place);
+			const doc = copyOfStarter(now(), place, opts.area);
 			// Storage doesn't validate: a copy that would hold `default-place` fails here instead.
 			// The throw fails the hand-off, so the starter's session shows the save error
 			// (`errorKind: "unavailable"`) and its edits stay queued.

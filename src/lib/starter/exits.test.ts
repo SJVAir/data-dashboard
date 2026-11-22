@@ -18,7 +18,8 @@ import { LAST_OPENED_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { DEFAULT_PLACE } from "$lib/widgets/defaults";
 import { writeSelection } from "$lib/widgets/calendars/shared/write-selection";
-import { STARTER_PLACE_KEY, saveStarterPlace } from "./place.svelte";
+import { placeRegion } from "$lib/data";
+import { STARTER_AREA_KEY, STARTER_PLACE_KEY, saveStarterPlace } from "./place.svelte";
 import { STARTER_ID } from "./starter";
 
 // Sharing's navigation and dialogs aren't used here (and the router needs a page).
@@ -48,14 +49,19 @@ async function stored(platform: ReturnType<typeof createMemoryPlatform>, id: str
 	return (await platform.documents.get("anonymous", id)) as Dashboard;
 }
 
-function expectFromStarter(doc: Dashboard, place: ChosenPlace) {
+/**
+ * `doc` is the starter at `place`; its Chart (areas only, decision 2) at `area` when `place` is a
+ * school or point (Fresno County when no region was looked up).
+ */
+function expectFromStarter(doc: Dashboard, place: ChosenPlace, area: ChosenPlace = DEFAULT_PLACE) {
 	expect(DashboardSchema.safeParse(doc).success).toBe(true);
 	expect(doc.copiedFrom).toBe(STARTER_ID);
 	expect(doc.body.placeBar).toEqual({ place });
 	expect(JSON.stringify(doc)).not.toContain("default-place");
-	const shown = doc.body.widgets.flatMap((w) => w.data.place ?? []);
+	const shown = doc.body.widgets.filter((w) => w.data.place);
 	expect(shown.length).toBeGreaterThanOrEqual(5);
-	for (const p of shown) expect(p).toEqual(place);
+	const forAreas = place.kind === "region" ? place : area;
+	for (const w of shown) expect(w.data.place).toEqual(w.type === "chart" ? forAreas : place);
 }
 
 describe("the starter's place in the app", () => {
@@ -113,13 +119,10 @@ describe("every exit from the starter holds the chosen place", () => {
 
 	it("Get data's Add to dashboard on the starter", async () => {
 		const { platform, app } = await setup(SCHOOL);
+		// A one-place tile at the school (a Chart's Where would hold an area).
 		const { dashboardId } = await addFromDraft(app, STARTER_ID, {
-			type: "chart",
-			data: {
-				dateRange: { kind: "trailing", amount: 30, unit: "day" },
-				place: SCHOOL,
-				layers: [{ dataset: "air-quality", entryType: "pm25" }]
-			}
+			type: "current-conditions",
+			data: { place: SCHOOL, layers: [{ dataset: "air-quality", entryType: "pm25" }] }
 		});
 		const copy = (await app.sessions.get(dashboardId))!;
 		await copy.flush();
@@ -268,7 +271,6 @@ describe("sharing the starter copies it first", () => {
 
 describe("Change place on the starter", () => {
 	const rename = { op: "setField", target: { path: "name" }, from: null, to: "Mine" } as const;
-	const places = (doc: Dashboard) => doc.body.widgets.flatMap((w) => w.data.place ?? []);
 
 	it("changes every widget at once: no copy, no undo, the place saved", async () => {
 		const { platform, app } = await setup();
@@ -280,7 +282,12 @@ describe("Change place on the starter", () => {
 		const shown = app.current.session!;
 		expect(shown).not.toBe(starter);
 		expect(shown.doc.body.placeBar).toEqual({ place: SCHOOL });
-		for (const p of places(shown.doc)) expect(p).toEqual(SCHOOL);
+		// The Chart takes the school's region (looked up as it reads it); the rest the school.
+		for (const w of shown.doc.body.widgets.filter((w) => w.data.place)) {
+			expect(w.data.place).toEqual(w.type === "chart" ? ZIP : SCHOOL);
+		}
+		expect(app.starterArea).toEqual(ZIP);
+		expect(await platform.preferences.get("anonymous", STARTER_AREA_KEY)).toEqual(ZIP);
 		expect(shown.canUndo).toBe(false);
 		expect(await app.sessions.get(STARTER_ID)).toBe(shown);
 		expect(app.index.items).toHaveLength(0);
@@ -291,7 +298,20 @@ describe("Change place on the starter", () => {
 		await vi.waitFor(() => expect(app.current.isStarter).toBe(false));
 		const copy = app.current.session!;
 		await copy.flush();
-		expectFromStarter(await stored(platform, copy.doc.id), SCHOOL);
+		expectFromStarter(await stored(platform, copy.doc.id), SCHOOL, ZIP);
+	});
+
+	it("a school whose region lookup fails keeps the Chart where it was", async () => {
+		const { app } = await setup();
+		await app.changeStarterPlace(ZIP);
+		vi.mocked(placeRegion).mockRejectedValueOnce(new Error("offline"));
+		await app.changeStarterPlace(POINT);
+		const shown = app.current.session ?? (await app.sessions.get(STARTER_ID))!;
+		expect(shown.doc.body.placeBar).toEqual({ place: POINT });
+		for (const w of shown.doc.body.widgets.filter((w) => w.data.place)) {
+			expect(w.data.place).toEqual(w.type === "chart" ? ZIP : POINT);
+		}
+		expect(app.starterArea).toEqual(ZIP);
 	});
 
 	it("survives a reload", async () => {

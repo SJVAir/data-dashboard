@@ -82,14 +82,22 @@ const places = (doc: Dashboard) =>
 const overlaps = (a: Rect, b: Rect) =>
 	a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
-/** A document made from the starter: the chosen place everywhere, the bar, valid. */
+/**
+ * The place each starter widget shows at `place`: the Chart (areas only, decision 2) takes
+ * `area` for a school or point (Fresno County when none was looked up); the rest take `place`.
+ */
+const expectedPlaces = (doc: Dashboard, place: ChosenPlace, area: ChosenPlace = FRESNO) =>
+	doc.body.widgets
+		.filter((w) => w.data.layers.length > 0)
+		.map((w) => (w.type === "chart" && place.kind !== "region" ? area : place));
+
+/** A document made from the starter: the chosen place (its Chart's area), the bar, valid. */
 function expectFromStarter(doc: Dashboard, place: ChosenPlace) {
 	expect(DashboardSchema.safeParse(doc).success).toBe(true);
 	expect(doc.copiedFrom).toBe(STARTER_ID);
 	expect(doc.body.placeBar).toEqual({ place });
-	const shown = places(doc).filter((p) => p !== undefined);
-	expect(shown.length).toBeGreaterThan(0);
-	for (const p of shown) expect(p).toEqual(place);
+	expect(places(doc).length).toBeGreaterThan(0);
+	expect(places(doc)).toEqual(expectedPlaces(doc, place));
 }
 
 describe("starter template", () => {
@@ -171,13 +179,28 @@ describe("starter template", () => {
 });
 
 describe("starter dashboard", () => {
+	it("a school or point starter's Chart takes the looked-up area, never the school or point", () => {
+		const ZIP: ChosenPlace = { kind: "region", type: "zipcode", code: "93721" };
+		for (const place of PLACES.filter((p) => p.kind !== "region")) {
+			const starter = starterDashboard(place, ZIP);
+			expect(places(starter)).toEqual(expectedPlaces(starter, place, ZIP));
+			const chart = starter.body.widgets.find((w) => w.type === "chart")!;
+			expect(chart.data.place).toEqual(ZIP);
+		}
+		// An area place is the Chart's own, whatever area is kept.
+		const city = PLACES[0];
+		const atCity = starterDashboard(city, ZIP);
+		expect(atCity.body.widgets.find((w) => w.type === "chart")!.data.place).toEqual(city);
+	});
+
 	it("is the template at the chosen place, with the bar, for every kind of place", () => {
 		for (const place of [FRESNO, ...PLACES]) {
 			const starter = starterDashboard(place);
 			expect(DashboardSchema.safeParse(starter).success).toBe(true);
 			expect(starter.id).toBe(STARTER_ID);
 			expect(starter.body.placeBar).toEqual({ place });
-			expect(places(starter).filter((p) => p !== undefined)).toEqual(Array(5).fill(place));
+			expect(places(starter)).toEqual(expectedPlaces(starter, place));
+			expect(places(starter)).toHaveLength(5);
 			expect(JSON.stringify(starter)).not.toContain("default-place");
 		}
 	});

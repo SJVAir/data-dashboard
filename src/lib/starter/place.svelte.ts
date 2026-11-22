@@ -30,6 +30,32 @@ export async function readStarterPlace(
 	return defaultStarterPlace();
 }
 
+/** Preference key (per space): the region the starter's Chart shows for a school or point place. */
+export const STARTER_AREA_KEY = "starterArea";
+
+/** The stored starter area: a region, or `null` when unset, unreadable or not a region. */
+export async function readStarterArea(
+	p: Pick<Platform, "preferences">,
+	space: SpaceId
+): Promise<ChosenPlace | null> {
+	try {
+		const parsed = ChosenPlaceSchema.safeParse(await p.preferences.get(space, STARTER_AREA_KEY));
+		if (parsed.success && parsed.data.kind === "region") return parsed.data;
+	} catch {
+		// Storage blocked: none.
+	}
+	return null;
+}
+
+/** Stores the starter area (`readStarterArea`). */
+export async function saveStarterArea(
+	p: Pick<Platform, "preferences">,
+	space: SpaceId,
+	area: ChosenPlace
+): Promise<void> {
+	await p.preferences.set(space, STARTER_AREA_KEY, area);
+}
+
 /** Stores the space's chosen place (a point from "Use my location" stays on this device). */
 export async function saveStarterPlace(
 	p: Pick<Platform, "preferences">,

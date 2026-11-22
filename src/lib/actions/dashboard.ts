@@ -197,7 +197,11 @@ async function duplicateDashboard(app: AppContext, id?: string): Promise<void> {
 	// The index copies the stored document, so store this tab's edits first.
 	if (!target.isStarter) await target.session.flush();
 	const copyId = target.isStarter
-		? await app.index.duplicate(STARTER_ID, { from: app.starterPlace, to: app.starterPlace })
+		? await app.index.duplicate(STARTER_ID, {
+				from: app.starterPlace,
+				to: app.starterPlace,
+				area: app.starterArea
+			})
 		: await app.index.duplicate(target.session.doc.id);
 	await openDashboard(copyId);
 	await nameOpenedCopy(app, copyId);
@@ -236,7 +240,11 @@ async function copyWithPlace(
 	// The index copies the stored document, so store this tab's edits first.
 	if (!isStarter) await session.flush();
 	// The starter is built at its chosen place, the bar's place `from`.
-	const copyId = await app.index.duplicate(isStarter ? STARTER_ID : session.doc.id, { from, to });
+	const copyId = await app.index.duplicate(isStarter ? STARTER_ID : session.doc.id, {
+		from,
+		to,
+		...(isStarter ? { area: app.starterArea } : {})
+	});
 	await openDashboard(copyId);
 	await nameOpenedCopy(app, copyId);
 }
@@ -417,7 +425,9 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 				icon: LayoutTemplate,
 				group: "create",
 				run: () =>
-					void app.index.createFromStarter(app.starterPlace).then((id) => openDashboard(id))
+					void app.index
+						.createFromStarter(app.starterPlace, app.starterArea)
+						.then((id) => openDashboard(id))
 			},
 			{
 				id: "import",
