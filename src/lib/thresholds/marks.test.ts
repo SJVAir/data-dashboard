@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { Level } from "$lib/data/metadata";
-import { setMark, thresholdMarks } from "./marks.svelte";
+import { markKey, setMark, thresholdMarks } from "./marks.svelte";
 
 const level: Level = {
 	key: "moderate",
@@ -21,4 +21,9 @@ test("setMark stores a widget's mark and null clears it", () => {
 	expect(thresholdMarks.w1.pulse).toBe(2);
 	setMark("w1", null);
 	expect("w1" in thresholdMarks).toBe(false);
+});
+
+test("markKey is the widget id, with the pollutant's entry type when given", () => {
+	expect(markKey("w1", "o3")).toBe("w1:o3");
+	expect(markKey("w1")).toBe("w1");
 });

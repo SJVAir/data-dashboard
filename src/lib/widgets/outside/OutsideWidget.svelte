@@ -11,6 +11,7 @@
 	import type { QueryLayer, QueryState } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { m } from "$lib/paraglide/messages.js";
+	import { markKey } from "$lib/thresholds/marks.svelte";
 	import { CurrentConditions } from "../shared/current.svelte";
 	import { hasPlaces, queryLayer } from "../shared/input";
 	import LevelChip from "../shared/LevelChip.svelte";
@@ -242,7 +243,13 @@
 		{m.outside_no_guideline_pollutants()}
 	</p>
 {:else}
-	<MarkFrame {widget} {reading} levels={current.levels} now={clock.now}>
+	<MarkFrame
+		{widget}
+		markKey={markKey(widget.id)}
+		{reading}
+		levels={current.levels}
+		now={clock.now}
+	>
 		<WidgetState
 			state={shown}
 			{widget}

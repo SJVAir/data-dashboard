@@ -1574,6 +1574,7 @@
 	"current_no_recent_data": "No recent data",
 	"current_not_enough_readings": "Not enough recent readings",
 	"current_no_data": "No data for this place",
+	"current_choose_pollutant": "Choose a pollutant to show data.",
 	"current_alert_level_reached": "Alert level reached",
 	"current_average_help": "The value is an average over the period shown, and it updates as new readings arrive.",
 	"current_latest_reading_help": "This is the most recent single reading. It updates as new readings arrive.",

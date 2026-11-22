@@ -35,7 +35,7 @@ export class ThresholdWatch {
 		}
 	) {}
 
-	/** Shows or clears `id`'s mark for its current reading (see `markLevel`), keeping its pulse count. */
+	/** Shows or clears the mark under `id` (a `markKey`) for its current reading (see `markLevel`), keeping its pulse count. */
 	mark(
 		id: string,
 		reading: CurrentReading | undefined,
@@ -79,7 +79,8 @@ export class ThresholdWatch {
 	 * Handles a reading of `id` newer than any handled before here: decides under the lock
 	 * whether it fires, stores "last told", and if it fires (and `still()` says the widget is
 	 * still watched) toasts, announces, pulses the mark and notifies when the dashboard's switch
-	 * is on and permission is granted.
+	 * is on and permission is granted. The mark is the one under `markId` (`markKey`), `id` by
+	 * default.
 	 */
 	async process(
 		id: string,
@@ -87,7 +88,8 @@ export class ThresholdWatch {
 		threshold: Level,
 		levels: Level[],
 		text: () => CrossingText,
-		still: () => boolean
+		still: () => boolean,
+		markId: string = id
 	): Promise<void> {
 		const last = this.#lastAt.get(id);
 		if (last !== undefined && reading.at <= last) return;
@@ -112,7 +114,7 @@ export class ThresholdWatch {
 				if (live) told[id] = decision.told;
 				await writeTold(p, space, docId, told, this.opts.watching());
 				if (!decision.fire || !live) return;
-				await this.#fire(id, docId, space, reading, text());
+				await this.#fire(id, markId, docId, space, reading, text());
 			});
 		} catch (error) {
 			p.errors.report(error, { operation: "threshold-watch" });
@@ -121,6 +123,7 @@ export class ThresholdWatch {
 
 	async #fire(
 		id: string,
+		markId: string,
 		docId: string,
 		space: SpaceId,
 		{ level, at }: { level: Level; at: number },
@@ -132,7 +135,7 @@ export class ThresholdWatch {
 		this.announcement = "";
 		await tick();
 		this.announcement = body;
-		setMark(id, { level, at, pulse: (thresholdMarks[id]?.pulse ?? 0) + 1 });
+		setMark(markId, { level, at, pulse: (thresholdMarks[markId]?.pulse ?? 0) + 1 });
 		const p = this.opts.platform;
 		if ((await notifyEnabled(p, space, docId)) && p.notifications.permission() === "granted") {
 			p.notifications.show({ title, body, tag: `${docId}:${id}` });

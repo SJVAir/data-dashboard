@@ -17,7 +17,7 @@ import { DocumentSession } from "$lib/store/document-session.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { PM25_LEVELS } from "$lib/widgets/shared/test-harness/fake-data";
 import Harness from "$lib/components/dashboard/test-harness/Harness.svelte";
-import { thresholdMarks, setMark } from "./marks.svelte";
+import { markKey, thresholdMarks, setMark } from "./marks.svelte";
 import { setNotifyEnabled } from "./notify-pref";
 import ConditionsProbe from "./test-harness/ConditionsProbe.svelte";
 import ThresholdWatcher from "./ThresholdWatcher.svelte";
@@ -183,6 +183,9 @@ function nextPoll(): void {
 	for (const e of fake.client!.entries()) fake.client!.refetch(e.key);
 }
 
+/** Where the watcher writes tile w1's mark: its pollutant's key. */
+const W1_MARK = markKey("w1", "pm25");
+
 function tile(
 	id: string,
 	extra: Partial<WidgetInstance> = {},
@@ -247,8 +250,8 @@ test("the first reading at the level shows the mark but no toast", async () => {
 	series.step = 0;
 	const { app, platform, docId } = await seed([tile("w1")]);
 	await handled(platform, app, docId, "w1");
-	await expect.poll(() => thresholdMarks.w1?.level.key).toBe("unhealthy_sensitive");
-	expect(thresholdMarks.w1.pulse).toBe(0);
+	await expect.poll(() => thresholdMarks[W1_MARK]?.level.key).toBe("unhealthy_sensitive");
+	expect(thresholdMarks[W1_MARK].pulse).toBe(0);
 	await expect.element(page.getByText(m.current_alert_level_reached())).toBeVisible();
 	expect(toasts()).toHaveLength(0);
 	expect(watcherLive()).toBe("");
@@ -259,12 +262,12 @@ test("a crossing toasts once and announces politely", async () => {
 	series.step = 0;
 	const { app, platform, docId } = await seed([tile("w1")]);
 	await handled(platform, app, docId, "w1", readingAt(0));
-	expect(thresholdMarks.w1).toBeUndefined();
+	expect(thresholdMarks[W1_MARK]).toBeUndefined();
 	nextPoll();
 	await expect.poll(toastTexts).toEqual([crossing]);
 	expect(crossing).toBe(`PM2.5 at Monitor a is now ${USG}`);
 	await expect.poll(watcherLive).toBe(crossing);
-	expect(thresholdMarks.w1.pulse).toBe(1);
+	expect(thresholdMarks[W1_MARK].pulse).toBe(1);
 	// The same reading polled again tells nothing new.
 	const before = fetches;
 	for (const e of fake.client!.entries()) fake.client!.refetch(e.key);
@@ -325,7 +328,7 @@ test("turning the threshold Off clears the mark and never fires", async () => {
 	series.step = 0;
 	const { app, platform, docId, session } = await seed([tile("w1"), tile("w2")]);
 	await handled(platform, app, docId, "w1");
-	await expect.poll(() => thresholdMarks.w1?.level.key).toBe("unhealthy_sensitive");
+	await expect.poll(() => thresholdMarks[W1_MARK]?.level.key).toBe("unhealthy_sensitive");
 	const from = { name: session.doc.name, body: session.doc.body };
 	const to = {
 		name: session.doc.name,
@@ -336,7 +339,7 @@ test("turning the threshold Off clears the mark and never fires", async () => {
 		}
 	};
 	session.apply({ op: "replaceDocument", target: {}, from, to });
-	await expect.poll(() => thresholdMarks.w1).toBeUndefined();
+	await expect.poll(() => thresholdMarks[W1_MARK]).toBeUndefined();
 	nextPoll();
 	// w2 still watches: it fires; w1 doesn't, and its told entry is dropped.
 	await expect.poll(toastTexts).toEqual([
@@ -373,7 +376,7 @@ test("a threshold turned Off and back On while at the level starts afresh: no to
 	await expect.element(page.getByText("40.0")).toBeVisible();
 	setThreshold([{ level: "unhealthy_sensitive", entryType: "pm25" }]);
 	await handled(platform, app, docId, "w1", readingAt(1));
-	await expect.poll(() => thresholdMarks.w1?.level.key).toBe("unhealthy_sensitive");
+	await expect.poll(() => thresholdMarks[W1_MARK]?.level.key).toBe("unhealthy_sensitive");
 	await new Promise((r) => setTimeout(r, 200));
 	expect(toasts()).toHaveLength(0);
 });
@@ -404,7 +407,7 @@ test("a new place starts afresh: its first reading seeds, a later rise toasts", 
 	await expect
 		.poll(async () => (await readTold(platform, app.space, docId)).w1?.level, { timeout: 5000 })
 		.toBe("unhealthy_sensitive");
-	await expect.poll(() => thresholdMarks.w1?.level.key).toBe("unhealthy_sensitive");
+	await expect.poll(() => thresholdMarks[W1_MARK]?.level.key).toBe("unhealthy_sensitive");
 	expect(toasts()).toHaveLength(0);
 	nextPoll();
 	await expect.poll(toastTexts).toEqual([
@@ -514,7 +517,7 @@ test("when the tile shows an error or loading, the watcher fires nothing", async
 	await expect
 		.element(page.getByRole("button", { name: m.widget_state_retry() }), { timeout: 5000 })
 		.toBeVisible();
-	expect(thresholdMarks.w1).toBeUndefined();
+	expect(thresholdMarks[W1_MARK]).toBeUndefined();
 	// Earlier tests' dismissed toasts may still be leaving; none stays once they have.
 	await expect
 		.poll(() => toastTexts().filter((t) => t?.includes(" at PA ")), { timeout: 3000 })
@@ -529,14 +532,14 @@ test("a reading that ages past 3 hours loses its mark between polls", async () =
 	try {
 		const { app, platform, docId } = await seed([tile("w1", { minimized: { order: 0 } })]);
 		await handled(platform, app, docId, "w1", readingAt(0));
-		await expect.poll(() => thresholdMarks.w1?.level.key).toBe("unhealthy_sensitive");
+		await expect.poll(() => thresholdMarks[W1_MARK]?.level.key).toBe("unhealthy_sensitive");
 		// No poll comes (an outage): only the clock moves. The hour ended 6 minutes before t0, so
 		// it is "recent" until t0 + 2 h 54 min.
 		vi.advanceTimersByTime(3 * HOUR - 12 * 60_000);
 		await new Promise((r) => setTimeout(r, 50));
-		expect(thresholdMarks.w1?.level.key).toBe("unhealthy_sensitive");
+		expect(thresholdMarks[W1_MARK]?.level.key).toBe("unhealthy_sensitive");
 		vi.advanceTimersByTime(8 * 60_000);
-		await expect.poll(() => thresholdMarks.w1).toBeUndefined();
+		await expect.poll(() => thresholdMarks[W1_MARK]).toBeUndefined();
 	} finally {
 		vi.useRealTimers();
 	}
@@ -547,15 +550,15 @@ test("a place with no current value clears the mark; a failed fetch keeps it", a
 	series.step = 0;
 	const { app, platform, docId } = await seed([tile("w1", { minimized: { order: 0 } })]);
 	await handled(platform, app, docId, "w1", readingAt(0));
-	await expect.poll(() => thresholdMarks.w1?.level.key).toBe("unhealthy_sensitive");
+	await expect.poll(() => thresholdMarks[W1_MARK]?.level.key).toBe("unhealthy_sensitive");
 	series.fail = true;
 	for (const e of fake.client!.entries()) fake.client!.refetch(e.key);
 	await expect.poll(() => fake.client!.entries()[0]?.failed).toBe(true);
 	await new Promise((r) => setTimeout(r, 100));
-	expect(thresholdMarks.w1?.level.key).toBe("unhealthy_sensitive");
+	expect(thresholdMarks[W1_MARK]?.level.key).toBe("unhealthy_sensitive");
 	series.fail = false;
 	nextPoll();
-	await expect.poll(() => thresholdMarks.w1).toBeUndefined();
+	await expect.poll(() => thresholdMarks[W1_MARK]).toBeUndefined();
 });
 
 test("a notification is shown only when the switch is on and permission granted", async () => {

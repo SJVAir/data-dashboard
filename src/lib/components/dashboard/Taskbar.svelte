@@ -22,6 +22,7 @@
 	import { useApp } from "$lib/store/app.svelte";
 	import { thresholdMarks } from "$lib/thresholds/marks.svelte";
 	import MarkPulse from "$lib/thresholds/MarkPulse.svelte";
+	import { watchedMarkKey } from "$lib/widgets/current/pollutants";
 	import { getWidgetType } from "$lib/widgets/registry";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "$lib/widgets/shared/viewer";
 
@@ -175,7 +176,7 @@
 		{#each widgets as widget, i (widget.id)}
 			{@const title = widgetTitle(widget)}
 			{@const Icon = getWidgetType(widget.type)?.icon ?? CircleQuestionMark}
-			{@const mark = thresholdMarks[widget.id]}
+			{@const mark = thresholdMarks[watchedMarkKey(widget)]}
 			<!-- At its alert level: an outline in the level's color, a warning icon, and the name says
 			     so; it flashes once per crossing (steady under reduced motion). -->
 			<div

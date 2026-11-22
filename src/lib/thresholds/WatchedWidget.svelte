@@ -3,6 +3,7 @@
 	import { widgetTitle } from "$lib/actions/widget";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { canonicalJson } from "$lib/sync/merge";
+	import { watchedMarkKey } from "$lib/widgets/current/pollutants";
 	import { CurrentConditions } from "$lib/widgets/shared/current.svelte";
 	import { widgetWhere } from "$lib/widgets/shared/input";
 	import { ReadingClock } from "$lib/widgets/shared/reading-clock.svelte";
@@ -22,11 +23,15 @@
 	const clock = new ReadingClock(() => current.reading);
 	const threshold = $derived(resolveThreshold(widget.thresholds, current.levels)?.level ?? null);
 
+	// The key its mark is written under: Current conditions' is per pollutant (the one read).
+	const markId = $derived(watchedMarkKey(widget));
+	let lastMarkId: string | undefined;
+
 	// Gone (removed, or its threshold turned Off): a crossing decided after this isn't told.
 	let gone = false;
 	onDestroy(() => {
 		gone = true;
-		setMark(widget.id, null);
+		setMark(markId, null);
 	});
 
 	// What the reading is of (place and pollutant): when it changes, "last told" was about
@@ -42,11 +47,14 @@
 		const limit = threshold;
 		const levels = current.levels;
 		const meta = current.meta;
+		const markAt = markId;
 		void clock.stale;
 		untrack(() => {
+			if (lastMarkId !== undefined && markAt !== lastMarkId) setMark(lastMarkId, null);
+			lastMarkId = markAt;
 			if (lastKey !== undefined && key !== lastKey) void watch.forget([widget.id]);
 			lastKey = key;
-			watch.mark(widget.id, reading, limit, levels, clock.now);
+			watch.mark(markAt, reading, limit, levels, clock.now);
 			const ok = reading?.status === "ok" ? reading : undefined;
 			if (!ok?.level || !limit || !meta) return;
 			void watch.process(
@@ -59,7 +67,8 @@
 					pollutant: meta.entryType.label,
 					place: placeLabel(ok.place, viewer)
 				}),
-				() => !gone
+				() => !gone,
+				markAt
 			);
 		});
 	});
