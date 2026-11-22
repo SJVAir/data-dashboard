@@ -32,8 +32,10 @@ import { CHUNK_DAYS, calendarUnits, splitChunks, type Unit } from "../chunks";
 import type { Segment } from "../periods";
 import type { SeriesPoint } from "../types";
 
-/** The rows of one place (a monitor id or a region sqid) from one SDK call. */
-/** A place's points; `name` is the bulk monitor response's own name for it, when it has one. */
+/**
+ * The points of one place (a monitor id or a region sqid) from one SDK call; `name` is the bulk
+ * monitor response's own name for it, when it has one.
+ */
 export type Fetched = { id: string; points: SeriesPoint[]; name?: string };
 export type FetchTask = () => Promise<Fetched[]>;
 
