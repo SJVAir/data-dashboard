@@ -8,6 +8,7 @@ import {
 } from "$lib/data/testing/dataset-catalog";
 import {
 	addPesticideLayer,
+	dropMonitorsForPlace,
 	dropStationOnPlaceChange,
 	levelOnly,
 	removeLayer,
@@ -167,6 +168,32 @@ describe("draft layers", () => {
 		const data = pm25With({ ...temperature, station: "st2" });
 		dropStationOnPlaceChange(data);
 		expect(data.layers[1]).toEqual({ ...temperature });
+	});
+
+	it("a single-place widget's picked place drops its monitors and ticked types", () => {
+		const tile: WidgetDataConfig = {
+			place: FRESNO,
+			layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"], monitorTypes: ["a"] }]
+		};
+		dropMonitorsForPlace(tile, 1);
+		expect(tile.layers).toEqual([{ dataset: "air-quality", entryType: "pm25" }]);
+		const strip: WidgetDataConfig = {
+			place: FRESNO,
+			layers: [{ dataset: "forecasts", monitors: ["m1"] }]
+		};
+		dropMonitorsForPlace(strip, 1);
+		expect(strip.layers).toEqual([{ dataset: "forecasts" }]);
+	});
+
+	it("a Chart, a Map, or a cleared Where keeps the monitors", () => {
+		const layer = { dataset: "air-quality", entryType: "pm25", monitors: ["m1"] };
+		const chart: WidgetDataConfig = { place: FRESNO, layers: [{ ...layer }] };
+		dropMonitorsForPlace(chart, Infinity);
+		dropMonitorsForPlace(chart, 25);
+		expect(chart.layers).toEqual([layer]);
+		const cleared: WidgetDataConfig = { layers: [{ ...layer }] };
+		dropMonitorsForPlace(cleared, 1);
+		expect(cleared.layers).toEqual([layer]);
 	});
 
 	it("levelOnly is true for smoke alone", () => {

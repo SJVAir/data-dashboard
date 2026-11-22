@@ -139,6 +139,19 @@ export function dropStationOnPlaceChange(data: WidgetDataConfig): void {
 }
 
 /**
+ * A place was picked for a widget taking `limit` places (`placeLimit`): a single-place widget
+ * holds one place or one monitor (spec decision 11), so its searched monitors and ticked types
+ * go. A Chart, Table or Map keeps them, and so does a cleared Where.
+ */
+export function dropMonitorsForPlace(data: WidgetDataConfig, limit: number): void {
+	if (limit !== 1 || !(data.place || data.selection)) return;
+	for (const layer of data.layers) {
+		delete layer.monitors;
+		delete layer.monitorTypes;
+	}
+}
+
+/**
  * Whether `data` has only level layers (burn status, smoke): nothing to chart. False while the
  * catalog isn't known, and for an entry type it doesn't know (that layer says so itself).
  */

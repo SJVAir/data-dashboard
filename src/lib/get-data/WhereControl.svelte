@@ -31,7 +31,7 @@
 		purpose: { dataset: string; entryType: string };
 		/**
 		 * What the summary says with no picks instead of "Everywhere" (a single-place widget with no
-		 * monitor shows nothing until it has a place or a monitor).
+		 * monitor asks for one; with its one monitor it says so).
 		 */
 		emptyText?: string;
 		onchange: (picks: Picks) => void;

@@ -450,6 +450,16 @@
 	/** The draft has ticked monitor types: its lines are a monitor set's monitors. */
 	const setLines = $derived(widgetMonitors(plain.data).types.length > 0);
 	/**
+	 * What Where says with no places, instead of "Everywhere": a single-place widget takes one place
+	 * or one monitor, so it asks for one, or says it shows its monitor.
+	 */
+	const whereEmptyText = $derived.by(() => {
+		if (placeLimit(type) !== 1) return undefined;
+		return widgetMonitors(plain.data).monitors.length > 0
+			? m.get_data_where_one_monitor()
+			: m.get_data_where_place_or_monitor();
+	});
+	/**
 	 * "Overlay for": a Chart choice, listing its lines (areas or monitors). With ticked types,
 	 * whenever the set has two or more monitors (its overlay is fetched for the one chosen, spec
 	 * decision 37); otherwise only when the lines' overlays differ (different zones).
@@ -540,6 +550,7 @@
 		delete draft.data.selection;
 		Object.assign(draft.data, toWhere(next));
 		layers.dropStationOnPlaceChange(draft.data);
+		layers.dropMonitorsForPlace(draft.data, placeLimit(getWidgetType(draft.type)));
 	}
 
 	function setPollutant(pick: layers.EntryPick | null): void {
@@ -929,9 +940,7 @@
 					max={placeLimit(type)}
 					offer={plain.type === CHART_TYPE || plain.type === DATA_TABLE_TYPE ? "areas" : "where"}
 					purpose={wherePurpose(plain.data, known)}
-					emptyText={placeLimit(type) === 1 && widgetMonitors(plain.data).monitors.length === 0
-						? m.get_data_where_place_or_monitor()
-						: undefined}
+					emptyText={whereEmptyText}
 					onchange={setPlaces}
 				/>
 			</section>

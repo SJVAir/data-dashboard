@@ -298,6 +298,16 @@ describe("a Forecast strip's monitor", () => {
 		expect(hasPlaces({ layers: [strip] })).toBe(true);
 	});
 
+	it("a copy of the strip's layer carries it too; a forecasts layer with an entry type doesn't", () => {
+		expect(queryLayer({ layers: [strip] }, { ...strip })).toEqual(strip);
+		const aqi: Layer = { dataset: "forecasts", entryType: "aqi-forecast", monitors: ["m1"] };
+		expect(queryLayer({ layers: [aqi] }, aqi)).toEqual({
+			dataset: "forecasts",
+			entryType: "aqi-forecast"
+		});
+		expect(hasPlaces({ layers: [aqi] })).toBe(false);
+	});
+
 	it("a forecasts overlay beside other layers carries none", () => {
 		const burn: Layer = { dataset: "forecasts", entryType: "burn-status", monitors: ["m1"] };
 		const data = { layers: [PM, burn] };

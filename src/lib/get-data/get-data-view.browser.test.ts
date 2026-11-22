@@ -768,6 +768,17 @@ test("get data view: a single-place widget with no Where and no monitor asks for
 		.toHaveTextContent("Choose a place or a monitor");
 });
 
+test("get data view: a single-place widget with one monitor and no Where says so", async () => {
+	await show({
+		type: "current-conditions",
+		data: { layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }] }
+	});
+	await expect
+		.element(page.getByTestId("where-summary"))
+		.toHaveTextContent(m.get_data_where_one_monitor());
+	expect(m.get_data_where_one_monitor()).toBe("None: this shows one monitor");
+});
+
 test("get data view: Reference-grade ticked with no Where reads Everywhere", async () => {
 	const draft = areasDraft([]);
 	draft.data.layers[0] = { dataset: "air-quality", entryType: "pm25", monitorTypes: ["airnow"] };

@@ -90,12 +90,7 @@ function widgetFor(code = "06019"): WidgetInstance {
 		rect: { x: 0, y: 0, w: 3, h: 4 },
 		data: {
 			place: { kind: "region", type: "county", code },
-			layers: [
-				{
-					dataset: "forecasts",
-					entryType: "aqi-forecast"
-				}
-			]
+			layers: [{ dataset: "forecasts" }]
 		}
 	};
 }

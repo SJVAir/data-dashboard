@@ -94,18 +94,19 @@ function fetchesMonitors(layer: Layer): boolean {
 }
 
 /**
- * Whether `layer` is a Forecast strip's one layer (forecasts, alone in the widget), which holds its
- * one monitor as `monitors` (it has no air-quality layer).
+ * Whether `layer` is a Forecast strip's one layer (forecasts with no entry type, the widget's only
+ * layer), which holds its one monitor as `monitors` (it has no air-quality layer). Read by shape,
+ * not identity, so a copy of the layer counts too.
  */
 function isStripLayer(data: WidgetDataConfig, layer: Layer): boolean {
-	return layer.dataset === FORECASTS && data.layers.length === 1 && data.layers[0] === layer;
+	return data.layers.length === 1 && layer.dataset === FORECASTS && !layer.entryType;
 }
 
 /** The layer holding a widget's monitors: its air-quality layer, else a Forecast strip's one. */
 function monitorsLayer(data: WidgetDataConfig): Layer | undefined {
+	const first = data.layers[0];
 	return (
-		data.layers.find(fetchesMonitors) ??
-		(data.layers[0] && isStripLayer(data, data.layers[0]) ? data.layers[0] : undefined)
+		data.layers.find(fetchesMonitors) ?? (first && isStripLayer(data, first) ? first : undefined)
 	);
 }
 
