@@ -711,3 +711,23 @@ test("each pollutant's row carries its own mark", async () => {
 		setMark(markKey(widget.id, "o3"), null);
 	}
 });
+
+test("several pollutants are headed, each row a group named by its heading", async () => {
+	fake.byEntry = { o3: [40, 52] };
+	const screen = await show(twoPollutants("a"));
+	await expect
+		.element(screen.getByRole("heading", { level: 3, name: "PM2.5" }), { timeout: 5000 })
+		.toBeVisible();
+	await expect.element(screen.getByRole("heading", { level: 3, name: "Ozone" })).toBeVisible();
+	expect(screen.getByRole("heading", { level: 3 }).elements()).toHaveLength(2);
+	await expect.element(screen.getByRole("group", { name: "Ozone" })).toBeVisible();
+	const column = screen.getByRole("region", { name: m.current_rows_label() });
+	await expect.element(column).toHaveAttribute("tabindex", "0");
+});
+
+test("one pollutant has no heading, group or focusable column", async () => {
+	const screen = await show(currentWidget("a"));
+	await expect.element(screen.getByText("28.4"), { timeout: 5000 }).toBeVisible();
+	expect(screen.getByRole("heading").elements()).toHaveLength(0);
+	expect(frame.querySelector("[role='group'], [tabindex='0']")).toBeNull();
+});

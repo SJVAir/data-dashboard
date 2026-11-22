@@ -15,6 +15,7 @@
 
 	let { widget }: { widget: WidgetInstance } = $props();
 
+	const uid = $props.id();
 	const viewer = getContext<PlaceViewer | undefined>(PLACE_VIEWER_KEY) ?? "owner";
 
 	const pollutants = $derived(currentPollutants(widget.data));
@@ -25,7 +26,8 @@
 	let reports = $state<Record<string, RowReport | undefined>>({});
 
 	function report(entryType: string, r: RowReport | undefined): void {
-		reports[entryType] = r;
+		if (r) reports[entryType] = r;
+		else delete reports[entryType];
 	}
 
 	/** The generated title, once every row's pollutant is named and a row has read its place. */
@@ -56,16 +58,26 @@
 		children={nothing}
 	/>
 {:else}
-	<div class="flex h-full flex-col overflow-y-auto">
+	<!-- Several rows can overflow with nothing focusable in them: the column takes focus to scroll. -->
+	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+	<div
+		class="flex h-full flex-col overflow-y-auto"
+		tabindex={several ? 0 : undefined}
+		role={several ? "region" : undefined}
+		aria-label={several ? m.current_rows_label() : undefined}
+	>
 		{#each rows as row (row.entryType)}
 			<div
 				data-pollutant={row.entryType}
+				role={several ? "group" : undefined}
+				aria-labelledby={several ? `${uid}-${row.entryType}` : undefined}
 				class={several ? "border-border min-h-36 flex-1 shrink-0 not-first:border-t" : "h-full"}
 			>
 				<CurrentRow
 					widget={row.widget}
 					markKey={markKey(widget.id, row.entryType)}
 					named={several}
+					headingId={`${uid}-${row.entryType}`}
 					onreport={(r) => report(row.entryType, r)}
 				/>
 			</div>

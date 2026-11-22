@@ -6,6 +6,7 @@
 </script>
 
 <script lang="ts">
+	import { onDestroy } from "svelte";
 	import ArrowDown from "@lucide/svelte/icons/arrow-down";
 	import ArrowUp from "@lucide/svelte/icons/arrow-up";
 	import Minus from "@lucide/svelte/icons/minus";
@@ -27,6 +28,7 @@
 		widget,
 		markKey,
 		named = false,
+		headingId,
 		onreport
 	}: {
 		/** The card cut to this row's pollutant (`onePollutant`). */
@@ -35,6 +37,8 @@
 		markKey: string;
 		/** Name the pollutant over the row (a card of several pollutants). */
 		named?: boolean;
+		/** The id of the pollutant's heading (shown when `named`), which labels the row's group. */
+		headingId?: string;
 		onreport?: (report: RowReport | undefined) => void;
 	} = $props();
 
@@ -66,6 +70,8 @@
 		const place = current.state === "ready" ? reading?.place : undefined;
 		onreport?.(meta ? { label: meta.entryType.label, ...(place ? { place } : {}) } : undefined);
 	});
+	// A removed row's name no longer counts toward the title.
+	onDestroy(() => onreport?.(undefined));
 
 	function trendText(t: Trend): string {
 		if (t === "rising") return m.current_trend_rising();
@@ -129,7 +135,7 @@
 <MarkFrame {widget} {markKey} {reading} levels={current.levels} now={clock.now}>
 	<div class="flex h-full flex-col">
 		{#if named && meta}
-			<p class="px-2 pt-2 text-sm font-medium">{meta.entryType.label}</p>
+			<h3 id={headingId} class="px-2 pt-2 text-sm font-medium">{meta.entryType.label}</h3>
 		{/if}
 		<div class="min-h-0 flex-1">
 			<WidgetState
