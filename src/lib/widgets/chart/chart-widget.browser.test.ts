@@ -147,10 +147,10 @@ test("a minimized widget's query stops polling", async () => {
 	await expect.poll(() => fake.client!.entries()[0]?.polling).toBe(true);
 });
 
-test("a widget with no Where asks for one", async () => {
+test("chart widget: the empty prompt names what to add", async () => {
 	const widget = chartWidget([]);
 	const screen = await show(widget);
-	await expect.element(screen.getByText(m.widget_state_idle())).toBeVisible();
+	await expect.element(screen.getByText(m.widget_empty_add_where_or_monitors())).toBeVisible();
 	expect(requests).toEqual([]);
 });
 
@@ -158,7 +158,7 @@ test("a widget with no layers (None and nothing else) shows its empty state", as
 	const widget = chartWidget(["m1"]);
 	widget.data.layers = [];
 	const screen = await show(widget);
-	await expect.element(screen.getByText(m.widget_state_idle())).toBeVisible();
+	await expect.element(screen.getByText(m.widget_empty_add_layers())).toBeVisible();
 	expect(requests).toEqual([]);
 });
 

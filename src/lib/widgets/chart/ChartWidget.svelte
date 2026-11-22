@@ -136,6 +136,11 @@
 			onretry={w.retry}
 			onchoose={() => openPlacePicker({ widgetId: widget.id })}
 			emptyText={pesticideMain ? m.data_none_pesticides() : undefined}
+			idleText={w.picked.empty === "add-layers"
+				? m.widget_empty_add_layers()
+				: w.picked.empty === "add-where-or-monitors"
+					? m.widget_empty_add_where_or_monitors()
+					: undefined}
 		>
 			{#snippet children(data)}
 				{@const overlays = drawn(w.overlays, data)}

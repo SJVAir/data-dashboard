@@ -189,20 +189,26 @@ export function widgetEffective(
 	});
 }
 
+/** Why a Chart or Table asks for nothing: no Where and no monitors, or no layers at all. */
+export type ChartEmpty = "add-where-or-monitors" | "add-layers";
+
 /**
  * What a Chart asks the query client for: its `mainLayer` over the widget's date range at
  * `resolution` (the dataset's), with each day's worst hour, and at most `maxPlaces` of a
  * selection's places. `hidden` counts the places cut. A widget with no Where and no monitors
- * asks for nothing (`input` is null).
+ * asks for nothing (`input` is null) and says what to add (`empty`): monitors or a Where, or, with
+ * no layers at all, what to show.
  */
 export function chartInput(
 	data: WidgetDataConfig,
 	catalog: CatalogEntry[] | undefined,
 	maxPlaces: number,
 	resolution: Resolution
-): { layer: Layer | undefined; input: QueryInput | null; hidden: number } {
+): { layer: Layer | undefined; input: QueryInput | null; hidden: number; empty?: ChartEmpty } {
 	const layer = mainLayer(data, catalog);
-	if (!layer || !hasPlaces(data)) return { layer, input: null, hidden: 0 };
+	if (data.layers.length === 0) return { layer, input: null, hidden: 0, empty: "add-layers" };
+	if (!hasPlaces(data)) return { layer, input: null, hidden: 0, empty: "add-where-or-monitors" };
+	if (!layer) return { layer, input: null, hidden: 0 };
 	let shown = queryLayer(data, layer);
 	let hidden = 0;
 	const { selection } = data;
@@ -227,6 +233,8 @@ export type WidgetInputs = {
 	main: QueryInput | null;
 	/** Places of the widget's selection cut to fit `maxPlaces`. */
 	hidden: number;
+	/** What the widget asks to be given when it has nothing to ask for (`chartInput`). */
+	empty?: ChartEmpty;
 	/** One per `overlayLayers` entry; `null` for a misfit (it doesn't offer the resolution). */
 	overlays: (QueryInput | null)[];
 	effective: Effective;
@@ -262,7 +270,7 @@ export function widgetInputs(
 		const layer = mainLayer(widget.data, catalog);
 		return { layer, main: null, hidden: 0, overlays: [], effective, figureFor: null };
 	}
-	const { layer, input, hidden } = chartInput(
+	const { layer, input, hidden, empty } = chartInput(
 		widget.data,
 		catalog,
 		maxPlaces,
@@ -278,5 +286,5 @@ export function widgetInputs(
 			? { entryType: layer.entryType, resolution: effective.resolution }
 			: null;
 	const main = input && figureFor && figure ? { ...input, figure: figure.field } : input;
-	return { layer, main, hidden, overlays, effective, figureFor };
+	return { layer, main, hidden, ...(empty ? { empty } : {}), overlays, effective, figureFor };
 }

@@ -258,11 +258,6 @@
 			monitors: widgetMonitors(plain.data).monitors
 		})
 	);
-	/**
-	 * Whether the Where control renders; a Show as keep request needs it to open its dialog. A
-	 * Forecast strip's one layer has no entry type, so isn't a `mainLayer`, but it has a Where.
-	 */
-	const showsWhere = $derived(!!main || (isNow && plain.data.layers.length === 1));
 	/** Only level layers (smoke, burn status): nothing to chart, so no Add, Save or Download. */
 	const levelOnly = $derived(layers.levelOnly(plain.data, known));
 
@@ -449,7 +444,11 @@
 	// through a PM2.5 layer, as its picker offers places.
 	const namesWidget = $derived.by<WidgetInstance>(() => {
 		// A now type's names come from its main layer (a Map's other layers are place-less).
-		const layers = isNow ? (showsWhere ? [main ?? { ...DEFAULT_LAYER }] : []) : plain.data.layers;
+		const layers = isNow
+			? [main ?? { ...DEFAULT_LAYER }]
+			: plain.data.layers.length > 0
+				? plain.data.layers
+				: [{ ...DEFAULT_LAYER }];
 		return { ...previewWidget, id: `${PREVIEW_ID}-names`, data: { ...plain.data, layers } };
 	});
 	const data = new DataWidget(() => namesWidget, Infinity);
@@ -606,7 +605,6 @@
 
 	/** Replaces the draft's Where. */
 	function applyPlaces(next: Picks): void {
-		if (!showsWhere) return;
 		delete draft.data.place;
 		delete draft.data.selection;
 		Object.assign(draft.data, toWhere(next));
@@ -802,7 +800,7 @@
 		// More places than a Chart or Table takes: the person chooses which to keep first, and
 		// Cancel changes nothing (D17). Kept within the cap, the conversion cuts none.
 		const cap = to.accepts?.maxPlaces;
-		if (keepsOnSwitch(to) && cap !== undefined && picks.length > cap && showsWhere) {
+		if (keepsOnSwitch(to) && cap !== undefined && picks.length > cap) {
 			keeping = keepRequest(
 				cap,
 				(kept) => {
@@ -1015,22 +1013,18 @@
 
 			<section class="flex flex-col gap-2" aria-labelledby="{uid}-where">
 				<h2 id="{uid}-where" class="text-primary text-sm font-semibold">{m.get_data_where()}</h2>
-				{#if showsWhere}
-					{#key keepKey}
-						<WhereControl
-							{picks}
-							{names}
-							{namesSettled}
-							max={type?.accepts?.maxPlaces ?? 1}
-							offer={plain.type === CHART_TYPE || plain.type === DATA_TABLE_TYPE
-								? "areas"
-								: "where"}
-							purpose={wherePurpose(plain.data, known)}
-							onchange={setPlaces}
-							keep={keeping}
-						/>
-					{/key}
-				{/if}
+				{#key keepKey}
+					<WhereControl
+						{picks}
+						{names}
+						{namesSettled}
+						max={type?.accepts?.maxPlaces ?? 1}
+						offer={plain.type === CHART_TYPE || plain.type === DATA_TABLE_TYPE ? "areas" : "where"}
+						purpose={wherePurpose(plain.data, known)}
+						onchange={setPlaces}
+						keep={keeping}
+					/>
+				{/key}
 			</section>
 
 			{#snippet catalogState()}

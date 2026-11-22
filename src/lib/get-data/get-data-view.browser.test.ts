@@ -725,6 +725,15 @@ test("get data view: None is never disabled", async () => {
 	}
 });
 
+test("get data view: Where shows with no pollutant and reads Everywhere", async () => {
+	const draft = areasDraft(["06019"]);
+	draft.data.layers = [];
+	delete draft.data.place;
+	await show(draft);
+	await expect.element(page.getByRole("heading", { name: "Where" })).toBeVisible();
+	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Everywhere");
+});
+
 test("get data view: the Map offers radios, one pollutant", async () => {
 	fake.metadata = fixtureMetadata({
 		catalog: async () => CATALOG,

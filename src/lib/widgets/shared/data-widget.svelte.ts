@@ -25,6 +25,8 @@ export type WidgetPicked = {
 	layer: Layer | undefined;
 	input: QueryInput | null;
 	hidden: number;
+	/** What to add when the widget asks for nothing (`WidgetInputs.empty`). */
+	empty?: WidgetInputs["empty"];
 	overlays: (QueryInput | null)[];
 	effective?: WidgetInputs["effective"];
 	/** The figure the main needs (`WidgetInputs.figureFor`); absent or null: the plain mean. */

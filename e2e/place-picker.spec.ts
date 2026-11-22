@@ -143,7 +143,7 @@ test("Choose a place on an idle Data table offers areas only; a county shows its
 	page
 }) => {
 	await openDoc(page, dataDoc("data-table"));
-	await expect(page.getByText("Choose a place to show data.")).toBeVisible();
+	await expect(page.getByText("Add a place, or choose which monitors to show.")).toBeVisible();
 	await page.getByRole("button", { name: "Choose a place" }).click();
 
 	// A Table's Where holds areas only: no schools, no "my location".

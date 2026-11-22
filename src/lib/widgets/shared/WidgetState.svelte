@@ -21,6 +21,7 @@
 		onretry,
 		onchoose,
 		emptyText,
+		idleText,
 		ownsEmpty = false,
 		children
 	}: {
@@ -35,6 +36,8 @@
 		 * opens Edit data instead.
 		 */
 		onchoose?: () => void;
+		/** What the idle state says instead of "Choose a place to show data." */
+		idleText?: string;
 		/** What an empty range says instead of the general "No data for this range." */
 		emptyText?: string;
 		/** The children say what an empty range means (they keep other content), so it isn't replaced. */
@@ -174,13 +177,13 @@
 {#if state.status === "idle"}
 	{#if editable && onchoose}
 		<div class="flex h-full flex-col items-center justify-center gap-2 text-center">
-			<p class="text-muted-foreground text-sm">{m.widget_state_idle()}</p>
+			<p class="text-muted-foreground text-sm">{idleText ?? m.widget_state_idle()}</p>
 			<Button size="sm" variant="outline" onclick={onchoose}>
 				{m.widget_state_choose_place()}
 			</Button>
 		</div>
 	{:else}
-		{@render message(m.widget_state_idle())}
+		{@render message(idleText ?? m.widget_state_idle())}
 	{/if}
 {:else if state.status === "unavailable"}
 	{#if GONE.has(state.reason)}
