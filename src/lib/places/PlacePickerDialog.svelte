@@ -12,7 +12,7 @@
 	import * as Dialog from "$lib/components/ui/dialog";
 	import { getMetadata, getResolvers, placeRegion } from "$lib/data";
 	import type { CatalogEntry } from "$lib/data/metadata";
-	import type { ChosenPlace, Layer, WidgetDataConfig } from "$lib/data/schema";
+	import type { ChosenPlace, WidgetDataConfig } from "$lib/data/schema";
 	import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 	import { formatNumber } from "$lib/format";
 	import { requestFocus } from "$lib/layout/focus-request.svelte";
@@ -27,9 +27,8 @@
 	import { offersNow } from "$lib/widgets/time";
 	import {
 		nowInput,
-		placesEntryType,
-		placesLayer,
-		placesQueryLayer,
+		mainLayer,
+		wherePurpose,
 		widgetInputs,
 		widgetPlaceKind
 	} from "$lib/widgets/shared/input";
@@ -40,7 +39,7 @@
 	import { addRecent, readRecent } from "./recent";
 	import { barChange, othersCount, widgetPlace } from "./replace";
 	import { regionName as nameOf } from "./region-name";
-	import { fromLayer, type PickerMode, type Picks } from "./selection";
+	import { fromWhere, type PickerMode, type Picks } from "./selection";
 	import { sameRef, type PlaceOption, type PointPlace } from "./types";
 
 	const app = useApp();
@@ -159,14 +158,15 @@
 			}
 			const target = find();
 			const max = target ? (getWidgetType(target.widget.type)?.accepts?.maxPlaces ?? 0) : 0;
-			const layer = target ? placesLayer(target.widget.data, catalog) : undefined;
-			if (!target || max < 1 || !layer) {
+			// A widget with no layers (a Note) has no Where.
+			if (!target || max < 1 || target.widget.data.layers.length === 0) {
 				close();
 				return;
 			}
-			// A Forecast strip's layer has no entry type: its places are picked as PM2.5's are.
-			const entryType = placesEntryType(layer);
-			const initial = fromLayer(layer);
+			// A Forecast strip has no pollutant: its places are picked as PM2.5's are.
+			const purpose = wherePurpose(target.widget.data, catalog);
+			const { entryType } = purpose;
+			const initial = fromWhere(target.widget.data);
 			const recentRefs = await readRecent(app.platform, app.space).catch((error: unknown) => {
 				report(error);
 				return [];
@@ -184,7 +184,7 @@
 				resolvers,
 				catalog,
 				max,
-				purpose: { dataset: layer.dataset, entryType },
+				purpose,
 				mode: max > 1 ? { kind: "multiple", max } : { kind: "single" },
 				others: 0,
 				pick: null,
@@ -265,14 +265,11 @@
 		phase = "ready";
 	}
 
-	/** The data with the main layer's places swapped for `point`. */
-	function withPoint(data: WidgetDataConfig, layer: Layer, point: PointPlace): WidgetDataConfig {
+	/** The data with its Where swapped for `point`. */
+	function withPoint(data: WidgetDataConfig, point: PointPlace): WidgetDataConfig {
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropped from the copy
-		const { place, selection, ...rest } = layer;
-		return {
-			...data,
-			layers: data.layers.map((l) => (l === layer ? { ...rest, place: point } : l))
-		};
+		const { place, selection, ...rest } = data;
+		return { ...rest, place: point };
 	}
 
 	/** The region the widget would use for `point`, aborted with the dialog or after a timeout. */
@@ -283,25 +280,23 @@
 		point: PointPlace,
 		signal: AbortSignal
 	): Promise<{ type: string; code: string } | null> {
-		const layer = placesLayer(data, ctx.catalog);
-		if (!layer) return null;
-		// A Forecast strip's layer is looked up as a PM2.5 one at the same place.
-		const pointData = withPoint(data, layer, point);
-		const lookup = {
-			...pointData,
-			layers: pointData.layers.map(placesQueryLayer)
-		};
+		if (data.layers.length === 0) return null;
+		// A widget with no main layer (a Forecast strip's) is looked up as a PM2.5 one at the place.
+		const pointData = withPoint(data, point);
+		const lookup = mainLayer(pointData, ctx.catalog)
+			? pointData
+			: { ...pointData, layers: [{ ...DEFAULT_LAYER }] };
 		// A now tile reads the layer's hourly averages, not 30 days of them; a Map frames its places
 		// the same way, with a range or not. A calendar reads one daily row per day.
 		const type = getWidgetType(widgetType);
 		const input = isCalendarType(widgetType)
 			? calendarInput(lookup, ctx.catalog, widgetType)
 			: type && offersNow(type)
-				? nowInput(lookup, placesLayer(lookup, ctx.catalog))
+				? nowInput(lookup, mainLayer(lookup, ctx.catalog))
 				: widgetInputs(
 						{ type: widgetType, data: lookup },
 						ctx.catalog,
-						widgetPlaceKind(lookup, ctx.catalog),
+						widgetPlaceKind(lookup),
 						ctx.max
 					).main;
 		if (!input) return null;
@@ -351,7 +346,6 @@
 		try {
 			result = await pickedData(target.widget.data, picks, {
 				liveLink,
-				catalog: ctx.catalog,
 				regionOf: (point) => regionOf(ctx, target.widget.type, target.widget.data, point, signal)
 			});
 		} catch {
@@ -373,7 +367,6 @@
 			const final = saved ? [{ kind: "region" as const, ...saved }] : picks;
 			const next = await pickedData(latest.widget.data, final, {
 				liveLink: false,
-				catalog: ctx.catalog,
 				regionOf: async () => null
 			});
 			if (stale()) return;

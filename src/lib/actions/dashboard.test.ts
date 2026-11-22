@@ -5,6 +5,7 @@ import { openRename } from "$lib/components/dialogs/RenameDialog.svelte";
 import { takeAfterMenuClose } from "$lib/components/menu/menu-state.svelte";
 import type { ChosenPlace, Layer } from "$lib/data/schema";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
+import { toWhere } from "$lib/places/selection";
 import type { AppContext } from "$lib/store/app.svelte";
 import { STARTER_ID } from "$lib/starter/starter";
 import { chartType } from "$lib/widgets/chart";
@@ -76,8 +77,9 @@ describe("Duplicate for another place", () => {
 	const TO: ChosenPlace = { kind: "region", type: "county", code: "06029" };
 
 	function widget(id: string, places: ChosenPlace[], y: number): WidgetInstance {
-		const layers: Layer[] = places.map((place) => ({ dataset: "air-quality", place }));
-		return { id, type: "chart", title: null, rect: { x: 0, y, w: 6, h: 4 }, data: { layers } };
+		const layers: Layer[] = places.length ? [{ dataset: "air-quality" }] : [];
+		const data = { ...toWhere(places), layers };
+		return { id, type: "chart", title: null, rect: { x: 0, y, w: 6, h: 4 }, data };
 	}
 	const note = (y: number): WidgetInstance => ({
 		id: `note-${y}`,

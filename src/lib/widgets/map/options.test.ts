@@ -20,8 +20,9 @@ const CATALOG = [
 	{ id: "air-quality", entryTypes: [entry("pm25"), entry("pm10"), entry("o3")] }
 ] as unknown as CatalogEntry[];
 const twoLayers = (a: string, b: string): WidgetDataConfig => ({
+	place: FRESNO,
 	layers: [
-		{ dataset: "air-quality", entryType: a, place: FRESNO },
+		{ dataset: "air-quality", entryType: a },
 		{ dataset: "air-quality", entryType: b }
 	]
 });
@@ -32,7 +33,7 @@ describe("Map options", () => {
 		expect(mapOptions({})).toEqual({});
 		expect(
 			showingOf(
-				{ layers: [{ dataset: "air-quality", entryType: "o3", place: FRESNO }] },
+				{ place: FRESNO, layers: [{ dataset: "air-quality", entryType: "o3" }] },
 				{},
 				CATALOG
 			)
@@ -70,8 +71,9 @@ describe("Map options", () => {
 			}
 		] as unknown as CatalogEntry[];
 		const data: WidgetDataConfig = {
+			place: FRESNO,
 			layers: [
-				{ dataset: "air-quality", entryType: "pm25", place: FRESNO },
+				{ dataset: "air-quality", entryType: "pm25" },
 				{ dataset: "air-quality", entryType: "mystery" },
 				{ dataset: "air-quality", entryType: "temp" }
 			]
@@ -102,8 +104,9 @@ describe("Map options", () => {
 
 describe("drawableShowing", () => {
 	const three: WidgetDataConfig = {
+		place: FRESNO,
 		layers: [
-			{ dataset: "air-quality", entryType: "pm25", place: FRESNO },
+			{ dataset: "air-quality", entryType: "pm25" },
 			{ dataset: "air-quality", entryType: "pm10" },
 			{ dataset: "air-quality", entryType: "o3" }
 		]

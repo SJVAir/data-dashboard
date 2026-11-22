@@ -16,7 +16,7 @@ import { toast } from "svelte-sonner";
 import type { SyncWorker } from "$lib/sync/worker.svelte";
 import { LAST_OPENED_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
-import { DEFAULT_LAYER } from "$lib/widgets/defaults";
+import { DEFAULT_PLACE } from "$lib/widgets/defaults";
 import { writeSelection } from "$lib/widgets/calendars/shared/write-selection";
 import { STARTER_PLACE_KEY, saveStarterPlace } from "./place.svelte";
 import { STARTER_ID } from "./starter";
@@ -53,7 +53,7 @@ function expectFromStarter(doc: Dashboard, place: ChosenPlace) {
 	expect(doc.copiedFrom).toBe(STARTER_ID);
 	expect(doc.body.placeBar).toEqual({ place });
 	expect(JSON.stringify(doc)).not.toContain("default-place");
-	const shown = doc.body.widgets.flatMap((w) => w.data.layers.flatMap((l) => l.place ?? []));
+	const shown = doc.body.widgets.flatMap((w) => w.data.place ?? []);
 	expect(shown.length).toBeGreaterThanOrEqual(5);
 	for (const p of shown) expect(p).toEqual(place);
 }
@@ -61,9 +61,9 @@ function expectFromStarter(doc: Dashboard, place: ChosenPlace) {
 describe("the starter's place in the app", () => {
 	it("unset: Fresno County", async () => {
 		const { app } = await setup();
-		expect(app.starterPlace).toEqual(DEFAULT_LAYER.place);
+		expect(app.starterPlace).toEqual(DEFAULT_PLACE);
 		const starter = (await app.sessions.get(STARTER_ID))!;
-		expect(starter.doc.body.placeBar).toEqual({ place: DEFAULT_LAYER.place });
+		expect(starter.doc.body.placeBar).toEqual({ place: DEFAULT_PLACE });
 	});
 
 	it("the starter session shows the saved place", async () => {
@@ -78,9 +78,9 @@ describe("the starter's place in the app", () => {
 		const { platform, app } = await setup(SCHOOL);
 		await platform.preferences.set("anonymous", STARTER_PLACE_KEY, null);
 		await app.resetAfterClear();
-		expect(app.starterPlace).toEqual(DEFAULT_LAYER.place);
+		expect(app.starterPlace).toEqual(DEFAULT_PLACE);
 		const starter = (await app.sessions.get(STARTER_ID))!;
-		expect(starter.doc.body.placeBar).toEqual({ place: DEFAULT_LAYER.place });
+		expect(starter.doc.body.placeBar).toEqual({ place: DEFAULT_PLACE });
 	});
 });
 
@@ -117,7 +117,8 @@ describe("every exit from the starter holds the chosen place", () => {
 			type: "chart",
 			data: {
 				dateRange: { kind: "trailing", amount: 30, unit: "day" },
-				layers: [{ dataset: "air-quality", entryType: "pm25", place: SCHOOL }]
+				place: SCHOOL,
+				layers: [{ dataset: "air-quality", entryType: "pm25" }]
 			}
 		});
 		const copy = (await app.sessions.get(dashboardId))!;
@@ -267,8 +268,7 @@ describe("sharing the starter copies it first", () => {
 
 describe("Change place on the starter", () => {
 	const rename = { op: "setField", target: { path: "name" }, from: null, to: "Mine" } as const;
-	const places = (doc: Dashboard) =>
-		doc.body.widgets.flatMap((w) => w.data.layers.flatMap((l) => l.place ?? []));
+	const places = (doc: Dashboard) => doc.body.widgets.flatMap((w) => w.data.place ?? []);
 
 	it("changes every widget at once: no copy, no undo, the place saved", async () => {
 		const { platform, app } = await setup();
@@ -317,9 +317,9 @@ describe("Change place on the starter", () => {
 		// An ordinary edit on the copy: one undo step, the first edit kept.
 		copy.undo();
 		expect(copy.doc.name).toBe("Mine");
-		expect(copy.doc.body.placeBar).toEqual({ place: DEFAULT_LAYER.place });
+		expect(copy.doc.body.placeBar).toEqual({ place: DEFAULT_PLACE });
 		// Not the starter's place: that is unchanged.
-		expect(app.starterPlace).toEqual(DEFAULT_LAYER.place);
+		expect(app.starterPlace).toEqual(DEFAULT_PLACE);
 		expect(await platform.preferences.get("anonymous", STARTER_PLACE_KEY)).toBeUndefined();
 	});
 
@@ -333,7 +333,7 @@ describe("Change place on the starter", () => {
 		await app.changeStarterPlace(SCHOOL);
 		expect(app.current.session).toBe(copy);
 		expect(copy.doc.body.placeBar).toEqual({ place: SCHOOL });
-		expect(app.starterPlace).toEqual(DEFAULT_LAYER.place);
+		expect(app.starterPlace).toEqual(DEFAULT_PLACE);
 	});
 
 	it("a starter opened just after Clear my data keeps its first copy", async () => {
@@ -341,7 +341,7 @@ describe("Change place on the starter", () => {
 		const clearing = app.resetAfterClear();
 		// Built before the reset has finished (the index is still refreshing).
 		const starter = (await app.sessions.get(STARTER_ID))!;
-		expect(starter.doc.body.placeBar).toEqual({ place: DEFAULT_LAYER.place });
+		expect(starter.doc.body.placeBar).toEqual({ place: DEFAULT_PLACE });
 		app.current = { session: starter, isStarter: true };
 		starter.apply(rename);
 		await clearing;
@@ -355,7 +355,7 @@ describe("Change place on the starter to the place it shows", () => {
 		const { platform, app } = await setup();
 		const starter = (await app.sessions.get(STARTER_ID))!;
 		app.current = { session: starter, isStarter: true };
-		await app.changeStarterPlace({ ...DEFAULT_LAYER.place } as ChosenPlace);
+		await app.changeStarterPlace({ ...DEFAULT_PLACE } as ChosenPlace);
 		expect(app.current.session).toBe(starter);
 		expect(await platform.preferences.get("anonymous", STARTER_PLACE_KEY)).toBeUndefined();
 	});

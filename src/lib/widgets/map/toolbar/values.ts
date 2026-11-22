@@ -1,7 +1,7 @@
 import type { OptionValues } from "@sjvair/map-sdk";
 import { decodeRef, type MonitorFeatureProperties } from "@sjvair/map-sdk/data";
 import type { FeatureCollection, Geometry } from "geojson";
-import type { Layer } from "$lib/data/schema";
+import type { WidgetDataConfig } from "$lib/data/schema";
 import { MAP_TOOLBAR_KEYS, type MapOptions } from "../options";
 
 /** The toolbar value key of the spray notices row. */
@@ -145,10 +145,10 @@ export function groupsShown(
  * selection. The toolbar's filters never hide them (ruling, 2026-11-13).
  */
 export function placeMonitors(
-	layer: Pick<Layer, "place" | "selection"> | undefined
+	where: Pick<WidgetDataConfig, "place" | "selection"> | undefined
 ): ReadonlySet<string> {
-	if (layer?.place?.kind === "monitor") return new Set([layer.place.id]);
-	if (layer?.selection?.kind === "monitors") return new Set(layer.selection.ids);
+	if (where?.place?.kind === "monitor") return new Set([where.place.id]);
+	if (where?.selection?.kind === "monitors") return new Set(where.selection.ids);
 	return new Set();
 }
 

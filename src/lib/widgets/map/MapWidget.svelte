@@ -24,7 +24,13 @@
 	import { HMS_FIRE, HMS_SMOKE } from "$lib/get-data/map";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
-	import { entryMeta, placesLayer, widgetEffective, widgetPlaceKind } from "../shared/input";
+	import {
+		entryMeta,
+		hasWhere,
+		mainLayer,
+		widgetEffective,
+		widgetPlaceKind
+	} from "../shared/input";
 	import { useTileOptions } from "../shared/tile-options.svelte";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 	import WidgetSkeleton from "../shared/WidgetSkeleton.svelte";
@@ -107,13 +113,13 @@
 	loadPollutants();
 
 	const known = $derived(Array.isArray(catalog) ? catalog : undefined);
-	const layer = $derived(placesLayer(widget.data, known));
+	const layer = $derived(mainLayer(widget.data, known));
 	/** A dataset's name from the catalog (smoke and fire's layer labels). */
 	const datasetLabel = (id: string) => known?.find((d) => d.id === id)?.label;
 
-	/** The tile's pesticide use layer (place-less), if it has one. */
+	/** The tile's own pesticide use layer (no entry type: its figure is an option), if any. */
 	const useLayer = $derived(
-		widget.data.layers.find((l) => l.dataset === PESTICIDE_USE && !l.place && !l.selection)
+		widget.data.layers.find((l) => l.dataset === PESTICIDE_USE && !l.entryType)
 	);
 	/** The catalog's pesticide use figures the map draws (its labels, units and precision). */
 	const useFigures = $derived(
@@ -187,7 +193,7 @@
 	const effective = $derived.by(() => {
 		const range = widget.data.dateRange;
 		if (!range) return null;
-		const place = widgetPlaceKind(widget.data, known);
+		const place = widgetPlaceKind(widget.data);
 		const now = pacificDay(days.today, 12);
 		return widgetEffective(widget, known, place, range, now);
 	});
@@ -273,7 +279,7 @@
 		})
 	);
 	const idle = $derived(
-		!layer || (!layer.place && !layer.selection) || layer.place?.kind === "default-place"
+		!layer || !hasWhere(widget.data) || widget.data.place?.kind === "default-place"
 	);
 	/**
 	 * Whether the map can show a pollutant of the tile: none the server's map offers is never drawn.

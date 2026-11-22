@@ -23,7 +23,8 @@ const widget: WidgetInstance = {
 	title: null,
 	rect: { x: 0, y: 0, w: 4, h: 4 },
 	data: {
-		layers: [{ dataset: "air-quality", place: { kind: "region", type: "tract", code: "1" } }]
+		place: { kind: "region", type: "tract", code: "1" },
+		layers: [{ dataset: "air-quality" }]
 	}
 };
 
@@ -215,7 +216,8 @@ test("a retired school gets a note; Switch swaps the school and undo reverts", a
 	const schoolWidget: WidgetInstance = {
 		...widget,
 		data: {
-			layers: [{ dataset: "air-quality", place: { kind: "location", source: "cde", code: "1" } }]
+			place: { kind: "location", source: "cde", code: "1" },
+			layers: [{ dataset: "air-quality" }]
 		}
 	};
 	const places: PlaceInfo[] = [
@@ -264,13 +266,13 @@ test("a retired school gets a note; Switch swaps the school and undo reverts", a
 	const results = await axe.run(screen.container);
 	expect(results.violations).toEqual([]);
 	await screen.getByRole("button", { name: m.widget_state_switch() }).click();
-	expect(session.doc.body.widgets[0].data.layers[0].place).toEqual({
+	expect(session.doc.body.widgets[0].data.place).toEqual({
 		kind: "location",
 		source: "cde",
 		code: "2"
 	});
 	session.undo();
-	expect(session.doc.body.widgets[0].data.layers[0].place).toEqual({
+	expect(session.doc.body.widgets[0].data.place).toEqual({
 		kind: "location",
 		source: "cde",
 		code: "1"
@@ -295,13 +297,13 @@ test("a retired place gets a note; Switch applies one setWidgetData and undo rev
 		)
 		.toBeInTheDocument();
 	await screen.getByRole("button", { name: m.widget_state_switch() }).click();
-	expect(session.doc.body.widgets[0].data.layers[0].place).toEqual({
+	expect(session.doc.body.widgets[0].data.place).toEqual({
 		kind: "region",
 		type: "tract",
 		code: "2"
 	});
 	session.undo();
-	expect(session.doc.body.widgets[0].data.layers[0].place).toEqual({
+	expect(session.doc.body.widgets[0].data.place).toEqual({
 		kind: "region",
 		type: "tract",
 		code: "1"

@@ -135,7 +135,8 @@ function calendar(extra: Partial<WidgetInstance> = {}, entryType = "pm25"): Widg
 		rect: { x: 0, y: 0, w: 4, h: 6 },
 		data: {
 			dateRange: { kind: "custom", start: "2026-10-01", end: "2026-11-30" },
-			layers: [{ dataset: "air-quality", entryType, place: { kind: "monitor", id: "a" } }]
+			place: { kind: "monitor", id: "a" },
+			layers: [{ dataset: "air-quality", entryType }]
 		},
 		...extra
 	};
@@ -414,7 +415,8 @@ test("the legend shows no level swatches when no day is rated", async () => {
 
 test("a widget with no place asks for nothing and offers the place picker state", async () => {
 	const widget = calendar();
-	widget.data.layers = [{ dataset: "air-quality", entryType: "pm25" }];
+	delete widget.data.place;
+	delete widget.data.selection;
 	const app = await initApp(createMemoryPlatform(), {
 		channel: createMemoryTabHub().channel(),
 		tabId: "t1"

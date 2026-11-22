@@ -27,7 +27,9 @@ export function syncMapTitle(input: MapTitleInput, viewer: PlaceViewer): void {
 	const titleQuery = new LiveQuery(getQueryClient(), null);
 	titleQuery.setPolling(false);
 	onDestroy(() => titleQuery.destroy());
-	const count = $derived(input.layer?.selection?.ids.length ?? (input.layer?.place ? 1 : 0));
+	const count = $derived(
+		input.layer ? (input.data.selection?.ids.length ?? (input.data.place ? 1 : 0)) : 0
+	);
 	$effect(() => {
 		titleQuery.set(
 			!input.idle && input.supported && count === 1 ? nowInput(input.data, input.layer) : null

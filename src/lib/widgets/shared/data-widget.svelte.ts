@@ -63,7 +63,7 @@ function defaultInputs(
 	now: number,
 	figureOf: FigureOf
 ): WidgetPicked {
-	const place = widgetPlaceKind(widget.data, catalog);
+	const place = widgetPlaceKind(widget.data);
 	const plain = widgetInputs(widget, catalog, place, maxPlaces, now);
 	const need = plain.figureFor;
 	if (!need) return { ...plain, input: plain.main };

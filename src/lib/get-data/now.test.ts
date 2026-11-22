@@ -31,11 +31,11 @@ const chart: Draft = {
 	data: {
 		dateRange: { kind: "trailing", amount: 30, unit: "day" },
 		resolution: "day",
+		selection: { kind: "regions", ids: ["county:06019", "county:06039", "county:06047"] },
 		layers: [
 			{
 				dataset: "air-quality",
-				entryType: "pm25",
-				selection: { kind: "regions", ids: ["county:06019", "county:06039", "county:06047"] }
+				entryType: "pm25"
 			},
 			{ dataset: "forecasts", entryType: "burn-status" }
 		]
@@ -48,7 +48,7 @@ describe("toNowDraft", () => {
 		expect(toNowDraft(chart, currentType, CATALOG, PM25_LEVELS)).toEqual({
 			draft: {
 				type: "current-conditions",
-				data: { layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }] },
+				data: { place: FRESNO, layers: [{ dataset: "air-quality", entryType: "pm25" }] },
 				thresholds: [{ level: "unhealthy_sensitive" }]
 			},
 			dropped: ["dates", "overlays", "places"]
@@ -58,18 +58,19 @@ describe("toNowDraft", () => {
 	it("keeps an ozone pick for Current conditions; Outside forces PM2.5", () => {
 		const ozone: Draft = {
 			type: CHART_TYPE,
-			data: { layers: [{ dataset: "air-quality", entryType: "o3", place: CLOVIS }] }
+			data: { place: CLOVIS, layers: [{ dataset: "air-quality", entryType: "o3" }] }
 		};
 		expect(nowPollutant(ozone, currentType, CATALOG)).toBe("o3");
 		expect(toNowDraft(ozone, currentType, CATALOG, []).draft.data.layers).toEqual([
-			{ dataset: "air-quality", entryType: "o3", place: CLOVIS }
+			{ dataset: "air-quality", entryType: "o3" }
 		]);
+		expect(toNowDraft(ozone, currentType, CATALOG, []).draft.data.place).toEqual(CLOVIS);
 		expect(nowPollutant(ozone, outsideType, CATALOG)).toBe("pm25");
 		const outside = toNowDraft(ozone, outsideType, CATALOG, PM25_LEVELS);
 		expect(outside).toEqual({
 			draft: {
 				type: "outside",
-				data: { layers: [{ dataset: "air-quality", entryType: "pm25", place: CLOVIS }] },
+				data: { place: CLOVIS, layers: [{ dataset: "air-quality", entryType: "pm25" }] },
 				thresholds: [{ level: "unhealthy_sensitive" }]
 			},
 			dropped: ["pollutant"],
@@ -80,7 +81,7 @@ describe("toNowDraft", () => {
 	it("no levels (a scale without them) means no alert level", () => {
 		const ozone: Draft = {
 			type: CHART_TYPE,
-			data: { layers: [{ dataset: "air-quality", entryType: "o3", place: CLOVIS }] }
+			data: { place: CLOVIS, layers: [{ dataset: "air-quality", entryType: "o3" }] }
 		};
 		expect("thresholds" in toNowDraft(ozone, currentType, CATALOG, []).draft).toBe(false);
 	});
@@ -88,7 +89,7 @@ describe("toNowDraft", () => {
 	it("keeps a saved level the new scale has, else its default", () => {
 		const now: Draft = {
 			type: "current-conditions",
-			data: { layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }] },
+			data: { place: FRESNO, layers: [{ dataset: "air-quality", entryType: "pm25" }] },
 			thresholds: [{ level: "unhealthy" }]
 		};
 		expect(
@@ -103,7 +104,7 @@ describe("toNowDraft", () => {
 	it("an Off alert level stays Off between threshold types; from other types it's the default", () => {
 		const outside: Draft = {
 			type: "outside",
-			data: { layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }] }
+			data: { place: FRESNO, layers: [{ dataset: "air-quality", entryType: "pm25" }] }
 		};
 		const current = toNowDraft(outside, currentType, CATALOG, PM25_LEVELS, outsideType);
 		expect("thresholds" in current.draft).toBe(false);
@@ -120,7 +121,7 @@ describe("toNowDraft", () => {
 	it("a scale that can't load keeps the alert level as it is, and owes a default where one's due", () => {
 		const saved: Draft = {
 			type: "current-conditions",
-			data: { layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }] },
+			data: { place: FRESNO, layers: [{ dataset: "air-quality", entryType: "pm25" }] },
 			thresholds: [{ level: "unhealthy" }]
 		};
 		const kept = toNowDraft(saved, outsideType, CATALOG, "unavailable", currentType);
@@ -142,7 +143,7 @@ describe("toNowDraft", () => {
 	it("to the Forecast strip, a saved alert level is left out, and says so", () => {
 		const saved: Draft = {
 			type: "current-conditions",
-			data: { layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }] },
+			data: { place: FRESNO, layers: [{ dataset: "air-quality", entryType: "pm25" }] },
 			thresholds: [{ level: "unhealthy" }]
 		};
 		const strip = toNowDraft(saved, forecastType, CATALOG, [], currentType);
@@ -155,14 +156,13 @@ describe("toNowDraft", () => {
 		expect(nowPollutant(chart, forecastType, CATALOG)).toBeUndefined();
 		expect(draft).toEqual({
 			type: "forecast-strip",
-			data: { layers: [{ dataset: "forecasts", place: FRESNO }] }
+			data: { place: FRESNO, layers: [{ dataset: "forecasts" }] }
 		});
 		expect(dropped).toEqual(["dates", "overlays", "places"]);
 		// And back to Current conditions: the catalog's first pollutant.
 		const back = toNowDraft(draft, currentType, CATALOG, PM25_LEVELS, forecastType);
-		expect(back.draft.data.layers).toEqual([
-			{ dataset: "air-quality", entryType: "pm25", place: FRESNO }
-		]);
+		expect(back.draft.data.layers).toEqual([{ dataset: "air-quality", entryType: "pm25" }]);
+		expect(back.draft.data.place).toEqual(FRESNO);
 		expect(back.draft.thresholds).toEqual([{ level: "unhealthy_sensitive" }]);
 		expect(back.dropped).toEqual([]);
 	});
@@ -170,7 +170,7 @@ describe("toNowDraft", () => {
 	it("a draft with no number pollutant (weather) gets the catalog's first pollutant", () => {
 		const weather: Draft = {
 			type: CHART_TYPE,
-			data: { layers: [{ dataset: "weather", entryType: "temperature", place: FRESNO }] }
+			data: { place: FRESNO, layers: [{ dataset: "weather", entryType: "temperature" }] }
 		};
 		expect(nowPollutant(weather, currentType, CATALOG)).toBe("pm25");
 		const converted = toNowDraft(weather, currentType, CATALOG, PM25_LEVELS, chartType);
@@ -228,7 +228,8 @@ describe("fromNowDraft", () => {
 				type: CHART_TYPE,
 				data: {
 					dateRange: DEFAULT_RANGE,
-					layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }]
+					place: FRESNO,
+					layers: [{ dataset: "air-quality", entryType: "pm25" }]
 				}
 			},
 			dropped: []
@@ -242,11 +243,12 @@ describe("fromNowDraft", () => {
 	it("a Forecast strip's place goes on a PM2.5 layer", () => {
 		const strip: Draft = {
 			type: "forecast-strip",
-			data: { layers: [{ dataset: "forecasts", place: FRESNO }] }
+			data: { place: FRESNO, layers: [{ dataset: "forecasts" }] }
 		};
 		expect(fromNowDraft(strip, chartType).draft.data.layers).toEqual([
-			{ dataset: "air-quality", entryType: "pm25", place: FRESNO }
+			{ dataset: "air-quality", entryType: "pm25" }
 		]);
+		expect(fromNowDraft(strip, chartType).draft.data.place).toEqual(FRESNO);
 	});
 
 	it("fromNowDraft from a 25-place Map to Chart keeps 5 with a places note", () => {
@@ -254,7 +256,8 @@ describe("fromNowDraft", () => {
 		const map: Draft = {
 			type: "map",
 			data: {
-				layers: [{ dataset: "air-quality", entryType: "o3", selection: { kind: "monitors", ids } }]
+				selection: { kind: "monitors", ids },
+				layers: [{ dataset: "air-quality", entryType: "o3" }]
 			}
 		};
 		expect(fromNowDraft(map, chartType)).toEqual({
@@ -262,11 +265,11 @@ describe("fromNowDraft", () => {
 				type: CHART_TYPE,
 				data: {
 					dateRange: DEFAULT_RANGE,
+					selection: { kind: "monitors", ids: ids.slice(0, 5) },
 					layers: [
 						{
 							dataset: "air-quality",
-							entryType: "o3",
-							selection: { kind: "monitors", ids: ids.slice(0, 5) }
+							entryType: "o3"
 						}
 					]
 				}
@@ -276,25 +279,27 @@ describe("fromNowDraft", () => {
 		// A one-place target gets the first as its `place`.
 		const one = { ...chartType, accepts: { ...chartType.accepts, maxPlaces: 1 } };
 		expect(fromNowDraft(map, one).draft.data.layers).toEqual([
-			{ dataset: "air-quality", entryType: "o3", place: { kind: "monitor", id: "m1" } }
+			{ dataset: "air-quality", entryType: "o3" }
 		]);
+		expect(fromNowDraft(map, one).draft.data.place).toEqual({ kind: "monitor", id: "m1" });
 		// Data table's cap is 10.
 		const table = fromNowDraft(map, dataTableType);
-		expect(table.draft.data.layers[0].selection?.ids).toEqual(ids.slice(0, 10));
+		expect(table.draft.data.selection?.ids).toEqual(ids.slice(0, 10));
 		expect(table.dropped).toEqual(["places"]);
 	});
 
 	it("fromNowDraft from a one-place now tile is unchanged", () => {
 		const tile: Draft = {
 			type: "current-conditions",
-			data: { layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }] }
+			data: { place: FRESNO, layers: [{ dataset: "air-quality", entryType: "pm25" }] }
 		};
 		expect(fromNowDraft(tile, chartType)).toEqual({
 			draft: {
 				type: CHART_TYPE,
 				data: {
 					dateRange: DEFAULT_RANGE,
-					layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }]
+					place: FRESNO,
+					layers: [{ dataset: "air-quality", entryType: "pm25" }]
 				}
 			},
 			dropped: []
@@ -325,7 +330,7 @@ describe("calendar conversions", () => {
 	it("a current-conditions tile becomes a contribution calendar over 12 months", () => {
 		const tile: Draft = {
 			type: "current-conditions",
-			data: { layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }] },
+			data: { place: FRESNO, layers: [{ dataset: "air-quality", entryType: "pm25" }] },
 			thresholds: [{ level: "unhealthy" }]
 		};
 		expect(fromNowDraft(tile, contributionCalendarType)).toEqual({
@@ -333,7 +338,8 @@ describe("calendar conversions", () => {
 				type: contributionCalendarType.type,
 				data: {
 					dateRange: { kind: "trailing", amount: 12, unit: "month" },
-					layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }]
+					place: FRESNO,
+					layers: [{ dataset: "air-quality", entryType: "pm25" }]
 				},
 				thresholds: [{ level: "unhealthy" }]
 			},
@@ -413,11 +419,11 @@ describe("a Map: several places, the map's pollutants", () => {
 		data: {
 			dateRange: { kind: "trailing", amount: 30, unit: "day" },
 			resolution: "day",
+			selection: { kind: "monitors", ids },
 			layers: [
 				{
 					dataset: "air-quality",
-					entryType: "pm25",
-					selection: { kind: "monitors", ids }
+					entryType: "pm25"
 				}
 			]
 		}
@@ -429,11 +435,11 @@ describe("a Map: several places, the map's pollutants", () => {
 		expect(out.draft).toEqual({
 			type: "map",
 			data: {
+				selection: { kind: "monitors", ids: ["m1", "m2", "m3"] },
 				layers: [
 					{
 						dataset: "air-quality",
-						entryType: "pm25",
-						selection: { kind: "monitors", ids: ["m1", "m2", "m3"] }
+						entryType: "pm25"
 					}
 				]
 			}
@@ -443,22 +449,21 @@ describe("a Map: several places, the map's pollutants", () => {
 
 	it("toNowDraft to Map cuts at 25 with a places note", () => {
 		const out = toNowDraft(chartOf(monitors(30)), mapType, CATALOG, [], chartType, ALLOWED);
-		expect(out.draft.data.layers[0].selection).toEqual({ kind: "monitors", ids: monitors(25) });
+		expect(out.draft.data.selection).toEqual({ kind: "monitors", ids: monitors(25) });
 		expect(out.dropped).toContain("places");
 	});
 
 	it("toNowDraft to Current conditions still keeps one", () => {
 		const out = toNowDraft(chartOf(monitors(3)), currentType, CATALOG, [], chartType);
-		expect(out.draft.data.layers).toEqual([
-			{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }
-		]);
+		expect(out.draft.data.layers).toEqual([{ dataset: "air-quality", entryType: "pm25" }]);
+		expect(out.draft.data.place).toEqual({ kind: "monitor", id: "m1" });
 		expect(out.dropped).toContain("places");
 	});
 
 	it('nowPollutant for Map with allowed ["o3","pm25"] turns co into the first allowed', () => {
 		const co: Draft = {
 			type: CHART_TYPE,
-			data: { layers: [{ dataset: "air-quality", entryType: "co", place: CLOVIS }] }
+			data: { place: CLOVIS, layers: [{ dataset: "air-quality", entryType: "co" }] }
 		};
 		expect(nowPollutant(co, mapType, CATALOG, ALLOWED)).toBe("o3");
 		expect(nowPollutant(chartOf(["m1"]), mapType, CATALOG, ALLOWED)).toBe("pm25");

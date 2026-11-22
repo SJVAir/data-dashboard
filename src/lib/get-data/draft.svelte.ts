@@ -1,7 +1,7 @@
 import { z } from "$lib/zod";
 import { WidgetDataConfigSchema } from "$lib/data/schema";
 import type { Platform, SpaceId } from "$lib/platform/types";
-import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
+import { DEFAULT_LAYER, DEFAULT_PLACE, DEFAULT_RANGE } from "$lib/widgets/defaults";
 import { dataTypes } from "$lib/widgets/registry";
 import { MapOptionsSchema } from "$lib/widgets/map/options";
 import { ChartOptionsSchema } from "$lib/widgets/shared/overlays";
@@ -27,7 +27,11 @@ export type Draft = z.infer<typeof DraftSchema>;
 export function defaultDraft(type: string = CHART_TYPE): Draft {
 	return {
 		type,
-		data: { layers: [structuredClone(DEFAULT_LAYER)], dateRange: structuredClone(DEFAULT_RANGE) }
+		data: {
+			place: structuredClone(DEFAULT_PLACE),
+			layers: [structuredClone(DEFAULT_LAYER)],
+			dateRange: structuredClone(DEFAULT_RANGE)
+		}
 	};
 }
 

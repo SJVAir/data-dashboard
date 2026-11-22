@@ -179,7 +179,8 @@ function currentWidget(id: string): WidgetInstance {
 		title: null,
 		rect: { x: 0, y: 0, w: 3, h: 4 },
 		data: {
-			layers: [{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id } }]
+			place: { kind: "monitor", id },
+			layers: [{ dataset: "air-quality", entryType: "pm25" }]
 		}
 	};
 }
@@ -459,7 +460,7 @@ test("a pending alert result says it is not available yet", async () => {
 
 test("a region never asks for an alert value", async () => {
 	const widget = currentWidget("a");
-	widget.data.layers[0].place = { kind: "region", type: "county", code: "a" };
+	widget.data.place = { kind: "region", type: "county", code: "a" };
 	const screen = await show(widget);
 	await expect.element(screen.getByText("28.4"), { timeout: 5000 }).toBeVisible();
 	expect(fake.alertCalls).toEqual([]);
@@ -526,7 +527,7 @@ test("a lookup that resolves after the place changed does not set the old monito
 	await screen.rerender({
 		widget: {
 			...first,
-			data: { layers: [{ ...first.data.layers[0], place: { kind: "monitor", id: "voz" } }] }
+			data: { place: { kind: "monitor", id: "voz" }, layers: [{ ...first.data.layers[0] }] }
 		}
 	});
 	await expect.element(screen.getByText("21.0", { exact: true }), { timeout: 5000 }).toBeVisible();

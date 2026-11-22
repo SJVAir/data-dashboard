@@ -19,7 +19,6 @@ import { isCalendarType } from "$lib/calendars/types";
 import { entryMeta, widgetInputs, widgetPlaceKind } from "$lib/widgets/shared/input";
 import { overlayLayers } from "$lib/widgets/shared/overlays";
 import { getMetadata, getQueryClient } from "./index";
-import { LIMITS } from "./schema";
 import type { Subscription } from "./query/client";
 import {
 	byPlaceOrder,
@@ -294,12 +293,7 @@ export async function downloadDataCsv(
 	const catalog = await getMetadata().catalog();
 	if (catalog === "unavailable") throw new Error("The catalog is unavailable");
 	const calendar = type !== undefined && isCalendarType(type);
-	const chart = widgetInputs(
-		{ type: type ?? "", data: config },
-		catalog,
-		widgetPlaceKind(config, catalog),
-		LIMITS.SELECTION_MAX
-	);
+	const chart = widgetInputs({ type: type ?? "", data: config }, catalog, widgetPlaceKind(config));
 	const { layer } = chart;
 	let input = chart.main;
 	// The figure the widget shows (a calendar's is always the day's); an entry type with none

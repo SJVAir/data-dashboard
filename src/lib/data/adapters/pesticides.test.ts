@@ -23,10 +23,10 @@ import {
 import { resolveRange } from "$lib/format/range";
 import { createWebMetadata } from "../metadata";
 import { createQueryClient } from "../query/client";
-import type { DateRangeSpec, Layer, PesticideFilters, Resolution } from "../schema";
+import type { DateRangeSpec, PesticideFilters, Resolution } from "../schema";
 import { PESTICIDE_USE_DATASET, SDK_DATASET_CATALOG } from "../testing/dataset-catalog";
 import { fixtureMetadata } from "../testing/fixtures";
-import type { QueryState, Target } from "../types";
+import type { QueryLayer, QueryState, Target } from "../types";
 import {
 	FilterGone,
 	filterLabels,
@@ -349,14 +349,16 @@ describe("pesticidesAdapter", () => {
 	});
 
 	it("whole-layer and unsupported places are unavailable", async () => {
-		expect(await pesticidesAdapter.target({ dataset: "pesticide-use" } as Layer, ctx)).toEqual({
-			unavailable: "place-unsupported"
-		});
+		expect(await pesticidesAdapter.target({ dataset: "pesticide-use" } as QueryLayer, ctx)).toEqual(
+			{
+				unavailable: "place-unsupported"
+			}
+		);
 	});
 });
 
 describe("target", () => {
-	const layer = (filters?: PesticideFilters): Layer => ({
+	const layer = (filters?: PesticideFilters): QueryLayer => ({
 		dataset: "pesticide-use",
 		entryType: "pounds-applied",
 		place: { kind: "region", type: "county", code: "06019" },

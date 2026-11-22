@@ -136,7 +136,8 @@ function calendar(extra: Partial<WidgetInstance> = {}): WidgetInstance {
 		rect: { x: 0, y: 0, w: 4, h: 6 },
 		data: {
 			dateRange: NOVEMBER,
-			layers: [{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "a" } }]
+			place: { kind: "monitor", id: "a" },
+			layers: [{ dataset: "air-quality", entryType: "pm25" }]
 		},
 		...extra
 	};

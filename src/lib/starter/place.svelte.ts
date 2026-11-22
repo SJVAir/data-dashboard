@@ -4,16 +4,16 @@
  */
 import { ChosenPlaceSchema, type ChosenPlace } from "$lib/data/schema";
 import type { Platform, SpaceId } from "$lib/platform/types";
-import { DEFAULT_LAYER } from "$lib/widgets/defaults";
+import { DEFAULT_PLACE } from "$lib/widgets/defaults";
 
 export type { ChosenPlace };
 
 /** Preference key (per space): the place the starter shows. */
 export const STARTER_PLACE_KEY = "starterPlace";
 
-/** Fresno County, as a new widget's place (`DEFAULT_LAYER`), as a fresh object. */
+/** Fresno County, as a new widget's place (`DEFAULT_PLACE`), as a fresh object. */
 export function defaultStarterPlace(): ChosenPlace {
-	return structuredClone(DEFAULT_LAYER.place) as ChosenPlace;
+	return structuredClone(DEFAULT_PLACE);
 }
 
 /** The space's chosen place; unset, unreadable or invalid (`default-place` too) is Fresno County. */

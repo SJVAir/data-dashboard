@@ -6,7 +6,7 @@ import type { CatalogEntry, Level } from "$lib/data/metadata";
 import type { DateRangeSpec, Layer, PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
 import { addDays, parseDateKey } from "$lib/format";
 import { resolveRange } from "$lib/format/range";
-import { fromLayer } from "$lib/places/selection";
+import { fromWhere } from "$lib/places/selection";
 import { mapType } from "$lib/widgets/map";
 import {
 	AIR_QUALITY,
@@ -26,10 +26,14 @@ import {
 import { CHART_TYPE } from "$lib/widgets/chart";
 import { getWidgetType, type WidgetType } from "$lib/widgets/registry";
 import { mapLevel, type MapLevel } from "$lib/widgets/map/days";
-import { mainLayer, widgetEffective, widgetPlaceKind } from "$lib/widgets/shared/input";
+import {
+	mainLayer,
+	widgetEffective,
+	widgetPlaceKind,
+	widgetWhere
+} from "$lib/widgets/shared/input";
 import { blockedBySpan } from "./date-presets";
 import type { Draft } from "./draft.svelte";
-import { keepingPlaces } from "./layers";
 import {
 	fromNowDraft,
 	isDefaultRange,
@@ -41,9 +45,8 @@ import {
 export { HMS_FIRE, HMS_SMOKE, MAP_POLLUTANTS_MAX } from "$lib/widgets/map/options";
 
 /**
- * Adds or removes an air-quality layer of `entryType`. The places stay on the first pollutant
- * layer (they move on when it's removed); the last pollutant can't be removed and no more than
- * `MAP_POLLUTANTS_MAX` fit. Pollutants stay ahead of smoke and fire.
+ * Adds or removes an air-quality layer of `entryType`. The last pollutant can't be removed and no
+ * more than `MAP_POLLUTANTS_MAX` fit. Pollutants stay ahead of smoke and fire.
  */
 export function setMapPollutant(
 	data: WidgetDataConfig,
@@ -57,12 +60,10 @@ export function setMapPollutant(
 		if (pollutants.length >= MAP_POLLUTANTS_MAX) return;
 		const last = pollutants[pollutants.length - 1];
 		const at = last ? data.layers.indexOf(last) + 1 : data.layers.length;
-		keepingPlaces(data, catalog, () =>
-			data.layers.splice(at, 0, { dataset: AIR_QUALITY, entryType })
-		);
+		data.layers.splice(at, 0, { dataset: AIR_QUALITY, entryType });
 	} else if (!on && existing) {
 		if (pollutants.length <= 1) return;
-		keepingPlaces(data, catalog, () => data.layers.splice(data.layers.indexOf(existing), 1));
+		data.layers.splice(data.layers.indexOf(existing), 1);
 	}
 }
 
@@ -113,16 +114,17 @@ function copyFilters(filters: PesticideFilters): PesticideFilters {
 	) as PesticideFilters;
 }
 
-/** Whether `layer` holds no places (a Map's pesticide layers never do). */
-function placeLess(layer: Layer): boolean {
-	return !layer.place && !layer.selection;
+/**
+ * Whether `layer` is the Map's own pesticide use layer: one with no entry type (its figure is the
+ * `useFigure` option). A Chart's use layer has one.
+ */
+function isMapUse(layer: Layer): boolean {
+	return layer.dataset === PESTICIDE_USE && !layer.entryType;
 }
 
-/** Whether `layer` is the Map's notices layer or its (place-less) use layer. */
+/** Whether `layer` is the Map's notices layer or its own use layer. */
 function isMapPesticide(layer: Layer): boolean {
-	return (
-		layer.dataset === PESTICIDE_NOTICES || (layer.dataset === PESTICIDE_USE && placeLess(layer))
-	);
+	return layer.dataset === PESTICIDE_NOTICES || isMapUse(layer);
 }
 
 /**
@@ -133,7 +135,7 @@ export function setNotices(data: WidgetDataConfig, on: boolean): void {
 	if (on) {
 		if (hasNotices(data)) return;
 		const filters = mapPesticideFilters(data);
-		const at = data.layers.findIndex((l) => l.dataset === PESTICIDE_USE && placeLess(l));
+		const at = data.layers.findIndex(isMapUse);
 		data.layers.splice(at < 0 ? data.layers.length : at, 0, {
 			dataset: PESTICIDE_NOTICES,
 			...(filters ? { filters: copyFilters(filters) } : {})
@@ -143,9 +145,9 @@ export function setNotices(data: WidgetDataConfig, on: boolean): void {
 	}
 }
 
-/** Whether `data` has the Map's pesticide use layer (place-less; a chart's never counts). */
+/** Whether `data` has the Map's own pesticide use layer (a chart's never counts). */
 export function hasUse(data: WidgetDataConfig): boolean {
-	return data.layers.some((l) => l.dataset === PESTICIDE_USE && placeLess(l));
+	return data.layers.some(isMapUse);
 }
 
 /** The use options, which go with the use layer. */
@@ -173,12 +175,12 @@ export function setUse(draft: Draft, on: boolean): void {
 		return;
 	}
 	const options = { ...mapOptions(draft) };
-	data.layers = data.layers.filter((l) => !(l.dataset === PESTICIDE_USE && placeLess(l)));
+	data.layers = data.layers.filter((l) => !isMapUse(l));
 	for (const key of USE_OPTIONS) delete options[key];
 	writeOptions(draft, options);
 }
 
-/** The layers that take the Map's pesticide filters: the notices and the place-less use. */
+/** The layers that take the Map's pesticide filters: the notices and the Map's own use. */
 function pesticideLayers(data: WidgetDataConfig): Layer[] {
 	return data.layers.filter(isMapPesticide);
 }
@@ -208,10 +210,9 @@ export function setMapPesticideFilters(
  * Whether `draft` already has the Map's shape, so opening it as a Map converts nothing: no day
  * selection and no date range the Map's span rules out at its resolution (`mapLevelOf`, with
  * `catalog`; none is Now); one to
- * `MAP_POLLUTANTS_MAX` air-quality layers first, the first holding at most `maxPlaces` places and
- * the others none; then only place-less smoke and fire layers, then at most one spray notices
- * layer and, last, at most one use layer (each place-less, with no entry type, and optional
- * filters).
+ * `MAP_POLLUTANTS_MAX` air-quality layers first, and at most `maxPlaces` places in its Where;
+ * then only smoke and fire layers, then at most one spray notices layer and, last, at most one
+ * use layer (each with no entry type, and optional filters).
  */
 export function isMapShaped(
 	draft: Draft,
@@ -229,8 +230,7 @@ export function isMapShaped(
 	const rest = count < 0 ? [] : data.layers.slice(count);
 	if (pollutants.length < 1 || pollutants.length > MAP_POLLUTANTS_MAX) return false;
 	if (pollutants.some((l) => !l.entryType)) return false;
-	if (fromLayer(pollutants[0]).length > (mapType.accepts?.maxPlaces ?? 1)) return false;
-	if (pollutants.slice(1).some((l) => fromLayer(l).length > 0)) return false;
+	if (fromWhere(data).length > (mapType.accepts?.maxPlaces ?? 1)) return false;
 	// Smoke and fire, then the notices, then the use, each a step that never goes back.
 	const step = (l: Layer) =>
 		isHms(l) ? 0 : l.dataset === PESTICIDE_NOTICES ? 1 : l.dataset === PESTICIDE_USE ? 2 : -1;
@@ -238,15 +238,15 @@ export function isMapShaped(
 	for (const layer of rest) {
 		const at = step(layer);
 		if (at < last || (at > 0 && at === last)) return false;
-		if (layer.entryType || !placeLess(layer) || fromLayer(layer).length > 0) return false;
+		if (layer.entryType) return false;
 		last = at;
 	}
 	return true;
 }
 
-/** The Map's own use layer: the place-less one. */
+/** The Map's own use layer. */
 function mapUseLayer(data: WidgetDataConfig): Layer | undefined {
-	return data.layers.find((l) => l.dataset === PESTICIDE_USE && placeLess(l));
+	return data.layers.find(isMapUse);
 }
 
 /**
@@ -268,7 +268,7 @@ export function mapLevelOf(
 	range: DateRangeSpec,
 	now: Date
 ): MapLevel {
-	const place = widgetPlaceKind(data, catalog);
+	const place = widgetPlaceKind(data);
 	return mapLevel(widgetEffective({ type: MAP_TYPE, data }, catalog, place, range, now).resolution);
 }
 
@@ -324,7 +324,7 @@ function mapRange(
  * Map's filter set and its entry type the `useFigure` (unless it's the catalog's first, the
  * default); the source's range is kept even when it's the type's untouched default, since use
  * isn't drawn on Now. Other use layers are left out (`"overlays"`). A chart of pesticide use only
- * gets the first offered pollutant, holding its places. The Map's resolution (and so its cut) is
+ * gets the first offered pollutant. The Map's resolution (and so its cut) is
  * that of the layers it ends with.
  */
 export function toMapDraft(
@@ -341,7 +341,7 @@ export function toMapDraft(
 	const kept = new Set<Layer>();
 	if (fromMap) {
 		const sources = pollutantLayers(draft.data, catalog);
-		// The first is the converted layer's source (its places and pollutant).
+		// The first is the converted layer's source (its pollutant).
 		if (sources[0]) kept.add(sources[0]);
 		for (const layer of sources.slice(1)) {
 			const entryType = layer.entryType;
@@ -377,7 +377,7 @@ export function toMapDraft(
 	const level = shown ? mapLevelOf(data, catalog, shown, now) : "day";
 	const range = shown ? mapRange(shown, now, level) : {};
 	if (range.range) data.dateRange = range.range;
-	// The places' layer, the pollutants kept, smoke (carried over as smoke and fire) and the use
+	// The source layer, the pollutants kept, smoke (carried over as smoke and fire) and the use
 	// taken aren't left out.
 	const source = mainLayer(draft.data, catalog) ?? draft.data.layers[0];
 	const others = draft.data.layers.some(
@@ -404,8 +404,8 @@ export function toMapDraft(
 }
 
 /**
- * A Map draft cut to one layer: its first pollutant layer (holding the places) as the pollutant
- * showing, over its range (if it has one), with no options. `dropped` says when other pollutants
+ * A Map draft cut to one layer: its first pollutant layer as the pollutant showing, at its Where,
+ * over its range (if it has one), with no options. `dropped` says when other pollutants
  * or smoke and fire were left out (`"overlays"`), when marks were (`"marks"`) and when a
  * region fill was (`"fill"`).
  */
@@ -428,6 +428,7 @@ export function mapShowingOnly(
 			type: draft.type,
 			data: {
 				...(draft.data.dateRange ? { dateRange: structuredClone(draft.data.dateRange) } : {}),
+				...widgetWhere(draft.data),
 				layers: first ? [layer] : []
 			},
 			...(draft.thresholds ? { thresholds: structuredClone(draft.thresholds) } : {})

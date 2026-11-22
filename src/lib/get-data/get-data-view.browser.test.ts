@@ -273,8 +273,9 @@ function monitorsDraft(ids: string[], extra: Partial<Draft> = {}, overlays: stri
 		type: "chart",
 		data: {
 			dateRange: { kind: "trailing", amount: 30, unit: "day" },
+			selection: { kind: "monitors", ids },
 			layers: [
-				{ dataset: "air-quality", entryType: "pm25", selection: { kind: "monitors", ids } },
+				{ dataset: "air-quality", entryType: "pm25" },
 				...overlays.map((entryType) => ({ dataset: "forecasts", entryType }))
 			]
 		},
@@ -457,7 +458,7 @@ test("Overlay for appears only when places are in different zones", async () => 
 
 describe("Show as over the cap", () => {
 	const ids = ["k1", "k2", "k3", "k4", "k5", "k6", "k7"];
-	const selected = (d: Draft) => d.data.layers[0].selection?.ids;
+	const selected = (d: Draft) => d.data.selection?.ids;
 
 	beforeEach(() => {
 		fake.metadata = fixtureMetadata({
@@ -688,7 +689,7 @@ test("the pollutant can't be cleared without a number layer; overlays can't stan
 	await expect.element(pm25).not.toBeChecked();
 	const layers = (await current()).data.layers;
 	expect(layers.map((l) => l.entryType)).toEqual(["o3", "burn-status"]);
-	expect(layers[0].selection).toEqual({ kind: "monitors", ids: ["m1"] });
+	expect((await current()).data.selection).toEqual({ kind: "monitors", ids: ["m1"] });
 	// The overlay holds no place of its own: it follows the main layer.
 	expect(layers[1]).toEqual({ dataset: "forecasts", entryType: "burn-status" });
 });
@@ -967,9 +968,8 @@ test("a temperature-only chart can be added", async () => {
 	await openSection(/^Weather/);
 	await page.getByRole("checkbox", { name: "Temperature", exact: true }).click();
 	await page.getByRole("radio", { name: "None" }).click();
-	expect((await current()).data.layers).toEqual([
-		{ ...TEMPERATURE, selection: { kind: "monitors", ids: ["m1"] } }
-	]);
+	expect((await current()).data.layers).toEqual([{ ...TEMPERATURE }]);
+	expect((await current()).data.selection).toEqual({ kind: "monitors", ids: ["m1"] });
 	// The last number layer can't be unchecked.
 	const box = page.getByRole("checkbox", { name: "Temperature", exact: true });
 	await expect.element(box).toBeDisabled();
@@ -983,15 +983,15 @@ test("choosing None for Air Quality keeps the places", async () => {
 	await expect
 		.element(page.getByTestId("where-summary"))
 		.toHaveTextContent("Monitor m1 and Monitor m2");
-	expect((await current()).data.layers).toEqual([
-		{ ...TEMPERATURE, selection: { kind: "monitors", ids: ["m1", "m2"] } }
-	]);
-	// Choosing a pollutant again takes them back.
+	expect((await current()).data.layers).toEqual([{ ...TEMPERATURE }]);
+	expect((await current()).data.selection).toEqual({ kind: "monitors", ids: ["m1", "m2"] });
+	// Choosing a pollutant again makes it the main layer; Where stays.
 	await page.getByRole("radio", { name: "Ozone" }).click();
 	expect((await current()).data.layers).toEqual([
-		{ dataset: "air-quality", entryType: "o3", selection: { kind: "monitors", ids: ["m1", "m2"] } },
+		{ dataset: "air-quality", entryType: "o3" },
 		{ ...TEMPERATURE }
 	]);
+	expect((await current()).data.selection).toEqual({ kind: "monitors", ids: ["m1", "m2"] });
 });
 
 test("the station choice shows only with one place", async () => {
@@ -1123,11 +1123,11 @@ test("smoke alone disables Add with the reason", async () => {
 		type: "chart",
 		data: {
 			dateRange: { kind: "trailing", amount: 30, unit: "day" },
+			selection: { kind: "monitors", ids: ["m1"] },
 			layers: [
 				{
 					dataset: "hms-smoke",
-					entryType: "smoke-density",
-					selection: { kind: "monitors", ids: ["m1"] }
+					entryType: "smoke-density"
 				}
 			]
 		}
@@ -1168,7 +1168,8 @@ describe("now widgets", () => {
 	const currentDraft = (thresholds?: Draft["thresholds"]): Draft => ({
 		type: "current-conditions",
 		data: {
-			layers: [{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }]
+			place: { kind: "monitor", id: "m1" },
+			layers: [{ dataset: "air-quality", entryType: "pm25" }]
 		},
 		...(thresholds ? { thresholds } : {})
 	});
@@ -1208,9 +1209,8 @@ describe("now widgets", () => {
 		expect(await current()).toEqual({
 			type: "current-conditions",
 			data: {
-				layers: [
-					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }
-				]
+				place: { kind: "monitor", id: "m1" },
+				layers: [{ dataset: "air-quality", entryType: "pm25" }]
 			},
 			thresholds: [{ level: "unhealthy-sensitive" }]
 		});
@@ -1235,11 +1235,11 @@ describe("now widgets", () => {
 		expect(await current()).toEqual({
 			type: "map",
 			data: {
+				selection: { kind: "monitors", ids: ["m1", "m2", "m3"] },
 				layers: [
 					{
 						dataset: "air-quality",
-						entryType: "pm25",
-						selection: { kind: "monitors", ids: ["m1", "m2", "m3"] }
+						entryType: "pm25"
 					}
 				]
 			}
@@ -1262,9 +1262,8 @@ describe("now widgets", () => {
 		const { current } = await show({
 			type: "map",
 			data: {
-				layers: [
-					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }
-				]
+				place: { kind: "monitor", id: "m1" },
+				layers: [{ dataset: "air-quality", entryType: "pm25" }]
 			}
 		});
 		const dates = page.getByRole("button", { name: /^Dates/ });
@@ -1309,9 +1308,8 @@ describe("now widgets", () => {
 		const { current } = await show({
 			type: "map",
 			data: {
-				layers: [
-					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }
-				]
+				place: { kind: "monitor", id: "m1" },
+				layers: [{ dataset: "air-quality", entryType: "pm25" }]
 			}
 		});
 		const use = page.getByRole("switch", { name: m.getdata_map_use_switch() });
@@ -1340,10 +1338,8 @@ describe("now widgets", () => {
 		await show({
 			type: "map",
 			data: {
-				layers: [
-					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
-					{ dataset: "pesticide-use" }
-				]
+				place: { kind: "monitor", id: "m1" },
+				layers: [{ dataset: "air-quality", entryType: "pm25" }, { dataset: "pesticide-use" }]
 			}
 		});
 		const add = page.getByRole("button", { name: "Add to Home" });
@@ -1374,15 +1370,15 @@ describe("now widgets", () => {
 		await ozone.click();
 		await expect.element(pm25).toBeEnabled();
 		expect((await current()).data.layers).toEqual([
-			{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
+			{ dataset: "air-quality", entryType: "pm25" },
 			{ dataset: "air-quality", entryType: "o3" }
 		]);
-		// Unchecking the first moves the places to the next.
+		expect((await current()).data.place).toEqual({ kind: "monitor", id: "m1" });
+		// Unchecking the first keeps Where.
 		await pm25.click();
 		await expect.element(ozone).toBeDisabled();
-		expect((await current()).data.layers).toEqual([
-			{ dataset: "air-quality", entryType: "o3", place: { kind: "monitor", id: "m1" } }
-		]);
+		expect((await current()).data.layers).toEqual([{ dataset: "air-quality", entryType: "o3" }]);
+		expect((await current()).data.place).toEqual({ kind: "monitor", id: "m1" });
 	});
 
 	test("turns smoke and fire on and off together", async () => {
@@ -1431,8 +1427,9 @@ describe("now widgets", () => {
 		const { current } = await show({
 			type: "map",
 			data: {
+				place: { kind: "monitor", id: "m1" },
 				layers: [
-					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
+					{ dataset: "air-quality", entryType: "pm25" },
 					{ dataset: "pesticide-notices", filters: { chemical: "c1", commodity: "k1" } }
 				]
 			}
@@ -1509,8 +1506,9 @@ describe("now widgets", () => {
 		const { latest } = await show({
 			type: "map",
 			data: {
+				place: { kind: "monitor", id: "m1" },
 				layers: [
-					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
+					{ dataset: "air-quality", entryType: "pm25" },
 					{ dataset: "pesticide-notices", filters: { chemical: "c1", commodity: "k1" } },
 					{ dataset: "pesticide-use", filters: { chemical: "c1", commodity: "k1" } }
 				]
@@ -1574,8 +1572,9 @@ describe("now widgets", () => {
 		await show({
 			type: "map",
 			data: {
+				place: { kind: "monitor", id: "m1" },
 				layers: [
-					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
+					{ dataset: "air-quality", entryType: "pm25" },
 					{ dataset: "pesticide-notices" },
 					{ dataset: "pesticide-use" }
 				]
@@ -1610,17 +1609,17 @@ describe("now widgets", () => {
 		await expect.element(page.getByText(m.get_data_overlays_left_out())).toBeVisible();
 		const out = await current();
 		expect(out.type).toBe("chart");
-		expect(out.data.layers).toEqual([
-			{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }
-		]);
+		expect(out.data.layers).toEqual([{ dataset: "air-quality", entryType: "pm25" }]);
+		expect(out.data.place).toEqual({ kind: "monitor", id: "m1" });
 	});
 
 	test("Show as Current conditions from a Map uses the pollutant showing and drops the marks", async () => {
 		const { current } = await show({
 			type: "map",
 			data: {
+				place: { kind: "monitor", id: "m1" },
 				layers: [
-					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
+					{ dataset: "air-quality", entryType: "pm25" },
 					{ dataset: "air-quality", entryType: "o3" }
 				]
 			},
@@ -1632,9 +1631,8 @@ describe("now widgets", () => {
 		await expect.element(page.getByText(m.get_data_overlays_left_out())).toBeVisible();
 		const out = await current();
 		expect(out.type).toBe("current-conditions");
-		expect(out.data.layers).toEqual([
-			{ dataset: "air-quality", entryType: "o3", place: { kind: "monitor", id: "m1" } }
-		]);
+		expect(out.data.layers).toEqual([{ dataset: "air-quality", entryType: "o3" }]);
+		expect(out.data.place).toEqual({ kind: "monitor", id: "m1" });
 		expect("options" in out).toBe(false);
 	});
 
@@ -1642,9 +1640,8 @@ describe("now widgets", () => {
 		await show({
 			type: "map",
 			data: {
-				layers: [
-					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }
-				],
+				place: { kind: "monitor", id: "m1" },
+				layers: [{ dataset: "air-quality", entryType: "pm25" }],
 				dateRange: { kind: "trailing", amount: 7, unit: "day" }
 			},
 			options: { marks: ["m1"] }
@@ -1663,8 +1660,9 @@ describe("now widgets", () => {
 		const { current } = await show({
 			type: "map",
 			data: {
+				place: { kind: "monitor", id: "m1" },
 				layers: [
-					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
+					{ dataset: "air-quality", entryType: "pm25" },
 					{ dataset: "air-quality", entryType: "o3" },
 					// A Chart's smoke layer (an entry type) isn't the Map's place-less smoke.
 					{ dataset: "hms-smoke", entryType: "smoke-density" }
@@ -1689,9 +1687,8 @@ describe("now widgets", () => {
 			title: null,
 			rect: { x: 0, y: 0, w: 6, h: 6 },
 			data: {
-				layers: [
-					{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }
-				]
+				place: { kind: "monitor", id: "m1" },
+				layers: [{ dataset: "air-quality", entryType: "pm25" }]
 			},
 			options: { marks: ["m1"] }
 		};
@@ -1799,7 +1796,7 @@ describe("now widgets", () => {
 		await expect
 			.element(page.getByText(m.get_data_places_over_cap_left_out({ count: 25, countValue: 25 })))
 			.toBeVisible();
-		expect((await current()).data.layers[0].selection).toEqual({
+		expect((await current()).data.selection).toEqual({
 			kind: "monitors",
 			ids: ids.slice(0, 25)
 		});
@@ -1846,7 +1843,7 @@ describe("now widgets", () => {
 		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Monitor m1");
 		expect(await current()).toEqual({
 			type: "forecast-strip",
-			data: { layers: [{ dataset: "forecasts", place: { kind: "monitor", id: "m1" } }] }
+			data: { place: { kind: "monitor", id: "m1" }, layers: [{ dataset: "forecasts" }] }
 		});
 		// Back to a Chart: the default range.
 		await page.getByRole("radio", { name: "Chart" }).click();
@@ -1855,7 +1852,8 @@ describe("now widgets", () => {
 			.toHaveTextContent("Last 30 days");
 		expect((await current()).data).toEqual({
 			dateRange: { kind: "trailing", amount: 30, unit: "day" },
-			layers: [{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }]
+			place: { kind: "monitor", id: "m1" },
+			layers: [{ dataset: "air-quality", entryType: "pm25" }]
 		});
 	});
 
@@ -1946,7 +1944,8 @@ describe("now widgets", () => {
 		const ozone: Draft = {
 			type: "current-conditions",
 			data: {
-				layers: [{ dataset: "air-quality", entryType: "o3", place: { kind: "monitor", id: "m1" } }]
+				place: { kind: "monitor", id: "m1" },
+				layers: [{ dataset: "air-quality", entryType: "o3" }]
 			}
 		};
 		await show(ozone);
@@ -2098,7 +2097,8 @@ describe("calendar types", () => {
 		data: {
 			dateRange: { kind: "to-date", unit: "month" },
 			timeSubRange: { start: "2026-11-02", end: "2026-11-03" },
-			layers: [{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } }]
+			place: { kind: "monitor", id: "m1" },
+			layers: [{ dataset: "air-quality", entryType: "pm25" }]
 		}
 	});
 

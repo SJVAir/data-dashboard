@@ -8,12 +8,13 @@ import {
 import type { CatalogEntry, EntryTypeMeta, Figure } from "$lib/data/metadata";
 import { layerKind } from "$lib/data/layer-kind";
 import { currentInput } from "$lib/data/now/current";
-import {
-	LIMITS,
-	type DateRangeSpec,
-	type Layer,
-	type Resolution,
-	type WidgetDataConfig
+import type {
+	DateRangeSpec,
+	Layer,
+	PlaceRef,
+	Resolution,
+	SpatialSelection,
+	WidgetDataConfig
 } from "$lib/data/schema";
 import type { QueryInput, QueryLayer } from "$lib/data/types";
 import { calendarSpanDays, resolveRange } from "$lib/format/range";
@@ -50,70 +51,67 @@ export function mainLayer(
 }
 
 /**
- * The layer holding a widget's places: its `mainLayer`, else a lone layer with no entry type (a
- * Forecast strip's forecasts layer).
+ * What a widget's places are picked and looked up for: its pollutant layer's entry type, else
+ * PM2.5 (`DEFAULT_LAYER`, as a new widget's): a Forecast strip, or a widget of weather alone,
+ * picks any place PM2.5 is offered for.
  */
-export function placesLayer(
+export function wherePurpose(
 	data: WidgetDataConfig,
 	catalog: CatalogEntry[] | undefined
-): Layer | undefined {
-	const main = mainLayer(data, catalog);
-	if (main) return main;
-	const only = data.layers.length === 1 ? data.layers[0] : undefined;
-	return only && !only.entryType ? only : undefined;
+): { dataset: string; entryType: string } {
+	const pollutant = data.layers.find((l) => l.entryType && layerKind(l, catalog) === "pollutant");
+	return pollutant?.entryType
+		? { dataset: pollutant.dataset, entryType: pollutant.entryType }
+		: { dataset: DEFAULT_LAYER.dataset, entryType: DEFAULT_LAYER.entryType! };
+}
+
+/** A JSON-shaped value's deep copy; unlike `structuredClone`, it also copies a reactive draft. */
+const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+
+/** A widget's Where: its place or selection (a copy), or neither (everywhere). */
+export function widgetWhere(data: WidgetDataConfig): {
+	place?: PlaceRef;
+	selection?: SpatialSelection;
+} {
+	if (data.place) return { place: copy(data.place) };
+	if (data.selection) return { selection: copy(data.selection) };
+	return {};
+}
+
+/** Whether a widget has a Where (a place or a selection). */
+export function hasWhere(data: WidgetDataConfig): boolean {
+	return !!(data.place || data.selection);
 }
 
 /**
- * The entry type a places layer's places are picked and looked up for: its own, else (a
- * Forecast strip's layer) PM2.5, as a new widget's.
- */
-export function placesEntryType(layer: Layer): string {
-	return layer.entryType ?? DEFAULT_LAYER.entryType!;
-}
-
-/**
- * `layer` as one the query client can look its places up with: a layer with no entry type (a
- * Forecast strip's) as `DEFAULT_LAYER`'s pollutant at the same places.
- */
-export function placesQueryLayer(layer: Layer): Layer {
-	if (layer.entryType) return layer;
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars -- replaced in the copy
-	const { dataset, ...rest } = layer;
-	return { ...rest, dataset: DEFAULT_LAYER.dataset, entryType: DEFAULT_LAYER.entryType };
-}
-
-/**
- * The layer as the query client reads it: its own fields and where it looks. The one place a
- * query layer is built, so the saved shape can change behind it.
+ * The layer as the query client reads it: its own fields at the widget's Where (`widgetWhere`).
+ * The one place a query layer is built, so the saved shape can change behind it. Every layer
+ * built here is fetched by place; the Map's place-less layers (smoke, fire, spray notices, its
+ * pesticide use) never come through here (its plugins fetch them), so they get no Where.
  */
 export function queryLayer(data: WidgetDataConfig, layer: Layer): QueryLayer {
-	// `data` is unused until the saved shape moves (spec 7a, Task 3 fills it in).
-	void data;
-	return { ...layer };
+	return { ...layer, ...widgetWhere(data) };
 }
 
 /**
- * What a "now" tile asks the query client for: the layer's hourly averages (`currentInput`). A
- * layer with no place or selection asks for nothing (null): a tile of every monitor isn't offered.
+ * What a "now" tile asks the query client for: the layer's hourly averages (`currentInput`) at the
+ * widget's Where. A widget with no Where asks for nothing (null): a tile of every monitor isn't
+ * offered.
  */
 export function nowInput(data: WidgetDataConfig, layer: Layer | undefined): QueryInput | null {
-	return layer && (layer.place || layer.selection) ? currentInput(queryLayer(data, layer)) : null;
+	return layer && hasWhere(data) ? currentInput(queryLayer(data, layer)) : null;
 }
 
 /**
  * Where a widget's places are fetched for, as the dataset rules count it (`PlaceKind`), read from
- * its places layer (`placesLayer`): `monitors` for a monitor place or selection; `regions` for a
+ * its Where (`widgetWhere`): `monitors` for a monitor place or selection; `regions` for a
  * region place or selection, and for a point or a school, which the query client resolves to
  * regions; `none` when there is no place (or only the starter's unresolved `default-place`, which
  * isn't fetched).
  */
-export function widgetPlaceKind(
-	data: WidgetDataConfig,
-	catalog: CatalogEntry[] | undefined
-): PlaceKind {
-	const layer = placesLayer(data, catalog);
-	if (layer?.selection) return layer.selection.kind;
-	switch (layer?.place?.kind) {
+export function widgetPlaceKind(data: WidgetDataConfig): PlaceKind {
+	if (data.selection) return data.selection.kind;
+	switch (data.place?.kind) {
 		case "monitor":
 			return "monitors";
 		case "region":
@@ -156,7 +154,7 @@ export function widgetEffective(
 /**
  * What a Chart asks the query client for: its `mainLayer` over the widget's date range at
  * `resolution` (the dataset's), with each day's worst hour, and at most `maxPlaces` of a
- * selection's places. `hidden` counts the places cut. A layer with no place or selection asks for
+ * selection's places. `hidden` counts the places cut. A widget with no Where asks for
  * nothing (`input` is null): a chart of every monitor isn't offered.
  */
 export function chartInput(
@@ -166,15 +164,13 @@ export function chartInput(
 	resolution: Resolution
 ): { layer: Layer | undefined; input: QueryInput | null; hidden: number } {
 	const layer = mainLayer(data, catalog);
-	if (!layer || (!layer.place && !layer.selection)) return { layer, input: null, hidden: 0 };
+	if (!layer || !hasWhere(data)) return { layer, input: null, hidden: 0 };
 	let shown = queryLayer(data, layer);
 	let hidden = 0;
-	if (layer.selection && layer.selection.ids.length > maxPlaces) {
-		hidden = layer.selection.ids.length - maxPlaces;
-		shown = {
-			...shown,
-			selection: { ...layer.selection, ids: layer.selection.ids.slice(0, maxPlaces) }
-		};
+	const { selection } = data;
+	if (selection && selection.ids.length > maxPlaces) {
+		hidden = selection.ids.length - maxPlaces;
+		shown = { ...shown, selection: { ...selection, ids: selection.ids.slice(0, maxPlaces) } };
 	}
 	const input: QueryInput = {
 		layer: shown,
@@ -188,10 +184,10 @@ export function chartInput(
 
 /** Everything a Chart or Data table asks the query client for (see `widgetInputs`). */
 export type WidgetInputs = {
-	/** The main layer (`mainLayer`), whose places every input uses. */
+	/** The main layer (`mainLayer`); every input uses the widget's Where. */
 	layer: Layer | undefined;
 	main: QueryInput | null;
-	/** Places of the main layer's selection cut to fit `maxPlaces`. */
+	/** Places of the widget's selection cut to fit `maxPlaces`. */
 	hidden: number;
 	/** One per `overlayLayers` entry; `null` for a misfit (it doesn't offer the resolution). */
 	overlays: (QueryInput | null)[];
@@ -218,7 +214,7 @@ export function widgetInputs(
 	widget: { type: string; data: WidgetDataConfig },
 	catalog: CatalogEntry[] | undefined,
 	place: PlaceKind,
-	maxPlaces: number = LIMITS.SELECTION_MAX,
+	maxPlaces: number = Infinity,
 	now: Date | number = new Date(),
 	figure?: Figure | null
 ): WidgetInputs {

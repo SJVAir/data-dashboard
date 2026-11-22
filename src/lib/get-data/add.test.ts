@@ -29,12 +29,13 @@ const POINT = { kind: "point", lat: 36.7378, lon: -119.7871 } as const;
 const ZIP = { kind: "region", type: "zipcode", code: "93721" } as const;
 const FRESNO = { kind: "region", type: "county", code: "06019" } as const;
 
-function draft(place: Draft["data"]["layers"][number]["place"] = FRESNO): Draft {
+function draft(place: Draft["data"]["place"] = FRESNO): Draft {
 	return {
 		type: "chart",
 		data: {
 			dateRange: { kind: "trailing", amount: 30, unit: "day" },
-			layers: [{ dataset: "air-quality", entryType: "pm25", place }]
+			place,
+			layers: [{ dataset: "air-quality", entryType: "pm25" }]
 		}
 	};
 }
@@ -119,7 +120,7 @@ describe("addFromDraft", () => {
 		await put(platform, makeDoc("d1"));
 		const now: Draft = {
 			type: "current-conditions",
-			data: { layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }] },
+			data: { place: FRESNO, layers: [{ dataset: "air-quality", entryType: "pm25" }] },
 			thresholds: [{ level: "unhealthy_sensitive" }]
 		};
 		await addFromDraft(app, "d1", now);
@@ -202,8 +203,7 @@ describe("addFromDraft", () => {
 
 		const { widgetId } = await addFromDraft(app, "d1", draft(POINT));
 
-		const placeIn = (doc: Dashboard) =>
-			doc.body.widgets.find((w) => w.id === widgetId)!.data.layers[0].place;
+		const placeIn = (doc: Dashboard) => doc.body.widgets.find((w) => w.id === widgetId)!.data.place;
 		const session = (await app.sessions.get("d1"))!;
 		await expect.poll(() => placeIn(session.doc)).toEqual(ZIP);
 		await expect.poll(async () => placeIn(await stored(platform, SPACE, "d1"))).toEqual(ZIP);

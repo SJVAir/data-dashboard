@@ -47,7 +47,8 @@ const FRESNO = { kind: "region" as const, type: "county", code: "06019" };
 function pm25With(...rest: WidgetDataConfig["layers"]): WidgetDataConfig {
 	return {
 		dateRange: { kind: "trailing", amount: 30, unit: "day" },
-		layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }, ...rest]
+		place: FRESNO,
+		layers: [{ dataset: "air-quality", entryType: "pm25" }, ...rest]
 	};
 }
 
@@ -56,11 +57,12 @@ const precipitation = { dataset: "weather", entryType: "precipitation" };
 const smoke = { dataset: "hms-smoke", entryType: "smoke-density" };
 
 describe("draft layers", () => {
-	it("removing the pollutant moves places to the next number layer", () => {
+	it("removing the pollutant keeps Where", () => {
 		const data = pm25With({ ...smoke }, { ...temperature });
 		data.resolution = "day";
 		setPollutant(data, CATALOG, null);
-		expect(data.layers).toEqual([{ ...smoke }, { ...temperature, place: FRESNO }]);
+		expect(data.layers).toEqual([{ ...smoke }, { ...temperature }]);
+		expect(data.place).toEqual(FRESNO);
 		expect(data.resolution).toBe("day");
 	});
 
@@ -68,7 +70,7 @@ describe("draft layers", () => {
 		const data = pm25With({ ...temperature });
 		data.resolution = "raw";
 		setPollutant(data, CATALOG, null);
-		expect(data.layers).toEqual([{ ...temperature, place: FRESNO }]);
+		expect(data.layers).toEqual([{ ...temperature }]);
 		expect(data.resolution).toBe("raw");
 	});
 
@@ -88,27 +90,29 @@ describe("draft layers", () => {
 		expect(data).toEqual(before);
 
 		// Temperature alone (after the pollutant went): it stays.
-		const alone: WidgetDataConfig = { layers: [{ ...temperature, place: FRESNO }, { ...smoke }] };
+		const alone: WidgetDataConfig = { place: FRESNO, layers: [{ ...temperature }, { ...smoke }] };
 		removeLayer(alone, CATALOG, 0);
 		expect(alone.layers).toHaveLength(2);
 		// A level layer can go.
 		removeLayer(alone, CATALOG, 1);
-		expect(alone.layers).toEqual([{ ...temperature, place: FRESNO }]);
+		expect(alone.layers).toEqual([{ ...temperature }]);
 	});
 
-	it("a pollutant chosen again takes the places back", () => {
-		const data: WidgetDataConfig = { layers: [{ ...temperature, place: FRESNO }] };
+	it("a pollutant chosen again becomes the main layer; Where stays", () => {
+		const data: WidgetDataConfig = { place: FRESNO, layers: [{ ...temperature }] };
 		setPollutant(data, CATALOG, { dataset: "air-quality", entryType: "pm25" });
 		expect(data.layers).toEqual([
-			{ dataset: "air-quality", entryType: "pm25", place: FRESNO },
+			{ dataset: "air-quality", entryType: "pm25" },
 			{ ...temperature }
 		]);
+		expect(data.place).toEqual(FRESNO);
 	});
 
 	it("a number layer added to a level-only widget becomes the main", () => {
-		const data: WidgetDataConfig = { layers: [{ ...smoke, place: FRESNO }] };
+		const data: WidgetDataConfig = { place: FRESNO, layers: [{ ...smoke }] };
 		toggleLayer(data, CATALOG, temperature, true);
-		expect(data.layers).toEqual([{ ...smoke }, { ...temperature, place: FRESNO }]);
+		expect(data.layers).toEqual([{ ...smoke }, { ...temperature }]);
+		expect(data.place).toEqual(FRESNO);
 	});
 
 	it("a pesticide layer can be added twice with different filters", () => {
@@ -145,9 +149,9 @@ describe("draft layers", () => {
 	});
 
 	it("levelOnly is true for smoke alone", () => {
-		expect(levelOnly({ layers: [{ ...smoke, place: FRESNO }] }, CATALOG)).toBe(true);
+		expect(levelOnly({ place: FRESNO, layers: [{ ...smoke }] }, CATALOG)).toBe(true);
 		expect(levelOnly(pm25With({ ...smoke }), CATALOG)).toBe(false);
-		expect(levelOnly({ layers: [{ ...temperature, place: FRESNO }] }, CATALOG)).toBe(false);
+		expect(levelOnly({ place: FRESNO, layers: [{ ...temperature }] }, CATALOG)).toBe(false);
 		// Not known yet: nothing is blocked.
 		expect(levelOnly({ layers: [{ ...smoke }] }, undefined)).toBe(false);
 	});
@@ -162,17 +166,20 @@ describe("draft layers", () => {
 		expect(data.layers).toHaveLength(3);
 		// Bringing a pollutant back would make three overlays.
 		const noPollutant: WidgetDataConfig = {
-			layers: [{ ...temperature, place: FRESNO }, { ...precipitation }, { ...smoke }]
+			place: FRESNO,
+			layers: [{ ...temperature }, { ...precipitation }, { ...smoke }]
 		};
 		setPollutant(noPollutant, CATALOG, { dataset: "air-quality", entryType: "pm25" });
 		expect(noPollutant.layers).toHaveLength(3);
 	});
 
-	it("unchecking a layer removes it; the main one hands its places on", () => {
+	it("unchecking a layer removes it; Where stays", () => {
 		const data: WidgetDataConfig = {
-			layers: [{ ...temperature, place: FRESNO }, { ...precipitation }]
+			place: FRESNO,
+			layers: [{ ...temperature }, { ...precipitation }]
 		};
 		toggleLayer(data, CATALOG, temperature, false);
-		expect(data.layers).toEqual([{ ...precipitation, place: FRESNO }]);
+		expect(data.layers).toEqual([{ ...precipitation }]);
+		expect(data.place).toEqual(FRESNO);
 	});
 });

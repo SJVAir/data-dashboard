@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Change } from "$lib/changes/types";
-import type { Layer } from "$lib/data/schema";
+import type { Layer, WidgetDataConfig } from "$lib/data/schema";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { pullInto, pollList } from "./pull";
 import type { SaveInput } from "./remote";
@@ -25,24 +25,24 @@ vi.mock("$lib/safety/report", () => ({ report: vi.fn() }));
 const POINT = { kind: "point", lat: 36.7378, lon: -119.7871 } as const;
 const ZIP = { kind: "region", type: "zipcode", code: "93721" } as const;
 
-const layer = (place: Layer["place"]): Layer => ({
-	dataset: "air-quality",
-	entryType: "pm25",
-	place
-});
+const PM25: Layer = { dataset: "air-quality", entryType: "pm25" };
 
-function chart(place: Layer["place"]): WidgetInstance {
+function chart(place: WidgetDataConfig["place"]): WidgetInstance {
 	return {
 		id: "p",
 		type: "chart",
 		title: null,
 		rect: { x: 0, y: 4, w: 6, h: 6 },
-		data: { dateRange: { kind: "trailing", amount: 30, unit: "day" }, layers: [layer(place)] }
+		data: {
+			dateRange: { kind: "trailing", amount: 30, unit: "day" },
+			...(place ? { place } : {}),
+			layers: [PM25]
+		}
 	};
 }
 
 /** Re-picks widget `p`'s place (`from` → `to`), as the picker or an undo would. */
-const pick = (from: Layer["place"], to: Layer["place"]): Change => ({
+const pick = (from: WidgetDataConfig["place"], to: WidgetDataConfig["place"]): Change => ({
 	op: "setWidgetData",
 	target: { widgetId: "p" },
 	from: chart(from).data,

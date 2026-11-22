@@ -23,11 +23,11 @@ export const STARTER_ID = "starter";
 const STARTER_TIME = "2026-10-20T00:00:00Z";
 
 /** The starter's place in the template, replaced by the chosen place before anyone sees it. */
-const DEFAULT_PLACE = { kind: "default-place" } as const;
-const PM25 = { ...DEFAULT_LAYER, place: DEFAULT_PLACE };
+const TEMPLATE_PLACE = { kind: "default-place" } as const;
+const PM25 = { place: TEMPLATE_PLACE, layers: [DEFAULT_LAYER] };
 
 /**
- * The starter's widgets, in reading order, with each layer's data as Get data stores it for the
+ * The starter's widgets, in reading order, with each widget's data as Get data stores it for the
  * type (PM2.5; `starter.test.ts` checks they match). Rows of the 12-column grid: the welcome Note;
  * the "now" row, as tall as "Can we go outside?" fits; then the chart and the month calendar.
  */
@@ -39,22 +39,22 @@ function starterWidgets(): Omit<WidgetInstance, "id" | "title">[] {
 			data: { layers: [] },
 			options: { message: "starter_note_welcome" }
 		},
-		{ type: CURRENT_TYPE, rect: { x: 0, y: 2, w: 3, h: 7 }, data: { layers: [PM25] } },
-		{ type: OUTSIDE_TYPE, rect: { x: 3, y: 2, w: 3, h: 7 }, data: { layers: [PM25] } },
+		{ type: CURRENT_TYPE, rect: { x: 0, y: 2, w: 3, h: 7 }, data: PM25 },
+		{ type: OUTSIDE_TYPE, rect: { x: 3, y: 2, w: 3, h: 7 }, data: PM25 },
 		{
 			type: FORECAST_TYPE,
 			rect: { x: 6, y: 2, w: 6, h: 7 },
-			data: { layers: [{ dataset: "forecasts", place: DEFAULT_PLACE }] }
+			data: { place: TEMPLATE_PLACE, layers: [{ dataset: "forecasts" }] }
 		},
 		{
 			type: CHART_TYPE,
 			rect: { x: 0, y: 9, w: 8, h: 6 },
-			data: { dateRange: DEFAULT_RANGE, layers: [PM25] }
+			data: { dateRange: DEFAULT_RANGE, ...PM25 }
 		},
 		{
 			type: MONTH_CALENDAR_TYPE,
 			rect: { x: 8, y: 9, w: 4, h: 6 },
-			data: { dateRange: { kind: "to-date", unit: "month" }, layers: [PM25] }
+			data: { dateRange: { kind: "to-date", unit: "month" }, ...PM25 }
 		}
 	];
 }

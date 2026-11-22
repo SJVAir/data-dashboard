@@ -249,7 +249,7 @@ const preSpec: WidgetInstance = {
 	type: "chart",
 	title: null,
 	rect: { x: 0, y: 0, w: 4, h: 6 },
-	data: { layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }] }
+	data: { place: FRESNO, layers: [{ dataset: "air-quality", entryType: "pm25" }] }
 };
 
 /** The whole app with dashboard d1 holding `widgets`, opened on d1 and then Edit data (`params`). */
@@ -446,9 +446,8 @@ function handOff(ids: string[], extra: Partial<{ leftOut: number; skip: string }
 			type: "chart",
 			data: {
 				dateRange: { kind: "trailing", amount: 30, unit: "day" },
-				layers: [
-					{ dataset: "air-quality", entryType: "pm25", selection: { kind: "monitors", ids } }
-				]
+				selection: { kind: "monitors", ids },
+				layers: [{ dataset: "air-quality", entryType: "pm25" }]
 			}
 		},
 		leftOut: 0,
@@ -554,7 +553,7 @@ test("Add from a hand-off adds the Chart without asking, even after an edit", as
 	await addButton("Home").click();
 	const { widget } = await landed(app, "d1");
 	expect(widget.type).toBe("data-table");
-	expect(widget.data.layers[0].selection).toEqual({ kind: "monitors", ids: ["r1", "r2"] });
+	expect(widget.data.selection).toEqual({ kind: "monitors", ids: ["r1", "r2"] });
 	expect(discardDialog().query()).toBeNull();
 	expect(draftWrites(writes)).toEqual([]);
 });
@@ -646,7 +645,8 @@ test("a hand-off that doesn't parse opens the saved draft, as a plain visit does
 		type: "data-table",
 		data: {
 			dateRange: { kind: "trailing", amount: 7, unit: "day" },
-			layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }]
+			place: FRESNO,
+			layers: [{ dataset: "air-quality", entryType: "pm25" }]
 		}
 	});
 	await toNewWidget({ draft: { type: 5 }, leftOut: -1, overCap: "yes" })();
@@ -707,7 +707,8 @@ test("a Map with smoke and fire and a fill: the visit notes them, not the marks"
 		type: "map",
 		data: {
 			dateRange: { kind: "trailing", amount: 30, unit: "day" },
-			layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }]
+			place: FRESNO,
+			layers: [{ dataset: "air-quality", entryType: "pm25" }]
 		},
 		options: { fill: "zipcode", marks: SEVEN }
 	};

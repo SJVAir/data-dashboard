@@ -96,17 +96,18 @@ test("Change place on the starter makes no copy and survives a reload", async ({
 	await expect(page).toHaveURL(/\/workspace\/$/);
 });
 
-/** The one stored dashboard: its bar's place, and the places every widget's layers hold. */
+/** The one stored dashboard: its bar's place, and each data widget's place (its Where). */
 async function copyPlaces(page: Page) {
 	const docs = (await storedDashboards(page)) as {
 		body: {
 			placeBar?: { place: unknown };
-			widgets: { data: { layers?: { place?: unknown }[] } }[];
+			widgets: { data: { place?: unknown; layers?: unknown[] } }[];
 		};
 	}[];
 	expect(docs).toHaveLength(1);
 	const body = docs[0].body;
-	const places = body.widgets.flatMap((w) => (w.data.layers ?? []).map((l) => l.place));
+	// A Note has no layers, so no Where.
+	const places = body.widgets.flatMap((w) => ((w.data.layers ?? []).length ? [w.data.place] : []));
 	return { bar: body.placeBar?.place, places, json: JSON.stringify(body) };
 }
 
@@ -247,11 +248,11 @@ test.describe("Duplicate for another place", () => {
 			rect: { x: 0, y, w: 6, h: 6 },
 			data: {
 				dateRange: { kind: "trailing", amount: 30, unit: "day" },
+				place: { kind: "region", type: "county", code },
 				layers: [
 					{
 						dataset: "air-quality",
-						entryType: "pm25",
-						place: { kind: "region", type: "county", code }
+						entryType: "pm25"
 					}
 				]
 			}

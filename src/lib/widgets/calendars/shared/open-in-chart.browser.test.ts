@@ -45,7 +45,8 @@ function calendar(type: string, selected: boolean): WidgetInstance {
 		data: {
 			dateRange: { kind: "custom", start: "2026-11-01", end: "2026-11-30" },
 			...(selected ? { timeSubRange: { start: "2026-11-05", end: "2026-11-08" } } : {}),
-			layers: [{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "a" } }]
+			place: { kind: "monitor", id: "a" },
+			layers: [{ dataset: "air-quality", entryType: "pm25" }]
 		}
 	};
 }

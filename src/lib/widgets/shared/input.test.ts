@@ -6,7 +6,15 @@ import {
 	SDK_DATASET_CATALOG,
 	WEATHER_DATASET
 } from "$lib/data/testing/dataset-catalog";
-import { mainLayer, queryLayer, widgetEffective, widgetInputs, widgetPlaceKind } from "./input";
+import {
+	mainLayer,
+	queryLayer,
+	wherePurpose,
+	widgetEffective,
+	widgetInputs,
+	widgetPlaceKind,
+	widgetWhere
+} from "./input";
 
 const entry = (id: string, kind: "pollutant" | "other") => ({
 	id,
@@ -30,6 +38,8 @@ const CATALOG: CatalogEntry[] = [
 		geographies: []
 	}
 ];
+
+type Where = Pick<WidgetDataConfig, "place" | "selection">;
 
 const PM = { dataset: "air-quality", entryType: "pm25" };
 const TEMP = { dataset: "weather", entryType: "temperature" };
@@ -65,32 +75,34 @@ const RULES_CATALOG = mapDatasetCatalog({
 const FRESNO = { kind: "region", type: "county", code: "06019" } as const;
 
 describe("widgetPlaceKind", () => {
-	const kind = (layer: Layer) => widgetPlaceKind({ layers: [layer] }, RULES_CATALOG);
-	const pm = { dataset: "air-quality", entryType: "pm25" };
+	const kind = (where: Where) => widgetPlaceKind({ ...where, layers: [PM] });
 	it("monitors for a monitor place or selection", () => {
-		expect(kind({ ...pm, place: { kind: "monitor", id: "m1" } })).toBe("monitors");
-		expect(kind({ ...pm, selection: { kind: "monitors", ids: ["m1", "m2"] } })).toBe("monitors");
+		expect(kind({ place: { kind: "monitor", id: "m1" } })).toBe("monitors");
+		expect(kind({ selection: { kind: "monitors", ids: ["m1", "m2"] } })).toBe("monitors");
 	});
 	it("regions for regions, and for points and schools (which resolve to regions)", () => {
-		expect(kind({ ...pm, place: FRESNO })).toBe("regions");
-		expect(kind({ ...pm, selection: { kind: "regions", ids: ["county:06019"] } })).toBe("regions");
-		expect(kind({ ...pm, place: { kind: "point", lat: 36.7, lon: -119.8 } })).toBe("regions");
-		expect(kind({ ...pm, place: { kind: "location", source: "cde-public", code: "1" } })).toBe(
-			"regions"
-		);
+		expect(kind({ place: FRESNO })).toBe("regions");
+		expect(kind({ selection: { kind: "regions", ids: ["county:06019"] } })).toBe("regions");
+		expect(kind({ place: { kind: "point", lat: 36.7, lon: -119.8 } })).toBe("regions");
+		expect(kind({ place: { kind: "location", source: "cde-public", code: "1" } })).toBe("regions");
 	});
-	it("none when the main layer has no place (or the starter's unresolved one)", () => {
-		expect(kind(pm)).toBe("none");
-		expect(kind({ ...pm, place: { kind: "default-place" } })).toBe("none");
-		expect(widgetPlaceKind({ layers: [] }, RULES_CATALOG)).toBe("none");
+	it("none with no Where (or the starter's unresolved one)", () => {
+		expect(kind({})).toBe("none");
+		expect(kind({ place: { kind: "default-place" } })).toBe("none");
+		expect(widgetPlaceKind({ layers: [] })).toBe("none");
+	});
+	it("reads the widget's Where whatever its layers (a Forecast strip's, weather alone)", () => {
+		expect(widgetPlaceKind({ place: FRESNO, layers: [{ dataset: "forecasts" }] })).toBe("regions");
+		expect(widgetPlaceKind({ place: FRESNO, layers: [TEMP] })).toBe("regions");
 	});
 });
 
 describe("widgetInputs", () => {
-	const pm25: Layer = { dataset: "air-quality", entryType: "pm25", place: FRESNO };
+	const pm25: Layer = { dataset: "air-quality", entryType: "pm25" };
 	const smoke: Layer = { dataset: "hms-smoke", entryType: "smoke-density" };
 	const use: Layer = { dataset: "pesticide-use", entryType: "pounds-applied" };
-	const chart = (data: WidgetDataConfig) => ({ type: "chart", data });
+	/** A Chart of `data` in Fresno County. */
+	const chart = (data: WidgetDataConfig) => ({ type: "chart", data: { place: FRESNO, ...data } });
 
 	it("a shared link's mixed dataset: the main decides, misfits get no input (Review Focus 2)", () => {
 		const data: WidgetDataConfig = {
@@ -102,7 +114,7 @@ describe("widgetInputs", () => {
 		expect(got.effective.automatic).toBe(true);
 		expect(got.effective.misfits).toEqual([use]);
 		expect(got.main?.resolution).toBe("day");
-		expect(got.main?.layer).toEqual(pm25);
+		expect(got.main?.layer).toEqual({ ...pm25, place: FRESNO });
 		expect(got.overlays).toHaveLength(2);
 		expect(got.overlays[0]).toEqual({
 			layer: { dataset: "hms-smoke", entryType: "smoke-density", place: FRESNO },
@@ -164,15 +176,15 @@ describe("widgetInputs", () => {
 	});
 
 	it("a weather main needs no figure (the plain mean at every level)", () => {
-		const weather: Layer = { dataset: "weather", entryType: "temperature", place: FRESNO };
+		const weather: Layer = { dataset: "weather", entryType: "temperature" };
 		const got = widgetInputs(chart({ layers: [weather] }), RULES_CATALOG, "regions");
 		expect(got.figureFor).toBeNull();
 		expect(got.main).not.toHaveProperty("figure");
 	});
 
-	it("no input for a main layer with no place", () => {
+	it("no input for a widget with no Where", () => {
 		const got = widgetInputs(
-			chart({ layers: [{ dataset: "air-quality", entryType: "pm25" }] }),
+			{ type: "chart", data: { layers: [pm25, smoke] } },
 			RULES_CATALOG,
 			"none"
 		);
@@ -182,12 +194,11 @@ describe("widgetInputs", () => {
 });
 
 describe("widgetEffective", () => {
-	const pm25: Layer = {
-		dataset: "air-quality",
-		entryType: "pm25",
-		place: { kind: "monitor", id: "m" }
-	};
-	const chart = (data: WidgetDataConfig) => ({ type: "chart", data });
+	const pm25: Layer = { dataset: "air-quality", entryType: "pm25" };
+	const chart = (data: WidgetDataConfig) => ({
+		type: "chart",
+		data: { place: { kind: "monitor", id: "m" } as const, ...data }
+	});
 
 	it("counts Pacific calendar days: 7 days across the fall-back day are hourly", () => {
 		const fall = new Date("2026-11-02T20:00:00Z");
@@ -221,25 +232,50 @@ describe("widgetEffective", () => {
 });
 
 describe("queryLayer", () => {
-	it("copies the layer's fields and its places", () => {
-		const layer: Layer = {
-			dataset: "air-quality",
-			entryType: "pm25",
-			place: { kind: "region", type: "county", code: "06019" }
-		};
-		const result = queryLayer({ layers: [layer] } as WidgetDataConfig, layer);
-		expect(result).toEqual(layer);
+	it("copies the layer's fields at the widget's Where", () => {
+		const layer: Layer = { dataset: "air-quality", entryType: "pm25" };
+		const data: WidgetDataConfig = { place: FRESNO, layers: [layer] };
+		const result = queryLayer(data, layer);
+		expect(result).toEqual({ ...layer, place: FRESNO });
 		expect(result).not.toBe(layer);
+		// A copy: editing the query layer's place doesn't touch the saved data.
+		expect(result.place).not.toBe(data.place);
 	});
 
 	it("copies a selection and filters", () => {
-		const layer: Layer = {
-			dataset: "pesticides",
-			selection: { kind: "regions", ids: ["county:06019", "county:06029"] },
-			filters: { pesticides: ["a"] }
-		} as Layer;
-		const result = queryLayer({ layers: [layer] } as WidgetDataConfig, layer);
-		expect(result).toEqual(layer);
-		expect(result.selection).toEqual(layer.selection);
+		const layer: Layer = { dataset: "pesticide-use", filters: { chemical: "a" } };
+		const selection = { kind: "regions" as const, ids: ["county:06019", "county:06029"] };
+		const result = queryLayer({ selection, layers: [layer] }, layer);
+		expect(result).toEqual({ ...layer, selection });
+		expect(result.selection).not.toBe(selection);
+	});
+
+	it("a widget with no Where gives the layer none", () => {
+		const result = queryLayer({ layers: [PM] }, PM);
+		expect(result).toEqual(PM);
+		expect(result).not.toHaveProperty("place");
+		expect(result).not.toHaveProperty("selection");
+	});
+});
+
+describe("widgetWhere", () => {
+	it("is the place, else the selection, else nothing (everywhere)", () => {
+		expect(widgetWhere({ place: FRESNO, layers: [] })).toEqual({ place: FRESNO });
+		const selection = { kind: "monitors" as const, ids: ["a"] };
+		expect(widgetWhere({ selection, layers: [] })).toEqual({ selection });
+		expect(widgetWhere({ layers: [PM] })).toEqual({});
+	});
+});
+
+describe("wherePurpose", () => {
+	it("is the pollutant layer's entry type, else PM2.5", () => {
+		const O3 = { dataset: "air-quality", entryType: "o3" };
+		const catalog: CatalogEntry[] = [
+			{ ...CATALOG[0], entryTypes: [entry("pm25", "pollutant"), entry("o3", "pollutant")] },
+			...CATALOG.slice(1)
+		];
+		expect(wherePurpose({ layers: [TEMP, O3] }, catalog)).toEqual(O3);
+		expect(wherePurpose({ layers: [{ dataset: "forecasts" }] }, catalog)).toEqual(PM);
+		expect(wherePurpose({ layers: [TEMP] }, catalog)).toEqual(PM);
 	});
 });

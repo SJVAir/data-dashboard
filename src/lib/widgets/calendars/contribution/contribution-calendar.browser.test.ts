@@ -133,7 +133,8 @@ function calendar(id = "cal", extra: Partial<WidgetInstance> = {}): WidgetInstan
 		rect: { x: 0, y: 0, w: 12, h: 4 },
 		data: {
 			dateRange: { kind: "trailing", amount: 12, unit: "month" },
-			layers: [{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "a" } }]
+			place: { kind: "monitor", id: "a" },
+			layers: [{ dataset: "air-quality", entryType: "pm25" }]
 		},
 		...extra
 	};

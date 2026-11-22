@@ -9,7 +9,8 @@ import { placePicker } from "$lib/components/dialogs/lazy.svelte";
 import type { AdapterContext, RegionResolver } from "$lib/data/adapters/registry";
 import type { MetadataSource } from "$lib/data/metadata";
 import { fixtureMetadata } from "$lib/data/testing/fixtures";
-import type { ChosenPlace, Layer } from "$lib/data/schema";
+import type { ChosenPlace, Layer, WidgetDataConfig } from "$lib/data/schema";
+import { fromWhere, toWhere } from "$lib/places/selection";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
 import { createMemoryPlatform, type MemoryPlatform } from "$lib/platform/memory";
@@ -105,16 +106,21 @@ async function showStarter(platform?: MemoryPlatform) {
 	return { app, starter, ...rest };
 }
 
-function chart(id: string, layers: Layer[], y: number): WidgetInstance {
+function chart(id: string, where: Where, y: number): WidgetInstance {
 	return {
 		id,
 		type: "chart",
 		title: `Chart ${id}`,
 		rect: { x: 0, y, w: 6, h: 4 },
-		data: { dateRange: { kind: "trailing", amount: 30, unit: "day" }, layers }
+		data: { dateRange: { kind: "trailing", amount: 30, unit: "day" }, ...where, layers: [PM25] }
 	};
 }
-const pm25 = (place: ChosenPlace): Layer => ({ dataset: "air-quality", entryType: "pm25", place });
+type Where = Pick<WidgetDataConfig, "place" | "selection">;
+const PM25: Layer = { dataset: "air-quality", entryType: "pm25" };
+/** One place. */
+const at = (place: ChosenPlace): Where => ({ place });
+/** Several places (never rewritten by Change place). */
+const several = (...places: ChosenPlace[]): Where => toWhere(places);
 
 /** A stored copy of the starter holding `widgets`, with the bar at `bar`, current. */
 async function showCopy(widgets: WidgetInstance[], bar: ChosenPlace = COUNTY) {
@@ -141,8 +147,7 @@ const alsoChange = (count: number) =>
 	page.getByRole("checkbox", {
 		name: m.place_picker_also_change({ count: String(count), countValue: count })
 	});
-const placesOf = (doc: Dashboard) =>
-	doc.body.widgets.map((w) => w.data.layers.map((l) => l.place ?? null));
+const placesOf = (doc: Dashboard) => doc.body.widgets.map((w) => fromWhere(w.data));
 
 async function openBar() {
 	await changePlace().click();
@@ -211,12 +216,8 @@ test("Use my location is offered, and asks only when chosen", async () => {
 });
 
 test("on a copy, Done is one undo step switching only the bar's widgets; comparisons never switch", async () => {
-	const mixed = chart("c", [pm25(COUNTY), pm25(CITY)], 8);
-	const { session } = await showCopy([
-		chart("a", [pm25(COUNTY)], 0),
-		chart("b", [pm25(CITY)], 4),
-		mixed
-	]);
+	const mixed = chart("c", several(COUNTY, CITY), 8);
+	const { session } = await showCopy([chart("a", at(COUNTY), 0), chart("b", at(CITY), 4), mixed]);
 	await expect.poll(barText).toContain("Showing Fresno County");
 	await openBar();
 	await expect.element(alsoChange(1)).not.toBeChecked();
@@ -232,10 +233,10 @@ test("on a copy, Done is one undo step switching only the bar's widgets; compari
 
 test("Also change… switches the widgets showing other places too (comparisons still never)", async () => {
 	const { session } = await showCopy([
-		chart("a", [pm25(COUNTY)], 0),
-		chart("b", [pm25(CITY)], 4),
-		chart("d", [pm25(CITY)], 8),
-		chart("c", [pm25(COUNTY), pm25(CITY)], 12)
+		chart("a", at(COUNTY), 0),
+		chart("b", at(CITY), 4),
+		chart("d", at(CITY), 8),
+		chart("c", several(COUNTY, CITY), 12)
 	]);
 	await openBar();
 	expect(m.place_picker_also_change({ count: "2", countValue: 2 })).toBe(
@@ -252,26 +253,26 @@ test("Also change… switches the widgets showing other places too (comparisons 
 });
 
 test("with no widgets elsewhere, Also change… isn't offered", async () => {
-	await showCopy([chart("a", [pm25(COUNTY)], 0)]);
+	await showCopy([chart("a", at(COUNTY), 0)]);
 	await openBar();
 	await expect.element(page.getByRole("checkbox")).not.toBeInTheDocument();
 });
 
 test("the bar hides when no widget shows its place", async () => {
-	const { session } = await showCopy([chart("a", [pm25(COUNTY)], 0)]);
+	const { session } = await showCopy([chart("a", at(COUNTY), 0)]);
 	await expect.element(bar()).toBeVisible();
 	const w = session.doc.body.widgets[0];
 	session.apply({
 		op: "setWidgetData",
 		target: { widgetId: "a" },
 		from: w.data,
-		to: { ...w.data, layers: [pm25(CITY)] }
+		to: { ...w.data, place: CITY }
 	});
 	await expect.element(bar()).not.toBeInTheDocument();
 });
 
 test("on a live link, a point is saved as its region in the bar and its widgets", async () => {
-	const { app, platform, session } = await showCopy([chart("a", [pm25(COUNTY)], 0)]);
+	const { app, platform, session } = await showCopy([chart("a", at(COUNTY), 0)]);
 	platform.geolocation.script({ ok: true, lat: 36.75, lon: -119.79 });
 	app.sync = { states: { [session.doc.id]: { shareToken: "tok" } } } as never;
 	await openBar();
@@ -333,9 +334,9 @@ test("an unknown place is named with the generic fallback, and can still be chan
 
 test("on a copy, the bar's own place with Also change… brings the others to it in one undo step", async () => {
 	const { session } = await showCopy([
-		chart("a", [pm25(COUNTY)], 0),
-		chart("b", [pm25(CITY)], 4),
-		chart("c", [pm25(COUNTY), pm25(CITY)], 8)
+		chart("a", at(COUNTY), 0),
+		chart("b", at(CITY), 4),
+		chart("c", several(COUNTY, CITY), 8)
 	]);
 	await openBar();
 	await alsoChange(1).click();
@@ -348,7 +349,7 @@ test("on a copy, the bar's own place with Also change… brings the others to it
 });
 
 test("on a copy, the bar's own place without Also change… does nothing", async () => {
-	const { session } = await showCopy([chart("a", [pm25(COUNTY)], 0), chart("b", [pm25(CITY)], 4)]);
+	const { session } = await showCopy([chart("a", at(COUNTY), 0), chart("b", at(CITY), 4)]);
 	await openBar();
 	await pick(/Fresno County/);
 	expect(placesOf(session.doc)).toEqual([[COUNTY], [CITY]]);

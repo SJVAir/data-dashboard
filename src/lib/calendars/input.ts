@@ -19,8 +19,8 @@ export const CALENDAR_DEFAULT_RANGES: Record<string, DateRangeSpec> = {
 
 /**
  * What a calendar asks the query client for: its main layer over the widget's range (or the
- * type's default), one row per day (calendars pin `day` through the dataset rules). A layer with
- * no place asks for nothing (null).
+ * type's default), one row per day (calendars pin `day` through the dataset rules). A widget with
+ * no Where asks for nothing (null).
  */
 export function calendarInput(
 	data: WidgetDataConfig,
@@ -28,7 +28,7 @@ export function calendarInput(
 	type: string = MONTH_CALENDAR_TYPE
 ): QueryInput | null {
 	const layer = mainLayer(data, catalog);
-	if (!layer || (!layer.place && !layer.selection)) return null;
+	if (!layer || (!data.place && !data.selection)) return null;
 	const dateRange = data.dateRange ?? CALENDAR_DEFAULT_RANGES[type] ?? DEFAULT_RANGE;
 	return { layer: queryLayer(data, layer), dateRange, resolution: CALENDAR_RESOLUTION };
 }

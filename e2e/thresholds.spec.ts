@@ -38,7 +38,7 @@ const doc = {
 				type: "current-conditions",
 				title: null,
 				rect: { x: 0, y: 0, w: 4, h: 6 },
-				data: { layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }] },
+				data: { place: FRESNO, layers: [{ dataset: "air-quality", entryType: "pm25" }] },
 				thresholds: [{ level: "unhealthy_sensitive" }]
 			}
 		]

@@ -162,11 +162,11 @@ const monitorDoc = {
 				title: null,
 				rect: { x: 0, y: 0, w: 6, h: 6 },
 				data: {
+					place: { kind: "monitor", id: "4Mb0j33kTnS0qzeE4iDGWw" },
 					layers: [
 						{
 							dataset: "air-quality",
-							entryType: "pm25",
-							place: { kind: "monitor", id: "4Mb0j33kTnS0qzeE4iDGWw" }
+							entryType: "pm25"
 						}
 					]
 				}
@@ -195,7 +195,8 @@ function wideDoc(more: Array<Record<string, unknown>> = [], dateRange?: Record<s
 					title: null,
 					rect: { x: 0, y: 0, w: 12, h: 8 },
 					data: {
-						layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO_COUNTY }, ...more],
+						place: FRESNO_COUNTY,
+						layers: [{ dataset: "air-quality", entryType: "pm25" }, ...more],
 						...(dateRange && { dateRange })
 					}
 				}
@@ -1074,11 +1075,11 @@ const tallDoc = {
 				title: null,
 				rect: { x: 0, y: 0, w: 6, h: 6 },
 				data: {
+					place: { kind: "region", type: "county", code: "06019" },
 					layers: [
 						{
 							dataset: "air-quality",
-							entryType: "pm25",
-							place: { kind: "region", type: "county", code: "06019" }
+							entryType: "pm25"
 						}
 					]
 				}

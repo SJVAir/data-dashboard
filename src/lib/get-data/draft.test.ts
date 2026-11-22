@@ -32,11 +32,11 @@ describe("the Get data draft", () => {
 		const { platform } = fakePlatform();
 		const draft = await loadDraft(platform, SPACE);
 		expect(draft.type).toBe("chart");
+		expect(draft.data.place).toEqual({ kind: "region", type: "county", code: "06019" });
 		expect(draft.data.layers).toEqual([
 			{
 				dataset: "air-quality",
-				entryType: "pm25",
-				place: { kind: "region", type: "county", code: "06019" }
+				entryType: "pm25"
 			}
 		]);
 		expect(draft.data.dateRange).toEqual({ kind: "trailing", amount: 30, unit: "day" });
@@ -48,7 +48,7 @@ describe("the Get data draft", () => {
 			{ type: "chart", data: { layers: Array.from({ length: 50 }, () => layer) } },
 			{
 				type: "chart",
-				data: { layers: [{ dataset: "air-quality", place: { kind: "point", lat: 999, lon: 0 } }] }
+				data: { place: { kind: "point", lat: 999, lon: 0 }, layers: [{ dataset: "air-quality" }] }
 			},
 			{ type: "no-such-type", data: { layers: [layer] } },
 			"nonsense"

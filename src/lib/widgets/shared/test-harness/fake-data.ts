@@ -72,11 +72,10 @@ export function chartWidget(
 		rect,
 		data: {
 			dateRange: { kind: "trailing", amount: 30, unit: "day" },
-			layers: [
-				ids.length === 1
-					? { dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: ids[0] } }
-					: { dataset: "air-quality", entryType: "pm25", selection: { kind: "monitors", ids } }
-			]
+			...(ids.length === 1
+				? { place: { kind: "monitor" as const, id: ids[0] } }
+				: { selection: { kind: "monitors" as const, ids } }),
+			layers: [{ dataset: "air-quality", entryType: "pm25" }]
 		},
 		...extra
 	};

@@ -11,17 +11,17 @@
 	import { csvPending, saveDataCsv } from "$lib/data/csv";
 	import type { CatalogEntry, Level } from "$lib/data/metadata";
 	import { fillableTypes } from "$lib/data/snapshot";
-	import { LIMITS, type DateRangeSpec, type Layer, type PesticideFilters } from "$lib/data/schema";
+	import type { DateRangeSpec, Layer, PesticideFilters } from "$lib/data/schema";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { PHONE_QUERY } from "$lib/layout/config";
 	import { m } from "$lib/paraglide/messages.js";
 	import { directoryFor } from "$lib/places/host";
-	import { fromLayer, toLayerPlaces, type Picks } from "$lib/places/selection";
+	import { fromWhere, toWhere, type Picks } from "$lib/places/selection";
 	import type { RegionTypeInfo } from "$lib/places/types";
 	import { report } from "$lib/safety/report";
 	import { useApp } from "$lib/store/app.svelte";
 	import { CHART_TYPE } from "$lib/widgets/chart";
-	import { DEFAULT_RANGE } from "$lib/widgets/defaults";
+	import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
 	import { CURRENT_TYPE } from "$lib/widgets/current";
 	import { MAP_TYPE } from "$lib/widgets/map";
 	import {
@@ -38,9 +38,7 @@
 	import {
 		entryMeta,
 		mainLayer,
-		placesEntryType,
-		placesLayer,
-		placesQueryLayer,
+		wherePurpose,
 		widgetEffective,
 		widgetPlaceKind
 	} from "$lib/widgets/shared/input";
@@ -244,12 +242,13 @@
 	/** A now type proper: no When (the Map has one, with a Now choice). */
 	const nowOnly = $derived(type?.time === "now");
 	const range = $derived<DateRangeSpec>(plain.data.dateRange ?? DEFAULT_RANGE);
-	// A Forecast strip's one layer has no entry type, so isn't a `mainLayer`; it holds the place.
-	const main = $derived(isNow ? placesLayer(plain.data, known) : mainLayer(plain.data, known));
-	const mainIndex = $derived(main ? plain.data.layers.indexOf(main) : -1);
-	const picks = $derived(main ? fromLayer(main) : []);
-	/** Whether the Where control renders; a Show as keep request needs it to open its dialog. */
-	const showsWhere = $derived(!!(main?.entryType || (isNow && main)));
+	const main = $derived(mainLayer(plain.data, known));
+	const picks = $derived(fromWhere(plain.data));
+	/**
+	 * Whether the Where control renders; a Show as keep request needs it to open its dialog. A
+	 * Forecast strip's one layer has no entry type, so isn't a `mainLayer`, but it has a Where.
+	 */
+	const showsWhere = $derived(!!main || (isNow && plain.data.layers.length === 1));
 	/** Only level layers (smoke, burn status): nothing to chart, so no Add, Save or Download. */
 	const levelOnly = $derived(layers.levelOnly(plain.data, known));
 
@@ -284,7 +283,7 @@
 		})
 	);
 	/** Where the places are fetched for, as the dataset rules count it. */
-	const placeKind = $derived(widgetPlaceKind(plain.data, known));
+	const placeKind = $derived(widgetPlaceKind(plain.data));
 	/** A Map on Now, or a now type: no range, so no data resolution. */
 	const hasRange = $derived(!nowOnly && (!isMap || !!plain.data.dateRange));
 	/**
@@ -438,11 +437,11 @@
 	// with different caps, would undo each other forever), and a Forecast strip's place is named
 	// through a PM2.5 layer, as its picker offers places.
 	const namesWidget = $derived.by<WidgetInstance>(() => {
-		// A now type's places are on its places layer (a Map's other layers have none).
-		const layers = isNow ? (main ? [placesQueryLayer(main)] : []) : plain.data.layers;
+		// A now type's names come from its main layer (a Map's other layers are place-less).
+		const layers = isNow ? (showsWhere ? [main ?? { ...DEFAULT_LAYER }] : []) : plain.data.layers;
 		return { ...previewWidget, id: `${PREVIEW_ID}-names`, data: { ...plain.data, layers } };
 	});
-	const data = new DataWidget(() => namesWidget, LIMITS.SELECTION_MAX);
+	const data = new DataWidget(() => namesWidget, Infinity);
 
 	// The last data's names stay up while another range or type loads (a new query starts with
 	// no data); they're dropped once the places change.
@@ -516,10 +515,8 @@
 	let width = $state(0);
 	const phone = new MediaQuery(PHONE_QUERY);
 
-	// Edits. The main layer holds the places and the level; overlays follow it (see `layers.ts`).
-	function mainDraftLayer(): Layer | undefined {
-		return mainIndex >= 0 ? draft.data.layers[mainIndex] : undefined;
-	}
+	// Edits. Where is on the draft's data; the main layer decides the level, and overlays follow
+	// it (see `layers.ts`).
 
 	// Choosing which places to keep (D17) ----------------------------------------------------
 
@@ -596,13 +593,12 @@
 		applyPlaces(next);
 	}
 
-	/** Replaces the main layer's places. */
+	/** Replaces the draft's Where. */
 	function applyPlaces(next: Picks): void {
-		const layer = mainDraftLayer();
-		if (!layer) return;
-		delete layer.place;
-		delete layer.selection;
-		Object.assign(layer, toLayerPlaces(next));
+		if (!showsWhere) return;
+		delete draft.data.place;
+		delete draft.data.selection;
+		Object.assign(draft.data, toWhere(next));
 		layers.dropStationOnPlaceChange(draft.data);
 	}
 
@@ -797,13 +793,7 @@
 		// More places than a Chart or Table takes: the person chooses which to keep first, and
 		// Cancel changes nothing (D17). Kept within the cap, the conversion cuts none.
 		const cap = to.accepts?.maxPlaces;
-		if (
-			keepsOnSwitch(to) &&
-			cap !== undefined &&
-			picks.length > cap &&
-			showsWhere &&
-			mainDraftLayer()
-		) {
+		if (keepsOnSwitch(to) && cap !== undefined && picks.length > cap && showsWhere) {
 			keeping = keepRequest(
 				cap,
 				(kept) => {
@@ -1016,18 +1006,14 @@
 
 			<section class="flex flex-col gap-2" aria-labelledby="{uid}-where">
 				<h2 id="{uid}-where" class="text-primary text-sm font-semibold">{m.get_data_where()}</h2>
-				{#if showsWhere && main}
+				{#if showsWhere}
 					{#key keepKey}
 						<WhereControl
 							{picks}
 							{names}
 							{namesSettled}
 							max={type?.accepts?.maxPlaces ?? 1}
-							purpose={{
-								dataset: main.dataset,
-								// A Forecast strip's place is any place PM2.5 is offered for.
-								entryType: placesEntryType(main)
-							}}
+							purpose={wherePurpose(plain.data, known)}
 							onchange={setPlaces}
 							keep={keeping}
 						/>

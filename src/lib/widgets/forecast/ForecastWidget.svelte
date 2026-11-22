@@ -12,11 +12,11 @@
 	} from "$lib/data/now/forecast-days";
 	import { getNowClient } from "$lib/data/now";
 	import { NowQuery } from "$lib/data/now/now-query.svelte";
-	import type { Layer } from "$lib/data/schema";
-	import type { QueryState, UnavailableReason } from "$lib/data/types";
+	import type { QueryLayer, QueryState, UnavailableReason } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { formatWeekdayDate, formatWeekdayTime, todayPacific } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
+	import { hasWhere, queryLayer } from "../shared/input";
 	import LevelChip from "../shared/LevelChip.svelte";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 	import WidgetState from "../shared/WidgetState.svelte";
@@ -27,9 +27,10 @@
 
 	const viewer = getContext<PlaceViewer | undefined>(PLACE_VIEWER_KEY) ?? "owner";
 
-	const layer = $derived<Layer | undefined>(
-		widget.data.layers.find((l) => l.dataset === "forecasts" && (l.place || l.selection))
-	);
+	const layer = $derived.by<QueryLayer | undefined>(() => {
+		const found = widget.data.layers.find((l) => l.dataset === "forecasts");
+		return found && hasWhere(widget.data) ? queryLayer(widget.data, found) : undefined;
+	});
 	// Equal layers (a re-render of the same widget) don't resolve the source again.
 	const layerKey = $derived(layer ? JSON.stringify(layer) : "");
 

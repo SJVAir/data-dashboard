@@ -119,11 +119,11 @@ test("a share link with a point place gets its region for a calendar", async ({ 
 					rect: { x: 0, y: 0, w: 6, h: 8 },
 					data: {
 						dateRange: { kind: "trailing", amount: 2, unit: "month" },
+						place: { kind: "point", lat: 36.7372, lon: -119.7871 },
 						layers: [
 							{
 								dataset: "air-quality",
-								entryType: "pm25",
-								place: { kind: "point", lat: 36.7372, lon: -119.7871 }
+								entryType: "pm25"
 							}
 						]
 					}
@@ -161,7 +161,8 @@ async function openCalendar(
 					rect: { x: 0, y: 0, w: 8, h: 8 },
 					data: {
 						dateRange,
-						layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }]
+						place: FRESNO,
+						layers: [{ dataset: "air-quality", entryType: "pm25" }]
 					},
 					...(thresholds && { thresholds })
 				}

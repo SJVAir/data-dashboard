@@ -6,6 +6,7 @@
 	import { OUTSIDE_TYPE } from "$lib/widgets/outside";
 	import { asPm25 } from "$lib/widgets/outside/pm25";
 	import { CurrentConditions } from "$lib/widgets/shared/current.svelte";
+	import { widgetWhere } from "$lib/widgets/shared/input";
 	import { ReadingClock } from "$lib/widgets/shared/reading-clock.svelte";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "$lib/widgets/shared/viewer";
 	import { placeLabel } from "$lib/widgets/title";
@@ -33,7 +34,9 @@
 
 	// What the reading is of (place and pollutant): when it changes, "last told" was about
 	// another place, so it's dropped and the new place's first reading only seeds it.
-	const watchedKey = $derived(canonicalJson(read.data.layers));
+	const watchedKey = $derived(
+		canonicalJson({ where: widgetWhere(read.data), layers: read.data.layers })
+	);
 	let lastKey: string | undefined;
 
 	$effect(() => {

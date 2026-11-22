@@ -1,5 +1,5 @@
 import { splitRegionKey } from "$lib/data/adapters/targets";
-import type { Layer, PlaceRef, SpatialSelection } from "$lib/data/schema";
+import type { PlaceRef, SpatialSelection, WidgetDataConfig } from "$lib/data/schema";
 import { sameRef } from "./types";
 
 export type PickerMode = { kind: "single" } | { kind: "multiple"; max: number };
@@ -42,8 +42,8 @@ export function toggle(picks: Picks, candidate: PlaceRef, mode: PickerMode): Pic
 	return [...picks, candidate];
 }
 
-/** The layer fields for the picks: one → `place`, several → `selection`, none → neither. */
-export function toLayerPlaces(picks: Picks): { place?: PlaceRef; selection?: SpatialSelection } {
+/** The Where for the picks: one → `place`, several → `selection`, none → neither (everywhere). */
+export function toWhere(picks: Picks): { place?: PlaceRef; selection?: SpatialSelection } {
 	if (picks.length === 0) return {};
 	if (picks.length === 1) return { place: picks[0] };
 	if (picks[0].kind === "region") {
@@ -54,10 +54,10 @@ export function toLayerPlaces(picks: Picks): { place?: PlaceRef; selection?: Spa
 	return { selection: { kind: "monitors", ids } };
 }
 
-/** The picks a layer holds (a selection's region ids split back into refs; invalid ids dropped). */
-export function fromLayer(layer: Pick<Layer, "place" | "selection">): Picks {
-	if (layer.place) return layer.place.kind === "default-place" ? [] : [layer.place];
-	const selection = layer.selection;
+/** The picks a Where holds (a selection's region ids split back into refs; invalid ids dropped). */
+export function fromWhere(data: Pick<WidgetDataConfig, "place" | "selection">): Picks {
+	if (data.place) return data.place.kind === "default-place" ? [] : [data.place];
+	const selection = data.selection;
 	if (!selection) return [];
 	if (selection.kind === "monitors") {
 		return selection.ids.map((id) => ({ kind: "monitor" as const, id }));

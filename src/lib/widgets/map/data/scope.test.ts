@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Layer } from "$lib/data/schema";
+import type { QueryLayer } from "$lib/data/types";
 import { monitorScope, type ScopeContext } from "./scope";
 
 function ctx(
@@ -13,7 +13,7 @@ function ctx(
 }
 
 const known = (type: string, code: string) => ({ id: `sq-${type}-${code}`, name: code });
-const layer = (extra: Partial<Layer>): Layer => ({
+const layer = (extra: Partial<QueryLayer>): QueryLayer => ({
 	dataset: "air-quality",
 	entryType: "pm25",
 	...extra

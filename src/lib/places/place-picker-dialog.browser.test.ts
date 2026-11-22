@@ -10,7 +10,7 @@ import type { AdapterContext, RegionResolver } from "$lib/data/adapters/registry
 import type { MetadataSource } from "$lib/data/metadata";
 import { createQueryClient, type QueryClient } from "$lib/data/query/client";
 import { fixtureMetadata } from "$lib/data/testing/fixtures";
-import type { Layer } from "$lib/data/schema";
+import type { Layer, WidgetDataConfig } from "$lib/data/schema";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
 import { createMemoryPlatform } from "$lib/platform/memory";
@@ -111,7 +111,12 @@ afterEach(() => {
 	toast.dismiss();
 });
 
-function widget(layer: Partial<Layer>, type = "chart"): WidgetInstance {
+/** A PM2.5 widget (the layer's fields) at a Where (`place` or `selection`, split out). */
+function widget(
+	at: Partial<Layer> & Pick<WidgetDataConfig, "place" | "selection">,
+	type = "chart"
+): WidgetInstance {
+	const { place, selection, ...layer } = at;
 	return {
 		id: "w1",
 		type,
@@ -119,6 +124,8 @@ function widget(layer: Partial<Layer>, type = "chart"): WidgetInstance {
 		rect: { x: 0, y: 0, w: 6, h: 8 },
 		data: {
 			dateRange: { kind: "trailing", amount: 30, unit: "day" },
+			...(place ? { place } : {}),
+			...(selection ? { selection } : {}),
 			layers: [{ dataset: "air-quality", entryType: "pm25", ...layer }]
 		}
 	};
@@ -146,7 +153,8 @@ async function show(w: WidgetInstance, recent: unknown[] = []) {
 
 const dialog = () => page.getByRole("dialog", { name: /Choose (a place|places)/ });
 const trigger = () => page.getByRole("button", { name: "Actions for Readings" });
-const layerOf = (session: DocumentSession) => session.doc.body.widgets[0].data.layers[0];
+/** The widget's data, which holds its Where. */
+const layerOf = (session: DocumentSession) => session.doc.body.widgets[0].data;
 
 async function openFromMenu() {
 	await trigger().click();
@@ -337,9 +345,8 @@ test("saves a point picked for a multi-pollutant Map on a live link as its regio
 		dateRange: { kind: "trailing", amount: 6, unit: "hour" },
 		resolution: "hour"
 	});
-	const layers = session.doc.body.widgets[0].data.layers;
-	expect(layers[0].place).toEqual({ kind: "region", type: "zipcode", code: "93721" });
-	expect(layers.slice(1).every((l) => l.place === undefined)).toBe(true);
+	const { layers, place } = session.doc.body.widgets[0].data;
+	expect(place).toEqual({ kind: "region", type: "zipcode", code: "93721" });
 	expect(layers.map((l) => l.entryType ?? l.dataset)).toEqual([
 		"pm25",
 		"o3",
@@ -368,13 +375,13 @@ test("a calendar's location is looked up one row per day, with no sub-range or w
 });
 
 /** A Forecast strip: one forecasts layer, with no entry type. */
-function strip(place?: Layer["place"]): WidgetInstance {
+function strip(place?: WidgetDataConfig["place"]): WidgetInstance {
 	return {
 		id: "w1",
 		type: "forecast-strip",
 		title: "Readings",
 		rect: { x: 0, y: 0, w: 3, h: 4 },
-		data: { layers: [{ dataset: "forecasts", ...(place ? { place } : {}) }] }
+		data: { ...(place ? { place } : {}), layers: [{ dataset: "forecasts" }] }
 	};
 }
 
@@ -388,11 +395,11 @@ test("a Forecast strip (a layer with no entry type) changes place from the tile"
 	await page.getByRole("option", { name: /City of Fresno/ }).click();
 	await expect.element(dialog()).not.toBeInTheDocument();
 	expect(layerOf(session)).toEqual({
-		dataset: "forecasts",
+		layers: [{ dataset: "forecasts" }],
 		place: { kind: "region", type: "city", code: "0627000" }
 	});
 	session.undo();
-	expect(layerOf(session)).toEqual({ dataset: "forecasts", place: COUNTY });
+	expect(layerOf(session)).toEqual({ layers: [{ dataset: "forecasts" }], place: COUNTY });
 });
 
 test("on a live-shared dashboard, a Forecast strip's location is saved as its region", async () => {
@@ -403,7 +410,7 @@ test("on a live-shared dashboard, a Forecast strip's location is saved as its re
 	await page.getByRole("button", { name: m.place_picker_use_location() }).click();
 	await expect.element(dialog()).not.toBeInTheDocument();
 	expect(layerOf(session)).toEqual({
-		dataset: "forecasts",
+		layers: [{ dataset: "forecasts" }],
 		place: { kind: "region", type: "zipcode", code: "93721" }
 	});
 	expect(placeRegion.mock.calls[0][0]).toMatchObject({
@@ -447,7 +454,7 @@ test("no saved-as notice when an edit meanwhile already set that region", async 
 		op: "setWidgetData",
 		target: { widgetId: "w1" },
 		from: data,
-		to: { ...data, layers: [{ ...data.layers[0], place: zip }] }
+		to: { ...data, place: zip, layers: [{ ...data.layers[0] }] }
 	});
 	finish(zip);
 	await expect.element(dialog()).not.toBeInTheDocument();
@@ -571,7 +578,7 @@ test("a minimized widget's taskbar menu has Change place too", async () => {
 
 test("Change place on a Chart made from a Map's monitors opens with the monitors as chips", async () => {
 	const { session } = await show(
-		widget({ place: undefined, selection: { kind: "monitors", ids: ["m-pa", "m-bam"] } })
+		widget({ selection: { kind: "monitors", ids: ["m-pa", "m-bam"] } })
 	);
 	await openFromMenu();
 	await expect

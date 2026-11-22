@@ -4,7 +4,7 @@ import { toast } from "svelte-sonner";
 import { render } from "vitest-browser-svelte";
 import { page } from "vitest/browser";
 import type { Change } from "$lib/changes/types";
-import type { Layer } from "$lib/data/schema";
+import type { WidgetDataConfig } from "$lib/data/schema";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import ShareDialog from "$lib/components/dialogs/ShareDialog.svelte";
 import { share } from "$lib/components/dialogs/lazy.svelte";
@@ -46,7 +46,7 @@ const FRESNO = { kind: "region", type: "county", code: "06019" } as const;
 const NOTICE = "This dashboard is shared by link, so your location is saved as ZIP 93721.";
 const FAILED = "Can't look up your area right now.";
 
-function chart(place: Layer["place"]): WidgetInstance {
+function chart(place: WidgetDataConfig["place"]): WidgetInstance {
 	return {
 		id: "p",
 		type: "chart",
@@ -54,18 +54,19 @@ function chart(place: Layer["place"]): WidgetInstance {
 		rect: { x: 0, y: 0, w: 6, h: 6 },
 		data: {
 			dateRange: { kind: "trailing", amount: 30, unit: "day" },
-			layers: [{ dataset: "air-quality", entryType: "pm25", place }]
+			place,
+			layers: [{ dataset: "air-quality", entryType: "pm25" }]
 		}
 	};
 }
 
-const docOn = (place: Layer["place"]): Dashboard => ({
+const docOn = (place: WidgetDataConfig["place"]): Dashboard => ({
 	...makeDoc(),
 	body: { widgets: [chart(place)] }
 });
 
 /** Widget `p` re-picked, as the place picker does. */
-function pick(session: DocumentSession, place: Layer["place"]): void {
+function pick(session: DocumentSession, place: WidgetDataConfig["place"]): void {
 	const change: Change = {
 		op: "setWidgetData",
 		target: { widgetId: "p" },
@@ -75,7 +76,7 @@ function pick(session: DocumentSession, place: Layer["place"]): void {
 	session.apply(change);
 }
 
-const placeOf = (doc: Dashboard) => doc.body.widgets[0].data.layers[0].place;
+const placeOf = (doc: Dashboard) => doc.body.widgets[0].data.place;
 const stored = async (platform: Platform) =>
 	(await platform.documents.get(SPACE, "d1")) as Dashboard;
 

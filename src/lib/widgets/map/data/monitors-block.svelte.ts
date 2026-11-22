@@ -89,8 +89,9 @@ export class MonitorsBlock {
 
 	/** The places, as a key: the monitors' scope is resolved again only when they change. */
 	readonly #placesKey = $derived.by(() => {
-		const layer = this.#getInput().layer;
-		return layer ? JSON.stringify([layer.place ?? null, layer.selection ?? null]) : "";
+		const { layer, widget } = this.#getInput();
+		const { place, selection } = widget.data;
+		return layer ? JSON.stringify([place ?? null, selection ?? null]) : "";
 	});
 	/** Narrow deriveds, so an effect re-runs only when the one value it needs changes. */
 	readonly #entryType = $derived.by(() => this.#getInput().entryType);
@@ -192,7 +193,10 @@ export class MonitorsBlock {
 	readonly exempt = $derived.by(() => {
 		// Keyed by the places, so a new layer object with the same places changes nothing.
 		void this.#placesKey;
-		return untrack(() => placeMonitors(this.#getInput().layer));
+		return untrack(() => {
+			const { layer, widget } = this.#getInput();
+			return placeMonitors(layer ? widget.data : undefined);
+		});
 	});
 	/** The monitors drawn: those loaded, after the toolbar's filters (the places' own kept). */
 	readonly monitorsShown = $derived.by(() => {
@@ -215,7 +219,8 @@ export class MonitorsBlock {
 	);
 	/** A monitor place the loaded readings don't list (retired, say): the map still draws. */
 	readonly unlisted = $derived.by(() => {
-		const place = this.#getInput().layer?.place;
+		const { layer, widget } = this.#getInput();
+		const place = layer ? widget.data.place : undefined;
 		const state = this.listState;
 		if (!this.monitorsCurrent || state.status !== "ready" || place?.kind !== "monitor") {
 			return false;

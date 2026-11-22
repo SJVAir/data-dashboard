@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ChosenPlace, Layer } from "$lib/data/schema";
+import type { ChosenPlace, Layer, PlaceRef } from "$lib/data/schema";
 import type { CatalogEntry } from "$lib/data/metadata";
 import { FIXTURE_CATALOG } from "$lib/data/testing/fixtures";
 import type { QueryInput } from "$lib/data/types";
@@ -37,13 +37,14 @@ vi.mock("$lib/data", () => ({
 const POINT = { kind: "point", lat: 36.7378, lon: -119.7871 } as const;
 const RANGE = { kind: "trailing", amount: 30, unit: "day" } as const;
 
-function dataWidget(id: string, layers: Layer[]): WidgetInstance {
+/** A Chart of `layers` (PM2.5) at `place`. */
+function dataWidget(id: string, place?: PlaceRef, layers: Layer[] = [PM25]): WidgetInstance {
 	return {
 		id,
 		type: "chart",
 		title: null,
 		rect: { x: 0, y: 0, w: 3, h: 6 },
-		data: { dateRange: RANGE, layers }
+		data: { dateRange: RANGE, ...(place ? { place } : {}), layers: structuredClone(layers) }
 	};
 }
 
@@ -52,11 +53,9 @@ function docWith(...widgets: WidgetInstance[]): Dashboard {
 	return { ...doc, body: { widgets: [...doc.body.widgets, ...widgets] } };
 }
 
-const pm25 = (place: Layer["place"]): Layer => ({
-	dataset: "air-quality",
-	entryType: "pm25",
-	place
-});
+const PM25: Layer = { dataset: "air-quality", entryType: "pm25" };
+/** The query layer the lookup asks with: PM2.5 at `place`. */
+const pm25 = (place: PlaceRef) => ({ ...PM25, place });
 
 beforeEach(() => {
 	registerWidgetType(currentType);
@@ -73,8 +72,8 @@ beforeEach(() => {
 describe("hasPoints and pointSwaps", () => {
 	it("a dashboard without points has none and looks nothing up", async () => {
 		const doc = docWith(
-			dataWidget("c", [pm25({ kind: "region", type: "county", code: "019" })]),
-			dataWidget("s", [pm25({ kind: "location", source: "cde", code: "1062166" })])
+			dataWidget("c", { kind: "region", type: "county", code: "019" }),
+			dataWidget("s", { kind: "location", source: "cde", code: "1062166" })
 		);
 		expect(hasPoints(doc)).toBe(false);
 		expect(await pointSwaps(doc)).toEqual([]);
@@ -96,14 +95,13 @@ describe("hasPoints and pointSwaps", () => {
 		expect(mocked.placeRegion).not.toHaveBeenCalled();
 	});
 
-	it("looks a point layer's region up with the widget's own query", async () => {
-		const doc = docWith(dataWidget("p", [pm25(POINT)]));
+	it("looks a point's region up with the widget's own query", async () => {
+		const doc = docWith(dataWidget("p", POINT));
 		expect(hasPoints(doc)).toBe(true);
 		const swaps = await pointSwaps(doc);
 		expect(swaps).toEqual([
 			{
 				widgetId: "p",
-				layerIndex: 0,
 				point: { lat: POINT.lat, lon: POINT.lon },
 				region: { type: "zipcode", code: "93721" }
 			}
@@ -122,8 +120,8 @@ describe("hasPoints and pointSwaps", () => {
 	it("looks up at the widget's dataset resolution: a point is a region, so no raw", async () => {
 		const short = { kind: "trailing", amount: 2, unit: "day" } as const;
 		const doc = docWith({
-			...dataWidget("p", [pm25(POINT)]),
-			data: { dateRange: short, layers: [pm25(POINT)] }
+			...dataWidget("p", POINT),
+			data: { dateRange: short, place: POINT, layers: [PM25] }
 		});
 		await pointSwaps(doc);
 		expect(mocked.placeRegion.mock.calls[0][0].resolution).toBe("hour");
@@ -139,7 +137,11 @@ describe("hasPoints and pointSwaps", () => {
 			type: MONTH_CALENDAR_TYPE,
 			title: null,
 			rect: { x: 0, y: 0, w: 4, h: 6 },
-			data: { timeSubRange: { start: "2026-01-05", end: "2026-01-12" }, layers: [pm25(POINT)] }
+			data: {
+				timeSubRange: { start: "2026-01-05", end: "2026-01-12" },
+				place: POINT,
+				layers: [PM25]
+			}
 		};
 		await pointSwaps(docWith(calendar));
 		const [input] = mocked.placeRegion.mock.calls[0];
@@ -155,7 +157,7 @@ describe("hasPoints and pointSwaps", () => {
 			type: CURRENT_TYPE,
 			title: null,
 			rect: { x: 0, y: 0, w: 3, h: 4 },
-			data: { layers: [pm25(POINT)] }
+			data: { place: POINT, layers: [PM25] }
 		};
 		const swaps = await pointSwaps(docWith(tile));
 		expect(swaps[0].region).toEqual({ type: "zipcode", code: "93721" });
@@ -172,7 +174,7 @@ describe("hasPoints and pointSwaps", () => {
 			type: MAP_TYPE,
 			title: null,
 			rect: { x: 0, y: 0, w: 6, h: 6 },
-			data: { layers: [pm25(POINT)] }
+			data: { place: POINT, layers: [PM25] }
 		};
 		const doc = docWith(map);
 		const swaps = await pointSwaps(doc);
@@ -182,7 +184,7 @@ describe("hasPoints and pointSwaps", () => {
 			resolution: "hour"
 		});
 		const swapped = withSwaps(doc, swaps);
-		expect(swapped.body.widgets[1].data.layers[0].place).toEqual({
+		expect(swapped.body.widgets[1].data.place).toEqual({
 			kind: "region",
 			type: "zipcode",
 			code: "93721"
@@ -198,7 +200,8 @@ describe("hasPoints and pointSwaps", () => {
 			rect: { x: 0, y: 0, w: 6, h: 6 },
 			data: {
 				dateRange: { kind: "trailing", amount: 7, unit: "day" },
-				layers: [pm25(POINT)]
+				place: POINT,
+				layers: [PM25]
 			}
 		};
 		const doc = docWith(map);
@@ -209,7 +212,7 @@ describe("hasPoints and pointSwaps", () => {
 			resolution: "hour"
 		});
 		const swapped = withSwaps(doc, swaps);
-		expect(swapped.body.widgets[1].data.layers[0].place).toEqual({
+		expect(swapped.body.widgets[1].data.place).toEqual({
 			kind: "region",
 			type: "zipcode",
 			code: "93721"
@@ -221,15 +224,16 @@ describe("hasPoints and pointSwaps", () => {
 		});
 	});
 
-	it("shares a Map holding a point with PM2.5 and ozone as one region swap on the places layer", async () => {
+	it("shares a Map holding a point with PM2.5 and ozone as one region swap of its Where", async () => {
 		const map: WidgetInstance = {
 			id: "m",
 			type: MAP_TYPE,
 			title: null,
 			rect: { x: 0, y: 0, w: 6, h: 6 },
 			data: {
+				place: POINT,
 				layers: [
-					pm25(POINT),
+					PM25,
 					{ dataset: "air-quality", entryType: "o3" },
 					{ dataset: "hms-smoke" },
 					{ dataset: "hms-fire" }
@@ -242,17 +246,15 @@ describe("hasPoints and pointSwaps", () => {
 		expect(swaps).toEqual([
 			{
 				widgetId: "m",
-				layerIndex: 0,
 				point: { lat: POINT.lat, lon: POINT.lon },
 				region: { type: "zipcode", code: "93721" }
 			}
 		]);
 		expect(mocked.placeRegion).toHaveBeenCalledTimes(1);
 		const swapped = withSwaps(doc, swaps);
-		const layers = swapped.body.widgets[1].data.layers;
-		expect(layers[0].place).toEqual({ kind: "region", type: "zipcode", code: "93721" });
-		expect(layers.slice(1).every((l) => l.place === undefined)).toBe(true);
-		expect(layers).toHaveLength(4);
+		const data = swapped.body.widgets[1].data;
+		expect(data.place).toEqual({ kind: "region", type: "zipcode", code: "93721" });
+		expect(data.layers).toEqual(map.data.layers);
 		expect(hasPoints(swapped)).toBe(false);
 	});
 
@@ -263,13 +265,8 @@ describe("hasPoints and pointSwaps", () => {
 			title: null,
 			rect: { x: 0, y: 0, w: 6, h: 6 },
 			data: {
-				layers: [
-					{
-						dataset: "air-quality",
-						entryType: "pm25",
-						selection: { kind: "monitors", ids: ["a", "b"] }
-					}
-				]
+				selection: { kind: "monitors", ids: ["a", "b"] },
+				layers: [PM25]
 			}
 		};
 		const doc = docWith(map);
@@ -285,10 +282,8 @@ describe("hasPoints and pointSwaps", () => {
 			title: null,
 			rect: { x: 0, y: 0, w: 6, h: 6 },
 			data: {
-				layers: [
-					pm25({ kind: "region", type: "zipcode", code: "93721" }),
-					{ dataset: "pesticide-notices", filters: { chemical: "c1" } }
-				]
+				place: { kind: "region", type: "zipcode", code: "93721" },
+				layers: [PM25, { dataset: "pesticide-notices", filters: { chemical: "c1" } }]
 			}
 		};
 		const doc = docWith(map);
@@ -307,8 +302,9 @@ describe("hasPoints and pointSwaps", () => {
 			rect: { x: 0, y: 0, w: 6, h: 6 },
 			options: { useFigure: "acres-treated" },
 			data: {
+				place: POINT,
 				layers: [
-					pm25(POINT),
+					PM25,
 					{ dataset: "pesticide-notices", filters: { chemical: "c1" } },
 					{ dataset: "pesticide-use", filters: { chemical: "c1" } }
 				]
@@ -319,12 +315,12 @@ describe("hasPoints and pointSwaps", () => {
 		const swaps = await pointSwaps(doc);
 		expect(mocked.placeRegion).toHaveBeenCalledTimes(1);
 		const swapped = withSwaps(doc, swaps).body.widgets[1];
-		expect(swapped.data.layers[0].place).toEqual({
+		expect(swapped.data.place).toEqual({
 			kind: "region",
 			type: "zipcode",
 			code: "93721"
 		});
-		expect(swapped.data.layers.slice(1)).toEqual(map.data.layers.slice(1));
+		expect(swapped.data.layers).toEqual(map.data.layers);
 		expect(swapped.options).toEqual({ useFigure: "acres-treated" });
 	});
 
@@ -334,7 +330,7 @@ describe("hasPoints and pointSwaps", () => {
 			type: FORECAST_TYPE,
 			title: null,
 			rect: { x: 0, y: 0, w: 3, h: 4 },
-			data: { layers: [{ dataset: "forecasts", place: POINT }] }
+			data: { place: POINT, layers: [{ dataset: "forecasts" }] }
 		};
 		const doc = docWith(strip);
 		const swaps = await pointSwaps(doc);
@@ -344,15 +340,16 @@ describe("hasPoints and pointSwaps", () => {
 			resolution: "hour"
 		});
 		const swapped = withSwaps(doc, swaps);
-		expect(swapped.body.widgets[1].data.layers).toEqual([
-			{ dataset: "forecasts", place: { kind: "region", type: "zipcode", code: "93721" } }
-		]);
+		expect(swapped.body.widgets[1].data).toEqual({
+			place: { kind: "region", type: "zipcode", code: "93721" },
+			layers: [{ dataset: "forecasts" }]
+		});
 		expect(hasPoints(swapped)).toBe(false);
 	});
 
 	it("rejects when a lookup fails", async () => {
 		mocked.placeRegion.mockRejectedValue(new Error("offline"));
-		await expect(pointSwaps(docWith(dataWidget("p", [pm25(POINT)])))).rejects.toThrow();
+		await expect(pointSwaps(docWith(dataWidget("p", POINT)))).rejects.toThrow();
 	});
 
 	it("gives up after 20 seconds", async () => {
@@ -364,7 +361,7 @@ describe("hasPoints and pointSwaps", () => {
 						signal?.addEventListener("abort", () => reject(signal.reason))
 					)
 			);
-			const swaps = pointSwaps(docWith(dataWidget("p", [pm25(POINT)])));
+			const swaps = pointSwaps(docWith(dataWidget("p", POINT)));
 			const settled = expect(swaps).rejects.toBeDefined();
 			await vi.advanceTimersByTimeAsync(20_000);
 			await settled;
@@ -381,50 +378,45 @@ describe("hasPoints and pointSwaps", () => {
 				)
 		);
 		const caller = new AbortController();
-		const swaps = pointSwaps(docWith(dataWidget("p", [pm25(POINT)])), caller.signal);
+		const swaps = pointSwaps(docWith(dataWidget("p", POINT)), caller.signal);
 		caller.abort();
 		await expect(swaps).rejects.toBeDefined();
 	});
 });
 
 describe("withSwaps", () => {
-	it("swaps each point for its region and leaves everything else alone", async () => {
-		const school = pm25({ kind: "location", source: "cde", code: "1062166" });
-		const doc = docWith(dataWidget("p", [pm25(POINT)]), dataWidget("s", [school]));
+	it("a point in Where is swapped for its region on share; everything else is left alone", async () => {
+		const school = { kind: "location", source: "cde", code: "1062166" } as const;
+		const doc = docWith(dataWidget("p", POINT), dataWidget("s", school));
 		const swapped = withSwaps(doc, await pointSwaps(doc));
-		expect(swapped.body.widgets.find((w) => w.id === "p")!.data.layers).toEqual([
-			{
-				dataset: "air-quality",
-				entryType: "pm25",
-				place: { kind: "region", type: "zipcode", code: "93721" }
-			}
-		]);
+		expect(swapped.body.widgets.find((w) => w.id === "p")!.data).toEqual({
+			dateRange: RANGE,
+			place: { kind: "region", type: "zipcode", code: "93721" },
+			layers: [PM25]
+		});
 		// Schools need none of this.
 		expect(swapped.body.widgets.find((w) => w.id === "s")).toEqual(doc.body.widgets[2]);
 		expect(swapped.body.widgets[0]).toBe(doc.body.widgets[0]);
 		expect(hasPoints(swapped)).toBe(false);
 		// The original is untouched.
-		expect(doc.body.widgets[1].data.layers[0].place).toEqual(POINT);
+		expect(doc.body.widgets[1].data.place).toEqual(POINT);
 	});
 
 	it("removes a point with no region (the widget shows its idle state)", async () => {
 		mocked.placeRegion.mockResolvedValue(null);
-		const doc = docWith(dataWidget("p", [pm25(POINT)]));
+		const doc = docWith(dataWidget("p", POINT));
 		const swapped = withSwaps(doc, await pointSwaps(doc));
-		expect(swapped.body.widgets[1].data.layers).toEqual([
-			{ dataset: "air-quality", entryType: "pm25" }
-		]);
+		expect(swapped.body.widgets[1].data).toEqual({ dateRange: RANGE, layers: [PM25] });
 	});
 
-	it("leaves a layer that is no longer that point alone", () => {
+	it("leaves a widget that is no longer at that point alone", () => {
 		const swap = {
 			widgetId: "p",
-			layerIndex: 0,
 			point: { lat: POINT.lat, lon: POINT.lon },
 			region: { type: "zipcode", code: "93721" }
 		};
 		for (const place of [{ kind: "monitor", id: "m1" } as const, { ...POINT, lat: 36.8 }]) {
-			const doc = docWith(dataWidget("p", [pm25(place)]));
+			const doc = docWith(dataWidget("p", place));
 			expect(withSwaps(doc, [swap]).body.widgets[1]).toEqual(doc.body.widgets[1]);
 		}
 	});
@@ -432,23 +424,15 @@ describe("withSwaps", () => {
 
 describe("pointsCovered", () => {
 	it("is true only when every point now in the dashboard has its swap", async () => {
-		const doc = docWith(dataWidget("p", [pm25(POINT)]));
+		const doc = docWith(dataWidget("p", POINT));
 		const swaps = await pointSwaps(doc);
 		expect(pointsCovered(doc, swaps)).toBe(true);
 		expect(pointsCovered(docWith(), swaps)).toBe(true);
-		// Re-picked, added elsewhere, or moved to another layer meanwhile.
-		expect(pointsCovered(docWith(dataWidget("p", [pm25({ ...POINT, lat: 36.8 })])), swaps)).toBe(
+		// Re-picked, added elsewhere, or replaced meanwhile.
+		expect(pointsCovered(docWith(dataWidget("p", { ...POINT, lat: 36.8 })), swaps)).toBe(false);
+		expect(pointsCovered(docWith(dataWidget("p", POINT), dataWidget("q", POINT)), swaps)).toBe(
 			false
 		);
-		expect(
-			pointsCovered(docWith(dataWidget("p", [pm25(POINT)]), dataWidget("q", [pm25(POINT)])), swaps)
-		).toBe(false);
-		expect(
-			pointsCovered(
-				docWith(dataWidget("p", [pm25({ kind: "monitor", id: "m1" }), pm25(POINT)])),
-				swaps
-			)
-		).toBe(false);
 	});
 });
 
@@ -460,13 +444,13 @@ describe("the Change place bar's point", () => {
 	});
 
 	it("counts as a point, even with no point layer", () => {
-		const doc = withBar(docWith(dataWidget("c", [pm25(ZIP)])), POINT);
+		const doc = withBar(docWith(dataWidget("c", ZIP)), POINT);
 		expect(hasPoints(doc)).toBe(true);
 		expect(hasPoints(withBar(doc, ZIP))).toBe(false);
 	});
 
 	it("becomes the same region as a swapped layer holding the same point", async () => {
-		const doc = withBar(docWith(dataWidget("p", [pm25(POINT)])), POINT);
+		const doc = withBar(docWith(dataWidget("p", POINT)), POINT);
 		const swapped = withSwaps(doc, await pointSwaps(doc));
 		expect(swapped.body.placeBar).toEqual({ place: ZIP });
 		expect(hasPoints(swapped)).toBe(false);
@@ -475,8 +459,8 @@ describe("the Change place bar's point", () => {
 	it("is dropped when no layer holds its point", async () => {
 		const other = { ...POINT, lat: 36.8 };
 		for (const doc of [
-			withBar(docWith(dataWidget("p", [pm25(other)])), POINT),
-			withBar(docWith(dataWidget("c", [pm25(ZIP)])), POINT)
+			withBar(docWith(dataWidget("p", other)), POINT),
+			withBar(docWith(dataWidget("c", ZIP)), POINT)
 		]) {
 			const swapped = withSwaps(doc, await pointSwaps(doc));
 			expect(swapped.body.placeBar).toBeUndefined();
@@ -487,30 +471,30 @@ describe("the Change place bar's point", () => {
 
 	it("is dropped when its layer's point has no region", async () => {
 		mocked.placeRegion.mockResolvedValue(null);
-		const doc = withBar(docWith(dataWidget("p", [pm25(POINT)])), POINT);
+		const doc = withBar(docWith(dataWidget("p", POINT)), POINT);
 		const swapped = withSwaps(doc, await pointSwaps(doc));
 		expect("placeBar" in swapped.body).toBe(false);
 	});
 
 	it("leaves a bar that isn't a point alone", async () => {
-		const doc = withBar(docWith(dataWidget("p", [pm25(POINT)])), ZIP);
+		const doc = withBar(docWith(dataWidget("p", POINT)), ZIP);
 		const swapped = withSwaps(doc, await pointSwaps(doc));
 		expect(swapped.body.placeBar).toBe(doc.body.placeBar);
 	});
 
 	it("is covered by its layer's swap, or needs none", async () => {
-		const doc = withBar(docWith(dataWidget("p", [pm25(POINT)])), POINT);
+		const doc = withBar(docWith(dataWidget("p", POINT)), POINT);
 		expect(pointsCovered(doc, await pointSwaps(doc))).toBe(true);
 		expect(pointsCovered(withBar(docWith(), POINT), [])).toBe(true);
 	});
 
 	it("a swap that moves the bar is one replaceDocument", async () => {
-		const doc = withBar(docWith(dataWidget("p", [pm25(POINT)])), POINT);
+		const doc = withBar(docWith(dataWidget("p", POINT)), POINT);
 		const change = swapChange(doc, await pointSwaps(doc));
 		expect(change?.op).toBe("replaceDocument");
 		const to = (change as Extract<typeof change, { op: "replaceDocument" }>)!.to;
 		expect(to.body.placeBar).toEqual({ place: ZIP });
-		expect(to.body.widgets[1].data.layers[0].place).toEqual(ZIP);
+		expect(to.body.widgets[1].data.place).toEqual(ZIP);
 		// A bar-only point: its removal alone.
 		const barOnly = withBar(docWith(), POINT);
 		const removal = swapChange(barOnly, []);
@@ -526,7 +510,6 @@ describe("the Change place bar's point", () => {
 describe("summarizeSwaps and swapNotice", () => {
 	const swap = (region: { type: string; code: string } | null, widgetId = "p") => ({
 		widgetId,
-		layerIndex: 0,
 		point: { lat: POINT.lat, lon: POINT.lon },
 		region
 	});

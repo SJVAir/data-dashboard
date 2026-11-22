@@ -81,11 +81,11 @@ function countyDoc(marks: string[], range: Record<string, unknown> | null = PAST
 					title: null,
 					rect: { x: 0, y: 0, w: 12, h: 8 },
 					data: {
+						place: { kind: "region", type: "county", code: "06019" },
 						layers: [
 							{
 								dataset: "air-quality",
-								entryType: "pm25",
-								place: { kind: "region", type: "county", code: "06019" }
+								entryType: "pm25"
 							}
 						],
 						...(range && { dateRange: range })
@@ -243,7 +243,7 @@ test.describe("shared by a live link", () => {
 	}) => {
 		const doc = countyDoc([DRUMMOND], null);
 		doc.name = "Monitor map";
-		doc.body.widgets[0].data.layers[0].place = { kind: "monitor", id: DRUMMOND } as never;
+		doc.body.widgets[0].data.place = { kind: "monitor", id: DRUMMOND } as never;
 		await openSharedDoc(page, doc);
 		await expect(nav(page).getByText("Saved to your account", { exact: true })).toBeVisible();
 		await openPicker(page, doc.name);

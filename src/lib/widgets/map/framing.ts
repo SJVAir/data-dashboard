@@ -1,7 +1,7 @@
 import { geometryBbox, type Bbox } from "@sjvair/map-sdk";
 import type { Feature } from "geojson";
-import type { Layer } from "$lib/data/schema";
-import { fromLayer } from "$lib/places/selection";
+import type { Layer, WidgetDataConfig } from "$lib/data/schema";
+import { fromWhere } from "$lib/places/selection";
 import { regionKey, type RegionRef } from "./regions";
 
 export type { RegionRef };
@@ -24,7 +24,10 @@ export type Frame = {
 export type Need =
 	| { kind: "regions"; refs: RegionRef[] }
 	| { kind: "location"; source: string; code: string }
-	| { kind: "point-region"; layer: Layer };
+	| { kind: "point-region"; layer: Layer; point: { lat: number; lon: number } };
+
+/** A widget's Where, as a frame reads it. */
+export type Where = Pick<WidgetDataConfig, "place" | "selection">;
 
 export type FitTarget = { bbox: Bbox } | { center: [number, number]; minZoom: number } | null;
 
@@ -34,14 +37,15 @@ const MONITOR_MIN_ZOOM = 12;
 const LOCATION_MIN_ZOOM = 13;
 
 /**
- * What a layer's places frame, before any lookups: the monitors to highlight, what the camera
- * fits, and the lookups (`needs`) that fill in the regions and the pin. A point frames its region,
- * never itself.
+ * What a map's Where frames for its `layer` (its main one; none frames nothing), before any
+ * lookups: the monitors to highlight, what the camera fits, and the lookups (`needs`) that fill in
+ * the regions and the pin. A point frames its region (looked up for `layer`), never itself.
  */
 export function frameOf(
-	layer: Layer | undefined
+	layer: Layer | undefined,
+	where: Where
 ): Omit<Frame, "pin" | "regions"> & { needs: Need[] } {
-	const place = layer?.place;
+	const { place, selection } = where;
 	if (layer && place) {
 		switch (place.kind) {
 			case "monitor":
@@ -59,12 +63,16 @@ export function frameOf(
 					needs: [{ kind: "location", source: place.source, code: place.code }]
 				};
 			case "point":
-				return { monitors: [], focus: "regions", needs: [{ kind: "point-region", layer }] };
+				return {
+					monitors: [],
+					focus: "regions",
+					needs: [{ kind: "point-region", layer, point: { lat: place.lat, lon: place.lon } }]
+				};
 		}
 	}
-	if (layer?.selection) {
-		const picks = fromLayer(layer);
-		if (layer.selection.kind === "monitors") {
+	if (layer && selection) {
+		const picks = fromWhere(where);
+		if (selection.kind === "monitors") {
 			const ids = picks.flatMap((p) => (p.kind === "monitor" ? [p.id] : []));
 			return { monitors: ids, focus: "monitor", needs: [] };
 		}

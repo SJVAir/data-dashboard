@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PlaceRef } from "$lib/data/schema";
-import { blockReason, fromLayer, toggle, toLayerPlaces, type PickerMode } from "./selection";
+import { blockReason, fromWhere, toggle, toWhere, type PickerMode } from "./selection";
 
 const single: PickerMode = { kind: "single" };
 const multi = (max = 3): PickerMode => ({ kind: "multiple", max });
@@ -84,35 +84,35 @@ describe("toggle", () => {
 	});
 });
 
-describe("toLayerPlaces", () => {
-	it("maps picks to layer fields", () => {
-		expect(toLayerPlaces([])).toEqual({});
-		expect(toLayerPlaces([fresno])).toEqual({ place: fresno });
-		expect(toLayerPlaces([fresno, kern])).toEqual({
+describe("toWhere", () => {
+	it("maps picks to a Where", () => {
+		expect(toWhere([])).toEqual({});
+		expect(toWhere([fresno])).toEqual({ place: fresno });
+		expect(toWhere([fresno, kern])).toEqual({
 			selection: { kind: "regions", ids: ["county:06019", "county:06107"] }
 		});
-		expect(toLayerPlaces([mon1, mon2])).toEqual({
+		expect(toWhere([mon1, mon2])).toEqual({
 			selection: { kind: "monitors", ids: ["m1", "m2"] }
 		});
 	});
 });
 
-describe("fromLayer", () => {
+describe("fromWhere", () => {
 	it("round-trips", () => {
 		for (const picks of [[], [school], [fresno, kern], [mon1, mon2]]) {
-			expect(fromLayer(toLayerPlaces(picks))).toEqual(picks);
+			expect(fromWhere(toWhere(picks))).toEqual(picks);
 		}
 	});
 	it("drops invalid region ids and default-place", () => {
 		expect(
-			fromLayer({ selection: { kind: "regions", ids: ["county:06019", "bad", ":x", "y:"] } })
+			fromWhere({ selection: { kind: "regions", ids: ["county:06019", "bad", ":x", "y:"] } })
 		).toEqual([fresno]);
-		expect(fromLayer({ place: { kind: "default-place" } })).toEqual([]);
+		expect(fromWhere({ place: { kind: "default-place" } })).toEqual([]);
 	});
 	it("loads a selection larger than the cap", () => {
 		const ids = ["a", "b", "c", "d", "e", "f"];
-		expect(fromLayer({ selection: { kind: "monitors", ids } })).toHaveLength(6);
-		expect(blockReason(fromLayer({ selection: { kind: "monitors", ids } }), mon1, multi(5))).toBe(
+		expect(fromWhere({ selection: { kind: "monitors", ids } })).toHaveLength(6);
+		expect(blockReason(fromWhere({ selection: { kind: "monitors", ids } }), mon1, multi(5))).toBe(
 			"at-cap"
 		);
 	});

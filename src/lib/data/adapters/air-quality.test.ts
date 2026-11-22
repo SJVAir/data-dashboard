@@ -47,9 +47,9 @@ import { getValidDateRange } from "@sjvair/sdk/datetime";
 import { resolveRange } from "$lib/format/range";
 import { createPlaceRegion } from "../place-region";
 import { createQueryClient } from "../query/client";
-import type { DateRangeSpec, Layer, Resolution } from "../schema";
+import type { DateRangeSpec, Resolution } from "../schema";
 import { fixtureMetadata } from "../testing/fixtures";
-import type { Target } from "../types";
+import type { QueryLayer, Target } from "../types";
 import { airQualityAdapter, summarySeries } from "./air-quality";
 import type {
 	AdapterContext,
@@ -138,9 +138,9 @@ beforeEach(() => {
 
 describe("airQualityAdapter.target", () => {
 	it("reports a monitor missing from the loaded list as monitor-unlisted", async () => {
-		const layer: Layer = { dataset: "air-quality", place: { kind: "monitor", id: "m-gone" } };
+		const layer: QueryLayer = { dataset: "air-quality", place: { kind: "monitor", id: "m-gone" } };
 		expect(await airQualityAdapter.target(layer, ctx)).toEqual({ unavailable: "monitor-unlisted" });
-		const listed: Layer = { dataset: "air-quality", place: { kind: "monitor", id: "m-pa" } };
+		const listed: QueryLayer = { dataset: "air-quality", place: { kind: "monitor", id: "m-pa" } };
 		expect(await airQualityAdapter.target(listed, ctx)).toEqual({
 			kind: "monitors",
 			ids: ["m-pa"]
@@ -1257,8 +1257,11 @@ describe("airQualityAdapter.fetch fallback", () => {
 });
 
 describe("placeRegion", () => {
-	const base: Layer = { dataset: "air-quality", entryType: "pm25" };
-	const school: Layer = { ...base, place: { kind: "location", source: "cde-public", code: "1" } };
+	const base: QueryLayer = { dataset: "air-quality", entryType: "pm25" };
+	const school: QueryLayer = {
+		...base,
+		place: { kind: "location", source: "cde-public", code: "1" }
+	};
 	const placeRegion = () =>
 		createPlaceRegion(
 			createQueryClient({
@@ -1293,7 +1296,7 @@ describe("placeRegion", () => {
 
 	it("is a point's last candidate when none has data", async () => {
 		withData([]);
-		const layer: Layer = { ...base, place: { kind: "point", lat: 36.737, lon: -119.787 } };
+		const layer: QueryLayer = { ...base, place: { kind: "point", lat: 36.737, lon: -119.787 } };
 		expect(await placeRegion()({ layer, dateRange: SEPTEMBER, resolution: "day" })).toEqual({
 			type: "county",
 			code: "06019"
@@ -1301,8 +1304,14 @@ describe("placeRegion", () => {
 	});
 
 	it("is null for a school that doesn't resolve and for other places", async () => {
-		const gone: Layer = { ...base, place: { kind: "location", source: "cde-public", code: "9" } };
-		const region: Layer = { ...base, place: { kind: "region", type: "county", code: "06019" } };
+		const gone: QueryLayer = {
+			...base,
+			place: { kind: "location", source: "cde-public", code: "9" }
+		};
+		const region: QueryLayer = {
+			...base,
+			place: { kind: "region", type: "county", code: "06019" }
+		};
 		expect(
 			await placeRegion()({ layer: gone, dateRange: SEPTEMBER, resolution: "day" })
 		).toBeNull();

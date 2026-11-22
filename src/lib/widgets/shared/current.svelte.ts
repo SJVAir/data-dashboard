@@ -81,7 +81,10 @@ export class CurrentConditions {
 		// `undefined` while the monitor's type and alert config are being looked up; `null` when
 		// the place is not a monitor the server evaluates for this pollutant.
 		let alertMode = $state.raw<AlertMode | null | undefined>();
-		const monitorId = $derived(layer?.place?.kind === "monitor" ? layer.place.id : undefined);
+		const monitorId = $derived.by(() => {
+			const place = layer && widget().data.place;
+			return place?.kind === "monitor" ? place.id : undefined;
+		});
 		$effect(() => {
 			const id = monitorId;
 			const entryType = entryTypeId;

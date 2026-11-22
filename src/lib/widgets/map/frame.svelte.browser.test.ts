@@ -2,7 +2,7 @@ import type { Feature } from "geojson";
 import { flushSync } from "svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getResolvers, placeRegion } from "$lib/data";
-import type { Layer, WidgetDataConfig } from "$lib/data/schema";
+import type { Layer, PlaceRef, WidgetDataConfig } from "$lib/data/schema";
 import { MapFrame } from "./frame.svelte";
 import { regionShapes } from "./regions";
 
@@ -14,7 +14,7 @@ vi.mock("./regions", async (original) => ({
 }));
 
 const resolve = vi.fn();
-const base = { dataset: "air-quality", entryType: "pm25" };
+const base: Layer = { dataset: "air-quality", entryType: "pm25" };
 const flush = () => new Promise((r) => setTimeout(r, 0));
 const shape: Feature = {
 	type: "Feature",
@@ -24,8 +24,13 @@ const shape: Feature = {
 
 let frames: MapFrame[] = [];
 
-function track(layer: () => Layer | undefined) {
-	const f = new MapFrame(layer, () => ({ layers: [] }) satisfies WidgetDataConfig);
+/** A frame of a PM2.5 Map whose Where is `place` (none: everywhere). */
+function track(place: () => PlaceRef | undefined) {
+	const data = (): WidgetDataConfig => {
+		const p = place();
+		return { ...(p ? { place: p } : {}), layers: [base] };
+	};
+	const f = new MapFrame(() => base, data);
 	frames.push(f);
 	return f;
 }
@@ -54,11 +59,11 @@ describe("MapFrame", () => {
 					answers.push(r);
 				})
 		);
-		let layer = $state<Layer>({ ...base, place: { kind: "point", lat: 36.7, lon: -119.8 } });
-		const f = track(() => layer);
+		let place = $state<PlaceRef>({ kind: "point", lat: 36.7, lon: -119.8 });
+		const f = track(() => place);
 		flushSync();
 		expect(f.state).toBe("loading");
-		layer = { ...base, place: { kind: "point", lat: 36.8, lon: -119.7 } };
+		place = { kind: "point", lat: 36.8, lon: -119.7 };
 		flushSync();
 		expect(signals).toHaveLength(2);
 		expect(signals[0].aborted).toBe(true);
@@ -78,7 +83,7 @@ describe("MapFrame", () => {
 
 	it("an unknown school is location-unresolved", async () => {
 		resolve.mockResolvedValue(null);
-		const f = track(() => ({ ...base, place: { kind: "location", source: "cde", code: "1" } }));
+		const f = track(() => ({ kind: "location", source: "cde", code: "1" }));
 		flushSync();
 		await flush();
 		expect(f.state).toEqual({ unavailable: "location-unresolved" });
@@ -86,7 +91,7 @@ describe("MapFrame", () => {
 
 	it("a school with no point is location-unresolved", async () => {
 		resolve.mockResolvedValue({ name: "A School", keys: [] });
-		const f = track(() => ({ ...base, place: { kind: "location", source: "cde", code: "1" } }));
+		const f = track(() => ({ kind: "location", source: "cde", code: "1" }));
 		flushSync();
 		await flush();
 		expect(f.state).toEqual({ unavailable: "location-unresolved" });
@@ -94,7 +99,7 @@ describe("MapFrame", () => {
 
 	it("a school is pinned at its point", async () => {
 		resolve.mockResolvedValue({ name: "A School", keys: [], point: { lat: 36.7, lon: -119.8 } });
-		const f = track(() => ({ ...base, place: { kind: "location", source: "cde", code: "1" } }));
+		const f = track(() => ({ kind: "location", source: "cde", code: "1" }));
 		flushSync();
 		await flush();
 		expect(f.state).toBe("ready");
@@ -108,7 +113,7 @@ describe("MapFrame", () => {
 
 	it("a point outside every region is point-outside", async () => {
 		vi.mocked(placeRegion).mockResolvedValue(null);
-		const f = track(() => ({ ...base, place: { kind: "point", lat: 36.7, lon: -119.8 } }));
+		const f = track(() => ({ kind: "point", lat: 36.7, lon: -119.8 }));
 		flushSync();
 		await flush();
 		expect(f.state).toEqual({ unavailable: "point-outside" });
@@ -117,14 +122,14 @@ describe("MapFrame", () => {
 
 	it("a region with no geometry is region-unresolved", async () => {
 		vi.mocked(regionShapes).mockResolvedValue(new Map());
-		const f = track(() => ({ ...base, place: { kind: "region", type: "county", code: "x" } }));
+		const f = track(() => ({ kind: "region", type: "county", code: "x" }));
 		flushSync();
 		await flush();
 		expect(f.state).toEqual({ unavailable: "region-unresolved" });
 	});
 
 	it("a monitor is ready at once; nothing is idle", () => {
-		const f = track(() => ({ ...base, place: { kind: "monitor", id: "m1" } }));
+		const f = track(() => ({ kind: "monitor", id: "m1" }));
 		flushSync();
 		expect(f.state).toBe("ready");
 		expect(f.frame?.monitors).toEqual(["m1"]);
@@ -137,7 +142,7 @@ describe("MapFrame", () => {
 	it("a failed lookup is an error", async () => {
 		const boom = new Error("offline");
 		vi.mocked(regionShapes).mockRejectedValue(boom);
-		const f = track(() => ({ ...base, place: { kind: "region", type: "county", code: "x" } }));
+		const f = track(() => ({ kind: "region", type: "county", code: "x" }));
 		flushSync();
 		await flush();
 		expect(f.state).toEqual({ error: boom });
@@ -148,7 +153,7 @@ describe("MapFrame", () => {
 		vi.mocked(regionShapes).mockImplementation(
 			async (refs) => new Map(refs.map((r) => [`${r.type}:${r.code}`, shape]))
 		);
-		const f = track(() => ({ ...base, place: { kind: "region", type: "county", code: "x" } }));
+		const f = track(() => ({ kind: "region", type: "county", code: "x" }));
 		flushSync();
 		await flush();
 		expect(f.state).toHaveProperty("error");

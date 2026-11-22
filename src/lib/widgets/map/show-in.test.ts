@@ -74,8 +74,9 @@ const send = (ids: string[], leftOut = 0): MapSend => ({ kind: "monitors", ids, 
 const mapDraft = (pollutants: string[], options?: Draft["options"]): Draft => {
 	const data: WidgetDataConfig = {
 		dateRange: { kind: "set", unit: "month", start: "2026-09-01" },
+		place: FRESNO,
 		layers: [
-			{ dataset: "air-quality", entryType: pollutants[0], place: FRESNO },
+			{ dataset: "air-quality", entryType: pollutants[0] },
 			...pollutants.slice(1).map((entryType) => ({ dataset: "air-quality", entryType }))
 		]
 	};
@@ -98,30 +99,26 @@ const fullMap = (): Draft => {
 };
 
 describe("showInDraft: monitors", () => {
-	it("is fromMapDraft's Chart with the main layer's places swapped for the ids, in order", () => {
+	it("is fromMapDraft's Chart with its Where swapped for the ids, in order", () => {
 		const map = mapDraft(["pm25"]);
 		const shown = fromMapDraft(map, chartType, CATALOG, "unavailable", DRAWABLE, NOW).draft;
 		const h = showInDraft(map, send(["m3", "m1"]), chartType, CATALOG, DRAWABLE, NOW);
-		const [main, ...rest] = shown.data.layers;
-		// eslint-disable-next-line @typescript-eslint/no-unused-vars -- swapped below
-		const { place, ...bare } = main;
+		const { place, ...bare } = shown.data;
+		expect(place).toBeDefined();
 		expect(h.draft).toEqual({
 			...shown,
-			data: {
-				...shown.data,
-				layers: [{ ...bare, selection: { kind: "monitors", ids: ["m3", "m1"] } }, ...rest]
-			}
+			data: { ...bare, selection: { kind: "monitors", ids: ["m3", "m1"] } }
 		});
 		expect(h.draft.type).toBe(CHART_TYPE);
 	});
 
 	it("one id gives a place, several a monitors selection", () => {
 		const one = showInDraft(mapDraft(["pm25"]), send(["m7"]), chartType, CATALOG, DRAWABLE, NOW);
-		expect(one.draft.data.layers[0].place).toEqual({ kind: "monitor", id: "m7" });
-		expect(one.draft.data.layers[0].selection).toBeUndefined();
+		expect(one.draft.data.place).toEqual({ kind: "monitor", id: "m7" });
+		expect(one.draft.data.selection).toBeUndefined();
 		const two = showInDraft(mapDraft(["pm25"]), send(["a", "b"]), chartType, CATALOG, [], NOW);
-		expect(two.draft.data.layers[0].place).toBeUndefined();
-		expect(two.draft.data.layers[0].selection).toEqual({ kind: "monitors", ids: ["a", "b"] });
+		expect(two.draft.data.place).toBeUndefined();
+		expect(two.draft.data.selection).toEqual({ kind: "monitors", ids: ["a", "b"] });
 	});
 
 	it("is over the cap past 5 for a Chart and 10 for a Table, keeping every id", () => {
@@ -131,7 +128,7 @@ describe("showInDraft: monitors", () => {
 			showInDraft(mapDraft(["pm25"]), send(monitors(n)), type, CATALOG, DRAWABLE, NOW);
 		expect(overCap(at(5).draft)).toBe(false);
 		expect(overCap(at(6).draft)).toBe(true);
-		expect(at(6).draft.data.layers[0].selection).toEqual({ kind: "monitors", ids: monitors(6) });
+		expect(at(6).draft.data.selection).toEqual({ kind: "monitors", ids: monitors(6) });
 		expect(overCap(at(10, dataTableType).draft)).toBe(false);
 		expect(overCap(at(11, dataTableType).draft)).toBe(true);
 	});
@@ -222,11 +219,11 @@ describe("showInDraft: a section", () => {
 				data: {
 					dateRange: { kind: "set", unit: "month", start: "2026-09-01" },
 					resolution: "month",
+					place: { kind: "region", type: "mtrs", code: "M15S20E07" },
 					layers: [
 						{
 							dataset: PESTICIDE_USE,
 							entryType: "acres-treated",
-							place: { kind: "region", type: "mtrs", code: "M15S20E07" },
 							filters: { chemical: "c1", category: ["A"] }
 						}
 					]
@@ -241,11 +238,8 @@ describe("showInDraft: a section", () => {
 		setUse(map, true);
 		const h = showInDraft(map, { kind: "section", code: "X" }, chartType, CATALOG, [], NOW);
 		expect(h.draft.data.resolution).toBeUndefined();
-		expect(h.draft.data.layers[0]).toEqual({
-			dataset: PESTICIDE_USE,
-			entryType: "pounds-applied",
-			place: { kind: "region", type: "mtrs", code: "X" }
-		});
+		expect(h.draft.data.layers[0]).toEqual({ dataset: PESTICIDE_USE, entryType: "pounds-applied" });
+		expect(h.draft.data.place).toEqual({ kind: "region", type: "mtrs", code: "X" });
 	});
 
 	it("a Map with no range gives a Chart (whatever the type) over its default range, at Automatic", () => {
@@ -292,7 +286,7 @@ describe("showInDraft: the new widget type checklist", () => {
 			DRAWABLE,
 			NOW
 		);
-		expect(h.draft.data.layers[0].place).toEqual({
+		expect(h.draft.data.place).toEqual({
 			kind: "region",
 			type: "mtrs",
 			code: "M12S01E01"
@@ -445,7 +439,7 @@ describe("HandOffSchema", () => {
 
 	it("rejects a draft DraftSchema rejects, a negative left-out count, and missing fields", () => {
 		const bad = handOff();
-		bad.draft.data.layers[0] = { dataset: "air-quality", place: { kind: "nowhere" } } as never;
+		bad.draft.data.place = { kind: "nowhere" } as never;
 		expect(HandOffSchema.safeParse(bad).success).toBe(false);
 		expect(HandOffSchema.safeParse({ ...handOff(), leftOut: -1 }).success).toBe(false);
 		expect(HandOffSchema.safeParse({ ...handOff(), leftOut: 1.5 }).success).toBe(false);

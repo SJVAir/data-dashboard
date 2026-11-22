@@ -240,7 +240,7 @@
 					</fieldset>
 				{/if}
 				{#if id === WEATHER && weatherLayers.length > 0 && places === 1 && main}
-					<StationChoice place={main} value={station} onchange={onstation} />
+					<StationChoice where={data} value={station} onchange={onstation} />
 				{/if}
 				{#if id === PESTICIDES}
 					<PesticideLayers

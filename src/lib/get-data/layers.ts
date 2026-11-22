@@ -5,10 +5,11 @@ import { mainLayer } from "$lib/widgets/shared/input";
 import { MAX_OVERLAYS } from "$lib/widgets/shared/overlays";
 
 /**
- * Get data's edits to a draft's layers, each mutating `data` in place (the view's draft). The
- * places live on the main layer (`mainLayer`): when an edit changes which layer is main, they
- * move to the new one, so the widget never ends up with no places. An edit that would break a
- * rule (no number layer left, too many overlays) changes nothing.
+ * Get data's edits to a draft's layers, each mutating `data` in place (the view's draft). Where
+ * is on the data, not a layer, so no edit here touches it. An edit that would break a rule (no
+ * number layer left, too many overlays) changes nothing. The dataset's resolution
+ * (`data.resolution`) always stays: a specific resolution never changes by itself (Get data shows
+ * it blocked, with its reason, when a layer doesn't offer it).
  *
  * Kept free of the SDK and adapters, so it can be unit-tested and stays out of the initial bundle.
  */
@@ -45,33 +46,9 @@ export function canAddLayer(data: WidgetDataConfig, catalog: CatalogEntry[] | un
 }
 
 /**
- * Runs `change`, then moves the places from the old main layer to the new one when the main
- * changed. The dataset's resolution (`data.resolution`) always stays: a specific resolution never
- * changes by itself (Get data shows it blocked, with its reason, when a layer doesn't offer it).
- */
-export function keepingPlaces(
-	data: WidgetDataConfig,
-	catalog: CatalogEntry[] | undefined,
-	change: () => void
-): void {
-	const before = mainLayer(data, catalog);
-	const carried = before && { place: before.place, selection: before.selection };
-	change();
-	const after = mainLayer(data, catalog);
-	if (!before || !after || after === before || !carried) return;
-	delete before.place;
-	delete before.selection;
-	delete after.place;
-	delete after.selection;
-	if (carried.place) after.place = carried.place;
-	if (carried.selection) after.selection = carried.selection;
-}
-
-/**
  * Chooses the widget's pollutant, or (`null`) removes it. A pollutant chosen where there was
- * none becomes the main layer, taking the places, unless the old main would then be one overlay
- * too many. Removing it hands the places to the next number layer, and is refused when there is
- * none.
+ * none becomes the main layer, unless the old main would then be one overlay too many. Removing
+ * it is refused when no other number layer is left.
  */
 export function setPollutant(
 	data: WidgetDataConfig,
@@ -90,9 +67,7 @@ export function setPollutant(
 		return;
 	}
 	if (!canAddLayer(data, catalog)) return;
-	keepingPlaces(data, catalog, () =>
-		data.layers.unshift({ dataset: pick.dataset, entryType: pick.entryType })
-	);
+	data.layers.unshift({ dataset: pick.dataset, entryType: pick.entryType });
 }
 
 function addLayer(data: WidgetDataConfig, catalog: CatalogEntry[] | undefined, layer: Layer) {
@@ -100,12 +75,12 @@ function addLayer(data: WidgetDataConfig, catalog: CatalogEntry[] | undefined, l
 	// Weather layers share one station.
 	const station = data.layers.find((l) => l.dataset === WEATHER && l.station)?.station;
 	if (layer.dataset === WEATHER && station) layer.station = station;
-	keepingPlaces(data, catalog, () => data.layers.push(layer));
+	data.layers.push(layer);
 }
 
 /**
  * Turns a weather, smoke or forecast layer on or off (one layer per entry type). A number layer
- * added where there's no number layer becomes the main, with the places.
+ * added where there's no number layer becomes the main.
  */
 export function toggleLayer(
 	data: WidgetDataConfig,
@@ -140,14 +115,14 @@ export function canRemoveLayer(
 	return !isNumber(layer, catalog) || numberLayers(data, catalog) > 1;
 }
 
-/** Removes the layer at `index`; the main one hands its places on. Refuses the last number layer. */
+/** Removes the layer at `index`. Refuses the last number layer. */
 export function removeLayer(
 	data: WidgetDataConfig,
 	catalog: CatalogEntry[] | undefined,
 	index: number
 ): void {
 	if (!canRemoveLayer(data, catalog, index)) return;
-	keepingPlaces(data, catalog, () => data.layers.splice(index, 1));
+	data.layers.splice(index, 1);
 }
 
 /** Sets (or, with nothing in them, clears) the filters of the pesticide layer at `index`. */

@@ -6,7 +6,7 @@
 import { LIMITS, TimeSubRangeSchema, type TimeSubRange } from "$lib/data/schema";
 import { DraftSchema, type Draft } from "$lib/get-data/draft.svelte";
 import type { NowDropped } from "$lib/get-data/now";
-import { fromLayer } from "$lib/places/selection";
+import { fromWhere } from "$lib/places/selection";
 import { getWidgetType } from "$lib/widgets/registry";
 import { z } from "$lib/zod";
 
@@ -61,11 +61,10 @@ export const HandOffSchema: z.ZodType<HandOff> = z.object({
 });
 
 /**
- * The draft's main layer holds more places than its type takes: the Data Portal opens the keep
+ * The draft's Where holds more places than its type takes: the Data Portal opens the keep
  * dialog (D17). Derived from the draft, never read from history state.
  */
 export function overCap(draft: Draft): boolean {
-	const main = draft.data.layers[0];
 	const max = getWidgetType(draft.type)?.accepts?.maxPlaces;
-	return !!main && max !== undefined && fromLayer(main).length > max;
+	return max !== undefined && fromWhere(draft.data).length > max;
 }

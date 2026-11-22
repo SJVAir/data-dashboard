@@ -4,7 +4,7 @@ import { drawsAsBands } from "$lib/data/adapters/bands";
 import type { CatalogEntry, EntryTypeMeta } from "$lib/data/metadata";
 import type { WidgetDataConfig } from "$lib/data/schema";
 import type { Target } from "$lib/data/types";
-import { fromLayer } from "$lib/places/selection";
+import { fromWhere } from "$lib/places/selection";
 import { MAP_TYPE } from "$lib/widgets/map/options";
 import { widgetEffective, widgetPlaceKind } from "$lib/widgets/shared/input";
 import type { WidgetType } from "$lib/widgets/registry";
@@ -101,8 +101,7 @@ export function typeBlock(
 	// Over a several-place cap (Chart, Table) Show as asks which places to keep instead (D17); a
 	// one-place type, and the Map, still block.
 	if (accepts.maxPlaces !== undefined && !keepsOnSwitch(type)) {
-		const places = Math.max(0, ...data.layers.map((l) => fromLayer(l).length));
-		if (places > accepts.maxPlaces) return "places";
+		if (fromWhere(data).length > accepts.maxPlaces) return "places";
 	}
 	if (data.dateRange) {
 		// A span that counts stops (the Map's) counts them at the dataset's resolution.
@@ -110,7 +109,7 @@ export function typeBlock(
 			? widgetEffective(
 					{ type: type.type, data },
 					catalog,
-					widgetPlaceKind(data, catalog),
+					widgetPlaceKind(data),
 					data.dateRange,
 					now
 				).resolution

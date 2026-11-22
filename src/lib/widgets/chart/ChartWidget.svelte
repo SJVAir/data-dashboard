@@ -6,7 +6,7 @@
 	import { layerKind } from "$lib/data/layer-kind";
 	import { unavailableMessage } from "$lib/data/messages";
 	import type { QueryData } from "$lib/data/types";
-	import { fromLayer } from "$lib/places/selection";
+	import { fromWhere } from "$lib/places/selection";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
@@ -90,7 +90,7 @@
 			const { places, series } = s.data;
 			const key = sharedSource(series)
 				? (places[0]?.place ?? "")
-				: overlayPlaceFor(widget.options, places, fromLayer(input.layer));
+				: overlayPlaceFor(widget.options, places, fromWhere(input.layer));
 			const info = places.find((p) => p.place === key);
 			if (!info) continue;
 			const place = placeLabel(info, w.viewer);

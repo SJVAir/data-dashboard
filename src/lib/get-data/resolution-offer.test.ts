@@ -16,11 +16,7 @@ const catalog = mapDatasetCatalog({
 	datasets: [...SDK_DATASET_CATALOG.datasets, WEATHER_DATASET, PESTICIDE_USE_DATASET]
 });
 
-const pm25: Layer = {
-	dataset: "air-quality",
-	entryType: "pm25",
-	selection: { kind: "monitors", ids: ["m1"] }
-};
+const pm25: Layer = { dataset: "air-quality", entryType: "pm25" };
 const use: Layer = { dataset: "pesticide-use", entryType: "pounds-applied" };
 const temperature: Layer = { dataset: "weather", entryType: "temperature" };
 
@@ -36,7 +32,11 @@ function choices(
 	places = 1,
 	extra: Partial<Parameters<typeof resolutionChoices>[0]> = {}
 ): ResolutionChoice[] | null {
-	const data: WidgetDataConfig = { dateRange: range, layers };
+	const data: WidgetDataConfig = {
+		dateRange: range,
+		selection: { kind: "monitors", ids: ["m1"] },
+		layers
+	};
 	return resolutionChoices({
 		data,
 		catalog,
@@ -86,9 +86,8 @@ describe("resolutionChoices", () => {
 	});
 
 	test("regions have no Every measurement", () => {
-		const atRegion = { ...pm25, selection: undefined };
-		expect(blocked(choices([atRegion], days(7), 1, { place: "regions" }), "raw")).toEqual({
-			notOffered: atRegion
+		expect(blocked(choices([pm25], days(7), 1, { place: "regions" }), "raw")).toEqual({
+			notOffered: pm25
 		});
 	});
 

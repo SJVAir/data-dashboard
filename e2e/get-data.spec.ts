@@ -267,9 +267,10 @@ test("an old PM2.5 + burn status widget still shows its bands", async ({ page })
 					rect: { x: 0, y: 0, w: 8, h: 4 },
 					data: {
 						dateRange: { kind: "trailing", amount: 30, unit: "day" },
+						place,
 						layers: [
-							{ dataset: "air-quality", entryType: "pm25", place },
-							{ dataset: "forecasts", entryType: "burn-status", place }
+							{ dataset: "air-quality", entryType: "pm25" },
+							{ dataset: "forecasts", entryType: "burn-status" }
 						]
 					}
 				}

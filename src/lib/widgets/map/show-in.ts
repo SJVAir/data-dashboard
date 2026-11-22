@@ -9,7 +9,7 @@ import type { Layer, PlaceRef, SpatialSelection } from "$lib/data/schema";
 import { fromMapDraft, mapPesticideFilters } from "$lib/get-data/map";
 import type { NowConversion } from "$lib/get-data/now";
 import type { Draft } from "$lib/get-data/draft.svelte";
-import { toLayerPlaces } from "$lib/places/selection";
+import { toWhere } from "$lib/places/selection";
 import { STARTER_ID } from "$lib/starter/starter";
 import type { AppContext } from "$lib/store/app.svelte";
 import { CHART_TYPE, chartType } from "$lib/widgets/chart";
@@ -26,11 +26,11 @@ export type MapSend =
 	{ kind: "monitors"; ids: string[]; leftOut: number } | { kind: "section"; code: string };
 // spec 7 adds a kind here and a case in sendPlaces; nothing else changes.
 
-/** The main layer's places for a send (the plug-in point). Never a `point`. */
+/** The Where for a send (the plug-in point). Never a `point`. */
 export function sendPlaces(send: MapSend): { place?: PlaceRef; selection?: SpatialSelection } {
 	switch (send.kind) {
 		case "monitors":
-			return toLayerPlaces(send.ids.map((id) => ({ kind: "monitor" as const, id })));
+			return toWhere(send.ids.map((id) => ({ kind: "monitor" as const, id })));
 		case "section":
 			return { place: { kind: "region", type: "mtrs", code: send.code } };
 	}
@@ -72,20 +72,13 @@ function handOffNotes(converted: NowConversion): HandOffNotes {
 	};
 }
 
-/** `layer` with its places replaced by `places`. */
-function withPlaces(layer: Layer, places: ReturnType<typeof sendPlaces>): Layer {
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars -- replaced in the copy
-	const { place, selection, ...rest } = layer;
-	return { ...rest, ...places };
-}
-
 /**
  * The Data Portal's starting draft for `send` to `type` (Chart or Table), from `map` (the Map's
  * dataset as this person sees it).
  *
  * Monitors: exactly what Show as gives for this Map (`fromMapDraft`, with `"unavailable"` levels
- * and `drawable` the Map's pollutants, as `GetDataView`'s `setType` calls it), with the main
- * layer's places swapped for the ids (D7, D19). Over the type's cap every id is kept (the Data
+ * and `drawable` the Map's pollutants, as `GetDataView`'s `setType` calls it), with its Where
+ * swapped for the ids (D7, D19). Over the type's cap every id is kept (the Data
  * Portal asks which to keep; `overCap`).
  *
  * A section: always a Chart, whatever `type` says (D1, D15: the card offers only "Show in a
@@ -109,7 +102,6 @@ export function showInDraft(
 		const layer: Layer = {
 			dataset: PESTICIDE_USE,
 			...(figure ? { entryType: figure } : {}),
-			...sendPlaces(send),
 			...(filters ? { filters: structuredClone(filters) } : {})
 		};
 		return {
@@ -118,6 +110,7 @@ export function showInDraft(
 				data: {
 					dateRange: structuredClone(dateRange ?? chartType.defaultRange ?? DEFAULT_RANGE),
 					...(resolution ? { resolution } : {}),
+					...sendPlaces(send),
 					layers: [layer]
 				}
 			},
@@ -126,13 +119,11 @@ export function showInDraft(
 	}
 	const converted = fromMapDraft(map, type, catalog, "unavailable", drawable, now);
 	const { draft } = converted;
-	const [main, ...rest] = draft.data.layers;
-	const places = sendPlaces(send);
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars -- replaced in the copy
+	const { place, selection, ...rest } = draft.data;
+	const main = draft.data.layers[0];
 	return {
-		draft: {
-			...draft,
-			data: { ...draft.data, layers: main ? [withPlaces(main, places), ...rest] : [] }
-		},
+		draft: { ...draft, data: { ...rest, ...(main ? sendPlaces(send) : {}) } },
 		leftOut: send.leftOut,
 		notes: handOffNotes(converted)
 	};

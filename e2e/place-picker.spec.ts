@@ -47,7 +47,8 @@ function dataDoc(type: "chart" | "data-table", place?: Place) {
 					rect: { x: 0, y: 0, w: 6, h: 6 },
 					data: {
 						dateRange: RANGE,
-						layers: [{ dataset: "air-quality", entryType: "pm25", ...(place ? { place } : {}) }]
+						...(place ? { place } : {}),
+						layers: [{ dataset: "air-quality", entryType: "pm25" }]
 					}
 				}
 			]
@@ -244,7 +245,7 @@ test("a copy link shares the point as its ZIP unless the owner chooses exact", a
 	await expect(link).toHaveValue(/#1\./);
 	const swappedUrl = await link.inputValue();
 	const swapped = linkDocument(swappedUrl);
-	expect(swapped.body.widgets[0].data.layers[0].place).toEqual({
+	expect(swapped.body.widgets[0].data.place).toEqual({
 		kind: "region",
 		type: "zipcode",
 		code: "93721"
@@ -256,7 +257,7 @@ test("a copy link shares the point as its ZIP unless the owner chooses exact", a
 	).toBeVisible();
 	await expect(link).not.toHaveValue(swappedUrl);
 	const exact = linkDocument(await link.inputValue());
-	expect(exact.body.widgets[0].data.layers[0].place).toMatchObject({ kind: "point" });
+	expect(exact.body.widgets[0].data.place).toMatchObject({ kind: "point" });
 });
 
 test("Use my location on the starter, then Share: the copy keeps it, the link has its ZIP", async ({
@@ -286,12 +287,12 @@ test("Use my location on the starter, then Share: the copy keeps it, the link ha
 	const link = dialog.getByRole("textbox", { name: "Link", exact: true });
 	await expect(link).toHaveValue(/#1\./);
 	const shared = linkDocument(await link.inputValue()) as unknown as {
-		body: { placeBar?: { place: Place }; widgets: { data: { layers: { place?: Place }[] } }[] };
+		body: { placeBar?: { place: Place }; widgets: { data: { place?: Place } }[] };
 	};
 	const zip = { kind: "region", type: "zipcode", code: "93721" };
 	expect(shared.body.placeBar).toEqual({ place: zip });
 	expect(JSON.stringify(shared)).not.toContain('"kind":"point"');
-	const places = shared.body.widgets.flatMap((w) => w.data.layers.flatMap((l) => l.place ?? []));
+	const places = shared.body.widgets.flatMap((w) => w.data.place ?? []);
 	expect(places.length).toBeGreaterThan(0);
 	for (const place of places) expect(place).toEqual(zip);
 	// This person's own copy keeps the point.

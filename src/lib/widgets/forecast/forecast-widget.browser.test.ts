@@ -83,11 +83,11 @@ function widgetFor(code = "06019"): WidgetInstance {
 		title: null,
 		rect: { x: 0, y: 0, w: 3, h: 4 },
 		data: {
+			place: { kind: "region", type: "county", code },
 			layers: [
 				{
 					dataset: "forecasts",
-					entryType: "aqi-forecast",
-					place: { kind: "region", type: "county", code }
+					entryType: "aqi-forecast"
 				}
 			]
 		}
@@ -209,7 +209,7 @@ test("a point lookup that fails once recovers on Retry, with no coordinates in t
 		return ["county:06019"];
 	};
 	const widget = widgetFor();
-	widget.data.layers[0].place = { kind: "point", lat: 36.7377, lon: -119.7871 };
+	widget.data.place = { kind: "point", lat: 36.7377, lon: -119.7871 };
 	const subscribe = vi.spyOn(fake.client!, "subscribe");
 	const screen = await show(widget);
 	await expect.element(screen.getByText(m.widget_state_error()), { timeout: 5000 }).toBeVisible();

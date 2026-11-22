@@ -5,8 +5,9 @@ import type { Platform, SpaceId } from "$lib/platform/types";
 import { copiesOf, rememberCopy } from "$lib/sharing/fingerprints";
 import { defaultStarterPlace } from "$lib/starter/place.svelte";
 import type { ChosenPlace } from "$lib/data/schema";
+import { fromWhere, toWhere } from "$lib/places/selection";
 import { STARTER_ID, blankDashboard, copyOfStarter } from "$lib/starter/starter";
-import { DEFAULT_LAYER } from "$lib/widgets/defaults";
+import { DEFAULT_LAYER, DEFAULT_PLACE } from "$lib/widgets/defaults";
 import { DashboardIndex } from "./dashboard-index.svelte";
 import { createMemoryTabHub } from "./tab-channel";
 
@@ -131,7 +132,7 @@ describe("DashboardIndex", () => {
 	});
 
 	describe("duplicate with a place replaced", () => {
-		const FRESNO = DEFAULT_LAYER.place as ChosenPlace;
+		const FRESNO = DEFAULT_PLACE as ChosenPlace;
 		const SCHOOL: ChosenPlace = { kind: "location", source: "schools", code: "123" };
 		const KERN: ChosenPlace = { kind: "region", type: "county", code: "06029" };
 
@@ -141,12 +142,12 @@ describe("DashboardIndex", () => {
 				type: "chart",
 				title: null,
 				rect: { x: 0, y, w: 6, h: 4 },
-				data: { layers: places.map((place) => ({ ...DEFAULT_LAYER, place })) }
+				data: { ...toWhere(places), layers: [{ ...DEFAULT_LAYER }] }
 			};
 		}
 
 		function places(doc: Dashboard) {
-			return doc.body.widgets.map((w) => w.data.layers.map((l) => l.place));
+			return doc.body.widgets.map((w) => fromWhere(w.data));
 		}
 
 		it("replaces one place in the copy; mixed and other places stay, the original is untouched", async () => {

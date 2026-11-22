@@ -172,7 +172,8 @@ function outsideWidget(id: string, entryType = "pm25"): WidgetInstance {
 		title: null,
 		rect: { x: 0, y: 0, w: 3, h: 7 },
 		data: {
-			layers: [{ dataset: "air-quality", entryType, place: { kind: "monitor", id } }]
+			place: { kind: "monitor", id },
+			layers: [{ dataset: "air-quality", entryType }]
 		}
 	};
 }

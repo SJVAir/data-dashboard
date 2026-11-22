@@ -1,27 +1,20 @@
 import type { Change } from "$lib/changes/types";
-import type { ChosenPlace, Layer } from "$lib/data/schema";
+import type { ChosenPlace } from "$lib/data/schema";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { readingOrder } from "$lib/layout/engine";
 import { sameRef } from "./types";
 
 /**
- * The one place all of a widget's place-bearing layers share; `"mixed"` for a selection, layers
- * at different places, or a place-tied choice (a weather layer's chosen `station`; the layer
- * schema has no other place-tied field: pesticide `filters` are not tied to a place); `null`
- * when no layer has a place (a Note). The starter-only `default-place` counts as mixed, so it
- * is never rewritten.
+ * A widget's one place (its Where); `"mixed"` for a selection or a place-tied choice (a weather
+ * layer's chosen `station`; the layer schema has no other place-tied field: pesticide `filters`
+ * are not tied to a place); `null` when it has no place (a Note, or everywhere). The
+ * starter-only `default-place` counts as mixed, so it is never rewritten.
  */
 export function widgetPlace(widget: WidgetInstance): ChosenPlace | "mixed" | null {
-	let found: ChosenPlace | null = null;
-	for (const layer of widget.data.layers) {
-		if (layer.selection || layer.station) return "mixed";
-		const place = layer.place;
-		if (!place) continue;
-		if (place.kind === "default-place") return "mixed";
-		if (found && !sameRef(found, place)) return "mixed";
-		found = place;
-	}
-	return found;
+	const { place, selection, layers } = widget.data;
+	if (selection || layers.some((l) => l.station)) return "mixed";
+	if (!place) return null;
+	return place.kind === "default-place" ? "mixed" : place;
 }
 
 function single(widget: WidgetInstance): ChosenPlace | null {
@@ -30,8 +23,7 @@ function single(widget: WidgetInstance): ChosenPlace | null {
 }
 
 function moved(widget: WidgetInstance, to: ChosenPlace): WidgetInstance {
-	const layers: Layer[] = widget.data.layers.map((l) => (l.place ? { ...l, place: to } : l));
-	return { ...widget, data: { ...widget.data, layers } };
+	return { ...widget, data: { ...widget.data, place: to } };
 }
 
 /**

@@ -17,7 +17,7 @@ import { newPlaceholder } from "$lib/widgets/placeholder";
 import { monthCalendarType } from "$lib/widgets/calendars/month";
 import { chartType } from "$lib/widgets/chart";
 import { currentType } from "$lib/widgets/current";
-import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
+import { DEFAULT_PLACE, DEFAULT_RANGE } from "$lib/widgets/defaults";
 import { forecastType } from "$lib/widgets/forecast";
 import { noteType } from "$lib/widgets/notes";
 import { outsideType } from "$lib/widgets/outside";
@@ -59,7 +59,7 @@ const renameWidget = (widgetId: string, to: string): Change => ({
 	to
 });
 
-const FRESNO = DEFAULT_LAYER.place as ChosenPlace;
+const FRESNO = DEFAULT_PLACE as ChosenPlace;
 const PLACES: ChosenPlace[] = [
 	{ kind: "region", type: "city", code: "0614218" },
 	{ kind: "monitor", id: "abc123" },
@@ -78,7 +78,7 @@ const TYPES: WidgetType[] = [
 const typeOf = (type: string) => TYPES.find((t) => t.type === type)!;
 
 const places = (doc: Dashboard) =>
-	doc.body.widgets.flatMap((w) => w.data.layers.map((l) => l.place));
+	doc.body.widgets.flatMap((w) => (w.data.layers.length > 0 ? [w.data.place] : []));
 const overlaps = (a: Rect, b: Rect) =>
 	a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
@@ -149,7 +149,11 @@ describe("starter template", () => {
 		expect(chart.data).toEqual(draft.data);
 		expect(chart.data.dateRange).toEqual(DEFAULT_RANGE);
 		const moved = switchRange(draft.data, chartType, monthCalendarType, NOW);
-		expect(calendar.data).toEqual({ layers: draft.data.layers, dateRange: moved.dateRange });
+		expect(calendar.data).toEqual({
+			place: draft.data.place,
+			layers: draft.data.layers,
+			dateRange: moved.dateRange
+		});
 		expect(calendar.data.dateRange).toEqual({ kind: "to-date", unit: "month" });
 		for (const w of [current, outside, chart, calendar])
 			expect(w.data.layers[0].entryType).toBe("pm25");

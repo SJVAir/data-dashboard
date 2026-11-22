@@ -30,12 +30,12 @@ import { render } from "vitest-browser-svelte";
 import { getMetadata, getResolvers, placeRegion } from "$lib/data";
 import { loadDashboard } from "$lib/documents/load";
 import { CURRENT_SCHEMA_VERSION } from "$lib/documents/schema";
-import type { DateRangeSpec, Layer } from "$lib/data/schema";
+import type { DateRangeSpec, Layer, WidgetDataConfig } from "$lib/data/schema";
 import type { CatalogEntry, MetadataSource } from "$lib/data/metadata";
 import { getNowClient } from "$lib/data/now";
 import { createNowClient, type NowClient } from "$lib/data/now/client";
 import type { QueryClient } from "$lib/data/query/client";
-import type { PlaceInfo, QueryInput } from "$lib/data/types";
+import type { PlaceInfo, QueryInput, QueryLayer } from "$lib/data/types";
 import { FIXTURE_CATALOG, fixtureMetadata } from "$lib/data/testing/fixtures";
 import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
@@ -204,7 +204,7 @@ const SHAPES: Record<string, Feature> = {
 
 /** A query client that names a layer's place, for the title. */
 function namingClient(): QueryClient {
-	const info = (layer: Layer): PlaceInfo => {
+	const info = (layer: QueryLayer): PlaceInfo => {
 		const place = layer.place ?? null;
 		if (place?.kind === "monitor")
 			return { place: `monitor:${place.id}`, name: `Monitor ${place.id}` };
@@ -448,13 +448,21 @@ afterEach(() => {
 	vi.resetAllMocks();
 });
 
-function mapWidget(layer: Partial<Layer>): WidgetInstance {
+/** A layer's fields with the widget's Where beside them (the helpers split them). */
+type LayerAt = Partial<Layer> & Pick<WidgetDataConfig, "place" | "selection">;
+
+function mapWidget(at: LayerAt): WidgetInstance {
+	const { place, selection, ...layer } = at;
 	return {
 		id: crypto.randomUUID(),
 		type: "map",
 		title: null,
 		rect: { x: 0, y: 0, w: 6, h: 6 },
-		data: { layers: [{ dataset: "air-quality", entryType: "pm25", ...layer }] }
+		data: {
+			...(place ? { place } : {}),
+			...(selection ? { selection } : {}),
+			layers: [{ dataset: "air-quality", entryType: "pm25", ...layer }]
+		}
 	};
 }
 
@@ -902,9 +910,12 @@ test("a click pins the card and never selects", async () => {
 	expect(app().current!.session!.doc.body).toEqual(before);
 });
 
-/** A spec 2 Map's data: these pollutant layers (the first holds the places), and smoke and fire. */
-function layers(first: Partial<Layer>, more: Partial<Layer>[] = [], smokeAndFire = false) {
+/** A spec 2 Map's data: these pollutant layers (at the first's Where), and smoke and fire. */
+function layers(at: LayerAt, more: Partial<Layer>[] = [], smokeAndFire = false) {
+	const { place, selection, ...first } = at;
 	return {
+		...(place ? { place } : {}),
+		...(selection ? { selection } : {}),
 		layers: [
 			{ dataset: "air-quality", entryType: "pm25", ...first },
 			...more.map((l) => ({ dataset: "air-quality", ...l })),
@@ -2170,7 +2181,7 @@ const daysAsked = () =>
 
 /** A Map of `layer` over `range`. */
 function rangedMap(
-	layer: Partial<Layer>,
+	layer: LayerAt,
 	options?: Record<string, unknown>,
 	range: DateRangeSpec = RANGE
 ): WidgetInstance {

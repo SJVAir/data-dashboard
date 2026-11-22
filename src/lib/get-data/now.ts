@@ -11,7 +11,7 @@ import type { DateRangeSpec, Layer, TimeSubRange } from "$lib/data/schema";
 import { fitsRange } from "$lib/calendars/selection";
 import { isCalendarType } from "$lib/calendars/types";
 import { resolveRange } from "$lib/format/range";
-import { fromLayer, toLayerPlaces } from "$lib/places/selection";
+import { fromWhere, toWhere } from "$lib/places/selection";
 import { defaultThresholdLevel } from "$lib/thresholds/levels";
 import type { Threshold } from "$lib/thresholds/schema";
 import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
@@ -19,7 +19,7 @@ import { FORECAST_TYPE } from "$lib/widgets/forecast";
 import { OUTSIDE_TYPE } from "$lib/widgets/outside";
 import type { WidgetType } from "$lib/widgets/registry";
 import { offersNow } from "$lib/widgets/time";
-import { mainLayer, placesQueryLayer } from "$lib/widgets/shared/input";
+import { mainLayer, widgetWhere } from "$lib/widgets/shared/input";
 import type { Draft } from "./draft.svelte";
 
 /** What a conversion left out or changed, for the form's notes. */
@@ -63,7 +63,7 @@ export function offeredPollutants(catalog: CatalogEntry[], allowed?: string[]): 
 	return allowed.flatMap((id) => all.filter((e) => e.id === id));
 }
 
-/** The layer holding the draft's places: its main layer, or a Forecast strip's one layer. */
+/** The layer a now draft is made from: its main layer, or a Forecast strip's one layer. */
 function sourceLayer(draft: Draft, catalog: CatalogEntry[] | undefined): Layer | undefined {
 	return mainLayer(draft.data, catalog) ?? draft.data.layers[0];
 }
@@ -130,7 +130,7 @@ export type NowConversion = {
 };
 
 /**
- * `draft` (a `fromType` draft) as `type` (a now type): the main layer's first `maxPlaces` places
+ * `draft` (a `fromType` draft) as `type` (a now type): its Where's first `maxPlaces` places
  * (one, but for the Map) and its pollutant (`nowPollutant`, with `allowed`) on one layer, with no dates, overlays or options. A threshold type
  * keeps the alert level `keptThreshold` gives with `levels` (the new pollutant's scale); a draft
  * from a type without thresholds (a range type, the Forecast strip) gets the default, and one
@@ -146,15 +146,15 @@ export function toNowDraft(
 	allowed?: string[]
 ): NowConversion {
 	const from = sourceLayer(draft, catalog);
-	const picks = from ? fromLayer(from) : [];
+	const picks = fromWhere(draft.data);
 	const cap = placeCap(type);
 	// A starter's `default-place` reads as no picks, but it's kept as the one place.
-	const places = from?.place ? { place: from.place } : toLayerPlaces(picks.slice(0, cap));
+	const { place } = draft.data;
+	const where = place ? widgetWhere(draft.data) : toWhere(picks.slice(0, cap));
 	const entryType = nowPollutant(draft, type, catalog, allowed);
 	const layer: Layer = {
 		dataset: entryType === undefined ? FORECASTS : AIR_QUALITY,
-		...(entryType === undefined ? {} : { entryType }),
-		...places
+		...(entryType === undefined ? {} : { entryType })
 	};
 	const dropped: NowDropped[] = [];
 	if (draft.data.dateRange || draft.data.timeSubRange) dropped.push("dates");
@@ -184,7 +184,7 @@ export function toNowDraft(
 	return {
 		draft: {
 			type: type.type,
-			data: { layers: [layer] },
+			data: { ...where, layers: [layer] },
 			...(thresholds ? { thresholds: structuredClone(thresholds) } : {})
 		},
 		dropped,
@@ -200,22 +200,20 @@ export function toNowDraft(
 
 /**
  * A now draft as `type` (a range type): its layer over the default range (a Forecast strip's
- * place on a PM2.5 layer, as a new widget's), its places cut to `type`'s `maxPlaces` (a Map's
- * selection to a Chart's five, say; `dropped` then says so). The alert level is kept only when
+ * forecasts layer as a PM2.5 one, as a new widget's), its Where cut to `type`'s `maxPlaces` (a
+ * Map's selection to a Chart's five, say; `dropped` then says so). The alert level is kept only when
  * `type` has thresholds; otherwise `dropped` says it was left out.
  */
 export function fromNowDraft(draft: Draft, type: WidgetType): NowConversion {
 	const cap = type.accepts?.maxPlaces;
-	let cut = false;
-	const layers = draft.data.layers.map((l) => {
-		const layer = structuredClone(placesQueryLayer(l));
-		const picks = fromLayer(layer);
-		if (cap === undefined || picks.length <= cap) return layer;
-		cut = true;
-		// eslint-disable-next-line @typescript-eslint/no-unused-vars -- replaced in the copy
-		const { place, selection, ...rest } = layer;
-		return { ...rest, ...toLayerPlaces(picks.slice(0, cap)) };
-	});
+	const layers = draft.data.layers.map((l) =>
+		l.entryType
+			? structuredClone(l)
+			: { dataset: DEFAULT_LAYER.dataset, entryType: DEFAULT_LAYER.entryType }
+	);
+	const picks = fromWhere(draft.data);
+	const cut = cap !== undefined && picks.length > cap;
+	const where = cut ? toWhere(picks.slice(0, cap)) : widgetWhere(draft.data);
 	// A Chart's line is its own opt-in, so a tile's alert level isn't carried to it; a calendar's
 	// threshold is the same alert level, so it is.
 	const thresholds =
@@ -225,7 +223,7 @@ export function fromNowDraft(draft: Draft, type: WidgetType): NowConversion {
 	return {
 		draft: {
 			type: type.type,
-			data: { dateRange: structuredClone(type.defaultRange ?? DEFAULT_RANGE), layers },
+			data: { dateRange: structuredClone(type.defaultRange ?? DEFAULT_RANGE), ...where, layers },
 			...(thresholds ? { thresholds: structuredClone(thresholds) } : {})
 		},
 		dropped: [
@@ -244,7 +242,7 @@ export function isNowShaped(draft: Draft, type: WidgetType): boolean {
 	const { data } = draft;
 	if (data.dateRange || data.timeSubRange || data.layers.length !== 1) return false;
 	const layer = data.layers[0];
-	if (fromLayer(layer).length > placeCap(type)) return false;
+	if (fromWhere(data).length > placeCap(type)) return false;
 	return type.type === FORECAST_TYPE
 		? layer.dataset === FORECASTS && !layer.entryType
 		: layer.dataset === AIR_QUALITY && !!layer.entryType;

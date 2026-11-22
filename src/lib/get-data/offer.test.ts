@@ -185,8 +185,8 @@ describe("typeBlock for the calendars", () => {
 	});
 
 	it("two places block; another dataset blocks", () => {
-		const two = { ...pm25, selection: monitors(2) };
-		expect(typeBlock(monthCalendarType, data([two]), CATALOG, NOW)).toBe("places");
+		const two = { ...data([pm25]), selection: monitors(2) };
+		expect(typeBlock(monthCalendarType, two, CATALOG, NOW)).toBe("places");
 		expect(
 			typeBlock(monthCalendarType, data([{ dataset: "census", entryType: "people" }]), CATALOG, NOW)
 		).toBe("dataset");
@@ -197,9 +197,8 @@ describe("typeBlock for the calendars", () => {
 			dataset("air-quality", [entryType("pm25", { resolutions: levels })])
 		];
 		const map = (resolution?: "day" | "month") => ({
-			layers: [
-				{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor" as const, id: "m" } }
-			],
+			place: { kind: "monitor" as const, id: "m" },
+			layers: [{ dataset: "air-quality", entryType: "pm25" }],
 			dateRange: { kind: "custom" as const, start: "2024-01-01", end: "2026-06-30" },
 			...(resolution ? { resolution } : {})
 		});
@@ -229,7 +228,8 @@ describe("typeBlock", () => {
 
 	it("places over the cap never block Chart or Table (Show as asks which to keep)", () => {
 		const d = data({
-			layers: [{ dataset: "air-quality", entryType: "pm25", selection: monitors(7) }]
+			selection: monitors(7),
+			layers: [{ dataset: "air-quality", entryType: "pm25" }]
 		});
 		expect(typeBlock(chartType, d, CATALOG, NOW)).toBeNull();
 		expect(typeBlock(dataTableType, d, CATALOG, NOW)).toBeNull();
@@ -237,7 +237,8 @@ describe("typeBlock", () => {
 
 	it("a 25-place Map's draft isn't blocked for Chart or Table; a one-place type still is", () => {
 		const d = data({
-			layers: [{ dataset: "air-quality", entryType: "pm25", selection: monitors(25) }]
+			selection: monitors(25),
+			layers: [{ dataset: "air-quality", entryType: "pm25" }]
 		});
 		expect(typeBlock(chartType, d, CATALOG, NOW)).toBeNull();
 		expect(typeBlock(dataTableType, d, CATALOG, NOW)).toBeNull();

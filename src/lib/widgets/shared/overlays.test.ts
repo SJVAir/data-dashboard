@@ -126,8 +126,9 @@ test("an overlay carries its station and filters, never places of its own", () =
 
 test("a third overlay is ignored", () => {
 	const data: WidgetDataConfig = {
+		place: FRESNO,
 		layers: [
-			{ dataset: "air-quality", entryType: "pm25", place: FRESNO },
+			{ dataset: "air-quality", entryType: "pm25" },
 			{ dataset: "forecasts", entryType: "burn-status" },
 			{ dataset: "forecasts", entryType: "aqi-forecast" },
 			{ dataset: "forecasts", entryType: "burn-status" }

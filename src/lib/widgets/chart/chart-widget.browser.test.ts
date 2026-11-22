@@ -129,9 +129,9 @@ test("a minimized widget's query stops polling", async () => {
 	await expect.poll(() => fake.client!.entries()[0]?.polling).toBe(true);
 });
 
-test("a layer with no place asks for one", async () => {
+test("a widget with no Where asks for one", async () => {
 	const widget = chartWidget(["m1"]);
-	widget.data.layers[0] = { dataset: "air-quality", entryType: "pm25" };
+	delete widget.data.place;
 	const screen = await show(widget);
 	await expect.element(screen.getByText(m.widget_state_idle())).toBeVisible();
 	expect(requests).toEqual([]);
@@ -377,7 +377,7 @@ async function showLayers(
 	});
 	const widget = chartWidget(["m1"]);
 	const [first, ...rest] = layers;
-	widget.data.layers = [{ ...first, place: { kind: "monitor", id: "m1" } }, ...rest];
+	widget.data.layers = [first, ...rest];
 	const screen = await show(widget);
 	return { widget, screen };
 }
@@ -581,7 +581,7 @@ test("a stored level the main layer doesn't offer says it can't be drawn", async
 	});
 	const widget = chartWidget(["m1"]);
 	widget.data.resolution = "day";
-	widget.data.layers = [{ ...POUNDS, place: { kind: "monitor", id: "m1" } }];
+	widget.data.layers = [{ ...POUNDS }];
 	const screen = await show(widget);
 	await expect
 		.element(screen.getByText(m.widget_state_unavailable_no_resolution_view()))
@@ -599,7 +599,7 @@ test("a daily chart from an untrusted document draws without pesticide use and s
 	});
 	const widget = chartWidget(["m1"]);
 	widget.data.resolution = "day";
-	widget.data.layers = [{ ...PM25, place: { kind: "monitor", id: "m1" } }, { ...POUNDS }];
+	widget.data.layers = [{ ...PM25 }, { ...POUNDS }];
 	const screen = await show(widget);
 	await expect
 		.element(
@@ -634,10 +634,8 @@ test("an overlay is fetched alongside the main, at the dataset's resolution", as
 	});
 	const widget = chartWidget(["m1"]);
 	// The fake air-quality adapter serves monitors only: a county is unavailable.
-	widget.data.layers = [
-		{ ...PM25, place: { kind: "region", type: "county", code: "06019" } },
-		{ ...RAIN }
-	];
+	widget.data.place = { kind: "region", type: "county", code: "06019" };
+	widget.data.layers = [{ ...PM25 }, { ...RAIN }];
 	const screen = await show(widget);
 	await expect
 		.element(screen.getByText(m.widget_state_unavailable_place_unsupported()))

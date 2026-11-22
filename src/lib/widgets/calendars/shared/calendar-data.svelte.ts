@@ -12,7 +12,7 @@ import { resolveRange } from "$lib/format/range";
 import { resolveThreshold } from "$lib/thresholds/levels";
 import { DEFAULT_RANGE } from "../../defaults";
 import { DataWidget } from "../../shared/data-widget.svelte";
-import { mainLayer } from "../../shared/input";
+import { hasWhere, mainLayer } from "../../shared/input";
 
 export { figureName };
 
@@ -120,7 +120,7 @@ export class CalendarData {
 
 		this.shown = $derived.by(() => {
 			const s = w.shown;
-			const placed = !!w.picked.layer?.place || !!w.picked.layer?.selection;
+			const placed = !!w.picked.layer && hasWhere(widget().data);
 			if (s.status === "idle" && placed && entryType && !settled) return { status: "loading" };
 			return s;
 		});

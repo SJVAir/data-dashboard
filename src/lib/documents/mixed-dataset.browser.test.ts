@@ -54,8 +54,9 @@ const RAW = JSON.stringify({
 				data: {
 					dateRange: { kind: "trailing", amount: 7, unit: "day" },
 					resolution: "hour",
+					place: { kind: "monitor", id: "m1" },
 					layers: [
-						{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m1" } },
+						{ dataset: "air-quality", entryType: "pm25" },
 						{ dataset: "hms-smoke", entryType: "smoke-density" },
 						{ dataset: "pesticide-use", entryType: "pounds-applied" }
 					]
@@ -69,11 +70,11 @@ const RAW = JSON.stringify({
 				data: {
 					dateRange: { kind: "custom", start: "2023-06-01", end: "2023-06-30" },
 					resolution: "day",
+					place: { kind: "region", type: "county", code: "019" },
 					layers: [
 						{
 							dataset: "air-quality",
-							entryType: "pm25",
-							place: { kind: "region", type: "county", code: "019" }
+							entryType: "pm25"
 						},
 						{ dataset: "pesticide-use", entryType: "pounds-applied" }
 					]

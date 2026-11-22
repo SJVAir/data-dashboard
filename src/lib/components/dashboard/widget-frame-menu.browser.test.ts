@@ -105,7 +105,8 @@ test("a read-only month calendar showing a selection has no chart item (D20)", a
 			data: {
 				dateRange: { kind: "custom", start: "2026-11-01", end: "2026-11-30" },
 				timeSubRange: { start: "2026-11-05", end: "2026-11-08" },
-				layers: [{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "a" } }]
+				place: { kind: "monitor", id: "a" },
+				layers: [{ dataset: "air-quality", entryType: "pm25" }]
 			}
 		}
 	];

@@ -5,10 +5,11 @@ import type { Picks } from "./selection";
 
 const RANGE = { kind: "trailing", amount: 30, unit: "day" } as const;
 
-function data(layer: Partial<WidgetDataConfig["layers"][number]>): WidgetDataConfig {
+function data(where: Pick<WidgetDataConfig, "place" | "selection">): WidgetDataConfig {
 	return {
 		dateRange: RANGE,
-		layers: [{ dataset: "air-quality", entryType: "pm25", ...layer }]
+		...where,
+		layers: [{ dataset: "air-quality", entryType: "pm25" }]
 	};
 }
 
@@ -16,7 +17,7 @@ const off = { liveLink: false, regionOf: vi.fn(async () => null) };
 const point = { kind: "point" as const, lat: 36.75, lon: -119.79 };
 
 describe("pickedData", () => {
-	it("is null when the picks are the layer's current places", async () => {
+	it("is null when the picks are the widget's current Where", async () => {
 		const county = data({ place: { kind: "region", type: "county", code: "06019" } });
 		expect(
 			await pickedData(county, [{ kind: "region", type: "county", code: "06019" }], off)
@@ -34,7 +35,7 @@ describe("pickedData", () => {
 		).toBeNull();
 	});
 
-	it("one region becomes the layer's place, dropping any selection", async () => {
+	it("one region becomes the widget's place, dropping any selection", async () => {
 		const result = await pickedData(
 			data({ selection: { kind: "monitors", ids: ["a", "b"] } }),
 			[{ kind: "region", type: "city", code: "0627000" }],
@@ -44,7 +45,7 @@ describe("pickedData", () => {
 			data: data({ place: { kind: "region", type: "city", code: "0627000" } }),
 			savedAsRegion: null
 		});
-		expect(result!.data.layers[0]).not.toHaveProperty("selection");
+		expect(result!.data).not.toHaveProperty("selection");
 	});
 
 	it("three monitors become a selection, dropping the place", async () => {
@@ -54,24 +55,19 @@ describe("pickedData", () => {
 			picks,
 			off
 		);
-		expect(result!.data.layers[0]).toEqual({
-			dataset: "air-quality",
-			entryType: "pm25",
-			selection: { kind: "monitors", ids: ["a", "b", "c"] }
-		});
+		expect(result!.data).toEqual(data({ selection: { kind: "monitors", ids: ["a", "b", "c"] } }));
+		expect(result!.data).not.toHaveProperty("place");
 	});
 
-	it("keeps the other layers and fields as they are", async () => {
+	it("keeps the layers and other fields as they are", async () => {
 		const start: WidgetDataConfig = {
 			dateRange: RANGE,
-			layers: [
-				{ dataset: "air-quality", place: { kind: "monitor", id: "x" } },
-				{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "y" } }
-			]
+			place: { kind: "monitor", id: "y" },
+			layers: [{ dataset: "air-quality" }, { dataset: "air-quality", entryType: "pm25" }]
 		};
 		const result = await pickedData(start, [{ kind: "monitor", id: "z" }], off);
-		expect(result!.data.layers[0]).toBe(start.layers[0]);
-		expect(result!.data.layers[1].place).toEqual({ kind: "monitor", id: "z" });
+		expect(result!.data.layers).toBe(start.layers);
+		expect(result!.data.place).toEqual({ kind: "monitor", id: "z" });
 		expect(result!.data.dateRange).toEqual(RANGE);
 	});
 
