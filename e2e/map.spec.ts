@@ -212,6 +212,22 @@ test("adds a Map from Add widget at the dashboard's place", async ({ page, mapTi
 	expect(mapTiler.stubbed).toContain("api.maptiler.com/maps/streets-v4/style.json");
 });
 
+test("a Map from Add widget has every monitor type ticked in its Data Portal, and draws monitors", async ({
+	page
+}) => {
+	await page.clock.install({ time: "2026-11-15T12:00:00-08:00" });
+	const map = await addMap(page);
+	await expect(inView(map)).toHaveText(FRESNO_VIEW);
+	await widgetMenuItem(page, FRESNO_MAP, "Open in Data Portal");
+	await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeVisible();
+	const types = page.getByRole("group", { name: "Monitors" }).getByRole("checkbox");
+	await expect(types.first()).toBeVisible();
+	// Every type the Data Portal offers is ticked, among them each fixture network.
+	await expect(page.getByRole("checkbox", { name: "AirNow" })).toBeChecked();
+	await expect(page.getByRole("checkbox", { name: "PurpleAir" })).toBeChecked();
+	for (const box of await types.all()) await expect(box).toBeChecked();
+});
+
 test("the picker frames two counties, offers no monitors, and undo brings the region back", async ({
 	page
 }) => {

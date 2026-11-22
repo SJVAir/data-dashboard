@@ -56,6 +56,21 @@ function bulkWanted(
 	);
 }
 
+/**
+ * The fixture monitors (`monitors.json`) of the types a bulk summaries request names that sit in
+ * its regions (`REGION_MONITORS`), or anywhere when it names none: the rows a bulk monitor-set
+ * request (`region=` with `type=`) answers, one per monitor.
+ */
+export async function monitorsOfRequest(
+	url: URL
+): Promise<{ id: string; name: string; type: string }[]> {
+	const list = await json<{ data: { id: string; name: string; type: string }[] }>(
+		`${API_FIXTURES}monitors.json`
+	);
+	const wanted = bulkWanted(url, list?.data ?? [], (r) => REGION_MONITORS[r] ?? []);
+	return (list?.data ?? []).filter((m) => wanted.has(m.id));
+}
+
 async function json<T>(path: string): Promise<T | null> {
 	try {
 		return JSON.parse(await readFile(path, "utf8")) as T;

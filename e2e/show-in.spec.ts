@@ -158,6 +158,11 @@ test.describe("from a Map's marks", () => {
 		await expect(whereSummary(page)).toHaveText("Fresno County");
 		// The Map's range.
 		await expect(page.getByTestId("resolved-range")).toHaveText("Nov 9 – 11, 2026");
+		// The three marks are the Chart's searched monitors, listed in Air quality.
+		const searched = page.getByRole("list", { name: "Chosen monitors" }).getByRole("listitem");
+		await expect(searched).toHaveCount(3);
+		await expect(searched.filter({ hasText: "Fresno - Drummond Street" })).toHaveCount(1);
+		await expect(searched.filter({ hasText: "Fresno - Test Site" })).toHaveCount(2);
 		// No dialog asked which places to keep, and nothing was left out.
 		await expect(placesDialog(page)).toHaveCount(0);
 		await expect(page.getByText(/aren't shown on the map|isn't shown on the map/)).toHaveCount(0);

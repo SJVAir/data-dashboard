@@ -1,5 +1,6 @@
 import { TZDate } from "@date-fns/tz";
 import type { BrowserContext } from "@playwright/test";
+import { monitorsOfRequest } from "./map-data-server";
 
 const TIME_ZONE = "America/Los_Angeles";
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -221,6 +222,11 @@ export async function routeSummaries(context: BrowserContext): Promise<void> {
 			const ids = url.searchParams.getAll(param).flatMap((v) => v.split(","));
 			// Every weather station: bulk monitor summaries naming the weather type (`type=cimis`).
 			const stations = kind === "monitors" && url.searchParams.getAll("type").includes("cimis");
+			// A monitor set (`type=` beside `region=`): the fixture monitors of those types there.
+			const monitors =
+				kind === "monitors" && !stations && url.searchParams.has("type")
+					? await monitorsOfRequest(url)
+					: null;
 			const start = url.searchParams.get("start") ?? "";
 			const end = url.searchParams.get("end") ?? start;
 			// A malformed date would make the period loop run forever: fail the request instead.
@@ -235,7 +241,9 @@ export async function routeSummaries(context: BrowserContext): Promise<void> {
 						: yearPeriods(start, end).map((p) => ({ ...yearRow(p, entryType), station_count: 1 }));
 				const data = stations
 					? WEATHER_STATIONS.map((st) => ({ ...st, type: "cimis", summaries: rows }))
-					: ids.map((id) => ({ id, name: id, slug: id, type: "county", summaries: rows }));
+					: monitors
+						? monitors.map((mon) => ({ ...mon, summaries: rows }))
+						: ids.map((id) => ({ id, name: id, slug: id, type: "county", summaries: rows }));
 				await route.fulfill({ json: { data, page: 1, pages: 1, has_next_page: false } });
 				return;
 			}
@@ -269,7 +277,9 @@ export async function routeSummaries(context: BrowserContext): Promise<void> {
 				await route.fulfill({ json: { data, page: 1, pages: 1, has_next_page: false } });
 				return;
 			}
-			const data = ids.map((id) => ({ id, name: id, slug: id, type: "county", summaries }));
+			const data = monitors
+				? monitors.map((mon) => ({ ...mon, summaries }))
+				: ids.map((id) => ({ id, name: id, slug: id, type: "county", summaries }));
 			await route.fulfill({ json: { data, page: 1, pages: 1, has_next_page: false } });
 		}
 	);
@@ -287,7 +297,11 @@ export async function routeSummaries(context: BrowserContext): Promise<void> {
 			const param = kind === "regions" ? "region" : "monitor";
 			const ids = url.searchParams.getAll(param).flatMap((v) => v.split(","));
 			const summaries = [todayRow(first)];
-			const data = ids.map((id) => ({ id, name: id, slug: id, type: "county", summaries }));
+			const monitors =
+				kind === "monitors" && url.searchParams.has("type") ? await monitorsOfRequest(url) : null;
+			const data = (monitors ?? ids.map((id) => ({ id, name: id, slug: id, type: "county" }))).map(
+				(row) => ({ ...row, summaries })
+			);
 			await route.fulfill({ json: { data, page: 1, pages: 1, has_next_page: false } });
 		}
 	);
