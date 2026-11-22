@@ -654,7 +654,7 @@ describe("pesticide use on a Map", () => {
 		);
 		expect(one.draft.options).toBeUndefined();
 		expect(one.dropped).toEqual([]);
-		// A pesticides-only chart gets the first offered pollutant, at its Where.
+		// A pesticides-only chart gets no pollutant (decision 6), at its Where; nothing is noted.
 		const only = toMapDraft(
 			chartOver({ kind: "custom", start: "2022-01-01", end: "2022-12-31" })([
 				{ dataset: "pesticide-use", entryType: "pounds-applied" }
@@ -663,10 +663,8 @@ describe("pesticide use on a Map", () => {
 			ALLOWED,
 			NOW
 		);
-		expect(only.draft.data.layers).toEqual([
-			{ dataset: "air-quality", entryType: "o3" },
-			{ dataset: PESTICIDE_USE }
-		]);
+		expect(only.draft.data.layers).toEqual([{ dataset: PESTICIDE_USE }]);
+		expect(only.dropped).toEqual([]);
 		expect(only.draft.data.place).toEqual(FRESNO);
 		expect(only.dropped).not.toContain("pollutant");
 		expect(only.pollutant).toBeUndefined();

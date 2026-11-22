@@ -381,3 +381,31 @@ for (const width of [390, 320]) {
 		await expect(page.getByRole("radio", { name: "Data table" })).toBeFocused();
 	});
 }
+
+test("Show as keeps the ticked monitor types from a Map to a Chart, and a calendar notes them left out", async ({
+	page
+}) => {
+	await page.goto("data");
+	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
+	const purple = page.getByRole("checkbox", { name: "PurpleAir" });
+	// A new Chart starts with none ticked; a new Map with every type (decision 8).
+	await expect(purple).not.toBeChecked();
+	await page.locator('[data-show-as="map"]').click();
+	await expect(page.locator('[data-show-as="map"]')).toHaveAttribute("data-state", "on");
+	await expect(purple).toBeChecked();
+	// Back to a Chart: the ticks are kept, and nothing is noted.
+	await page.locator('[data-show-as="chart"]').click();
+	await expect(page.locator('[data-show-as="chart"]')).toHaveAttribute("data-state", "on");
+	await expect(purple).toBeChecked();
+	await expect(page.getByText(/left out/)).toHaveCount(0);
+	// A calendar shows one place or one monitor: the ticks go, with a note; the county stays.
+	await page.locator('[data-show-as="calendar-month"]').click();
+	await expect(page.locator('[data-show-as="calendar-month"]')).toHaveAttribute("data-state", "on");
+	await expect(
+		page.getByText(
+			"This widget shows one place or one monitor, so the chosen monitor types were left out."
+		)
+	).toBeVisible();
+	await expect(page.getByTestId("where-summary")).toHaveText("Fresno County");
+	await expect(page.getByRole("checkbox", { name: "PurpleAir" })).toHaveCount(0);
+});

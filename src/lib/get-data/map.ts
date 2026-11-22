@@ -26,6 +26,7 @@ import { CHART_TYPE } from "$lib/widgets/chart";
 import { getWidgetType, type WidgetType } from "$lib/widgets/registry";
 import { mapLevel, type MapLevel } from "$lib/widgets/map/days";
 import {
+	isStripLayer,
 	mainLayer,
 	widgetEffective,
 	widgetPlaceKind,
@@ -300,7 +301,9 @@ export function tickEveryTypeIfNone(data: WidgetDataConfig, catalog: CatalogEntr
 }
 
 /**
- * `draft` (any type) as a Map: the source's pollutant (or the first offered), its places (≤ 25),
+ * `draft` (any type) as a Map: the source's pollutant (the first offered when the Map doesn't
+ * offer it, or for a Forecast strip; none when the source has none: None, or only other data,
+ * whose ticks and searched monitors under None are kept), its places (≤ 25),
  * smoke and fire on when the source had a smoke layer, and the range the person chose
  * (`chosenRange`, then `mapRange`: cut to the Map's 366 stops at its resolution with a
  * `"range-cut"` note and `cutAt`, the level; none,
@@ -312,7 +315,7 @@ export function tickEveryTypeIfNone(data: WidgetDataConfig, catalog: CatalogEntr
  * Map's filter set and its entry type the `useFigure` (unless it's the catalog's first, the
  * default); the source's range is kept even when it's the type's untouched default, since use
  * isn't drawn on Now. Other use layers are left out (`"overlays"`). A chart of pesticide use only
- * gets the first offered pollutant. The Map's resolution (and so its cut) is
+ * gets no pollutant. The Map's resolution (and so its cut) is
  * that of the layers it ends with.
  */
 export function toMapDraft(
@@ -323,11 +326,26 @@ export function toMapDraft(
 ): NowConversion {
 	const converted = toNowDraft(draft, mapType, catalog, [], undefined, allowed);
 	const data = converted.draft.data;
+	const kept = new Set<Layer>();
+	// A source with no pollutant (None, or only other data; a Forecast strip's forecasts aside)
+	// gets none on the Map either (decision 6). An air-quality layer kept with None keeps its
+	// ticks and searched monitors (decision 31).
+	const aq = draft.data.layers.find((l) => l.dataset === AIR_QUALITY);
+	const strip = draft.data.layers.length === 1 && isStripLayer(draft.data, draft.data.layers[0]);
+	const noPollutant = !aq?.entryType && !strip;
+	if (noPollutant) {
+		const none: Layer = {
+			dataset: AIR_QUALITY,
+			...(aq?.monitors?.length ? { monitors: [...aq.monitors] } : {}),
+			...(aq?.monitorTypes?.length ? { monitorTypes: [...aq.monitorTypes] } : {})
+		};
+		data.layers = none.monitors || none.monitorTypes ? [none] : [];
+		if (aq) kept.add(aq);
+	}
 	// From another type it's a new Map; a Map's own ticks (or none) are kept.
 	if (draft.type !== MAP_TYPE) tickEveryTypeIfNone(data, catalog);
 	const selection = draft.data.timeSubRange;
 	const fromMap = draft.type === MAP_TYPE;
-	const kept = new Set<Layer>();
 	if (fromMap) {
 		// The converted layer's source (its pollutant).
 		const source = pollutantLayer(draft.data, catalog);
@@ -362,11 +380,13 @@ export function toMapDraft(
 	// The source layer, the pollutants kept, smoke (carried over as smoke and fire) and the use
 	// taken aren't left out.
 	const source = mainLayer(draft.data, catalog) ?? draft.data.layers[0];
+	// With no pollutant, nothing takes the source layer's place, so it counts as left out too.
 	const others = draft.data.layers.some(
-		(l) => l !== source && !kept.has(l) && !isHms(l) && l !== notices && l !== use
+		(l) => (noPollutant || l !== source) && !kept.has(l) && !isHms(l) && l !== notices && l !== use
 	);
-	// A use-only chart's use is kept as the Map's: the pollutant it gets replaces nothing.
-	const replaced = !(use && source === use);
+	// A pollutant replaces the source layer only when the Map has one and the source wasn't the
+	// use, which the Map keeps as its own.
+	const replaced = !noPollutant && !(use && source === use);
 	const dropped: NowDropped[] = converted.dropped.filter(
 		(d) => d !== "dates" && (d !== "overlays" || others) && (d !== "pollutant" || replaced)
 	);

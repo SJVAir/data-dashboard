@@ -73,7 +73,8 @@ export function offeredPollutants(catalog: CatalogEntry[], allowed?: string[]): 
 /**
  * A single-place widget's Where and layers (spec decision 11): one place or one monitor, not both.
  * Ticked monitor types are left out (`"monitor-types"`); of the searched monitors only the first is
- * kept, and it wins over the Where, which is then left out (both `"places"`). The layers are
+ * kept, and it wins over the Where, which is then left out (both `"places"`). An air-quality
+ * layer kept with None (spec decision 31) that is left holding nothing goes. The layers are
  * copies; `where` and `layers` aren't changed.
  */
 function onePlace(
@@ -97,9 +98,27 @@ function onePlace(
 		}
 		return layer;
 	});
+	// An air-quality layer kept with None only for its monitors goes once it holds none.
+	const kept = out.filter((l) => l.dataset !== AIR_QUALITY || l.entryType || l.monitors?.length);
 	const keptWhere = monitor ? {} : where;
 	if (monitor && (where.place || where.selection)) dropped.add("places");
-	return { where: keptWhere, layers: out, dropped: [...dropped] };
+	return { where: keptWhere, layers: kept, dropped: [...dropped] };
+}
+
+/**
+ * The monitors `data` holds, as saved: its air-quality layer's (one kept with None too, spec
+ * decision 31), else a Forecast strip's one layer's. A conversion carries or notes them all,
+ * where `widgetMonitors` reads only those that fetch.
+ */
+function savedMonitors(data: Draft["data"]): { monitors: string[]; types: string[] } {
+	const strip = data.layers.length === 1 && isStrip(data.layers[0]) ? data.layers[0] : undefined;
+	const layer = data.layers.find((l) => l.dataset === AIR_QUALITY) ?? strip;
+	return { monitors: layer?.monitors ?? [], types: layer?.monitorTypes ?? [] };
+}
+
+/** Whether `layer` is a Forecast strip's (forecasts with no entry type). */
+function isStrip(layer: Layer): boolean {
+	return layer.dataset === FORECASTS && !layer.entryType;
 }
 
 /** The layer a now draft is made from: its main layer, or a Forecast strip's one layer. */
@@ -199,7 +218,7 @@ export function toNowDraft(
 	};
 	// The monitors go with the layer (a Forecast strip's on its forecasts layer): a one-place type
 	// takes one place or one monitor (`onePlace`); a Map takes them all, with its ticked types.
-	const { monitors: searched, types: ticked } = widgetMonitors(draft.data);
+	const { monitors: searched, types: ticked } = savedMonitors(draft.data);
 	if (searched.length > 0) layer.monitors = [...searched];
 	if (ticked.length > 0) layer.monitorTypes = [...ticked];
 	const one = cap === 1 ? onePlace(where, [layer]) : undefined;
@@ -265,7 +284,7 @@ export function fromNowDraft(draft: Draft, type: WidgetType): NowConversion {
 	const cap = type.accepts?.maxPlaces;
 	// A Forecast strip's layer becomes PM2.5, keeping its monitor.
 	let layers = draft.data.layers.map((l) =>
-		l.entryType
+		!isStrip(l)
 			? structuredClone(l)
 			: {
 					dataset: DEFAULT_LAYER.dataset,
@@ -378,5 +397,47 @@ export function switchRange(
 		...(timeSubRange ? { timeSubRange } : {}),
 		...(left ? { left } : {}),
 		...(outside ? { outside } : {})
+	};
+}
+
+/**
+ * A range draft (a `from` draft) as range type `to`: its range and day selection as `switchRange`
+ * moves them (`"selection"`, `"outside"`), its alert level left out when `to` has none
+ * (`"alert"`). A single-place type (a calendar) takes one place or one monitor and no ticked
+ * types (`onePlace`: `"places"`, `"monitor-types"`). Everything else is kept: its Where, layers,
+ * ticks, searched monitors and options (decision 8).
+ */
+export function fromRangeDraft(
+	draft: Draft,
+	from: WidgetType | undefined,
+	to: WidgetType,
+	now: Date
+): NowConversion {
+	const moved = switchRange(draft.data, from, to, now);
+	const data = structuredClone(draft.data);
+	if (moved.dateRange) data.dateRange = structuredClone(moved.dateRange);
+	if (!moved.timeSubRange) delete data.timeSubRange;
+	const dropped: NowDropped[] = moved.left ? ["selection"] : moved.outside ? ["outside"] : [];
+	const keepLine = to.thresholds && draft.thresholds;
+	if (!to.thresholds && draft.thresholds) dropped.push("alert");
+	// A single-place type takes one place or one monitor, and no ticks (`onePlace`).
+	if (to.accepts?.maxPlaces === 1) {
+		const one = onePlace(widgetWhere(data), data.layers);
+		delete data.place;
+		delete data.selection;
+		Object.assign(data, one.where);
+		data.layers = one.layers;
+		dropped.push(...one.dropped);
+	}
+	const days = moved.left ?? moved.outside;
+	return {
+		draft: {
+			type: to.type,
+			data,
+			...(draft.options ? { options: structuredClone(draft.options) } : {}),
+			...(keepLine ? { thresholds: structuredClone(draft.thresholds) } : {})
+		},
+		dropped,
+		...(days ? { selection: structuredClone(days) } : {})
 	};
 }

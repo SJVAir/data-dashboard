@@ -63,28 +63,25 @@
 	import { flushDraft, saveDraft, type Draft } from "./draft.svelte";
 	import type { GetDataMode } from "./mode";
 	import {
-		fromNowDraft,
+		fromRangeDraft,
 		isNowShaped,
 		keptThreshold,
 		nowPollutant,
 		offeredPollutants,
 		selectionFits,
 		switchRange,
-		toNowDraft,
-		type NowConversion,
-		type NowDropped
+		type NowConversion
 	} from "./now";
+	import { showAsDraft } from "./show-as";
 	import NowControls from "./NowControls.svelte";
 	import {
-		fromMapDraft,
 		isMapShaped,
 		mapShowingOnly,
 		setMapFill,
 		setMapPesticideFilters,
 		setNotices,
 		setSmokeAndFire,
-		setUse,
-		toMapDraft
+		setUse
 	} from "./map";
 	import { pesticideMeta } from "./sources";
 	import { isCalendarType } from "$lib/calendars/types";
@@ -725,12 +722,6 @@
 		return t.type === MAP_TYPE ? isMapShaped(d, now, known) : isNowShaped(d, t);
 	}
 
-	/** The type `snapshot` converts from: none for a range draft already marked as a now type. */
-	function sourceType(snapshot: Draft): WidgetType | undefined {
-		const from = getWidgetType(snapshot.type);
-		return from && offersNow(from) && !shaped(snapshot, from) ? undefined : from;
-	}
-
 	/** The draft as now type `next`, once its pollutant's scale has loaded. */
 	async function convertToNow(next: WidgetType, catalog: CatalogEntry[]): Promise<void> {
 		const id = ++changeId;
@@ -740,7 +731,12 @@
 			const allowed = await loadMapPollutants();
 			if (id !== changeId) return;
 			mapPollutants = allowed;
-			const converted = toMapDraft($state.snapshot(draft) as Draft, catalog, allowed, now);
+			const converted = showAsDraft($state.snapshot(draft) as Draft, next, {
+				catalog,
+				allowed,
+				levels: "unavailable",
+				now
+			});
 			defaultOwed = false;
 			replaceDraft(converted.draft);
 			noteConversion(converted);
@@ -757,10 +753,7 @@
 		if (nowPollutant(base(fresh), next, catalog) !== pollutant) {
 			return convertToNow(next, catalog);
 		}
-		const converted =
-			fresh.type === MAP_TYPE
-				? fromMapDraft(fresh, next, catalog, levels, now)
-				: toNowDraft(fresh, next, catalog, levels, sourceType(fresh));
+		const converted = showAsDraft(fresh, next, { catalog, allowed: [], levels, now });
 		alertLevels = { entryType: nowEntryType(converted.draft), levels };
 		defaultOwed = !!converted.defaultOwed;
 		replaceDraft(converted.draft);
@@ -782,12 +775,18 @@
 		changeId++;
 		defaultOwed = false;
 		if (!offersNow(to) && isNow) {
-			const converted =
-				plain.type === MAP_TYPE
-					? fromMapDraft(plain, to, known ?? [], "unavailable", now)
-					: fromNowDraft(plain, to);
+			const converted = showAsDraft(plain, to, {
+				catalog: known ?? [],
+				allowed: [],
+				levels: "unavailable",
+				now
+			});
 			replaceDraft(converted.draft);
 			noteConversion(converted);
+		} else if (!offersNow(to)) {
+			const converted = fromRangeDraft(plain, type, to, now);
+			replaceDraft(converted.draft);
+			if (converted.dropped.length) noteConversion(converted);
 		}
 		// A now type chosen before the catalog is known is converted once it is (below).
 		else {
@@ -795,20 +794,6 @@
 			if (moved.dateRange) draft.data.dateRange = moved.dateRange;
 			if (!moved.timeSubRange) delete draft.data.timeSubRange;
 			draft.type = next;
-			const days = moved.left ?? moved.outside;
-			const dropped: NowDropped[] = moved.left ? ["selection"] : moved.outside ? ["outside"] : [];
-			// A line the new type can't hold is left out, with a note.
-			if (!to.thresholds && draft.thresholds) {
-				delete draft.thresholds;
-				dropped.push("alert");
-			}
-			if (dropped.length) {
-				noteConversion({
-					draft: $state.snapshot(draft) as Draft,
-					dropped,
-					...(days ? { selection: days } : {})
-				});
-			}
 		}
 	}
 
