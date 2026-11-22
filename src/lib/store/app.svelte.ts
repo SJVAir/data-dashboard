@@ -398,7 +398,8 @@ class App implements AppContext {
 			await saveStarterArea(this.platform, this.space, place).catch((error: unknown) =>
 				report(error, { operation: "starter-area" })
 			);
-			return true;
+			// A newer change started while it saved: that one wins.
+			return !this.#superseded(change, shown);
 		}
 		if (place.kind !== "location" && place.kind !== "point") return true;
 		try {

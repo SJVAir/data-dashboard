@@ -336,6 +336,27 @@ describe("Change place on the starter", () => {
 		expect(await platform.preferences.get("anonymous", STARTER_PLACE_KEY)).toEqual(OTHER);
 	});
 
+	it("a region still saving when a school change starts: the school and its area win", async () => {
+		const { platform, app } = await setup();
+		const KERN: ChosenPlace = { kind: "region", type: "county", code: "06029" };
+		const set = platform.preferences.set.bind(platform.preferences);
+		let saved!: () => void;
+		// The region's area is written at once, but its save answers only once released.
+		vi.spyOn(platform.preferences, "set").mockImplementationOnce(async (...args) => {
+			await set(...args);
+			await new Promise<void>((resolve) => (saved = resolve));
+		});
+		const first = app.changeStarterPlace(KERN);
+		await vi.waitFor(() => expect(saved).toBeDefined());
+		await app.changeStarterPlace(SCHOOL);
+		saved();
+		await first;
+		expect(app.starterPlace).toEqual(SCHOOL);
+		expect(app.starterArea).toEqual(ZIP);
+		expect(await platform.preferences.get("anonymous", STARTER_AREA_KEY)).toEqual(ZIP);
+		expect(await platform.preferences.get("anonymous", STARTER_PLACE_KEY)).toEqual(SCHOOL);
+	});
+
 	it("survives a reload", async () => {
 		const { platform, app } = await setup();
 		await app.changeStarterPlace(SCHOOL);
