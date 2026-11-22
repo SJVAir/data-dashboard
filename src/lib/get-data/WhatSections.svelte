@@ -84,7 +84,7 @@
 		onpollutant: (pick: EntryPick | null) => void;
 		/** "Can we go outside?"'s pollutant (its alert level follows it). */
 		onnowpollutant: (entryType: string) => void;
-		/** Current conditions' ticked pollutants, in the order ticked (each has its alert level). */
+		/** Current conditions' ticked pollutants, in the offered order (each has its alert level). */
 		onnowpollutants: (entryTypes: string[]) => void;
 		/** The ticked monitor types after a change (Air quality). */
 		onmonitortypes: (types: string[]) => void;

@@ -72,7 +72,10 @@
 		multiple?: boolean;
 		/** A pollutant, or `null` for None (without `multiple`). */
 		onpollutant?: (pick: EntryPick | null) => void;
-		/** With `multiple`: the ticked pollutants' entry types after a change, in the order ticked. */
+		/**
+		 * With `multiple`: the ticked pollutants' entry types after a change, in the offered order
+		 * (any ticked one not offered last), the order the layers are stored in.
+		 */
 		onpollutants?: (entryTypes: string[]) => void;
 		/** The ticked monitor types after a change. */
 		ontypes: (types: string[]) => void;
@@ -149,12 +152,15 @@
 		return undefined;
 	}
 
-	/** Ticks a pollutant on (after those ticked) or off. */
+	/** Ticks a pollutant on or off; the list stays in the offered order (any not offered last). */
 	function togglePollutant(id: string, on: boolean): void {
-		const next = on
-			? [...pollutantsTicked.filter((e) => e !== id), id]
-			: pollutantsTicked.filter((e) => e !== id);
-		onpollutants?.(next);
+		const kept = pollutantsTicked.filter((e) => e !== id);
+		const chosen = on ? [...kept, id] : kept;
+		const order = (pollutants ?? []).map((e) => e.id);
+		onpollutants?.([
+			...order.filter((e) => chosen.includes(e)),
+			...chosen.filter((e) => !order.includes(e))
+		]);
 	}
 
 	function toggleType(type: string, on: boolean): void {

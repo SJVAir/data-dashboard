@@ -59,7 +59,8 @@
 		: m.get_data_alert_level()}
 	{#if alert.levels === "unavailable"}
 		<div class="flex flex-col gap-1" role="group" aria-labelledby="{id}-label">
-			<p id="{id}-label" class="text-sm font-medium">{label}</p>
+			<!-- One pollutant reads as before (no heading); its label still names the group. -->
+			<p id="{id}-label" class={["text-sm font-medium", !named && "sr-only"]}>{label}</p>
 			<div class="flex flex-wrap items-center gap-2">
 				<p role="status" class="text-sm">{m.get_data_levels_unavailable()}</p>
 				<Button variant="outline" size="sm" onclick={() => onretry(alert.entryType)}>

@@ -2492,6 +2492,23 @@ describe("now widgets", () => {
 			expect(out.thresholds).toEqual([{ level: "usg-o3", entryType: "o3" }]);
 		});
 
+		test("re-ticking PM2.5 puts it back first, in the offered order, holding the monitor", async () => {
+			const { current } = await show(both());
+			await aq().getByRole("checkbox", { name: "PM2.5" }).click();
+			await expect.element(forPm25()).not.toBeInTheDocument();
+			await aq().getByRole("checkbox", { name: "PM2.5" }).click();
+			await expect.element(forPm25()).toHaveValue("unhealthy-sensitive");
+			const out = await current();
+			expect(out.data.layers).toEqual([
+				{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] },
+				{ dataset: "air-quality", entryType: "o3" }
+			]);
+			expect(out.thresholds).toEqual([
+				{ level: "usg-o3", entryType: "o3" },
+				{ level: "unhealthy-sensitive", entryType: "pm25" }
+			]);
+		});
+
 		test("unticking every pollutant leaves the checkboxes enabled and blocks Add", async () => {
 			const { latest, host } = await show(both());
 			await aq().getByRole("checkbox", { name: "PM2.5" }).click();

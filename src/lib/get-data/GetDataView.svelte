@@ -11,6 +11,7 @@
 	import { scrollFocusable } from "$lib/components/shared/scroll-focusable";
 	import { adapterOffers, getMetadata, getResolvers } from "$lib/data";
 	import { csvPending, saveDataCsv } from "$lib/data/csv";
+	import { AIR_QUALITY } from "$lib/data/layer-kind";
 	import type { CatalogEntry, Level } from "$lib/data/metadata";
 	import { fillableTypes } from "$lib/data/snapshot";
 	import type { ChosenPlace, DateRangeSpec, Layer, PesticideFilters } from "$lib/data/schema";
@@ -926,7 +927,7 @@
 		d.type === CURRENT_TYPE
 			? currentPollutants(d.data)[0]
 			: d.type === OUTSIDE_TYPE
-				? d.data.layers.find((l) => l.dataset === "air-quality")?.entryType
+				? d.data.layers.find((l) => l.dataset === AIR_QUALITY)?.entryType
 				: nowPollutant(d, getWidgetType(d.type)!, known ?? []);
 	const isCurrent = $derived(plain.type === CURRENT_TYPE);
 	// A Chart's threshold line reads its main pollutant's scale the same way (no default).
@@ -957,7 +958,7 @@
 			? alertEntryTypes.map((entryType) => ({
 					entryType,
 					label:
-						entryMeta(known, { dataset: "air-quality", entryType })?.entryType.label ?? entryType,
+						entryMeta(known, { dataset: AIR_QUALITY, entryType })?.entryType.label ?? entryType,
 					levels: alertLevels[entryType] ?? null,
 					threshold: thresholdFor(plain.thresholds, isCurrent ? entryType : undefined)
 				}))
@@ -1018,8 +1019,8 @@
 	}
 
 	/**
-	 * Current conditions' ticked pollutants (C2, C3): their layers, in the order ticked (the monitor
-	 * stays on the first); a newly ticked one gets its scale's default alert level (owed until the
+	 * Current conditions' ticked pollutants (C2, C3): their layers, in the order given (the offered
+	 * order; the monitor stays on the first); a newly ticked one gets its scale's default alert level (owed until the
 	 * scale loads), an unticked one's goes.
 	 */
 	function setNowPollutants(entryTypes: string[]): void {
@@ -1267,7 +1268,8 @@
 			{/if}
 			{#if noPollutant}
 				<!-- Current conditions with nothing ticked (C2): nothing to preview yet. -->
-				<p role="status" class="text-muted-foreground text-sm">{m.get_data_choose_pollutant()}</p>
+				<!-- Not a status: the action bar's blocked reason says it once. -->
+				<p class="text-muted-foreground text-sm">{m.get_data_choose_pollutant()}</p>
 			{:else}
 				<Preview
 					widget={previewWidget}
