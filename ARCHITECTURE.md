@@ -2261,7 +2261,7 @@ settings), plus its own EV charger and Wind groups, with the host's values in on
   to a Chart keeps the use, even from Now, and the Chart's Automatic then counts it (Monthly).
 - **Region fills.** The region type is the Map option `fill` (a region type id), written by Get
   data's "Fill regions by", not a layer: a fill has no pollutant of its own (it follows
-  `showing`). It is validated against the region metadata when drawn: an unknown type draws no
+  the Map's one pollutant, or draws as outlines with none). It is validated against the region metadata when drawn: an unknown type draws no
   fill and the toolbar offers no row, and nothing is written. map-sdk's `regionsPlugin` draws every
   current region of the type over the whole valley, under the monitors and the focus area, with
   `selectable: false`; each figure is the stop's (the day's, or the month's or year's period
@@ -2308,8 +2308,7 @@ for the data that tile holds.
   follows the stepper's month or year.
 - **Monitors' "Inactive" and "Inside" options** show only when the loaded monitors include
   inactive or indoor ones, and both are **off by default** (the user, 2026-11-13: a Map no longer
-  draws inactive or indoor monitors until someone turns them on). A monitor type with no monitor
-  among the loaded ones for the pollutant showing isn't offered. On a past stop (spec 4) the
+  draws inactive or indoor monitors until someone turns them on). A monitor type with no monitor among the loaded ones for the Map's pollutant isn't offered. On a past stop (spec 4) the
   Inactive row isn't offered, and `at` isn't a toolbar key, so Reset leaves it (see "The Map's
   days and region fills").
 - **Left out on purpose:** a search slot (the place picker does that job), a "None" pollutant (a
@@ -2323,21 +2322,22 @@ for the data that tile holds.
 - **The basemap is one saved value**, the variant id, which map-sdk stores. An unknown id falls
   back to a default and never throws. Every MapTiler basemap is offered at its newest version; it
   opens on Streets v4 without POI layers.
-- **The saved shape** (`MapOptionsSchema`, `src/lib/widgets/map/options.ts`), next to `showing` and
-  `marks`: `basemap`, `clustered`, `fireAndSmoke`, `inactive`, `inside`, and `hiddenTypes` (the
+- **The saved shape** (`MapOptionsSchema`, `src/lib/widgets/map/options.ts`), next to
+  `marks` (spec 7a removed `showing`: a Map holds one pollutant or none, the layer's entry type): `basemap`, `clustered`, `fireAndSmoke`, `inactive`, `inside`, and `hiddenTypes` (the
   monitor types switched off, unique and bounded). Types are saved as the ones switched **off**, so
   a type the server adds later shows as on with nothing to fix in old dashboards.
 - **Missing means default, and a default is never written.** A missing option is drawn as its
   default; a choice equal to its default is stored as missing (a type switched back on leaves
   `hiddenTypes`, an empty list is removed). So **Reset Map Options** needs no special handling:
-  putting each key back to its default removes it. `showing` resets to the first pollutant; marks
+  putting each key back to its default removes it. The pollutant is the layer's, so it isn't reset; marks
   and places stay.
 - **A saved value applies only while its row is offered.** A type switched off, or Inactive or
   Inside off, filters the monitors only when the Monitors group shows that row. If the tile's data
   later leaves the row out, nothing filters by it, so a tile can never hide monitors with no
   visible way back. The value stays saved and applies again when the row returns.
-- **The toolbar's filters never hide the monitors that are the tile's own places** (a ruling
-  made while building, 2026-11-13). A monitor place, or a hand-picked monitors selection, is
+- **The toolbar's filters never hide the monitors the owner searched for** (a ruling
+  made while building, 2026-11-13; before spec 7a they were monitor places). A searched monitor
+  (the layer's `monitors`, `placeMonitors`) is
   always drawn, even when inactive, indoors or of a type switched off: the Inactive and Inside
   defaults and the type switches hide incidental monitors around a place, never one the owner
   chose, and the toolbar offers no filter rows for them, since they can't be filtered (the user,
@@ -2534,8 +2534,8 @@ for the data that tile holds.
     `unavailable` (`filter-gone`), with the banner and the reason in the legend.
 - **A tile draws only its own data.** Monitors are the ones in the places (a region or several:
   those regions' monitors; monitor places: exactly those; a school or exact point: the monitors
-  in its `placeRegion` region, the one the frame uses), and only those reporting the pollutant
-  showing. Smoke and fire are drawn everywhere, never clipped to the places. A tile never draws
+  in its `placeRegion` region, the one the frame uses), and only those reporting the Map's
+  pollutant. Smoke and fire are drawn everywhere, never clipped to the places. A tile never draws
   another pollutant's or an earlier place's readings while a load is pending. A load error shows
   one Retry.
 - **Marks.** A tap or click opens map-sdk's pinned card; its **Select** and **Remove** buttons,
@@ -2544,8 +2544,8 @@ for the data that tile holds.
   `options.marks` through `applyChange`, so they undo, and `setSelection` follows the document
   (undo, redo, other tabs). At most 25, counting every mark: a 26th gets map-sdk's notice. Only
   monitors can be marked, and view-only dashboards hide the buttons. Marks are kept when a
-  monitor leaves the tile's data (a place change, another pollutant showing, a pollutant
-  unchecked): the mark stays, hidden, and a note under the map counts the hidden marks. Marks
+  monitor leaves the tile's data (a place change, another pollutant chosen in the Data Portal, the
+  pollutant set to None): the mark stays, hidden, and a note under the map counts the hidden marks. Marks
   are dropped, with a note, when converting away from the Map.
 - **The toolbar's wiring** (step 5 spec 3, `src/lib/widgets/map/toolbar/`). The Map's options
   toolbar is map-sdk's `OptionsToolbar` in `MapView`'s `toolbar` snippet. `values.ts` turns saved
@@ -2553,16 +2553,15 @@ for the data that tile holds.
   equal to its default is stored as missing); `toolbar.svelte.ts` builds map-sdk's groups from the
   tile's data (one `monitorsOptions` per map, its groups made inside a `$derived`); `wiring.svelte.ts`
   connects them to the widget and to `changeTileOptions`. How each key drives the map: `pollutant`
-  is the saved `showing`; `type:*`, `inactive` and `inside` are **filters the dashboard applies to
+  is the layer's entry type (shown only with two or more pollutants offered); `type:*`, `inactive` and `inside` are **filters the dashboard applies to
   the monitors' features inside `MapData`** (map-sdk never filters a host's data), and
   `monitorsDrawn`, which the hidden-marks note reads, stays unfiltered; `clustered` is the
   monitors plugin's clustering; `basemap` is `map.basemap.select`; `fireAndSmoke` adds or removes
-  the smoke and fire plugins. The pollutant shown is the one **drawn**, including
-  `drawableShowing`'s fallback, which is drawn and never saved. The dashboard doesn't subscribe to
+  the smoke and fire plugins. The pollutant shown is the one **drawn** (the layer's entry type, or none). The dashboard doesn't subscribe to
   `map.basemap.onFallback`: fallbacks are drawn, not saved. The toolbar and the List button show
   above the loading skeleton, and so do the map's notes (under the toolbar, using
   `--mapsdk-toolbar-height`, which ends the banner crowding the zoom buttons).
-  Get data's "Show as" converts by the pollutant drawn, not the saved `showing`.
+  Get data's "Show as" converts by the pollutant drawn.
 - **Providers:** `messages` maps every `mapsdk_*` key to a Paraglide message through an explicit
   table (a test fails when map-sdk adds a key the table lacks); `format` wraps the dashboard's
   `format` module (Pacific, " PT" off-Pacific), except relative time, which stays map-sdk's
@@ -2667,7 +2666,7 @@ Decided 2026-09-23 (IDEA.md Open Question #8). All charts use uPlot. "SDK+" = ne
 
 | Widget                    | What it shows                                                                                          | Notes                        |
 | ------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------- |
-| Map                       | `map-sdk` `MapView` + plugins; spatial selection (feature/region, later drawn)                         | See "Map SDK"                |
+| Map                       | `map-sdk` `MapView` + plugins; one pollutant or none; Where plus searched monitors; selection          | See "Map SDK"                |
 | Calendar — day-colored    | Each day colored by its average; day-range selection                                                   | Replaces the v1 calendar     |
 | Calendar — contribution   | GitHub-style grid with adjustable range (≥ 1 week); day-range selection                                |                              |
 | Chart                     | uPlot time series: at most one pollutant plus any non-pollutant layers, over the widget's date range   |                              |
@@ -2757,8 +2756,8 @@ a date range outside their span.
 icon and messages; map-sdk, MapLibre and the rest load with `module.ts`.
 
 - **The descriptor:** `type: "map"`, label "Map", `time: "now"` (since spec 4 it is `time: "range"` with
-  the `now` flag), `accepts: { datasets: ["air-quality"], maxPollutantLayers: 1, maxPlaces:
-25, onlyPollutant: true }`, `thresholds`, `analyzable` and `downloadable` all `false`,
+  the `now` flag), `accepts: { datasets: ["air-quality", HMS_SMOKE, HMS_FIRE],
+maxPollutantLayers: 1, maxPlaces: 25 }`, `thresholds`, `analyzable` and `downloadable` all `false`,
   `menu` lists "Show in a chart" and "Show in a table" (below; empty without a mark to send).
   "Change place" and "Edit data" come from the generic items. Sizes: 6 × 6 by
   default, 3 × 4 at minimum.
@@ -2878,7 +2877,7 @@ conditions and "Can we go outside?" have one pollutant layer (heat for "Can we g
 outside?" follows from the same place); the Forecast strip has one forecasts layer. **Chart** is `time: "range"` and accepts multiple layers. **Map** is `time: "range"` with the
 **`now` flag** (step 5 spec 4, 2026-11-15): the type offers "Now" as a When choice, and a Map with
 no `dateRange` shows now, as it did in specs 1–3 (`offersNow` and `showsNow` in
-`src/lib/widgets/time.ts`). It holds one pollutant layer with up to 25 places.
+`src/lib/widgets/time.ts`). It holds zero or one pollutant layer (spec 7a), and its Where takes up to 25 places.
 
 **`accepts.datasets` is explicit** (decided 2026-11-05, step 4 spec 3). It lists the catalog
 dataset ids a type can show; a type with no list accepts no datasets, so a new type can't

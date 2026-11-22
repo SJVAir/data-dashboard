@@ -1556,13 +1556,6 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   this item is **spec 7c** (7a built the Data Portal's What and monitors; 7b is Current
   conditions). **Revisit with** spec 7c.
 
-- **More than one pollutant on one Map.** _Deferred 2026-11-12 (step 5 spec 2); lowered from 6 on
-  2026-11-16 (step 5 spec 5); rewritten 2026-11-22 (step 5 spec 7a)._ A Map holds one pollutant or
-  none (spec 7a, decision 5: `MAP_POLLUTANTS_MAX` and the several-pollutant handling were
-  removed). Why: the Data Portal's one What gives every widget type the same radios with None, and
-  the toolbar's pollutant group shows only with two or more pollutants. **Revisit when** someone
-  asks to see two pollutants on one Map.
-
 - **A Map draws no smoke or fire, and says nothing, without catalog labels.** _Found 2026-11-12
   (step 5 spec 2)._ If the dataset catalog lacks `hms-smoke` or `hms-fire`, that layer isn't drawn
   (layer labels come from metadata, the source of truth). The real catalog has both. Since step 5
@@ -3749,3 +3742,11 @@ Dropped 2026-11-17 by the user (step 5 spec 5b final review):
 - **Splitting `MapWidget.svelte` again** (deferred 2026-11-17, step 5 spec 5b leftovers). It grew
   back to about 1,020 lines with the use wiring after Task 1's split; the user said that size is
   fine as it is (about 1,030 after the final review's fixes).
+
+Dropped 2026-11-21 by the user (step 5 spec 7 brainstorm):
+
+- **More than one pollutant on one Map** (deferred 2026-11-12, step 5 spec 2; lowered from 6 to 4 on
+  2026-11-16). The user: "a person picks one pollutant (one or none, never two at once)". Why: the
+  Data Portal's one What gives every widget type the same radios with None, so a Map holds one
+  pollutant or none and `MAP_POLLUTANTS_MAX` and the several-pollutant handling were removed in
+  spec 7a.

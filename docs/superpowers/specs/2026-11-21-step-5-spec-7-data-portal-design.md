@@ -370,16 +370,17 @@ rule), then the user's calls.
 
 - **R2:** Task 15's E2E asserts the region-scoped bulk request only; the `type=purpleair`
   assertion was added when the SDK beta arrived.
-- **R3:** if vitest has no `--repeat` flag, a flake check runs the test 20 times in a shell loop.
-- **R4:** the Where-picker callers that kept places on open were found by grep in `src/routes/`
-  (the plan named the wrong folder).
+- **R3:** the plan's `--repeat 20` may not be a vitest flag; if it isn't, run the test 20 times
+  in a shell loop.
+- **R4:** Task 7 finds the `keepOnOpen` callers by grep in `src/routes/` (the plan named
+  `src/lib/routes/`, which doesn't exist).
 - **R5:** the SDK pin moved to `5.0.0-beta.16` at the start of the monitors task and uses the real
   `type` parameter, so no type filter is ever written in the dashboard.
 - **R6:** a Map with no pollutant draws its other layers (smoke, fire, notices, use, fill), per
   decision 6.
 - **R7:** converting to a Map never adds a pollutant when the source has None.
-- **R8:** a widget with no layers but a Where gets an empty-state prompt of its own; Chart and
-  Table own that copy (decision 9), the Map its own.
+- **R8:** a widget with no layers but a Where wrongly showed "Choose a place…"; Chart and Table
+  own the empty-state copy (decision 9) in Task 6, the Map in Task 8.
 - **R9:** ticked monitor types are their own place kind, `monitor-types`: no raw, like regions,
   because the bulk summaries have none (raw for them is in `DEFERRED.md`).
 - **R10:** an overlay copies the main layer's searched monitor ids, not its types.
