@@ -165,7 +165,7 @@ test("Choose a place on an idle month calendar: a school shows its ZIP's data", 
 	page
 }) => {
 	await openDoc(page, dataDoc("calendar-month"));
-	await expect(page.getByText("Choose a place to show data.")).toBeVisible();
+	await expect(page.getByText("Choose a place or a monitor to show data.")).toBeVisible();
 	await page.getByRole("button", { name: "Choose a place" }).click();
 	await searchBox(page).fill("roo");
 	const results = picker(page).getByRole("listbox", { name: "Places found" });

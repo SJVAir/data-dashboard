@@ -273,11 +273,24 @@
 		phase = "ready";
 	}
 
-	/** The data with its Where swapped for `point`. */
+	/**
+	 * The data with its Where swapped for `point`, and no monitors: the lookup is of the point's
+	 * region, never a monitor's.
+	 */
 	function withPoint(data: WidgetDataConfig, point: PointPlace): WidgetDataConfig {
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropped from the copy
-		const { place, selection, ...rest } = data;
-		return { ...rest, place: point };
+		const { place, selection, layers, ...rest } = data;
+		const bare = layers.map((l) => {
+			// eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropped from the copy
+			const { monitors, monitorTypes, ...layer } = l;
+			return layer;
+		});
+		return { ...rest, layers: bare, place: point };
+	}
+
+	/** Whether a widget of `type` is single-place: a picked place replaces its monitor. */
+	function onePlace(type: string): boolean {
+		return placeLimit(getWidgetType(type)) === 1;
 	}
 
 	/** The region the widget would use for `point`, aborted with the dialog or after a timeout. */
@@ -352,6 +365,7 @@
 		try {
 			result = await pickedData(target.widget.data, picks, {
 				liveLink,
+				onePlace: onePlace(target.widget.type),
 				regionOf: (point) => regionOf(ctx, target.widget.type, target.widget.data, point, signal)
 			});
 		} catch {
@@ -373,6 +387,7 @@
 			const final = saved ? [{ kind: "region" as const, ...saved }] : picks;
 			const next = await pickedData(latest.widget.data, final, {
 				liveLink: false,
+				onePlace: onePlace(latest.widget.type),
 				regionOf: async () => null
 			});
 			if (stale()) return;

@@ -77,6 +77,23 @@ describe("pickedData", () => {
 		expect(result!.data.dateRange).toEqual(RANGE);
 	});
 
+	it("a single-place widget's picked place replaces its monitor; other widgets keep theirs", async () => {
+		const tile: WidgetDataConfig = {
+			layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }]
+		};
+		const z = { kind: "region" as const, type: "county", code: "z" };
+		const result = await pickedData(tile, [z], { ...off, onePlace: true });
+		expect(result!.data).toEqual({
+			place: z,
+			layers: [{ dataset: "air-quality", entryType: "pm25" }]
+		});
+		const strip: WidgetDataConfig = { layers: [{ dataset: "forecasts", monitors: ["m1"] }] };
+		expect((await pickedData(strip, [z], { ...off, onePlace: true }))!.data.layers).toEqual([
+			{ dataset: "forecasts" }
+		]);
+		expect((await pickedData(tile, [z], off))!.data.layers).toBe(tile.layers);
+	});
+
 	it("a point stays a point without a live link", async () => {
 		const regionOf = vi.fn(async () => ({ type: "zipcode", code: "93721" }));
 		const result = await pickedData(data({}), [point], { liveLink: false, regionOf });

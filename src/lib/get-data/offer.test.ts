@@ -236,6 +236,28 @@ describe("typeBlock", () => {
 		expect(typeBlock(currentType, data({ selection: areas(2) }), CATALOG, NOW)).toBe("places");
 	});
 
+	it("Current conditions with one searched monitor and no Where isn't blocked", () => {
+		const one = data({ layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }] });
+		expect(typeBlock(currentType, one, CATALOG, NOW)).toBeNull();
+		const ticked = data({
+			layers: [{ dataset: "air-quality", entryType: "pm25", monitorTypes: ["sensor", "bam"] }]
+		});
+		expect(typeBlock(currentType, ticked, CATALOG, NOW)).toBeNull();
+	});
+
+	it('Current conditions with a county and a monitor is blocked "places"', () => {
+		const both = data({
+			place: { kind: "region", type: "county", code: "06019" },
+			layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }]
+		});
+		expect(typeBlock(currentType, both, CATALOG, NOW)).toBe("places");
+		const two = data({
+			layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1", "m2"] }]
+		});
+		expect(typeBlock(currentType, two, CATALOG, NOW)).toBe("places");
+		expect(typeBlock(chartType, both, CATALOG, NOW)).toBeNull();
+	});
+
 	it("places never block Chart or Table", () => {
 		const d = data({
 			selection: areas(7),

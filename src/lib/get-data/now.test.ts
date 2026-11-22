@@ -182,6 +182,96 @@ describe("toNowDraft", () => {
 	});
 });
 
+describe("single-place types: one place or one monitor", () => {
+	const PM25 = { dataset: "air-quality", entryType: "pm25" } as const;
+	const types = ["sensor", "bam"];
+
+	it("a default Map (every type ticked, no Where) as Current conditions drops the ticks with a note", () => {
+		const map: Draft = { type: "map", data: { layers: [{ ...PM25, monitorTypes: types }] } };
+		const out = toNowDraft(map, currentType, CATALOG, PM25_LEVELS, mapType);
+		expect(out.draft.data).toEqual({ layers: [PM25] });
+		expect(out.dropped).toContain("monitor-types");
+	});
+
+	it("one searched monitor and no Where is kept, with no note", () => {
+		const chartOfOne: Draft = {
+			type: CHART_TYPE,
+			data: { dateRange: DEFAULT_RANGE, layers: [{ ...PM25, monitors: ["m1"] }] }
+		};
+		const out = toNowDraft(chartOfOne, currentType, CATALOG, PM25_LEVELS, chartType);
+		expect(out.draft.data).toEqual({ layers: [{ ...PM25, monitors: ["m1"] }] });
+		expect(out.dropped).toEqual(["dates"]);
+	});
+
+	it("a Where and a monitor: the monitor is kept and the Where dropped with a places note", () => {
+		const both: Draft = {
+			type: CHART_TYPE,
+			data: { place: FRESNO, layers: [{ ...PM25, monitors: ["m1"] }] }
+		};
+		const out = toNowDraft(both, outsideType, CATALOG, PM25_LEVELS, chartType);
+		expect(out.draft.data).toEqual({ layers: [{ ...PM25, monitors: ["m1"] }] });
+		expect(out.dropped).toEqual(["places"]);
+	});
+
+	it("several searched monitors keep the first, the rest noted as left out", () => {
+		const many: Draft = {
+			type: CHART_TYPE,
+			data: { layers: [{ ...PM25, monitors: ["m1", "m2", "m3"] }] }
+		};
+		const out = toNowDraft(many, currentType, CATALOG, PM25_LEVELS, chartType);
+		expect(out.draft.data.layers).toEqual([{ ...PM25, monitors: ["m1"] }]);
+		expect(out.dropped).toContain("places");
+	});
+
+	it("the Forecast strip keeps its monitor on its forecasts layer, both ways", () => {
+		const chartOfOne: Draft = {
+			type: CHART_TYPE,
+			data: { layers: [{ ...PM25, monitors: ["m1"] }] }
+		};
+		const strip = toNowDraft(chartOfOne, forecastType, CATALOG, PM25_LEVELS, chartType);
+		expect(strip.draft.data).toEqual({ layers: [{ dataset: "forecasts", monitors: ["m1"] }] });
+		expect(strip.dropped).toEqual([]);
+		expect(isNowShaped(strip.draft, forecastType)).toBe(true);
+		const back = toNowDraft(strip.draft, currentType, CATALOG, PM25_LEVELS, forecastType);
+		expect(back.draft.data).toEqual({ layers: [{ ...PM25, monitors: ["m1"] }] });
+		expect(fromNowDraft(strip.draft, chartType).draft.data.layers).toEqual([
+			{ ...PM25, monitors: ["m1"] }
+		]);
+	});
+
+	it("fromNowDraft to a one-place type: ticked types dropped, a monitor wins over the Where", () => {
+		const map: Draft = {
+			type: "map",
+			data: { place: FRESNO, layers: [{ ...PM25, monitors: ["m1", "m2"], monitorTypes: types }] }
+		};
+		const out = fromNowDraft(map, monthCalendarType);
+		expect(out.draft.data.place).toBeUndefined();
+		expect(out.draft.data.layers).toEqual([{ ...PM25, monitors: ["m1"] }]);
+		expect(out.dropped).toEqual(expect.arrayContaining(["places", "monitor-types"]));
+		// A Chart takes them all.
+		const chartOut = fromNowDraft(map, chartType);
+		expect(chartOut.draft.data.place).toEqual(FRESNO);
+		expect(chartOut.draft.data.layers).toEqual([
+			{ ...PM25, monitors: ["m1", "m2"], monitorTypes: types }
+		]);
+		expect(chartOut.dropped).toEqual([]);
+	});
+
+	it("isNowShaped: a one-place type with ticks, two monitors, or a Where and a monitor isn't", () => {
+		const tile = (data: Draft["data"]): Draft => ({ type: "current-conditions", data });
+		expect(isNowShaped(tile({ layers: [{ ...PM25, monitors: ["m1"] }] }), currentType)).toBe(true);
+		expect(isNowShaped(tile({ layers: [{ ...PM25, monitorTypes: types }] }), currentType)).toBe(
+			false
+		);
+		expect(isNowShaped(tile({ layers: [{ ...PM25, monitors: ["m1", "m2"] }] }), currentType)).toBe(
+			false
+		);
+		expect(
+			isNowShaped(tile({ place: FRESNO, layers: [{ ...PM25, monitors: ["m1"] }] }), currentType)
+		).toBe(false);
+	});
+});
+
 describe("Chart threshold lines in conversions", () => {
 	it("a Chart with its line Off still gets the default level as a tile", () => {
 		const converted = toNowDraft(chart, currentType, CATALOG, PM25_LEVELS, chartType);

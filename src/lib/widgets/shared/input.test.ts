@@ -8,6 +8,7 @@ import {
 } from "$lib/data/testing/dataset-catalog";
 import {
 	chartInput,
+	hasPlaces,
 	mainLayer,
 	queryLayer,
 	singleMonitor,
@@ -285,6 +286,23 @@ describe("queryLayer", () => {
 		expect(queryLayer({ layers: [empty] }, empty)).toEqual(PM);
 		const weather: Layer = { ...TEMP, monitors: ["m1"] };
 		expect(queryLayer({ layers: [weather] }, weather)).toEqual(TEMP);
+	});
+});
+
+describe("a Forecast strip's monitor", () => {
+	const strip: Layer = { dataset: "forecasts", monitors: ["m1"] };
+
+	it("its one forecasts layer carries its monitor", () => {
+		expect(queryLayer({ layers: [strip] }, strip)).toEqual(strip);
+		expect(singleMonitor({ layers: [strip] })).toBe("m1");
+		expect(hasPlaces({ layers: [strip] })).toBe(true);
+	});
+
+	it("a forecasts overlay beside other layers carries none", () => {
+		const burn: Layer = { dataset: "forecasts", entryType: "burn-status", monitors: ["m1"] };
+		const data = { layers: [PM, burn] };
+		expect(queryLayer(data, burn)).toEqual({ dataset: "forecasts", entryType: "burn-status" });
+		expect(hasPlaces(data)).toBe(false);
 	});
 });
 

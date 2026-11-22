@@ -1,4 +1,4 @@
-import type { WidgetDataConfig } from "$lib/data/schema";
+import type { Layer, WidgetDataConfig } from "$lib/data/schema";
 import { fromWhere, toWhere, type Picks } from "./selection";
 import { sameRef, type PointPlace } from "./types";
 
@@ -18,11 +18,21 @@ function same(a: Picks, b: Picks): boolean {
 	return a.length === b.length && a.every((ref, i) => sameRef(ref, b[i]));
 }
 
+/** `layers` with no searched monitors or ticked types; `layers` itself when none has any. */
+function withoutMonitors(layers: Layer[]): Layer[] {
+	if (!layers.some((l) => l.monitors || l.monitorTypes)) return layers;
+	return layers.map((l) => {
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropped from the copy
+		const { monitors, monitorTypes, ...rest } = l;
+		return rest;
+	});
+}
+
 /**
  * The widget's new data for `picks`, or null when unchanged. Points become their region when the
  * dashboard has a live link (`regionOf` finds it; none, or a failed lookup, rejects with
- * `RegionLookupFailed`, and an abort rejects with the abort). Only the widget's Where changes;
- * data with no layers (a Note) has no Where to change.
+ * `RegionLookupFailed`, and an abort rejects with the abort). Only the widget's Where changes
+ * (with `onePlace`, its monitors also go); data with no layers (a Note) has no Where to change.
  */
 export async function pickedData(
 	data: WidgetDataConfig,
@@ -30,6 +40,11 @@ export async function pickedData(
 	opts: {
 		liveLink: boolean;
 		regionOf: (point: PointPlace) => Promise<{ type: string; code: string } | null>;
+		/**
+		 * A single-place widget (`placeLimit` 1): it holds one place or one monitor, so a picked
+		 * place replaces its monitor.
+		 */
+		onePlace?: boolean;
 	}
 ): Promise<{
 	data: WidgetDataConfig;
@@ -54,5 +69,6 @@ export async function pickedData(
 	if (same(fromWhere(data), next)) return null;
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropped from the copy
 	const { place, selection, ...rest } = data;
-	return { data: { ...rest, ...toWhere(next) }, savedAsRegion };
+	const layers = opts.onePlace ? withoutMonitors(data.layers) : data.layers;
+	return { data: { ...rest, layers, ...toWhere(next) }, savedAsRegion };
 }

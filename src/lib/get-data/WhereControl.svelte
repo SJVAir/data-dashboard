@@ -20,6 +20,7 @@
 		max,
 		offer,
 		purpose,
+		emptyText,
 		onchange
 	}: {
 		picks: Picks;
@@ -28,6 +29,11 @@
 		/** `areas` for a Chart or Table (no schools or points), `where` for the other types. */
 		offer: Exclude<PickerOffer, "monitors">;
 		purpose: { dataset: string; entryType: string };
+		/**
+		 * What the summary says with no picks instead of "Everywhere" (a single-place widget with no
+		 * monitor shows nothing until it has a place or a monitor).
+		 */
+		emptyText?: string;
 		onchange: (picks: Picks) => void;
 	} = $props();
 
@@ -98,7 +104,7 @@
 	});
 
 	const summary = $derived.by(() => {
-		if (picks.length === 0) return m.get_data_where_everywhere();
+		if (picks.length === 0) return emptyText ?? m.get_data_where_everywhere();
 		if (named?.key !== picksKey) return m.get_data_places_loading();
 		if (named.names) return formatList(named.names);
 		return m.get_data_places_count({

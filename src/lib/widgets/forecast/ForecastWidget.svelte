@@ -16,7 +16,7 @@
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { formatWeekdayDate, formatWeekdayTime, todayPacific } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
-	import { hasWhere, queryLayer } from "../shared/input";
+	import { hasPlaces, queryLayer } from "../shared/input";
 	import LevelChip from "../shared/LevelChip.svelte";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 	import WidgetState from "../shared/WidgetState.svelte";
@@ -29,7 +29,7 @@
 
 	const layer = $derived.by<QueryLayer | undefined>(() => {
 		const found = widget.data.layers.find((l) => l.dataset === "forecasts");
-		return found && hasWhere(widget.data) ? queryLayer(widget.data, found) : undefined;
+		return found && hasPlaces(widget.data) ? queryLayer(widget.data, found) : undefined;
 	});
 	// Equal layers (a re-render of the same widget) don't resolve the source again.
 	const layerKey = $derived(layer ? JSON.stringify(layer) : "");
@@ -263,6 +263,7 @@
 		{widget}
 		onretry={() => query.retry()}
 		onchoose={() => openPlacePicker({ widgetId: widget.id })}
+		idleText={m.widget_state_idle_place_or_monitor()}
 		ownsEmpty
 		children={body}
 	/>

@@ -21,7 +21,9 @@ const fake = vi.hoisted(() => ({
 	client: undefined as NowClient | undefined,
 	metadata: undefined as MetadataSource | undefined,
 	forecast: undefined as (() => Promise<unknown>) | undefined,
-	pointKeys: undefined as (() => Promise<string[]>) | undefined
+	pointKeys: undefined as (() => Promise<string[]>) | undefined,
+	/** What each forecast fetch asked for. */
+	asked: [] as unknown[]
 }));
 vi.mock("$lib/data", () => ({
 	getMetadata: () => fake.metadata!,
@@ -41,7 +43,10 @@ vi.mock("$lib/data", () => ({
 vi.mock("$lib/data/now", () => ({ getNowClient: () => fake.client! }));
 vi.mock("@sjvair/sdk", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@sjvair/sdk")>()),
-	getForecastForPlace: () => fake.forecast!()
+	getForecastForPlace: (ref: unknown) => {
+		fake.asked.push(ref);
+		return fake.forecast!();
+	}
 }));
 
 const PUBLISHED = new Date("2026-11-07T21:42:00Z");
@@ -68,6 +73,7 @@ beforeEach(async () => {
 	});
 	fake.forecast = async () => placeResponse(rows());
 	fake.pointKeys = undefined;
+	fake.asked = [];
 	frame = document.createElement("div");
 	frame.style.width = "320px";
 	frame.style.height = "420px";
@@ -135,6 +141,23 @@ test("shows Today and Tomorrow with level chips, AQI text, burn status and foote
 	await expect.element(screen.getByText(m.forecast_zone({ zone: "Fresno County" }))).toBeVisible();
 	expect(frame.querySelector("[data-air-alert]")).toBeNull();
 	await expect.poll(() => generatedTitle(widget.id)).toBe("Forecast · Fresno County");
+});
+
+test("one monitor and no Where shows its zone's forecast", async () => {
+	const widget = widgetFor();
+	widget.data = { layers: [{ dataset: "forecasts", monitors: ["m-bam"] }] };
+	const screen = await show(widget);
+	await expect.element(screen.getByText("AQI 62 · PM2.5"), { timeout: 5000 }).toBeVisible();
+	expect(fake.asked).toContainEqual({ monitor: "m-bam" });
+});
+
+test("no Where and no monitor asks for a place or a monitor", async () => {
+	const widget = widgetFor();
+	widget.data = { layers: [{ dataset: "forecasts" }] };
+	const screen = await show(widget);
+	await expect
+		.element(screen.getByText(m.widget_state_idle_place_or_monitor()), { timeout: 5000 })
+		.toBeVisible();
 });
 
 test("an Air Alert shows a banner above the rows, in text", async () => {

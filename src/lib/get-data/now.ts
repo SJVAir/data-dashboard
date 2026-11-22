@@ -7,7 +7,13 @@
  * Kept free of the SDK and adapters, so it can be unit-tested and stays out of the initial bundle.
  */
 import type { CatalogEntry, EntryTypeMeta, Level } from "$lib/data/metadata";
-import type { DateRangeSpec, Layer, TimeSubRange } from "$lib/data/schema";
+import type {
+	DateRangeSpec,
+	Layer,
+	PlaceRef,
+	SpatialSelection,
+	TimeSubRange
+} from "$lib/data/schema";
 import { fitsRange } from "$lib/calendars/selection";
 import { isCalendarType } from "$lib/calendars/types";
 import { resolveRange } from "$lib/format/range";
@@ -19,7 +25,7 @@ import { FORECAST_TYPE } from "$lib/widgets/forecast";
 import { OUTSIDE_TYPE } from "$lib/widgets/outside";
 import type { WidgetType } from "$lib/widgets/registry";
 import { offersNow } from "$lib/widgets/time";
-import { mainLayer, widgetWhere } from "$lib/widgets/shared/input";
+import { hasWhere, mainLayer, widgetMonitors, widgetWhere } from "$lib/widgets/shared/input";
 import type { Draft } from "./draft.svelte";
 
 /** What a conversion left out or changed, for the form's notes. */
@@ -27,6 +33,7 @@ export type NowDropped =
 	| "dates"
 	| "overlays"
 	| "places"
+	| "monitor-types"
 	| "alert"
 	| "pollutant"
 	| "selection"
@@ -61,6 +68,38 @@ export function offeredPollutants(catalog: CatalogEntry[], allowed?: string[]): 
 	const all = nowPollutants(catalog);
 	if (!allowed) return all;
 	return allowed.flatMap((id) => all.filter((e) => e.id === id));
+}
+
+/**
+ * A single-place widget's Where and layers (spec decision 11): one place or one monitor, not both.
+ * Ticked monitor types are left out (`"monitor-types"`); of the searched monitors only the first is
+ * kept, and it wins over the Where, which is then left out (both `"places"`). The layers are
+ * copies; `where` and `layers` aren't changed.
+ */
+function onePlace(
+	where: { place?: PlaceRef; selection?: SpatialSelection },
+	layers: Layer[]
+): {
+	where: { place?: PlaceRef; selection?: SpatialSelection };
+	layers: Layer[];
+	dropped: NowDropped[];
+} {
+	const dropped = new Set<NowDropped>();
+	let monitor = false;
+	const out = layers.map((l) => {
+		const { monitors, monitorTypes, ...rest } = l;
+		const layer: Layer = { ...rest };
+		if (monitorTypes?.length) dropped.add("monitor-types");
+		if (monitors?.length) {
+			layer.monitors = [monitors[0]];
+			monitor = true;
+			if (monitors.length > 1) dropped.add("places");
+		}
+		return layer;
+	});
+	const keptWhere = monitor ? {} : where;
+	if (monitor && (where.place || where.selection)) dropped.add("places");
+	return { where: keptWhere, layers: out, dropped: [...dropped] };
 }
 
 /** The layer a now draft is made from: its main layer, or a Forecast strip's one layer. */
@@ -131,7 +170,9 @@ export type NowConversion = {
 
 /**
  * `draft` (a `fromType` draft) as `type` (a now type): its Where's first `maxPlaces` places
- * (one, but for the Map) and its pollutant (`nowPollutant`, with `allowed`) on one layer, with no dates, overlays or options. A threshold type
+ * (one, but for the Map) and its pollutant (`nowPollutant`, with `allowed`) on one layer, with no
+ * dates, overlays or options. Its monitors go with the layer: a Map keeps them all and its ticked
+ * types; a single-place type keeps one place or one monitor (`onePlace`). A threshold type
  * keeps the alert level `keptThreshold` gives with `levels` (the new pollutant's scale); a draft
  * from a type without thresholds (a range type, the Forecast strip) gets the default, and one
  * from a threshold type keeps Off. With `levels` unavailable the alert level is kept as it is.
@@ -150,26 +191,30 @@ export function toNowDraft(
 	const cap = placeCap(type);
 	// A starter's `default-place` reads as no picks, but it's kept as the one place.
 	const { place } = draft.data;
-	const where = place ? widgetWhere(draft.data) : toWhere(picks.slice(0, cap));
+	let where = place ? widgetWhere(draft.data) : toWhere(picks.slice(0, cap));
 	const entryType = nowPollutant(draft, type, catalog, allowed);
-	const layer: Layer = {
+	let layer: Layer = {
 		dataset: entryType === undefined ? FORECASTS : AIR_QUALITY,
 		...(entryType === undefined ? {} : { entryType })
 	};
-	// The air-quality layer's monitors go with it: a one-place type takes the first searched
-	// monitor only (its ticked types and the others are left out); a Map takes them all.
-	const searched = from?.dataset === AIR_QUALITY ? (from.monitors ?? []) : [];
-	const ticked = from?.dataset === AIR_QUALITY ? (from.monitorTypes ?? []) : [];
-	if (entryType !== undefined) {
-		const one = cap === 1;
-		const monitors = one ? searched.slice(0, 1) : searched;
-		if (monitors.length > 0) layer.monitors = [...monitors];
-		if (!one && ticked.length > 0) layer.monitorTypes = [...ticked];
+	// The monitors go with the layer (a Forecast strip's on its forecasts layer): a one-place type
+	// takes one place or one monitor (`onePlace`); a Map takes them all, with its ticked types.
+	const { monitors: searched, types: ticked } = widgetMonitors(draft.data);
+	if (searched.length > 0) layer.monitors = [...searched];
+	if (ticked.length > 0) layer.monitorTypes = [...ticked];
+	const one = cap === 1 ? onePlace(where, [layer]) : undefined;
+	if (one) {
+		where = one.where;
+		layer = one.layers[0];
+	} else if (entryType === undefined) {
+		delete layer.monitors;
+		delete layer.monitorTypes;
 	}
 	const dropped: NowDropped[] = [];
 	if (draft.data.dateRange || draft.data.timeSubRange) dropped.push("dates");
 	if (draft.data.layers.some((l) => l !== from)) dropped.push("overlays");
-	if (picks.length > cap || (cap === 1 && searched.length > 1)) dropped.push("places");
+	if (picks.length > cap || one?.dropped.includes("places")) dropped.push("places");
+	if (one?.dropped.includes("monitor-types")) dropped.push("monitor-types");
 	const changed =
 		entryType !== undefined && from?.entryType !== undefined && from.entryType !== entryType;
 	if (changed) dropped.push("pollutant");
@@ -210,21 +255,32 @@ export function toNowDraft(
 
 /**
  * A now draft as `type` (a range type): its layer over the default range (a Forecast strip's
- * forecasts layer as a PM2.5 one, as a new widget's), its Where cut to `type`'s `maxPlaces` (a
- * Map's selection to a calendar's one, say; `dropped` then says so; a Chart or Table takes every
- * place). The alert level is kept only when `type` has thresholds; otherwise `dropped` says it
- * was left out.
+ * forecasts layer as a PM2.5 one, as a new widget's, keeping its monitor), its Where cut to
+ * `type`'s `maxPlaces` (a Map's selection to a calendar's one, say; `dropped` then says so; a
+ * Chart or Table takes every place), a single-place type taking one place or one monitor
+ * (`onePlace`). The alert level is kept only when `type` has thresholds; otherwise `dropped` says
+ * it was left out.
  */
 export function fromNowDraft(draft: Draft, type: WidgetType): NowConversion {
 	const cap = type.accepts?.maxPlaces;
-	const layers = draft.data.layers.map((l) =>
+	// A Forecast strip's layer becomes PM2.5, keeping its monitor.
+	let layers = draft.data.layers.map((l) =>
 		l.entryType
 			? structuredClone(l)
-			: { dataset: DEFAULT_LAYER.dataset, entryType: DEFAULT_LAYER.entryType }
+			: {
+					dataset: DEFAULT_LAYER.dataset,
+					entryType: DEFAULT_LAYER.entryType,
+					...(l.monitors?.length ? { monitors: [...l.monitors] } : {})
+				}
 	);
 	const picks = fromWhere(draft.data);
-	const cut = cap !== undefined && picks.length > cap;
-	const where = cut ? toWhere(picks.slice(0, cap)) : widgetWhere(draft.data);
+	let cut = cap !== undefined && picks.length > cap;
+	let where = cut ? toWhere(picks.slice(0, cap)) : widgetWhere(draft.data);
+	const one = cap === 1 ? onePlace(where, layers) : undefined;
+	if (one) {
+		({ where, layers } = one);
+		if (one.dropped.includes("places")) cut = true;
+	}
 	// A Chart's line is its own opt-in, so a tile's alert level isn't carried to it; a calendar's
 	// threshold is the same alert level, so it is.
 	const thresholds =
@@ -239,6 +295,7 @@ export function fromNowDraft(draft: Draft, type: WidgetType): NowConversion {
 		},
 		dropped: [
 			...(cut ? (["places"] as const) : []),
+			...(one?.dropped.includes("monitor-types") ? (["monitor-types"] as const) : []),
 			...(!thresholds && draft.thresholds?.length ? (["alert"] as const) : [])
 		]
 	};
@@ -246,7 +303,7 @@ export function fromNowDraft(draft: Draft, type: WidgetType): NowConversion {
 
 /**
  * Whether `draft` already has `type`'s now shape (one layer of its dataset, at most `maxPlaces`
- * places, no dates), so opening it as `type` converts nothing. The alert level isn't part of the shape:
+ * places, for a single-place type one place or one monitor, no dates), so opening it as `type` converts nothing. The alert level isn't part of the shape:
  * none is Off.
  */
 export function isNowShaped(draft: Draft, type: WidgetType): boolean {
@@ -254,6 +311,12 @@ export function isNowShaped(draft: Draft, type: WidgetType): boolean {
 	if (data.dateRange || data.timeSubRange || data.layers.length !== 1) return false;
 	const layer = data.layers[0];
 	if (fromWhere(data).length > placeCap(type)) return false;
+	if (placeCap(type) === 1) {
+		// One place or one monitor, not both (`onePlace`).
+		const { monitors, types } = widgetMonitors(data);
+		if (types.length > 0 || monitors.length > 1) return false;
+		if (monitors.length === 1 && hasWhere(data)) return false;
+	}
 	return type.type === FORECAST_TYPE
 		? layer.dataset === FORECASTS && !layer.entryType
 		: layer.dataset === AIR_QUALITY && !!layer.entryType;

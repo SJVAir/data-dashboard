@@ -457,9 +457,31 @@ test("a pending alert result says it is not available yet", async () => {
 		.toBeVisible();
 });
 
+test("one monitor reads its live alert value", async () => {
+	fake.alerts = { "m-pa": { pm25: alertEntry({ value: 44.4 }) } as never };
+	const widget = currentWidget("m-pa");
+	expect(widget.data.place).toBeUndefined();
+	const screen = await show(widget);
+	await expect.element(screen.getByText("44.4"), { timeout: 5000 }).toBeVisible();
+	expect(fake.alertCalls).toEqual(["m-pa"]);
+});
+
+test("no place and no monitor asks for a place or a monitor", async () => {
+	const widget = currentWidget("a");
+	widget.data = { layers: [{ dataset: "air-quality", entryType: "pm25" }] };
+	const screen = await show(widget);
+	await expect
+		.element(screen.getByText(m.widget_state_idle_place_or_monitor()), { timeout: 5000 })
+		.toBeVisible();
+	expect(m.widget_state_idle_place_or_monitor()).toBe("Choose a place or a monitor to show data.");
+});
+
 test("a region never asks for an alert value", async () => {
 	const widget = currentWidget("a");
-	widget.data.place = { kind: "region", type: "county", code: "a" };
+	widget.data = {
+		place: { kind: "region", type: "county", code: "a" },
+		layers: [{ dataset: "air-quality", entryType: "pm25" }]
+	};
 	const screen = await show(widget);
 	await expect.element(screen.getByText("28.4"), { timeout: 5000 }).toBeVisible();
 	expect(fake.alertCalls).toEqual([]);

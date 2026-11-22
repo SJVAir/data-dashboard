@@ -426,7 +426,7 @@ test("a widget with no place asks for nothing and offers the place picker state"
 		props: { widget },
 		context: new Map<unknown, unknown>([[APP_CONTEXT_KEY, app]])
 	});
-	await expect.poll(() => frame.textContent).toContain(m.widget_state_idle());
+	await expect.poll(() => frame.textContent).toContain(m.widget_state_idle_place_or_monitor());
 	expect(requests).toHaveLength(0);
 });
 

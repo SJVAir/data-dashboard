@@ -758,6 +758,16 @@ test("get data view: searched monitors with no Where read Everywhere", async () 
 	await expect.element(page.getByTestId("where-summary")).not.toHaveTextContent("Monitor");
 });
 
+test("get data view: a single-place widget with no Where and no monitor asks for one", async () => {
+	await show({
+		type: "current-conditions",
+		data: { layers: [{ dataset: "air-quality", entryType: "pm25" }] }
+	});
+	await expect
+		.element(page.getByTestId("where-summary"))
+		.toHaveTextContent("Choose a place or a monitor");
+});
+
 test("get data view: Reference-grade ticked with no Where reads Everywhere", async () => {
 	const draft = areasDraft([]);
 	draft.data.layers[0] = { dataset: "air-quality", entryType: "pm25", monitorTypes: ["airnow"] };

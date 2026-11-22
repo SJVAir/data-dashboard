@@ -6,7 +6,7 @@ import type { WidgetDataConfig } from "$lib/data/schema";
 import type { Target } from "$lib/data/types";
 import { fromWhere } from "$lib/places/selection";
 import { MAP_TYPE } from "$lib/widgets/map/options";
-import { widgetEffective, widgetPlaceKind } from "$lib/widgets/shared/input";
+import { widgetEffective, widgetMonitors, widgetPlaceKind } from "$lib/widgets/shared/input";
 import type { WidgetType } from "$lib/widgets/registry";
 import { blockedBySpan } from "./date-presets";
 
@@ -90,8 +90,11 @@ export function typeBlock(
 	const accepts = type.accepts ?? {};
 	const accepted = accepts.datasets ?? [];
 	if (data.layers.some((l) => !accepted.includes(l.dataset))) return "dataset";
-	// Only a type with a cap (the one-place types, and the Map) blocks on places.
-	if (accepts.maxPlaces !== undefined && fromWhere(data).length > accepts.maxPlaces) {
+	// Only a type with a cap (the one-place types, and the Map) blocks on places. A single-place
+	// type takes one place or one monitor: its searched monitors count too (ticked types don't:
+	// they're left out on the way, `toNowDraft`).
+	const searched = accepts.maxPlaces === 1 ? widgetMonitors(data).monitors.length : 0;
+	if (accepts.maxPlaces !== undefined && fromWhere(data).length + searched > accepts.maxPlaces) {
 		return "places";
 	}
 	if (data.dateRange) {

@@ -86,9 +86,27 @@ export function hasWhere(data: WidgetDataConfig): boolean {
 	return !!(data.place || data.selection);
 }
 
+const FORECASTS = "forecasts";
+
 /** Whether `layer` is an air-quality layer that can fetch its monitors (it has an entry type). */
 function fetchesMonitors(layer: Layer): boolean {
 	return layer.dataset === AIR_QUALITY && !!layer.entryType;
+}
+
+/**
+ * Whether `layer` is a Forecast strip's one layer (forecasts, alone in the widget), which holds its
+ * one monitor as `monitors` (it has no air-quality layer).
+ */
+function isStripLayer(data: WidgetDataConfig, layer: Layer): boolean {
+	return layer.dataset === FORECASTS && data.layers.length === 1 && data.layers[0] === layer;
+}
+
+/** The layer holding a widget's monitors: its air-quality layer, else a Forecast strip's one. */
+function monitorsLayer(data: WidgetDataConfig): Layer | undefined {
+	return (
+		data.layers.find(fetchesMonitors) ??
+		(data.layers[0] && isStripLayer(data, data.layers[0]) ? data.layers[0] : undefined)
+	);
 }
 
 /**
@@ -97,22 +115,28 @@ function fetchesMonitors(layer: Layer): boolean {
  * built here is fetched by place; the Map's place-less layers (smoke, fire, spray notices, its
  * pesticide use) never come through here (its plugins fetch them), so they get no Where. Only an
  * air-quality layer with an entry type carries its `monitors` and `monitorTypes` (non-empty):
- * with None chosen they stay saved but fetch nothing.
+ * with None chosen they stay saved but fetch nothing. A Forecast strip's one layer carries its
+ * `monitors` (its one monitor; the forecast is its zone's).
  */
 export function queryLayer(data: WidgetDataConfig, layer: Layer): QueryLayer {
 	const { monitors, monitorTypes, ...rest } = layer;
 	const out: QueryLayer = { ...rest, ...widgetWhere(data) };
-	if (fetchesMonitors(layer)) {
+	const aq = fetchesMonitors(layer);
+	if (aq || isStripLayer(data, layer)) {
 		if (monitors && monitors.length > 0) out.monitors = [...monitors];
-		if (monitorTypes && monitorTypes.length > 0) out.monitorTypes = [...monitorTypes];
 	}
+	if (aq && monitorTypes && monitorTypes.length > 0) out.monitorTypes = [...monitorTypes];
 	return out;
 }
 
-/** The widget's air-quality layer's searched monitors and ticked types (none when it has none). */
+/**
+ * The widget's searched monitors and ticked types: its air-quality layer's, or a Forecast strip's
+ * one layer's monitors (none when it has none).
+ */
 export function widgetMonitors(data: WidgetDataConfig): { monitors: string[]; types: string[] } {
-	const layer = data.layers.find(fetchesMonitors);
-	return { monitors: layer?.monitors ?? [], types: layer?.monitorTypes ?? [] };
+	const layer = monitorsLayer(data);
+	const types = layer && fetchesMonitors(layer) ? (layer.monitorTypes ?? []) : [];
+	return { monitors: layer?.monitors ?? [], types };
 }
 
 /**

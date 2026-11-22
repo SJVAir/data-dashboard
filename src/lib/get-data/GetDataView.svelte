@@ -588,6 +588,7 @@
 					: m.get_data_extra_places_left_out()
 			);
 		}
+		if (what.includes("monitor-types")) out.push(m.get_data_monitor_types_left_out());
 		if (pollutant) {
 			const label = (dataset: string, entryType: string) =>
 				entryMeta(known, { dataset, entryType })?.entryType.label ?? entryType;
@@ -928,6 +929,9 @@
 					max={placeLimit(type)}
 					offer={plain.type === CHART_TYPE || plain.type === DATA_TABLE_TYPE ? "areas" : "where"}
 					purpose={wherePurpose(plain.data, known)}
+					emptyText={placeLimit(type) === 1 && widgetMonitors(plain.data).monitors.length === 0
+						? m.get_data_where_place_or_monitor()
+						: undefined}
 					onchange={setPlaces}
 				/>
 			</section>

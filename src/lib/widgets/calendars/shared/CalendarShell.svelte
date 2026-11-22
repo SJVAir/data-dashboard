@@ -173,6 +173,7 @@
 			retired={data.retired}
 			onretry={data.retry}
 			onchoose={() => openPlacePicker({ widgetId: widget.id })}
+			idleText={m.widget_state_idle_place_or_monitor()}
 			ownsEmpty
 		>
 			<div class="flex h-full flex-col gap-1">

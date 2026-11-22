@@ -122,6 +122,7 @@
 		{retired}
 		onretry={current.retry}
 		onchoose={() => openPlacePicker({ widgetId: widget.id })}
+		idleText={m.widget_state_idle_place_or_monitor()}
 		emptyText={m.current_no_data()}
 		ownsEmpty
 		children={body}
