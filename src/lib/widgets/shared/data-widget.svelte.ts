@@ -233,7 +233,8 @@ export class DataWidget {
 			return "data" in s ? s.data?.places : undefined;
 		});
 		// Every overlay is fetched at the dataset's resolution alongside the main, not after it;
-		// a monitor set's for one of its monitors (`overlayInputsFor`), once that is known.
+		// a monitor set's for one of its monitors (`overlayInputsFor`), once that is known: a set
+		// can be hundreds of monitors, while searched monitors (picked one by one) keep one per line.
 		const inputs = $derived(
 			overlayInputsFor(this.picked.input, this.picked.overlays, widget().options, mainPlaces)
 		);

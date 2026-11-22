@@ -54,7 +54,7 @@
 	import { mapFormat } from "./host/format";
 	import { mapMessages } from "./host/messages";
 	import { mapMetadata } from "./host/metadata";
-	import { syncMapTitle } from "./map-title.svelte";
+	import { mapShowsLabel, syncMapTitle } from "./map-title.svelte";
 	import { MapNoteLines } from "./note-lines.svelte";
 	import { setMapSend } from "./send-registry";
 	import { runShowIn } from "./show-in-items";
@@ -781,10 +781,13 @@
 				return widget.data;
 			},
 			get layer() {
-				return layer;
+				return layer ?? wherePurpose(widget.data, known);
 			},
 			get entryLabel() {
-				return entryLabel;
+				return hasPollutant ? entryLabel : showsLabel;
+			},
+			get monitorsShown() {
+				return hasPollutant;
 			},
 			get idle() {
 				return idle;
@@ -794,6 +797,18 @@
 			}
 		},
 		viewer
+	);
+	/**
+	 * What a Map with no pollutant shows, for its title (so its map has an accessible name): its
+	 * layers' names, the catalog's where it has one ("Pesticide Use, ZIP Codes").
+	 */
+	const showsLabel = $derived(
+		mapShowsLabel([
+			hasSmokeAndFire(widget.data) ? m.get_data_smoke_and_fire() : undefined,
+			hasNotices(widget.data) ? noticesLabel : undefined,
+			useLayer ? datasetLabel(PESTICIDE_USE) : undefined,
+			savedFill ? fillInfo?.plural : undefined
+		])
 	);
 	const title = $derived(widget.title ?? generatedTitle(widget.id));
 

@@ -1261,18 +1261,19 @@ test.describe("a Map's region fill", () => {
 		const summaries: string[] = [];
 		page.on("request", (request) => {
 			const url = new URL(request.url());
-			if (url.pathname.includes("summar")) summaries.push(url.pathname);
+			// The fill's figures (the place's own name is looked up as a title's always is).
+			if (url.pathname.includes("summar") && url.searchParams.get("type") === "zipcode") {
+				summaries.push(url.pathname);
+			}
 		});
 		const doc = fillDoc({ kind: "custom", start: "2026-11-09", end: "2026-11-15" });
 		const widget = doc.body.widgets[0] as Record<string, unknown> & {
 			data: { layers: Record<string, unknown>[] };
 		};
-		// None keeps the ticks with no entry type; titled, as a Map with no pollutant has no
-		// generated title.
+		// None keeps the ticks with no entry type. Its generated title names what it shows.
 		delete widget.data.layers[0].entryType;
-		widget.title = "ZIP outlines";
 		await openSharedDoc(page, doc);
-		const map = mapOf(page, "ZIP outlines");
+		const map = mapOf(page, "ZIP Codes · Fresno County");
 		await expect(map).toBeVisible();
 		// Every ZIP is listed, with no figure.
 		const list = await featureList(map);

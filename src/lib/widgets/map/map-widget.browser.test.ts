@@ -891,6 +891,33 @@ test("title for one place and several", async () => {
 	await expect.poll(() => generatedTitle(several.id)).toBe("PM2.5 · 3 places");
 });
 
+test("a Map with no pollutant is titled by what it shows, so its map has a name", async () => {
+	const smoke = noPollutant(region("019"), [{ dataset: "hms-smoke" }, { dataset: "hms-fire" }]);
+	const first = await show(smoke);
+	const title = `${m.get_data_smoke_and_fire()} · Fresno County`;
+	await expect.poll(() => generatedTitle(smoke.id)).toBe(title);
+	const map = await madeMap();
+	await expect.poll(() => map.view.label).toBe(m.map_label({ title }));
+	await first.unmount();
+
+	// Several layers are a list; with no Where, what it shows alone.
+	zipFill();
+	const several = {
+		...noPollutant({}, [{ dataset: "pesticide-notices" }, { dataset: "pesticide-use" }]),
+		options: { fill: "zipcode" }
+	};
+	await show(several);
+	await expect
+		.poll(() => generatedTitle(several.id))
+		.toBe("Spray Notices, Pesticide Use, and ZIP Codes");
+});
+
+test("a Map with a pollutant and no Where is titled by its pollutant alone", async () => {
+	const widget = mapWidget({});
+	await show(widget);
+	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5");
+});
+
 test("shows unavailable with no key", async () => {
 	vi.mocked(mapConfig).mockReturnValue(null);
 	const screen = await show(mapWidget(region("019")));
