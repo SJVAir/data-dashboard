@@ -1,4 +1,4 @@
-import { CodeSchema } from "$lib/data/schema";
+import { CodeSchema, LIMITS } from "$lib/data/schema";
 import { z } from "$lib/zod";
 
 /**
@@ -8,10 +8,13 @@ import { z } from "$lib/zod";
 export const ThresholdSchema = z.object({ level: CodeSchema, entryType: CodeSchema.optional() });
 export type Threshold = z.infer<typeof ThresholdSchema>;
 
-/** A widget's thresholds: at most one per `entryType` (entries without one aren't counted). */
+/**
+ * A widget's thresholds: at most one per pollutant layer (`LAYERS_MAX`), and at most one per
+ * `entryType` (entries without one aren't counted).
+ */
 export const ThresholdsSchema = z
 	.array(ThresholdSchema)
-	.max(64)
+	.max(LIMITS.LAYERS_MAX)
 	.refine(
 		(list) => {
 			const seen = new Set<string>();

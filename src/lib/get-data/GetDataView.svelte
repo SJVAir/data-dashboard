@@ -26,6 +26,7 @@
 	import { CHART_TYPE } from "$lib/widgets/chart";
 	import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
 	import { CURRENT_TYPE } from "$lib/widgets/current";
+	import { currentPollutants, firstPollutantOnly } from "$lib/widgets/current/pollutants";
 	import { MAP_TYPE } from "$lib/widgets/map";
 	import {
 		HMS_FIRE,
@@ -260,9 +261,12 @@
 			: []
 	);
 	// A now type is never blocked: choosing it converts the draft (`toNowDraft`). A Map, in its
-	// shape or not, is checked as what `fromMapDraft` converts it to: its pollutant, at its places.
+	// shape or not, is checked as what `fromMapDraft` converts it to: its pollutant, at its places;
+	// Current conditions as its first pollutant (`firstPollutantOnly`), which Show as converts.
 	const blockData = $derived(
-		known && plain.type === MAP_TYPE ? mapShowingOnly(plain, known).draft.data : plain.data
+		known && plain.type === MAP_TYPE
+			? mapShowingOnly(plain, known).draft.data
+			: firstPollutantOnly(plain).data
 	);
 	const showAs = $derived(
 		dataTypes().map((t) => {
@@ -622,6 +626,16 @@
 		const out: string[] = [];
 		if (what.includes("dates")) out.push(m.get_data_dates_left_out());
 		if (what.includes("overlays")) out.push(m.get_data_overlays_left_out());
+		const others = dropped.conversion.leftOut ?? [];
+		if (what.includes("pollutants") && others.length > 0) {
+			const names = others.map((p) => entryMeta(known, p)?.entryType.label ?? p.entryType);
+			out.push(
+				m.get_data_pollutants_left_out({
+					pollutants: formatList(names),
+					countValue: names.length
+				})
+			);
+		}
 		const cap = placeLimit(getWidgetType(plain.type));
 		if (what.includes("places")) {
 			out.push(
@@ -832,7 +846,7 @@
 	// The alert level: the pollutant's scale ("Can we go outside?" reads PM2.5 whatever's saved).
 	const nowEntryType = (d: Draft) =>
 		d.type === CURRENT_TYPE
-			? d.data.layers[0]?.entryType
+			? currentPollutants(d.data)[0]
 			: nowPollutant(d, getWidgetType(d.type)!, known ?? []);
 	let alertLevels = $state.raw<{
 		entryType: string | undefined;

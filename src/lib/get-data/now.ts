@@ -1,8 +1,8 @@
 /**
  * Get data for the "now" widget types (Current conditions, the Forecast strip, "Can we go
  * outside?", the Map): converting a draft to and from their shape, one layer holding up to the
- * type's `maxPlaces` picks (one for all but the Map; no dates, no overlays), and the pollutants
- * and alert level they offer.
+ * type's `maxPlaces` picks (one for all but the Map; no dates, no overlays; Current conditions has
+ * one air-quality layer per pollutant), and the pollutants and alert level they offer.
  *
  * Kept free of the SDK and adapters, so it can be unit-tested and stays out of the initial bundle.
  */
@@ -22,6 +22,8 @@ import { areasOnly } from "$lib/places/replace";
 import { fromWhere, toWhere } from "$lib/places/selection";
 import { defaultThresholdLevel, thresholdFor } from "$lib/thresholds/levels";
 import type { Threshold } from "$lib/thresholds/schema";
+import { CURRENT_TYPE } from "$lib/widgets/current";
+import { currentPollutants, firstPollutantOnly } from "$lib/widgets/current/pollutants";
 import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
 import { FORECAST_TYPE } from "$lib/widgets/forecast";
 import { OUTSIDE_TYPE } from "$lib/widgets/outside";
@@ -45,6 +47,7 @@ export type NowDropped =
 	| "monitor-types"
 	| "alert"
 	| "pollutant"
+	| "pollutants"
 	| "selection"
 	| "outside"
 	| "marks"
@@ -180,6 +183,11 @@ export type NowConversion = {
 	/** With `"pollutant"` in `dropped`: the entry type it had, and the one it has now. */
 	pollutant?: { from: { dataset: string; entryType: string }; to: string };
 	/**
+	 * With `"pollutants"` in `dropped`: the pollutants a Current conditions draft had besides its
+	 * first, which the new type left out (it shows one).
+	 */
+	leftOut?: { dataset: string; entryType: string }[];
+	/**
 	 * The new pollutant's scale couldn't be loaded, so a default alert level is still owed: set it
 	 * (`keptThreshold(undefined, levels, true)`) once the scale loads, unless the person chose one.
 	 */
@@ -206,6 +214,39 @@ export type NowConversion = {
  * `dropped` lists what was left out or changed.
  */
 export function toNowDraft(
+	draft: Draft,
+	type: WidgetType,
+	catalog: CatalogEntry[],
+	levels: Level[] | "unavailable",
+	fromType?: WidgetType,
+	allowed?: string[]
+): NowConversion {
+	const convert = (d: Draft) => nowDraftOf(d, type, catalog, levels, fromType, allowed);
+	return type.type === CURRENT_TYPE ? convert(draft) : cutToFirstPollutant(draft, convert);
+}
+
+/**
+ * `convert` applied to `draft`, a Current conditions draft cut to its first pollutant
+ * (`firstPollutantOnly`) first; the pollutants that cut left out are noted (`"pollutants"`, with
+ * `leftOut`), never as `"overlays"`. Another type's draft is converted as it is.
+ */
+function cutToFirstPollutant(
+	draft: Draft,
+	convert: (draft: Draft) => NowConversion
+): NowConversion {
+	if (draft.type !== CURRENT_TYPE) return convert(draft);
+	const converted = convert(firstPollutantOnly(draft));
+	const left = currentPollutants(draft.data).slice(1);
+	if (left.length === 0) return converted;
+	return {
+		...converted,
+		dropped: [...converted.dropped, "pollutants"],
+		leftOut: left.map((entryType) => ({ dataset: AIR_QUALITY, entryType }))
+	};
+}
+
+/** `toNowDraft` for a draft that isn't cut first (Current conditions' own, or one pollutant). */
+function nowDraftOf(
 	draft: Draft,
 	type: WidgetType,
 	catalog: CatalogEntry[],
@@ -251,13 +292,26 @@ export function toNowDraft(
 	const defaultWhenOff = !(fromType && offersNow(fromType) && fromType.thresholds);
 	let thresholds: Threshold[] | undefined;
 	let defaultOwed = false;
+	// Current conditions keeps an alert level per pollutant (`entryType` on each).
+	const alertFor = type.type === CURRENT_TYPE ? entryType : undefined;
+	// The source's alert level: its pollutant's (Current conditions'), else the one it has.
+	const source =
+		draft.thresholds?.find((t) => t.entryType !== undefined && t.entryType === from?.entryType) ??
+		draft.thresholds?.find((t) => t.entryType === undefined);
+	const saved: Threshold[] | undefined = source
+		? [
+				alertFor === undefined
+					? { level: source.level }
+					: { level: source.level, entryType: alertFor }
+			]
+		: undefined;
 	if (!type.thresholds) {
 		if (draft.thresholds?.length) dropped.push("alert");
 	} else if (levels === "unavailable") {
-		thresholds = draft.thresholds;
+		thresholds = saved;
 		defaultOwed = defaultWhenOff && !thresholds;
 	} else {
-		thresholds = keptThreshold(draft.thresholds, levels, defaultWhenOff);
+		thresholds = keptThreshold(saved, levels, defaultWhenOff, alertFor);
 	}
 	const lineKey = defaultWhenOff ? draft.thresholds?.[0]?.level : undefined;
 	const kept = lineKey !== undefined && thresholds?.[0]?.level === lineKey;
@@ -289,6 +343,11 @@ export function toNowDraft(
  * it was left out.
  */
 export function fromNowDraft(draft: Draft, type: WidgetType): NowConversion {
+	return cutToFirstPollutant(draft, (d) => rangeDraftOf(d, type));
+}
+
+/** `fromNowDraft` for a draft that isn't cut first (one pollutant at most). */
+function rangeDraftOf(draft: Draft, type: WidgetType): NowConversion {
 	const cap = type.accepts?.maxPlaces;
 	// A Forecast strip's layer becomes PM2.5, keeping its monitor.
 	let layers = draft.data.layers.map((l) =>
@@ -330,11 +389,13 @@ export function fromNowDraft(draft: Draft, type: WidgetType): NowConversion {
 
 /**
  * Whether `draft` already has `type`'s now shape (one layer of its dataset, at most `maxPlaces`
- * places, for a single-place type one place or one monitor, no dates), so opening it as `type` converts nothing. The alert level isn't part of the shape:
- * none is Off.
+ * places, for a single-place type one place or one monitor, no dates; Current conditions'
+ * own, `isCurrentShaped`), so opening it as `type` converts nothing. The alert level isn't part
+ * of the shape: none is Off.
  */
 export function isNowShaped(draft: Draft, type: WidgetType): boolean {
 	const { data } = draft;
+	if (type.type === CURRENT_TYPE) return isCurrentShaped(data);
 	if (data.dateRange || data.timeSubRange || data.layers.length !== 1) return false;
 	const layer = data.layers[0];
 	if (fromWhere(data).length > placeCap(type)) return false;
@@ -347,6 +408,26 @@ export function isNowShaped(draft: Draft, type: WidgetType): boolean {
 	return type.type === FORECAST_TYPE
 		? layer.dataset === FORECASTS && !layer.entryType
 		: layer.dataset === AIR_QUALITY && !!layer.entryType;
+}
+
+/**
+ * Current conditions' shape: no dates; one or more layers, all air quality, each with a distinct
+ * entry type (or a single one with none, kept with no pollutant ticked for its monitor, spec
+ * decision 31); one place or one monitor, the monitor on `layers[0]` only, and no ticked types.
+ */
+function isCurrentShaped(data: Draft["data"]): boolean {
+	const { layers } = data;
+	if (data.dateRange || data.timeSubRange || layers.length === 0) return false;
+	if (fromWhere(data).length > 1) return false;
+	if (layers.some((l) => l.dataset !== AIR_QUALITY || l.monitorTypes?.length)) return false;
+	const entryTypes = layers.map((l) => l.entryType);
+	const none = layers.length === 1 && entryTypes[0] === undefined;
+	if (!none && (entryTypes.includes(undefined) || new Set(entryTypes).size !== layers.length)) {
+		return false;
+	}
+	if (layers.slice(1).some((l) => l.monitors?.length)) return false;
+	const monitors = layers[0].monitors ?? [];
+	return monitors.length <= 1 && !(monitors.length === 1 && hasWhere(data));
 }
 
 /** Whether a stored day selection lies inside the Pacific dates `range` resolves to. */

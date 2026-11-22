@@ -18,7 +18,8 @@ import { dataTableType } from "$lib/widgets/table";
 import { DraftSchema, type Draft } from "./draft.svelte";
 import type { NowDropped } from "./now";
 import { typeBlock } from "./offer";
-import { showAsDraft, type ShowAsContext } from "./show-as";
+import { firstPollutantOnly } from "$lib/widgets/current/pollutants";
+import { showAsDraft, sourceType, type ShowAsContext } from "./show-as";
 
 const TYPES = ["airnow", "purpleair", "airgradient"];
 const TICKED = ["airnow", "purpleair"];
@@ -258,4 +259,53 @@ describe("Show as from a Map with None, smoke and a fill", () => {
 it("a single-place type's greyed reason counts a monitor too (decision 11)", () => {
 	expect(m.get_data_block_places({ count: "1", countValue: 1 })).toBe("Shows 1 place or monitor");
 	expect(m.get_data_block_places({ count: "12", countValue: 12 })).toBe("Shows up to 12 places");
+});
+
+describe("Show as from Current conditions with PM2.5 and ozone", () => {
+	/** A county, PM2.5 and ozone, with an alert level for each. */
+	const two = (): Draft => ({
+		type: CURRENT,
+		data: {
+			place: structuredClone(COUNTY),
+			layers: [
+				{ dataset: "air-quality", entryType: "pm25" },
+				{ dataset: "air-quality", entryType: "o3" }
+			]
+		},
+		thresholds: [
+			{ level: "unhealthy_sensitive", entryType: "pm25" },
+			{ level: "moderate", entryType: "o3" }
+		]
+	});
+
+	for (const toType of [chartType, dataTableType, mapType, monthCalendarType, outsideType]) {
+		it(`→ ${toType.type}: one PM2.5 layer, ozone left out with a note`, () => {
+			const c = convert(two(), toType);
+			expect(c.draft.data.layers.filter((l) => l.dataset === "air-quality")).toEqual([
+				expect.objectContaining({ entryType: "pm25" })
+			]);
+			expect(c.draft.data.layers.some((l) => l.entryType === "o3")).toBe(false);
+			expect(c.dropped).toContain("pollutants");
+			expect(c.dropped).not.toContain("overlays");
+			expect(c.leftOut).toEqual([{ dataset: "air-quality", entryType: "o3" }]);
+			// A type with an alert level keeps PM2.5's (a Chart's line is its own opt-in).
+			if (toType.thresholds && toType !== chartType) {
+				expect(c.draft.thresholds).toEqual([{ level: "unhealthy_sensitive" }]);
+			} else {
+				expect(c.draft.thresholds).toBeUndefined();
+			}
+		});
+	}
+
+	it("isn't greyed out for the Chart once cut to its first pollutant", () => {
+		expect(typeBlock(chartType, firstPollutantOnly(two()).data, CATALOG, NOW)).toBeNull();
+	});
+
+	it("stays a Current conditions source with no pollutant ticked (R4)", () => {
+		const none: Draft = {
+			type: CURRENT,
+			data: { layers: [{ dataset: "air-quality", monitors: ["m1"] }] }
+		};
+		expect(sourceType(none, CTX)).toBe(currentType);
+	});
 });

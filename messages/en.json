@@ -1100,6 +1100,20 @@
 	"get_data_alert_level_replaced": "The saved alert level isn't one of this pollutant's levels, so {level} is used instead.",
 	"get_data_dates_left_out": "Dates don't apply to this widget, so they were left out.",
 	"get_data_overlays_left_out": "Other data layers don't apply to this widget, so they were left out.",
+	"get_data_pollutants_left_out": [
+		{
+			"declarations": [
+				"input pollutants",
+				"input countValue",
+				"local countPlural = countValue: plural"
+			],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{pollutants} was left out: this type shows one pollutant.",
+				"countPlural=other": "{pollutants} were left out: this type shows one pollutant."
+			}
+		}
+	],
 	"get_data_extra_places_left_out": "This widget shows one place, so the others were left out.",
 	"get_data_school_point_left_out": "This widget shows areas, and the school or point's area couldn't be found, so it was left out.",
 	"get_data_monitor_types_left_out": "This widget shows one place or one monitor, so the chosen monitor types were left out.",

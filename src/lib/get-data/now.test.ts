@@ -10,6 +10,7 @@ import { forecastType } from "$lib/widgets/forecast";
 import { mapType } from "$lib/widgets/map";
 import { outsideType } from "$lib/widgets/outside";
 import { FORECASTS_ENTRY, PM25_LEVELS } from "$lib/widgets/shared/test-harness/fake-data";
+import { LIMITS } from "$lib/data/schema";
 import { WidgetInstanceSchema } from "$lib/documents/schema";
 import { withThreshold } from "$lib/thresholds/levels";
 import type { Draft } from "./draft.svelte";
@@ -54,7 +55,7 @@ describe("toNowDraft", () => {
 			draft: {
 				type: "current-conditions",
 				data: { place: FRESNO, layers: [{ dataset: "air-quality", entryType: "pm25" }] },
-				thresholds: [{ level: "unhealthy_sensitive" }]
+				thresholds: [{ level: "unhealthy_sensitive", entryType: "pm25" }]
 			},
 			dropped: ["dates", "overlays", "places"]
 		});
@@ -95,12 +96,12 @@ describe("toNowDraft", () => {
 		const now: Draft = {
 			type: "current-conditions",
 			data: { place: FRESNO, layers: [{ dataset: "air-quality", entryType: "pm25" }] },
-			thresholds: [{ level: "unhealthy" }]
+			thresholds: [{ level: "unhealthy", entryType: "pm25" }]
 		};
 		expect(
 			toNowDraft(now, outsideType, CATALOG, PM25_LEVELS, currentType).draft.thresholds
 		).toEqual([{ level: "unhealthy" }]);
-		const missing = { ...now, thresholds: [{ level: "gone" }] };
+		const missing = { ...now, thresholds: [{ level: "gone", entryType: "pm25" }] };
 		expect(
 			toNowDraft(missing, outsideType, CATALOG, PM25_LEVELS, currentType).draft.thresholds
 		).toEqual([{ level: "unhealthy_sensitive" }]);
@@ -117,17 +118,17 @@ describe("toNowDraft", () => {
 		const strip = { ...outside, type: "forecast-strip" };
 		expect(
 			toNowDraft(strip, currentType, CATALOG, PM25_LEVELS, forecastType).draft.thresholds
-		).toEqual([{ level: "unhealthy_sensitive" }]);
+		).toEqual([{ level: "unhealthy_sensitive", entryType: "pm25" }]);
 		expect(
 			toNowDraft(chart, currentType, CATALOG, PM25_LEVELS, chartType).draft.thresholds
-		).toEqual([{ level: "unhealthy_sensitive" }]);
+		).toEqual([{ level: "unhealthy_sensitive", entryType: "pm25" }]);
 	});
 
 	it("a scale that can't load keeps the alert level as it is, and owes a default where one's due", () => {
 		const saved: Draft = {
 			type: "current-conditions",
 			data: { place: FRESNO, layers: [{ dataset: "air-quality", entryType: "pm25" }] },
-			thresholds: [{ level: "unhealthy" }]
+			thresholds: [{ level: "unhealthy", entryType: "pm25" }]
 		};
 		const kept = toNowDraft(saved, outsideType, CATALOG, "unavailable", currentType);
 		expect(kept.draft.thresholds).toEqual([{ level: "unhealthy" }]);
@@ -149,7 +150,7 @@ describe("toNowDraft", () => {
 		const saved: Draft = {
 			type: "current-conditions",
 			data: { place: FRESNO, layers: [{ dataset: "air-quality", entryType: "pm25" }] },
-			thresholds: [{ level: "unhealthy" }]
+			thresholds: [{ level: "unhealthy", entryType: "pm25" }]
 		};
 		const strip = toNowDraft(saved, forecastType, CATALOG, [], currentType);
 		expect("thresholds" in strip.draft).toBe(false);
@@ -168,7 +169,7 @@ describe("toNowDraft", () => {
 		const back = toNowDraft(draft, currentType, CATALOG, PM25_LEVELS, forecastType);
 		expect(back.draft.data.layers).toEqual([{ dataset: "air-quality", entryType: "pm25" }]);
 		expect(back.draft.data.place).toEqual(FRESNO);
-		expect(back.draft.thresholds).toEqual([{ level: "unhealthy_sensitive" }]);
+		expect(back.draft.thresholds).toEqual([{ level: "unhealthy_sensitive", entryType: "pm25" }]);
 		expect(back.dropped).toEqual([]);
 	});
 
@@ -280,19 +281,21 @@ describe("single-place types: one place or one monitor", () => {
 describe("Chart threshold lines in conversions", () => {
 	it("a Chart with its line Off still gets the default level as a tile", () => {
 		const converted = toNowDraft(chart, currentType, CATALOG, PM25_LEVELS, chartType);
-		expect(converted.draft.thresholds).toEqual([{ level: "unhealthy_sensitive" }]);
+		expect(converted.draft.thresholds).toEqual([
+			{ level: "unhealthy_sensitive", entryType: "pm25" }
+		]);
 	});
 
 	it("a Chart's line level carries to a tile as its alert level", () => {
 		const withLine: Draft = { ...chart, thresholds: [{ level: "unhealthy" }] };
 		const converted = toNowDraft(withLine, currentType, CATALOG, PM25_LEVELS, chartType);
-		expect(converted.draft.thresholds).toEqual([{ level: "unhealthy" }]);
+		expect(converted.draft.thresholds).toEqual([{ level: "unhealthy", entryType: "pm25" }]);
 	});
 
 	it("a line below tier 2 carried over is named, so a low alert level isn't a surprise", () => {
 		const withLine: Draft = { ...chart, thresholds: [{ level: "moderate" }] };
 		const converted = toNowDraft(withLine, currentType, CATALOG, PM25_LEVELS, chartType);
-		expect(converted.draft.thresholds).toEqual([{ level: "moderate" }]);
+		expect(converted.draft.thresholds).toEqual([{ level: "moderate", entryType: "pm25" }]);
 		expect(converted.fromLine).toEqual(PM25_LEVELS[1]);
 		// At tier 2 or above, or the default (no line), nothing is said.
 		const usg: Draft = { ...chart, thresholds: [{ level: "unhealthy_sensitive" }] };
@@ -303,7 +306,11 @@ describe("Chart threshold lines in conversions", () => {
 			"fromLine"
 		);
 		// A tile's own low alert level, between now types, isn't a line.
-		const tile: Draft = { ...withLine, type: "current-conditions" };
+		const tile: Draft = {
+			...withLine,
+			type: "current-conditions",
+			thresholds: [{ level: "moderate", entryType: "pm25" }]
+		};
 		expect(toNowDraft(tile, outsideType, CATALOG, PM25_LEVELS, currentType)).not.toHaveProperty(
 			"fromLine"
 		);
@@ -431,7 +438,7 @@ describe("calendar conversions", () => {
 		const tile: Draft = {
 			type: "current-conditions",
 			data: { place: FRESNO, layers: [{ dataset: "air-quality", entryType: "pm25" }] },
-			thresholds: [{ level: "unhealthy" }]
+			thresholds: [{ level: "unhealthy", entryType: "pm25" }]
 		};
 		expect(fromNowDraft(tile, contributionCalendarType)).toEqual({
 			draft: {
@@ -658,5 +665,107 @@ describe("alert levels per pollutant", () => {
 		expect(parse([a, { level: "good", entryType: "pm25" }])).toBe(false);
 		expect(parse([a, b])).toBe(true);
 		expect(parse([{ level: "usg" }, { level: "good" }])).toBe(true);
+		// One per pollutant layer at most (R6).
+		const many = (n: number) =>
+			Array.from({ length: n }, (_, i) => ({ level: "usg", entryType: `p${i}` }));
+		expect(parse(many(LIMITS.LAYERS_MAX))).toBe(true);
+		expect(parse(many(LIMITS.LAYERS_MAX + 1))).toBe(false);
+	});
+});
+
+describe("Current conditions with several pollutants", () => {
+	const AQ = "air-quality";
+	const tile = (data: Draft["data"]): Draft => ({ type: "current-conditions", data });
+
+	it("isNowShaped holds for two pollutants, the monitor on the first", () => {
+		const two = tile({
+			layers: [
+				{ dataset: AQ, entryType: "pm25", monitors: ["m1"] },
+				{ dataset: AQ, entryType: "o3" }
+			]
+		});
+		expect(isNowShaped(two, currentType)).toBe(true);
+	});
+
+	it("isNowShaped fails for the same pollutant twice or a monitor on a later layer", () => {
+		const twice = tile({
+			place: FRESNO,
+			layers: [
+				{ dataset: AQ, entryType: "pm25" },
+				{ dataset: AQ, entryType: "pm25" }
+			]
+		});
+		expect(isNowShaped(twice, currentType)).toBe(false);
+		const later = tile({
+			layers: [
+				{ dataset: AQ, entryType: "pm25" },
+				{ dataset: AQ, entryType: "o3", monitors: ["m1"] }
+			]
+		});
+		expect(isNowShaped(later, currentType)).toBe(false);
+		const other = tile({
+			place: FRESNO,
+			layers: [
+				{ dataset: AQ, entryType: "pm25" },
+				{ dataset: "forecasts", entryType: "burn-status" }
+			]
+		});
+		expect(isNowShaped(other, currentType)).toBe(false);
+	});
+
+	it("isNowShaped holds for no pollutant ticked, still holding the monitor (R4)", () => {
+		const none = tile({ layers: [{ dataset: AQ, monitors: ["m1"] }] });
+		expect(isNowShaped(none, currentType)).toBe(true);
+		// Other now types still need a pollutant.
+		expect(isNowShaped({ ...none, type: "outside" }, outsideType)).toBe(false);
+	});
+
+	it("toNowDraft from a Chart's PM2.5 gives the alert level PM2.5's entry type", () => {
+		const withLine: Draft = { ...chart, thresholds: [{ level: "unhealthy_sensitive" }] };
+		const converted = toNowDraft(withLine, currentType, CATALOG, PM25_LEVELS, chartType);
+		expect(converted.draft.data.layers).toEqual([{ dataset: AQ, entryType: "pm25" }]);
+		expect(converted.draft.thresholds).toEqual([
+			{ level: "unhealthy_sensitive", entryType: "pm25" }
+		]);
+		// With the scale unavailable, the saved level is kept, for PM2.5.
+		const kept = toNowDraft(withLine, currentType, CATALOG, "unavailable", chartType);
+		expect(kept.draft.thresholds).toEqual([{ level: "unhealthy_sensitive", entryType: "pm25" }]);
+	});
+
+	it("from two pollutants to another now type: the first, its alert level, the rest left out", () => {
+		const two: Draft = {
+			...tile({
+				place: FRESNO,
+				layers: [
+					{ dataset: AQ, entryType: "pm25" },
+					{ dataset: AQ, entryType: "o3" }
+				]
+			}),
+			thresholds: [
+				{ level: "moderate", entryType: "o3" },
+				{ level: "unhealthy", entryType: "pm25" }
+			]
+		};
+		const outside = toNowDraft(two, outsideType, CATALOG, PM25_LEVELS, currentType);
+		expect(outside.draft.data.layers).toEqual([{ dataset: AQ, entryType: "pm25" }]);
+		expect(outside.draft.thresholds).toEqual([{ level: "unhealthy" }]);
+		expect(outside.dropped).toEqual(["pollutants"]);
+		expect(outside.leftOut).toEqual([{ dataset: AQ, entryType: "o3" }]);
+		const month = fromNowDraft(two, monthCalendarType);
+		expect(month.draft.data.layers).toEqual([{ dataset: AQ, entryType: "pm25" }]);
+		expect(month.draft.thresholds).toEqual([{ level: "unhealthy" }]);
+		expect(month.dropped).toEqual(["pollutants"]);
+		expect(month.leftOut).toEqual([{ dataset: AQ, entryType: "o3" }]);
+	});
+
+	it("from one pollutant, nothing is noted and its alert level loses its entry type", () => {
+		const one: Draft = {
+			...tile({ place: FRESNO, layers: [{ dataset: AQ, entryType: "pm25" }] }),
+			thresholds: [{ level: "unhealthy", entryType: "pm25" }]
+		};
+		const month = fromNowDraft(one, monthCalendarType);
+		expect(month.dropped).toEqual([]);
+		expect(month).not.toHaveProperty("leftOut");
+		expect(month.draft.thresholds).toEqual([{ level: "unhealthy" }]);
 	});
 });

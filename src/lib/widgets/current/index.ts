@@ -4,7 +4,7 @@ import type { WidgetType } from "../registry";
 
 export const CURRENT_TYPE = "current-conditions";
 
-/** One pollutant's current value at one place, with its level, trend and guidance. */
+/** Current values of one or more pollutants at one place, with their levels, trends and guidance. */
 export const currentType: WidgetType = {
 	type: CURRENT_TYPE,
 	label: () => m.widget_current_title(),
@@ -16,7 +16,7 @@ export const currentType: WidgetType = {
 	thresholds: true,
 	analyzable: true,
 	downloadable: false,
-	accepts: { datasets: ["air-quality"], maxPollutantLayers: 1, maxPlaces: 1 },
+	accepts: { datasets: ["air-quality"], maxPlaces: 1 },
 	menu: () => [],
 	load: () => import("./module")
 };

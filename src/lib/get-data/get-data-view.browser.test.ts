@@ -1624,7 +1624,7 @@ describe("now widgets", () => {
 				place: { kind: "region", type: "county", code: "a1" },
 				layers: [{ dataset: "air-quality", entryType: "pm25" }]
 			},
-			thresholds: [{ level: "unhealthy-sensitive" }]
+			thresholds: [{ level: "unhealthy-sensitive", entryType: "pm25" }]
 		});
 		// The next edit takes the note away; Off stores no alert level.
 		await alert().selectOptions("Off");
@@ -2293,7 +2293,7 @@ describe("now widgets", () => {
 			"The chart's line was at Good, so the alert level starts there. At that level you'd be told even when the air is fine for most people. You can change it under Alert level."
 		);
 		await expect.element(page.getByText(note)).toBeVisible();
-		expect((await current()).thresholds).toEqual([{ level: "good" }]);
+		expect((await current()).thresholds).toEqual([{ level: "good", entryType: "pm25" }]);
 	});
 
 	test("a saved level the scale no longer has shows its default, and says so", async () => {
@@ -2429,7 +2429,9 @@ test("Threshold line: Chart → Data table → Current conditions gets the defau
 	await expect
 		.element(page.getByRole("combobox", { name: "Alert level" }))
 		.toHaveValue("unhealthy-sensitive");
-	expect((await current()).thresholds).toEqual([{ level: "unhealthy-sensitive" }]);
+	expect((await current()).thresholds).toEqual([
+		{ level: "unhealthy-sensitive", entryType: "pm25" }
+	]);
 	host.remove();
 });
 
