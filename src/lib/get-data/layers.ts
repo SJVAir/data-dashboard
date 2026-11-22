@@ -1,7 +1,7 @@
 import type { CatalogEntry } from "$lib/data/metadata";
 import { AIR_QUALITY, isPollutantLayer, layerKind } from "$lib/data/layer-kind";
 import type { Layer, PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
-import { isStripLayer, mainLayer } from "$lib/widgets/shared/input";
+import { mainLayer, monitorsLayer } from "$lib/widgets/shared/input";
 import { MAX_OVERLAYS } from "$lib/widgets/shared/overlays";
 
 /**
@@ -149,18 +149,6 @@ export function dropMonitorsForPlace(data: WidgetDataConfig, limit: number): voi
 		delete layer.monitors;
 		delete layer.monitorTypes;
 	}
-}
-
-/**
- * The layer holding the widget's monitors: its air-quality layer (its pollutant, or one kept with
- * None), else a Forecast strip's one layer (ruling R11).
- */
-function monitorsLayer(data: WidgetDataConfig, catalog: CatalogEntry[] | undefined) {
-	const strip = data.layers[0];
-	return (
-		data.layers.find((l) => isPollutantLayer(l, catalog)) ??
-		(strip && isStripLayer(data, strip) ? strip : undefined)
-	);
 }
 
 /**

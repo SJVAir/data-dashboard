@@ -7,7 +7,7 @@ import {
 } from "$lib/data/dataset-rules";
 import { drawnWithNoWhere } from "$lib/data/adapters/offered";
 import type { CatalogEntry, EntryTypeMeta, Figure } from "$lib/data/metadata";
-import { AIR_QUALITY, layerKind } from "$lib/data/layer-kind";
+import { AIR_QUALITY, isPollutantLayer, layerKind } from "$lib/data/layer-kind";
 import { currentInput } from "$lib/data/now/current";
 import type {
 	DateRangeSpec,
@@ -89,9 +89,13 @@ export function hasWhere(data: WidgetDataConfig): boolean {
 
 const FORECASTS = "forecasts";
 
-/** Whether `layer` is an air-quality layer that can fetch its monitors (it has an entry type). */
-function fetchesMonitors(layer: Layer): boolean {
-	return layer.dataset === AIR_QUALITY && !!layer.entryType;
+/**
+ * Whether `layer` is the widget's pollutant (`isPollutantLayer`) with an entry type: the one layer
+ * whose monitors are fetched. An air-quality layer of another kind (a humidity overlay) never
+ * takes the monitors. With no catalog every air-quality layer counts.
+ */
+function fetchesMonitors(layer: Layer, catalog?: CatalogEntry[]): boolean {
+	return !!layer.entryType && isPollutantLayer(layer, catalog);
 }
 
 /**
@@ -103,11 +107,19 @@ export function isStripLayer(data: WidgetDataConfig, layer: Layer): boolean {
 	return data.layers.length === 1 && layer.dataset === FORECASTS && !layer.entryType;
 }
 
-/** The layer holding a widget's monitors: its air-quality layer, else a Forecast strip's one. */
-function monitorsLayer(data: WidgetDataConfig): Layer | undefined {
+/**
+ * The layer holding a widget's monitors as saved, the one rule for it: its pollutant
+ * (`isPollutantLayer`, one kept with None too, spec decision 31), else a Forecast strip's one layer
+ * (ruling R11). Monitors are only ever saved on the pollutant, so with no catalog to tell a
+ * pollutant from another air-quality layer, the one holding monitors or ticked types is it.
+ */
+export function monitorsLayer(data: WidgetDataConfig, catalog?: CatalogEntry[]): Layer | undefined {
 	const first = data.layers[0];
+	const pollutants = data.layers.filter((l) => isPollutantLayer(l, catalog));
 	return (
-		data.layers.find(fetchesMonitors) ?? (first && isStripLayer(data, first) ? first : undefined)
+		pollutants.find((l) => l.monitors?.length || l.monitorTypes?.length) ??
+		pollutants[0] ??
+		(first && isStripLayer(data, first) ? first : undefined)
 	);
 }
 
@@ -120,10 +132,14 @@ function monitorsLayer(data: WidgetDataConfig): Layer | undefined {
  * with None chosen they stay saved but fetch nothing. A Forecast strip's one layer carries its
  * `monitors` (its one monitor; the forecast is its zone's).
  */
-export function queryLayer(data: WidgetDataConfig, layer: Layer): QueryLayer {
+export function queryLayer(
+	data: WidgetDataConfig,
+	layer: Layer,
+	catalog?: CatalogEntry[]
+): QueryLayer {
 	const { monitors, monitorTypes, ...rest } = layer;
 	const out: QueryLayer = { ...rest, ...widgetWhere(data) };
-	const aq = fetchesMonitors(layer);
+	const aq = fetchesMonitors(layer, catalog);
 	if (aq || isStripLayer(data, layer)) {
 		if (monitors && monitors.length > 0) out.monitors = [...monitors];
 	}
@@ -135,10 +151,16 @@ export function queryLayer(data: WidgetDataConfig, layer: Layer): QueryLayer {
  * The widget's searched monitors and ticked types: its air-quality layer's, or a Forecast strip's
  * one layer's monitors (none when it has none).
  */
-export function widgetMonitors(data: WidgetDataConfig): { monitors: string[]; types: string[] } {
-	const layer = monitorsLayer(data);
-	const types = layer && fetchesMonitors(layer) ? (layer.monitorTypes ?? []) : [];
-	return { monitors: layer?.monitors ?? [], types };
+export function widgetMonitors(
+	data: WidgetDataConfig,
+	catalog?: CatalogEntry[]
+): { monitors: string[]; types: string[] } {
+	const layer = monitorsLayer(data, catalog);
+	if (!layer) return { monitors: [], types: [] };
+	// A pollutant kept with None holds its monitors but fetches none.
+	const fetches = fetchesMonitors(layer, catalog);
+	if (!fetches && !isStripLayer(data, layer)) return { monitors: [], types: [] };
+	return { monitors: layer.monitors ?? [], types: fetches ? (layer.monitorTypes ?? []) : [] };
 }
 
 /**
@@ -238,7 +260,7 @@ export function chartInput(
 	}
 	if (!layer) return { layer, input: null };
 	const input: QueryInput = {
-		layer: queryLayer(data, layer),
+		layer: queryLayer(data, layer, catalog),
 		dateRange: data.dateRange ?? DEFAULT_RANGE,
 		resolution,
 		worstHour: true
@@ -291,7 +313,9 @@ export function widgetInputs(
 	const { layer, input, empty } = chartInput(widget.data, catalog, effective.resolution);
 	const overlays = input
 		? overlayLayers(widget.data, catalog).map((l) =>
-				effective.misfits.includes(l) ? null : overlayInput(input, queryLayer(widget.data, l))
+				effective.misfits.includes(l)
+					? null
+					: overlayInput(input, queryLayer(widget.data, l, catalog))
 			)
 		: [];
 	const figureFor =

@@ -15,6 +15,7 @@ import {
 	wherePurpose,
 	widgetEffective,
 	widgetInputs,
+	widgetMonitors,
 	widgetPlaceKind,
 	widgetWhere
 } from "./input";
@@ -286,6 +287,44 @@ describe("queryLayer", () => {
 		expect(queryLayer({ layers: [empty] }, empty)).toEqual(PM);
 		const weather: Layer = { ...TEMP, monitors: ["m1"] };
 		expect(queryLayer({ layers: [weather] }, weather)).toEqual(TEMP);
+	});
+});
+
+describe("a humidity air-quality overlay never takes the monitors", () => {
+	const WITH_HUMIDITY: CatalogEntry[] = [
+		{
+			...CATALOG[0],
+			entryTypes: [entry("pm25", "pollutant"), entry("humidity", "other")]
+		},
+		...CATALOG.slice(1)
+	];
+	const HUMIDITY: Layer = { dataset: "air-quality", entryType: "humidity" };
+	// The overlay first, as an untrusted or converted document may order them.
+	const data: WidgetDataConfig = {
+		dateRange: { kind: "trailing", amount: 7, unit: "day" },
+		layers: [HUMIDITY, { ...PM, monitors: ["m1", "m2"], monitorTypes: ["airnow"] }]
+	};
+
+	it("the monitors are the pollutant's, wherever the overlay sits", () => {
+		expect(widgetMonitors(data, WITH_HUMIDITY)).toEqual({
+			monitors: ["m1", "m2"],
+			types: ["airnow"]
+		});
+		// No catalog: the layer holding monitors is the pollutant.
+		expect(widgetMonitors(data)).toEqual({ monitors: ["m1", "m2"], types: ["airnow"] });
+	});
+
+	it("a Chart's main query asks for them on the pollutant, the overlay at its places", () => {
+		const inputs = widgetInputs({ type: "chart", data }, WITH_HUMIDITY, "monitor-types");
+		expect(inputs.main?.layer).toMatchObject({
+			entryType: "pm25",
+			monitors: ["m1", "m2"],
+			monitorTypes: ["airnow"]
+		});
+		expect(inputs.overlays[0]?.layer.entryType).toBe("humidity");
+		// The humidity layer itself passes no monitors of its own.
+		const saved: Layer = { ...HUMIDITY, monitors: ["m9"] };
+		expect(queryLayer({ layers: [saved] }, saved, WITH_HUMIDITY)).toEqual(HUMIDITY);
 	});
 });
 

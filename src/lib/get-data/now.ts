@@ -27,7 +27,14 @@ import { FORECAST_TYPE } from "$lib/widgets/forecast";
 import { OUTSIDE_TYPE } from "$lib/widgets/outside";
 import type { WidgetType } from "$lib/widgets/registry";
 import { offersNow } from "$lib/widgets/time";
-import { hasWhere, mainLayer, widgetMonitors, widgetWhere } from "$lib/widgets/shared/input";
+import {
+	hasWhere,
+	isStripLayer,
+	mainLayer,
+	monitorsLayer,
+	widgetMonitors,
+	widgetWhere
+} from "$lib/widgets/shared/input";
 import type { Draft } from "./draft.svelte";
 
 /** What a conversion left out or changed, for the form's notes. */
@@ -114,14 +121,8 @@ function onePlace(
  * where `widgetMonitors` reads only those that fetch.
  */
 function savedMonitors(data: Draft["data"]): { monitors: string[]; types: string[] } {
-	const strip = data.layers.length === 1 && isStrip(data.layers[0]) ? data.layers[0] : undefined;
-	const layer = data.layers.find((l) => l.dataset === AIR_QUALITY) ?? strip;
+	const layer = monitorsLayer(data);
 	return { monitors: layer?.monitors ?? [], types: layer?.monitorTypes ?? [] };
-}
-
-/** Whether `layer` is a Forecast strip's (forecasts with no entry type). */
-function isStrip(layer: Layer): boolean {
-	return layer.dataset === FORECASTS && !layer.entryType;
 }
 
 /** The layer a now draft is made from: its main layer, or a Forecast strip's one layer. */
@@ -287,7 +288,7 @@ export function fromNowDraft(draft: Draft, type: WidgetType): NowConversion {
 	const cap = type.accepts?.maxPlaces;
 	// A Forecast strip's layer becomes PM2.5, keeping its monitor.
 	let layers = draft.data.layers.map((l) =>
-		!isStrip(l)
+		!isStripLayer(draft.data, l)
 			? structuredClone(l)
 			: {
 					dataset: DEFAULT_LAYER.dataset,
