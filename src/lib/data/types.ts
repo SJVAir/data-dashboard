@@ -113,7 +113,9 @@ export const UNAVAILABLE_REASONS = [
 	"point-outside",
 	"monitor-unlisted",
 	"whole-layer-raw",
-	"filter-gone"
+	"filter-gone",
+	/** Monitors asked for, none of them measuring the layer's pollutant: nothing to fetch. */
+	"none-measure"
 ] as const;
 export type UnavailableReason = (typeof UNAVAILABLE_REASONS)[number];
 

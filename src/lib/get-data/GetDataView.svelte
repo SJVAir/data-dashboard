@@ -5,8 +5,10 @@
 
 <script lang="ts">
 	import { onDestroy, untrack } from "svelte";
+	import type { Attachment } from "svelte/attachments";
 	import { MediaQuery } from "svelte/reactivity";
 	import { Button } from "$lib/components/ui/button";
+	import { scrollFocusable } from "$lib/components/shared/scroll-focusable";
 	import { adapterOffers, getMetadata, getResolvers } from "$lib/data";
 	import { csvPending, saveDataCsv } from "$lib/data/csv";
 	import type { CatalogEntry, Level } from "$lib/data/metadata";
@@ -24,7 +26,6 @@
 	import { DATA_TABLE_TYPE } from "$lib/widgets/table";
 	import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
 	import { CURRENT_TYPE } from "$lib/widgets/current";
-	import { FORECAST_TYPE } from "$lib/widgets/forecast";
 	import { MAP_TYPE } from "$lib/widgets/map";
 	import {
 		HMS_FIRE,
@@ -66,7 +67,6 @@
 		isNowShaped,
 		keptThreshold,
 		nowPollutant,
-		nowPollutants,
 		offeredPollutants,
 		selectionFits,
 		switchRange,
@@ -87,8 +87,6 @@
 		toMapDraft
 	} from "./map";
 	import { pesticideMeta } from "./sources";
-	import AirQualitySection from "./AirQualitySection.svelte";
-	import MapSections from "./MapSections.svelte";
 	import { isCalendarType } from "$lib/calendars/types";
 	import ThresholdLineControl from "./ThresholdLineControl.svelte";
 	import { formatDate, formatDateRange, formatList, formatNumber } from "$lib/format";
@@ -519,6 +517,26 @@
 		if (keepsDraft) flushDraft();
 	});
 
+	/**
+	 * Keeps `--get-data-top` at the view's distance from the top of the page, so on two columns it
+	 * fills the screen below the top nav and the heading, whatever their height (a notice bar can
+	 * come and go).
+	 */
+	const fillsView: Attachment<HTMLElement> = (node) => {
+		const update = () => {
+			const top = node.getBoundingClientRect().top + window.scrollY;
+			node.style.setProperty("--get-data-top", `${Math.max(0, top)}px`);
+		};
+		const resize = new ResizeObserver(update);
+		resize.observe(document.body);
+		window.addEventListener("resize", update);
+		update();
+		return () => {
+			resize.disconnect();
+			window.removeEventListener("resize", update);
+		};
+	};
+
 	let size = $state<PreviewSize>("large");
 	let width = $state(0);
 	const phone = new MediaQuery(PHONE_QUERY);
@@ -907,11 +925,24 @@
 	}
 </script>
 
-<div class="flex min-h-full flex-col" bind:clientWidth={width}>
+<!-- On two columns the view fills the screen below what's above it (the top nav, the heading):
+     the left column scrolls on its own and Show as, the preview and the action bar stay in view
+     (spec decision 18). On a phone the columns stack and the page scrolls. -->
+<div
+	class="flex min-h-full flex-col md:h-[calc(100dvh-var(--get-data-top,0px))] md:min-h-0"
+	bind:clientWidth={width}
+	{@attach fillsView}
+>
 	<div
-		class="grid flex-1 gap-(--grid-gap) p-(--grid-gap) md:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]"
+		class="grid flex-1 gap-(--grid-gap) p-(--grid-gap) md:min-h-0 md:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)] md:grid-rows-[minmax(0,1fr)]"
 	>
-		<div class="flex min-w-0 flex-col gap-4">
+		<div
+			class="focus-visible:ring-ring flex min-w-0 flex-col gap-4 rounded-sm focus-visible:ring-2 focus-visible:outline-none md:relative md:-m-1 md:min-h-0 md:overflow-y-auto md:overscroll-contain md:p-1"
+			role="group"
+			aria-label={m.get_data_choices_label()}
+			data-testid="get-data-choices"
+			{@attach scrollFocusable}
+		>
 			{#if allNotes.length > 0}
 				<div role="status" class="flex flex-col gap-1">
 					{#each allNotes as note (note)}
@@ -919,6 +950,72 @@
 					{/each}
 				</div>
 			{/if}
+
+			{#snippet catalogState()}
+				{#if catalog === undefined}
+					<p role="status" class="text-muted-foreground text-sm">{m.get_data_loading()}</p>
+				{:else if catalog === "unavailable"}
+					<div class="flex flex-wrap items-center gap-2">
+						<p role="status" class="text-sm">{m.get_data_catalog_unavailable()}</p>
+						<Button variant="outline" size="sm" onclick={() => catalogTry++}>
+							{m.get_data_retry()}
+						</Button>
+					</div>
+				{/if}
+			{/snippet}
+
+			<section class="flex flex-col gap-2" aria-labelledby="{uid}-what">
+				<h2 id="{uid}-what" class="text-primary text-sm font-semibold">{m.get_data_what()}</h2>
+				{#if !known || !type}
+					{@render catalogState()}
+				{:else}
+					<WhatSections
+						{type}
+						types={dataTypes()}
+						{sections}
+						data={plain.data}
+						catalog={known}
+						places={picks.length}
+						limit={placeLimit(type)}
+						maxOverlays={MAX_OVERLAYS}
+						onpollutant={setPollutant}
+						onnowpollutant={(e) => void setNowPollutant(e)}
+						onmonitortypes={setMonitorTypes}
+						onmonitors={setMonitors}
+						ontoggle={toggleLayer}
+						onaddpesticide={addPesticideLayer}
+						onremove={removeLayer}
+						onfilters={setFilters}
+						onstation={setStation}
+						blocked={datasetReason}
+						map={{
+							pollutants: offeredPollutants(known, mapPollutants ?? []),
+							onsmoke: (on) => setSmokeAndFire(draft.data, on),
+							onnotices: (on) => setNotices(draft.data, on),
+							onfilters: (filters) => setMapPesticideFilters(draft.data, filters),
+							years: useYears,
+							onuse: (on) => setUse(draft, on),
+							onretryyears: () => {
+								useYears = undefined;
+								useYearsTry++;
+							},
+							fill: mapOptions(plain).fill,
+							fillTypes,
+							onfill: (type) => setMapFill(draft, type),
+							blocks: mapBlocks
+						}}
+					/>
+					{#if isNow && type.thresholds}
+						<!-- A now type's alert level (its pollutant is chosen in Air quality). -->
+						<NowControls
+							levels={shownLevels}
+							thresholds={plain.thresholds}
+							onthreshold={setThreshold}
+							onretry={() => alertTry++}
+						/>
+					{/if}
+				{/if}
+			</section>
 
 			{#if !nowOnly}
 				<section class="flex flex-col gap-2" aria-labelledby="{uid}-when">
@@ -957,122 +1054,6 @@
 				/>
 			</section>
 
-			{#snippet catalogState()}
-				{#if catalog === undefined}
-					<p role="status" class="text-muted-foreground text-sm">{m.get_data_loading()}</p>
-				{:else if catalog === "unavailable"}
-					<div class="flex flex-wrap items-center gap-2">
-						<p role="status" class="text-sm">{m.get_data_catalog_unavailable()}</p>
-						<Button variant="outline" size="sm" onclick={() => catalogTry++}>
-							{m.get_data_retry()}
-						</Button>
-					</div>
-				{/if}
-			{/snippet}
-
-			{#if isNow}
-				{#if !known}
-					{@render catalogState()}
-				{:else if plain.type === MAP_TYPE}
-					<section class="flex flex-col gap-2" aria-labelledby="{uid}-what">
-						<h2 id="{uid}-what" class="text-primary text-sm font-semibold">
-							{m.get_data_what()}
-						</h2>
-						<MapSections
-							data={plain.data}
-							catalog={known}
-							offered={offeredPollutants(known, mapPollutants ?? [])}
-							limit={placeLimit(type)}
-							onpollutant={setPollutant}
-							onmonitortypes={setMonitorTypes}
-							onmonitors={setMonitors}
-							onsmoke={(on) => setSmokeAndFire(draft.data, on)}
-							onnotices={(on) => setNotices(draft.data, on)}
-							onfilters={(filters) => setMapPesticideFilters(draft.data, filters)}
-							years={useYears}
-							onuse={(on) => setUse(draft, on)}
-							onretryyears={() => {
-								useYears = undefined;
-								useYearsTry++;
-							}}
-							fill={mapOptions(plain).fill}
-							blocks={mapBlocks}
-							{fillTypes}
-							onfill={(type) => setMapFill(draft, type)}
-						/>
-					</section>
-				{:else if plain.type === CURRENT_TYPE || type?.thresholds}
-					<section class="flex flex-col gap-3" aria-labelledby="{uid}-what">
-						<h2 id="{uid}-what" class="text-primary text-sm font-semibold">
-							{m.get_data_what()}
-						</h2>
-						<NowControls
-							pollutants={plain.type === CURRENT_TYPE ? nowPollutants(known) : null}
-							entryType={main?.entryType}
-							levels={type?.thresholds ? shownLevels : null}
-							thresholds={plain.thresholds}
-							onpollutant={(e) => void setNowPollutant(e)}
-							onthreshold={setThreshold}
-							onretry={() => alertTry++}
-						/>
-						{#if main}
-							<!-- One monitor or one place (decision 33); the pollutant is chosen above. -->
-							<AirQualitySection
-								data={plain.data}
-								catalog={known}
-								limit={placeLimit(type)}
-								pollutants={null}
-								onpollutant={setPollutant}
-								ontypes={setMonitorTypes}
-								onmonitors={setMonitors}
-							/>
-						{/if}
-					</section>
-				{:else if plain.type === FORECAST_TYPE}
-					<!-- A Forecast strip: one place or one monitor (decision 11), on its own layer (R11). -->
-					<section class="flex flex-col gap-3" aria-labelledby="{uid}-what">
-						<h2 id="{uid}-what" class="text-primary text-sm font-semibold">
-							{m.get_data_what()}
-						</h2>
-						<AirQualitySection
-							data={plain.data}
-							catalog={known}
-							limit={placeLimit(type)}
-							pollutants={null}
-							strip
-							onpollutant={setPollutant}
-							ontypes={setMonitorTypes}
-							onmonitors={setMonitors}
-						/>
-					</section>
-				{/if}
-			{:else}
-				<section class="flex flex-col gap-2" aria-labelledby="{uid}-what">
-					<h2 id="{uid}-what" class="text-primary text-sm font-semibold">{m.get_data_what()}</h2>
-					{#if !known}
-						{@render catalogState()}
-					{:else}
-						<WhatSections
-							{sections}
-							data={plain.data}
-							catalog={known}
-							places={picks.length}
-							limit={placeLimit(type)}
-							maxOverlays={MAX_OVERLAYS}
-							onpollutant={setPollutant}
-							onmonitortypes={setMonitorTypes}
-							onmonitors={setMonitors}
-							ontoggle={toggleLayer}
-							onaddpesticide={addPesticideLayer}
-							onremove={removeLayer}
-							onfilters={setFilters}
-							onstation={setStation}
-							blocked={datasetReason}
-						/>
-					{/if}
-				</section>
-			{/if}
-
 			{#if choices}
 				<DataResolutionControl
 					{choices}
@@ -1109,7 +1090,12 @@
 			{/if}
 		</div>
 
-		<div class="flex min-w-0 flex-col gap-2">
+		<div
+			class="focus-visible:ring-ring flex min-w-0 flex-col gap-2 rounded-sm focus-visible:ring-2 focus-visible:outline-none md:relative md:-m-1 md:min-h-0 md:overflow-y-auto md:overscroll-contain md:p-1"
+			role="group"
+			aria-label={m.get_data_preview_column_label()}
+			{@attach scrollFocusable}
+		>
 			<ShowAs types={showAs} value={plain.type} onchange={setType} />
 			{#if overlayFor}
 				<label class="flex flex-wrap items-center gap-2 text-sm">

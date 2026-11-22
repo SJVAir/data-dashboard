@@ -24,6 +24,7 @@
 		emptyText,
 		idleText,
 		ownsEmpty = false,
+		pollutant,
 		children
 	}: {
 		state: QueryState;
@@ -44,6 +45,8 @@
 		emptyText?: string;
 		/** The children say what an empty range means (they keep other content), so it isn't replaced. */
 		ownsEmpty?: boolean;
+		/** The widget's pollutant, from the catalog: named when none of its monitors measure it. */
+		pollutant?: string;
 		children: Snippet<[QueryData]>;
 	} = $props();
 
@@ -70,7 +73,11 @@
 				: m.widget_state_unavailable_no_resolution_view(),
 		"place-unsupported": () => m.widget_state_unavailable_place_unsupported(),
 		"point-outside": () => m.widget_state_unavailable_point_outside(),
-		"whole-layer-raw": () => m.widget_state_unavailable_whole_layer_raw()
+		"whole-layer-raw": () => m.widget_state_unavailable_whole_layer_raw(),
+		"none-measure": () =>
+			pollutant
+				? m.widget_state_unavailable_none_measure({ pollutant })
+				: m.widget_state_unavailable_none_measure_unnamed()
 	};
 
 	/** A retirement's `since` (a date or a date-time) as a Pacific date. */

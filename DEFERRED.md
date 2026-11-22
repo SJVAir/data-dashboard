@@ -3141,6 +3141,12 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   menu-opening keys, which ship in Release 1). _Deferred 2026-09-23 (IDEA.md
   Q5)._ The shared action registry is designed to feed these. **Revisit when** the action
   registry and the widget "⋯" menus have shipped.
+- **The Data Portal's "Show as" row is wider than a phone.** _Found 2026-11-22 (step 5 spec 7a,
+  Task 11; not changed by it: the task leaves phones as they are)._ `ShowAs.svelte`'s toggle group
+  is an `inline-flex` that doesn't wrap, so its eight types make the page about 710 px wide at a
+  390 px viewport and the whole page scrolls sideways (WCAG 1.4.10 Reflow). A `flex-wrap` on the
+  group (or a scrolling row) would fix it. **Revisit when** the next spec touches Show as, or
+  before Release 1 ships, whichever comes first.
 - **Asking before closing the tab or reloading with unsaved Edit data changes** (a browser
   `beforeunload` prompt). _Deferred 2026-11-05 (step 4 spec 3, Edit data; ruled out of scope
   for the task)._ Cancel, Back, forward and in-app links ask "Discard changes?"; closing the

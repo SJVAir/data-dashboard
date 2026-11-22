@@ -769,6 +769,87 @@ test("keyboard: the date list, accordion and Show as work without a mouse", asyn
 	await expect.element(current).toBeChecked();
 });
 
+test("get data view: What comes before When and Where", async () => {
+	await show();
+	const heading = (name: string) => page.getByRole("heading", { name, level: 2 }).element();
+	const [what, when, where] = [heading("What"), heading("When"), heading("Where")];
+	expect(what.compareDocumentPosition(when) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	expect(when.compareDocumentPosition(where) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+test("get data view: the Map and the Chart render the same What", async () => {
+	const { host } = await show(areasDraft(["06019"]));
+	const sections = () =>
+		[...host.querySelectorAll<HTMLElement>("[data-what-section]")].map(
+			(el) => el.dataset.whatSection
+		);
+	const fill = () => page.getByRole("button", { name: m.getdata_map_fill() });
+	await expect.element(fill()).toBeInTheDocument();
+	const chart = sections();
+	// What a Chart can't show is greyed with its reason, never hidden.
+	await expect.element(fill()).toBeDisabled();
+	await expect
+		.element(fill())
+		.toHaveAccessibleDescription(m.get_data_section_only_for({ types: "Map" }));
+	await page.getByRole("radio", { name: "Map" }).click();
+	await expect.element(page.getByRole("radio", { name: "Map" })).toBeChecked();
+	await expect.element(fill()).toBeEnabled();
+	expect(sections()).toEqual(chart);
+	expect(chart).toContain("fill");
+	// Catalog order, the Map's own fill last.
+	expect(chart).toEqual([
+		"air-quality",
+		"forecasts",
+		"weather",
+		"pesticide-use",
+		"hms-smoke",
+		"pesticide-notices",
+		"fill"
+	]);
+});
+
+test("get data view: the left column scrolls and the preview stays in view", async () => {
+	await page.viewport(1280, 720);
+	const { host } = await show(areasDraft(["06019"]));
+	await drawn(host);
+	const column = host.querySelector<HTMLElement>("[data-testid=get-data-choices]")!;
+	// Every section open makes the column taller than the view.
+	for (const trigger of column.querySelectorAll<HTMLButtonElement>(
+		"[data-what-section] h3 button[aria-expanded=false]:not(:disabled)"
+	)) {
+		trigger.click();
+	}
+	await animationsSettled(host);
+	await expect.poll(() => column.scrollHeight > column.clientHeight).toBe(true);
+	// A Tab stop, so the keyboard can scroll it.
+	await expect.poll(() => column.getAttribute("tabindex")).toBe("0");
+	column.scrollTop = column.scrollHeight;
+	await expect.poll(() => column.scrollTop).toBeGreaterThan(0);
+	expect(window.scrollY).toBe(0);
+	const preview = host.querySelector<HTMLElement>("[data-testid=get-data-preview]")!;
+	const top = preview.getBoundingClientRect().top;
+	expect(top).toBeGreaterThanOrEqual(0);
+	expect(top).toBeLessThan(window.innerHeight);
+	// The action bar stays in view at the bottom.
+	const add = page.getByRole("button", { name: "Add to Home" }).element().getBoundingClientRect();
+	expect(add.bottom).toBeLessThanOrEqual(window.innerHeight);
+});
+
+test("get data view: keyboard focus stays in the column after removing a monitor", async () => {
+	await show(monitorsDraft(["m-pa", "m-bam"]));
+	const remove = (name: string) =>
+		page.getByRole("button", { name: m.get_data_monitors_remove_label({ name }) });
+	await expect.element(remove("BAM")).toBeInTheDocument();
+	(remove("Purple Air").element() as HTMLElement).focus();
+	await userEvent.keyboard("{Enter}");
+	// The next row's Remove.
+	await expect.element(remove("BAM")).toHaveFocus();
+	await userEvent.keyboard("{Enter}");
+	// None left: the search's button.
+	await expect.element(page.getByRole("button", { name: m.get_data_monitors_add() })).toHaveFocus();
+	expect(document.activeElement).not.toBe(document.body);
+});
+
 test("get data view: None is never disabled", async () => {
 	for (const type of ["chart", "map"]) {
 		const { current, host, screen } = await show(areasDraft(["06019"], { type }));
@@ -1449,9 +1530,11 @@ describe("now widgets", () => {
 		await expect.element(page.getByText(m.get_data_extra_places_left_out())).toBeVisible();
 		// One place: the first.
 		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Area a1");
-		// The pollutants on offer (PM10 isn't available), and the alert level at its default.
-		const pollutant = page.getByRole("group", { name: "Pollutant" });
+		// The pollutants on offer in Air quality (PM10 isn't available; no None: Current conditions
+		// always shows one), and the alert level at its default.
+		const pollutant = page.getByRole("group", { name: "Air quality" });
 		await expect.element(pollutant.getByRole("radio", { name: "PM2.5" })).toBeChecked();
+		await expect.element(pollutant.getByRole("radio", { name: "None" })).not.toBeInTheDocument();
 		await expect.element(pollutant.getByRole("radio", { name: "Ozone" })).toBeVisible();
 		await expect.element(pollutant.getByRole("radio", { name: "PM10" })).not.toBeInTheDocument();
 		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
@@ -2062,7 +2145,7 @@ describe("now widgets", () => {
 		await expect
 			.element(page.getByRole("button", { name: "Download CSV" }))
 			.not.toBeInTheDocument();
-		await expect.element(page.getByRole("group", { name: "Pollutant" })).not.toBeInTheDocument();
+		await expect.element(page.getByRole("group", { name: "Air quality" })).not.toBeInTheDocument();
 		// A one-place draft over dates still says the dates were left out.
 		await expect.element(page.getByText(m.get_data_dates_left_out())).toBeVisible();
 		await expect
@@ -2071,7 +2154,7 @@ describe("now widgets", () => {
 		await page.getByRole("radio", { name: "Forecast" }).click();
 		await expect.element(page.getByRole("radio", { name: "Forecast" })).toBeChecked();
 		await expect.element(alert()).not.toBeInTheDocument();
-		await expect.element(page.getByRole("group", { name: "Pollutant" })).not.toBeInTheDocument();
+		await expect.element(page.getByRole("group", { name: "Air quality" })).not.toBeInTheDocument();
 		// The place is still named (through a PM2.5 query of it).
 		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Area a1");
 		expect(await current()).toEqual({

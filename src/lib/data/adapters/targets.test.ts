@@ -99,15 +99,26 @@ describe("layerTarget", () => {
 			types: ["airnow"],
 			regionKeys: null
 		});
-		// Every ticked type dropped: never an empty type list (the bulk endpoint would send every type).
+		// Every ticked type dropped: never an empty type list (the bulk endpoint would send every type),
+		// and nothing fetched: the widget says none of them measure it.
 		expect(
 			await layerTarget({ ...ozone, monitorTypes: ["purpleair"], monitors: ["m-bam"] }, ctx)
-		).toEqual({ kind: "monitors", ids: [] });
+		).toEqual({ unavailable: "none-measure" });
 		expect(
 			await layerTarget({ ...ozone, monitorTypes: ["bam1022"], monitors: ["m-bam", "m-x"] }, ctx)
 		).toEqual({ unavailable: "monitor-unlisted" });
 		const pm25: QueryLayer = { ...base, monitorTypes: ["purpleair"], monitors: ["m-bam"] };
 		expect(await layerTarget(pm25, ctx)).toMatchObject({ types: ["purpleair"], ids: ["m-bam"] });
+	});
+
+	it("another dataset's layer at the monitors takes them as places, whatever they measure", async () => {
+		// A weather overlay at a Chart's searched monitors: the monitors are where, not what.
+		const weather: QueryLayer = {
+			dataset: "weather",
+			entryType: "temperature",
+			monitors: ["m-bam"]
+		};
+		expect(await layerTarget(weather, ctx)).toEqual({ kind: "monitors", ids: ["m-bam"] });
 	});
 
 	it("scopes ticked types by a school's first region", async () => {

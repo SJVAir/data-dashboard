@@ -167,8 +167,11 @@ describe("air quality section", () => {
 		await expect
 			.element(addButton())
 			.toHaveAccessibleDescription(m.get_data_monitors_choose_pollutant());
+		// The reason is on the row's one control, its Remove button.
 		await expect
-			.element(page.getByRole("list", { name: m.get_data_monitors_picked() }).getByRole("listitem"))
+			.element(
+				page.getByRole("button", { name: m.get_data_monitors_remove_label({ name: "BAM" }) })
+			)
 			.toHaveAccessibleDescription(m.get_data_monitor_type_no_pollutant());
 
 		// A pollutant again: the same ticks and monitors, enabled.

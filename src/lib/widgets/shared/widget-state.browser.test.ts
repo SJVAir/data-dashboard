@@ -64,6 +64,7 @@ async function show(
 		onchoose?: () => void;
 		ownsEmpty?: boolean;
 		widget?: WidgetInstance;
+		pollutant?: string;
 	} = {}
 ) {
 	const { app, session } = await seed();
@@ -147,7 +148,9 @@ test("error offers Retry, with or without stale data", async () => {
 test("each unavailable reason has its own message", async () => {
 	const seen = new Set<string>();
 	const GONE = ["region-unresolved", "location-unresolved", "monitor-unlisted", "filter-gone"];
-	for (const reason of UNAVAILABLE_REASONS.filter((r) => !GONE.includes(r))) {
+	// none-measure names the pollutant: its own test.
+	const OWN = [...GONE, "none-measure"];
+	for (const reason of UNAVAILABLE_REASONS.filter((r) => !OWN.includes(r))) {
 		const { screen } = await show({ status: "unavailable", reason: reason as UnavailableReason });
 		const key = `widget_state_unavailable_${reason.replaceAll("-", "_")}` as const;
 		const text = (m as unknown as Record<string, () => string>)[key]();
@@ -155,7 +158,7 @@ test("each unavailable reason has its own message", async () => {
 		await expect.element(screen.getByText(text)).toBeInTheDocument();
 		await screen.unmount();
 	}
-	expect(seen.size).toBe(UNAVAILABLE_REASONS.length - GONE.length);
+	expect(seen.size).toBe(UNAVAILABLE_REASONS.length - OWN.length);
 });
 
 test("no-resolution doesn't point a read-only dashboard at Edit data", async () => {
@@ -204,6 +207,25 @@ test.each(["region-unresolved", "location-unresolved", "monitor-unlisted"] as co
 		}
 	}
 );
+
+test("none-measure names the pollutant none of the chosen monitors measure", async () => {
+	const { screen } = await show(
+		{ status: "unavailable", reason: "none-measure" },
+		{ pollutant: "Ozone" }
+	);
+	expect(m.widget_state_unavailable_none_measure({ pollutant: "Ozone" })).toBe(
+		"None of the chosen monitors measure Ozone"
+	);
+	await expect
+		.element(screen.getByText("None of the chosen monitors measure Ozone"))
+		.toBeInTheDocument();
+	await screen.unmount();
+	// The pollutant not known yet: still its own reason, never the generic "No data".
+	const unnamed = await show({ status: "unavailable", reason: "none-measure" });
+	await expect
+		.element(unnamed.screen.getByText(m.widget_state_unavailable_none_measure_unnamed()))
+		.toBeInTheDocument();
+});
 
 test("point-outside says so, with Choose another", async () => {
 	const onchoose = vi.fn();

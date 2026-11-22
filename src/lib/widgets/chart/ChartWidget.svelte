@@ -126,6 +126,7 @@
 			state={w.shown}
 			{widget}
 			retired={w.retired}
+			pollutant={w.meta?.entryType.label}
 			onretry={w.retry}
 			onchoose={() => openPlacePicker({ widgetId: widget.id })}
 			emptyText={pesticideMain ? m.data_none_pesticides() : undefined}

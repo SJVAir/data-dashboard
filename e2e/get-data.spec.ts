@@ -335,3 +335,29 @@ test("Add widget → Current conditions keeps the default alert level through Ed
 	// Opening a saved now widget converts nothing.
 	await expect(page.getByText(/so they were left out/)).toHaveCount(0);
 });
+
+test("on two columns the left column scrolls under the top nav; the preview and actions stay", async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 720 });
+	await page.goto("data");
+	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
+	const column = page.getByRole("group", { name: "What, When and Where" });
+	// What comes first, then When and Where, then Data resolution and More options.
+	const headings = column.getByRole("heading", { level: 2 });
+	await expect(headings).toHaveText(["What", "When", "Where", "Data resolution", /^More options/]);
+	// Open every section the Chart shows, so the column is taller than the screen.
+	const closed = column.locator("[data-what-section] h3 button[aria-expanded=false]:enabled");
+	while ((await closed.count()) > 0) await closed.first().click();
+	await expect.poll(() => column.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+	// The page itself doesn't scroll: the view fills the screen below the nav.
+	expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(720);
+	await column.evaluate((el) => (el.scrollTop = el.scrollHeight));
+	const preview = await page.getByTestId("get-data-preview").boundingBox();
+	expect(preview!.y).toBeGreaterThanOrEqual(0);
+	expect(preview!.y).toBeLessThan(720);
+	const add = await addToButton(page).boundingBox();
+	expect(add!.y + add!.height).toBeLessThanOrEqual(720);
+	// The top nav is still there above the view.
+	await expect(nav(page)).toBeInViewport();
+});

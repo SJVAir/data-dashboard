@@ -9,7 +9,8 @@
 		retired,
 		onretry,
 		onchoose,
-		ownsEmpty
+		ownsEmpty,
+		pollutant
 	}: {
 		state: QueryState;
 		widget: WidgetInstance;
@@ -17,10 +18,11 @@
 		onretry: () => void;
 		onchoose?: () => void;
 		ownsEmpty?: boolean;
+		pollutant?: string;
 	} = $props();
 </script>
 
-<WidgetState {state} {widget} {retired} {onretry} {onchoose} {ownsEmpty}>
+<WidgetState {state} {widget} {retired} {onretry} {onchoose} {ownsEmpty} {pollutant}>
 	{#snippet children(data)}
 		<p data-testid="content">content {data.series.length}</p>
 	{/snippet}

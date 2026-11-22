@@ -1,5 +1,6 @@
 import type { getForecastForPlace } from "@sjvair/sdk";
 import type { PlaceInfo, QueryLayer, Target, UnavailableReason, Via } from "../types";
+import { AIR_QUALITY } from "../layer-kind";
 import type { AdapterContext, RegionResolver, ResolvedRegion } from "./registry";
 
 /** Splits a region key (`<type>:<code>`, the document's region reference) into its parts. */
@@ -109,7 +110,9 @@ async function fallbackTarget(
  * The ticked types and searched monitors that measure the layer's pollutant (spec decision 32: a
  * type or monitor that doesn't is kept in the document, greyed out, and not fetched). A type the
  * monitors meta doesn't list, or a monitor whose type it doesn't, isn't known not to, so it stays;
- * a meta or list that fails to load drops nothing.
+ * a meta or list that fails to load drops nothing. Only an air-quality layer has a pollutant: any
+ * other dataset's layer (a weather or forecasts overlay at a Chart's monitors) takes the monitors
+ * as places, whatever they measure.
  */
 async function measuring(
 	layer: QueryLayer,
@@ -119,7 +122,9 @@ async function measuring(
 	signal?: AbortSignal
 ): Promise<{ ids: string[]; types: string[] }> {
 	const entryType = layer.entryType;
-	if (!entryType || (ids.length === 0 && types.length === 0)) return { ids, types };
+	if (layer.dataset !== AIR_QUALITY || !entryType || (ids.length === 0 && types.length === 0)) {
+		return { ids, types };
+	}
 	let measures: (type: string | undefined) => boolean;
 	let typeOf: Map<string, string>;
 	try {
@@ -152,7 +157,7 @@ async function measuring(
  * be. A point or a school becomes its region keys to try in order, so its coordinates never reach
  * a cache key or a request beyond the point lookup. No Where and no monitors: the whole layer.
  * Ticked types and searched monitors that don't measure the pollutant are left out (`measuring`);
- * with none left, nothing is fetched.
+ * with none left, nothing is fetched (`none-measure`).
  */
 export async function layerTarget(
 	layer: QueryLayer,
@@ -165,9 +170,10 @@ export async function layerTarget(
 	}
 	const { ids, types } = await measuring(layer, saved.ids, saved.types, ctx.metadata, signal);
 	// Monitors asked for, none measuring the pollutant: nothing to fetch (never an empty type
-	// list, which the bulk endpoints read as every type; never the Where's own figure).
+	// list, which the bulk endpoints read as every type; never the Where's own figure), and the
+	// widget says why.
 	if (ids.length === 0 && types.length === 0 && (saved.ids.length || saved.types.length)) {
-		return { kind: "monitors", ids: [] };
+		return { unavailable: "none-measure" };
 	}
 	if (types.length > 0) {
 		const regionKeys = await whereRegionKeys(layer, ctx, signal);

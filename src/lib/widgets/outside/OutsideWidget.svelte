@@ -236,6 +236,7 @@
 		state={shown}
 		{widget}
 		{retired}
+		pollutant={meta?.entryType.label}
 		onretry={retry}
 		onchoose={() => openPlacePicker({ widgetId: widget.id })}
 		idleText={m.widget_state_idle_place_or_monitor()}

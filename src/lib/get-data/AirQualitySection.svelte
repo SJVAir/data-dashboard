@@ -40,6 +40,7 @@
 		pollutantReason,
 		capText,
 		strip = false,
+		none = true,
 		onpollutant,
 		ontypes,
 		onmonitors
@@ -60,6 +61,8 @@
 		 * layer and is searched as PM2.5's are (it has no pollutant of its own).
 		 */
 		strip?: boolean;
+		/** Offers None among the pollutants (Current conditions always has one, decision 4). */
+		none?: boolean;
 		/** A pollutant, or `null` for None. */
 		onpollutant: (pick: EntryPick | null) => void;
 		/** The ticked monitor types after a change. */
@@ -153,17 +156,19 @@
 	{#if pollutants}
 		<fieldset class="flex flex-col gap-1">
 			<legend class="sr-only">{aq?.label ?? AIR_QUALITY}</legend>
-			<label class="flex min-h-6 items-center gap-2 text-sm">
-				<input
-					type="radio"
-					class="accent-primary size-4"
-					name="{uid}-pollutant"
-					value=""
-					checked={!layer?.entryType}
-					onchange={() => onpollutant(null)}
-				/>
-				<span>{m.get_data_none()}</span>
-			</label>
+			{#if none}
+				<label class="flex min-h-6 items-center gap-2 text-sm">
+					<input
+						type="radio"
+						class="accent-primary size-4"
+						name="{uid}-pollutant"
+						value=""
+						checked={!layer?.entryType}
+						onchange={() => onpollutant(null)}
+					/>
+					<span>{m.get_data_none()}</span>
+				</label>
+			{/if}
 			{#each pollutants as entry (entry.id)}
 				{@const checked = entryType === entry.id}
 				{@const capped = !checked && !!capText && !layer?.entryType}
@@ -234,10 +239,7 @@
 			<ul bind:this={list} aria-label={m.get_data_monitors_picked()} class="flex flex-col gap-1">
 				{#each rows as row, index (row.id)}
 					{@const notSuppliedId = `${uid}-monitor-${row.id}-reason`}
-					<li
-						class="flex min-h-6 flex-wrap items-center gap-x-2 text-sm"
-						aria-describedby={reasonOf(row.blocked, notSuppliedId)}
-					>
+					<li class="flex min-h-6 flex-wrap items-center gap-x-2 text-sm">
 						<span class={["min-w-0 flex-1", row.blocked && "text-muted-foreground"]}>
 							{row.network
 								? m.get_data_monitors_row({ name: row.name, network: row.network })
@@ -248,6 +250,7 @@
 							size="icon-sm"
 							data-monitor-remove
 							aria-label={m.get_data_monitors_remove_label({ name: row.name })}
+							aria-describedby={reasonOf(row.blocked, notSuppliedId)}
 							onclick={() => void remove(row.id, index)}
 						>
 							<X aria-hidden="true" />
