@@ -112,6 +112,8 @@ export class MapData {
 	#locationsRun = 0;
 	/** Aborts the locations' lookup in flight. */
 	#locationsLookup: AbortController | null = null;
+	/** The locations' query holds a failed lookup's stand-in: Retry looks up again. */
+	#locationsStandIn = false;
 
 	/** Narrow deriveds, so an effect re-runs only when the one value it needs changes. */
 	readonly #entryType = $derived.by(() => this.#getInput().entryType);
@@ -443,8 +445,10 @@ export class MapData {
 		this.#notices.retry();
 	}
 
+	/** Fetches the locations again; after a failed lookup, looks the Where up again first. */
 	retryLocations(): void {
-		this.#locations.retry();
+		if (this.#locationsStandIn) this.#updateLocations(true);
+		else this.#locations.retry();
 	}
 
 	/** Asks again for the pesticide use that failed (never polled: it changes once a year). */
@@ -484,14 +488,15 @@ export class MapData {
 
 	/**
 	 * Looks the locations' areas up for the widget's Where and loads them (or drops them when
-	 * off). A failed lookup becomes a source that fails with its error, so the layer shows the
-	 * failure, and Retry looks up again.
+	 * off). A failed lookup becomes a stand-in source that fails with its error, so the layer
+	 * shows the failure; Retry then runs this again, so every answer goes through `apply`.
 	 */
 	#updateLocations(on: boolean): void {
 		const run = ++this.#locationsRun;
 		this.#locationsLookup?.abort();
 		this.#locationsLookup = null;
 		if (!on) {
+			this.#locationsStandIn = false;
 			this.#locationsUnavailable = undefined;
 			this.#locations.set(null);
 			return;
@@ -503,10 +508,12 @@ export class MapData {
 			locationsEntry.source({ data, entryType: "", at: "now" }, signal);
 		const apply = (
 			source: NowSource<LocationsData> | null,
-			unavailable?: UnavailableReason
+			unavailable?: UnavailableReason,
+			standIn = false
 		): void => {
 			if (run !== this.#locationsRun) return;
 			this.#locationsLookup = null;
+			this.#locationsStandIn = standIn;
 			this.#locationsUnavailable = unavailable;
 			this.#locations.set(source);
 		};
@@ -515,21 +522,12 @@ export class MapData {
 				source && "unavailable" in source ? apply(null, source.unavailable) : apply(source),
 			(error) => {
 				if (lookup.signal.aborted) return;
-				let failed = true;
-				apply({
+				const standIn: NowSource<LocationsData> = {
 					key: `map-locations:failed:${++lookupFailures}`,
 					cadence: "hour",
-					fetch: async (signal) => {
-						// The first fetch is the failed lookup; each Retry looks up again.
-						if (failed) {
-							failed = false;
-							throw error;
-						}
-						const again = await sourceFor(signal);
-						if (again && "fetch" in again) return again.fetch(signal);
-						throw error;
-					}
-				});
+					fetch: () => Promise.reject(error)
+				};
+				apply(standIn, undefined, true);
 			}
 		);
 	}

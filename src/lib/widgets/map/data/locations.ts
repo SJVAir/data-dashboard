@@ -1,6 +1,7 @@
 import { getPesticideLocations, type PesticideLocationFeature } from "@sjvair/sdk";
 import type { SchoolsSource } from "@sjvair/map-sdk/data";
 import { getResolvers, placeRegion } from "$lib/data";
+import type { ResolvedRegion } from "$lib/data/adapters/registry";
 import { untilAborted } from "$lib/data/metadata";
 import { currentInput } from "$lib/data/now/current";
 import type { WidgetDataConfig } from "$lib/data/schema";
@@ -13,10 +14,23 @@ import type { MapDataEntry } from "./types";
 /** The loaded schools and child care sites, every type (the Map filters by the ticked ones). */
 export type LocationsData = { features: PesticideLocationFeature[] };
 
-/** A `type:code` region key (a selection id, or a school's fallback key) as a reference. */
-function regionRef(key: string): { type: string; code: string } {
-	const at = Math.max(key.indexOf(":"), 0);
-	return { type: key.slice(0, at), code: key.slice(at + 1) };
+type RegionRef = { type: string; code: string };
+
+/**
+ * A `type:code` region key (a selection id, or a school's fallback key) as a reference; null
+ * without a colon.
+ */
+function regionRef(key: string): RegionRef | null {
+	const at = key.indexOf(":");
+	return at < 0 ? null : { type: key.slice(0, at), code: key.slice(at + 1) };
+}
+
+/** Each ref's sqid, looked up together; "unsupported" or null as the resolver answers. */
+function resolveAll(refs: (RegionRef | null)[], signal?: AbortSignal) {
+	const { regions } = getResolvers();
+	return Promise.all(
+		refs.map((ref) => (ref ? regions.resolve(ref.type, ref.code, signal) : Promise.resolve(null)))
+	);
 }
 
 type Areas = string[] | "everywhere" | { unavailable: UnavailableReason };
@@ -24,13 +38,14 @@ type Areas = string[] | "everywhere" | { unavailable: UnavailableReason };
 /**
  * The region sqids the layer loads for `data`'s Where (sorted, each once); "everywhere" with no
  * Where; `{ unavailable }` when a pick has no region on the server. A region is itself, each of a
- * selection's areas too; a school is its first fallback key's region (its ZIP); a point is the
+ * selection's areas too; a school is the first of its fallback keys (ZIP, city, county) whose
+ * region the server has, and gone only when none has one; a point is the
  * region `placeRegion` gives, looked up for the Map's pollutant (PM2.5 without one, as a shared
  * point's is).
  */
 export async function locationAreas(data: WidgetDataConfig, signal?: AbortSignal): Promise<Areas> {
 	const { place, selection } = widgetWhere(data);
-	let refs: { type: string; code: string }[];
+	let refs: (RegionRef | null)[];
 	if (selection) {
 		refs = selection.ids.map(regionRef);
 	} else if (place?.kind === "region") {
@@ -38,7 +53,10 @@ export async function locationAreas(data: WidgetDataConfig, signal?: AbortSignal
 	} else if (place?.kind === "location") {
 		const found = await getResolvers().locations.resolve(place.source, place.code, signal);
 		if (!found?.keys.length) return { unavailable: "location-unresolved" };
-		refs = [regionRef(found.keys[0])];
+		const regions = await resolveAll(found.keys.map(regionRef), signal);
+		const region = regions.find((r): r is ResolvedRegion => r !== null && r !== "unsupported");
+		if (!region) return { unavailable: "region-unresolved" };
+		return [region.id];
 	} else if (place?.kind === "point") {
 		const layer = mainLayer(data, undefined) ?? DEFAULT_LAYER;
 		const region = await placeRegion(currentInput(queryLayer(data, layer)), signal);
@@ -50,9 +68,9 @@ export async function locationAreas(data: WidgetDataConfig, signal?: AbortSignal
 	} else {
 		return "everywhere";
 	}
+	// Looked up together; the first that can't be, in the Where's order, says why.
 	const ids: string[] = [];
-	for (const ref of refs) {
-		const found = await getResolvers().regions.resolve(ref.type, ref.code, signal);
+	for (const found of await resolveAll(refs, signal)) {
 		if (found === "unsupported") return { unavailable: "place-unsupported" };
 		if (!found) return { unavailable: "region-unresolved" };
 		ids.push(found.id);

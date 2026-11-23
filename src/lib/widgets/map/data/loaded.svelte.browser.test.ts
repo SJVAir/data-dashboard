@@ -630,4 +630,18 @@ describe("MapData", () => {
 		expect(t.data.locationsState.status).toBe("ready");
 		t.data.destroy();
 	});
+
+	it("a retried lookup that finds no region shows unavailable, not the old failure", async () => {
+		fakes.locationsLookupFails.value = 1;
+		const t = setup({ at: "now", widget: withLocations(["a"]) });
+		await flush();
+		expect(t.data.locationsFailed).toBe(true);
+		fakes.locationsUnavailable.value = true;
+		t.data.retryLocations();
+		await flush();
+		expect(t.data.locationsUnavailable).toBe("region-unresolved");
+		expect(t.data.locationsFailed).toBe(false);
+		expect(fakes.locationsFetch).not.toHaveBeenCalled();
+		t.data.destroy();
+	});
 });

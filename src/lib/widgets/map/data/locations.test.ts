@@ -135,6 +135,56 @@ describe("locationAreas", () => {
 		expect(input.layer).toMatchObject({ dataset: "air-quality", entryType: "pm25" });
 	});
 
+	it("a school falls back to the first of its keys that resolves (the city, without a ZIP)", async () => {
+		fakes.locations.mockResolvedValue({
+			name: "A school",
+			keys: ["zipcode:93721", "city:fresno", "county:fresno"]
+		});
+		fakes.regions.mockImplementation(async (type, code) =>
+			type === "zipcode" ? null : { id: sqid(type, code), name: code }
+		);
+		const data = withWhere({ place: { kind: "location", source: "cde", code: "123" } });
+		expect(await locationAreas(data)).toEqual([sqid("city", "fresno")]);
+		await load(data);
+		expect(regionsAsked()).toEqual([sqid("city", "fresno")]);
+
+		// None resolving: the place is gone.
+		fakes.regions.mockResolvedValue(null);
+		expect(await locationAreas(data)).toEqual({ unavailable: "region-unresolved" });
+	});
+
+	it("a key or selection id with no colon is no region", async () => {
+		fakes.locations.mockResolvedValue({ name: "A school", keys: ["bad", "city:fresno"] });
+		const school = withWhere({ place: { kind: "location", source: "cde", code: "123" } });
+		expect(await locationAreas(school)).toEqual([sqid("city", "fresno")]);
+		expect(fakes.regions).not.toHaveBeenCalledWith("", "bad");
+		const selection = withWhere({ selection: { kind: "regions", ids: ["bad"] } });
+		expect(await locationAreas(selection)).toEqual({ unavailable: "region-unresolved" });
+	});
+
+	it("a selection's regions are looked up together; the first gone one, in order, decides", async () => {
+		const asked: string[] = [];
+		const waiting: (() => void)[] = [];
+		fakes.regions.mockImplementation(
+			(type, code) =>
+				new Promise((resolve) => {
+					asked.push(`${type}:${code}`);
+					waiting.push(() =>
+						resolve(
+							type === "city" ? null : type === "county" ? "unsupported" : { id: code, name: code }
+						)
+					);
+				})
+		);
+		const data = withWhere({
+			selection: { kind: "regions", ids: ["zipcode:1", "city:clovis", "county:fresno"] }
+		});
+		const found = locationAreas(data);
+		await vi.waitFor(() => expect(asked).toHaveLength(3));
+		for (const release of waiting) release();
+		expect(await found).toEqual({ unavailable: "region-unresolved" });
+	});
+
 	it("a place with no region on the server is unavailable, each with its reason", async () => {
 		fakes.regions.mockResolvedValue(null);
 		expect(await locationAreas(withWhere(COUNTY))).toEqual({ unavailable: "region-unresolved" });

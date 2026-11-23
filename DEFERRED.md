@@ -1160,6 +1160,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   map-sdk. **Revisit when** map-sdk offers an outline-only (no-wording) mode for regions (raised
   with the coordinator).
 
+- **A point in Where: the Map's schools layer keeps the region it found when the pollutant
+  changes.** _Deferred 2026-11-22 (step 5 spec 7c, Task 4)._ A point's schools and child care load
+  for the region `placeRegion` gives, looked up for the Map's pollutant. The layer is looked up
+  again only when the Where or the layer's presence changes, so a pollutant change keeps the
+  region found before. Why: points rarely change region by pollutant, and refetching sites on
+  every pollutant change costs a lookup for nothing. **Revisit if** a point's schools are reported
+  wrong after a pollutant change.
+
 - **Comparing mixed kinds of place in one widget.** _Deferred 2026-11-04 (step 4 spec 2);
   rewritten 2026-11-22 (step 5 spec 7a)._ Monitors and areas now combine: a Chart or Table's areas
   filter, its monitors (ticked types or searched) are listed. Schools and points stay single and are
