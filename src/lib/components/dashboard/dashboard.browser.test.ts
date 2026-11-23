@@ -470,10 +470,10 @@ test("editing the starter creates a copy, replaces the URL, and shows the toast"
 	// The navigation keeps the copy's session and its undo history.
 	await expect.poll(() => app.current.isStarter).toBe(false);
 	expect(app.current.session).toBe(copy);
-	expect(copy.doc.body.widgets).toHaveLength(7);
+	expect(copy.doc.body.widgets).toHaveLength(8);
 	expect(copy.canUndo).toBe(true);
 	copy.undo();
-	expect(copy.doc.body.widgets).toHaveLength(6);
+	expect(copy.doc.body.widgets).toHaveLength(7);
 });
 
 test("empty dashboard shows the empty state", async () => {

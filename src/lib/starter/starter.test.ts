@@ -574,7 +574,8 @@ describe("starterSession", () => {
 			const platform = createMemoryPlatform();
 			// The copy is never stored: the page goes away mid-hand-off.
 			const commit = platform.documents.commit;
-			platform.documents.commit = () => new Promise(() => {});
+			const hung = vi.fn(() => new Promise<never>(() => {}));
+			platform.documents.commit = hung;
 			const starter = starterSession({
 				platform,
 				space: SPACE,
@@ -600,7 +601,7 @@ describe("starterSession", () => {
 			]);
 
 			// The first hand-off now awaits typesReady before it commits: let it reach the hung commit.
-			await new Promise((resolve) => setTimeout(resolve, 0));
+			await vi.waitFor(() => expect(hung).toHaveBeenCalled());
 			// The next page load's starter replays them through its own hand-off.
 			platform.documents.commit = commit;
 			const copied: { session?: DocumentSession } = {};
