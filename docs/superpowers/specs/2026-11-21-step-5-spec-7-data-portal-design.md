@@ -490,3 +490,30 @@ The user's calls, 2026-11-22:
   lowering a level below the current reading shows the mark without a toast. **A behaviour change; say so in the PR.**
 - **R15:** an untitled two-pollutant card's notification is titled with both pollutants (the
   saved card's generated title); a browser test covers it.
+
+**7c** (2026-11-22): rulings by the session lead while building 7c (the 7c ledger's R1–R10).
+
+- **R1:** the flaky arrange-submenu test was investigated on a throwaway branch
+  (`step-5-spec-7c-flake`) so the logging for CI never reached the PR branch; only the fix was
+  applied. The cause was in the app: bits-ui 2.19.2 mounts a top-level menu's focus scope twice,
+  and the second opening-focus frame, landing after ArrowRight, closed the submenu. The menu
+  wrappers now do the opening focus themselves (`open-auto-focus.ts`; `DEFERRED.md` records the
+  workaround and when to drop it).
+- **R2:** Task 3 also touched the view that renders the "left out" notes.
+- **R3:** the focus school's coordinates were compared on the local stack (outside :40–:50, reads
+  only): the location lookup and the sites list agree exactly on three sites, so map-sdk draws the
+  focus school once with no dashboard change.
+- **R4:** sites are fetched once per session per region (and once valley-wide) and shared across
+  Maps; each Map filters the list, never copies it (the valley list is about 1.5 MB raw).
+- **R5:** every other reader of a widget's layers skips the locations layer, as it skips the
+  notices; an empty `locationTypes` draws and fetches nothing.
+- **R6:** a school in Where loads the first of its fallback regions (ZIP, then city, then county)
+  that the server has.
+- **R7:** a saved location type the meta no longer lists shows in a "No longer offered" block, ticked
+  and greyed, and can be unticked.
+- **R8:** notes name only the ticked groups, with the meta's labels joined by `formatList`; when the
+  groups can't be loaded the note names none ("A map layer couldn't be loaded.").
+- **R9:** the Map adds each group's plugin in the meta's group order, so the legend lists "Schools"
+  before "Child care" whatever order they were ticked in; ticking one group never remakes another.
+- **R10:** the Show as note reads "{layers}: shown only on a map, so left out."
+- The default pollutant stays PM2.5 (the user's call at the brainstorm; `DEFERRED.md`).
