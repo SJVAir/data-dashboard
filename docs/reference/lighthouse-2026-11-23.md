@@ -185,17 +185,25 @@ What the Map adds, comparing the medians with the first-visit rows above:
 
 ## The local stack run
 
-<!-- STACK RUN: the controller fills this section in. -->
+Run 2026-11-23 at 13:51 PT against the local sjvair.com stack's `/workspace/` (the Django
+template embedding, real API, real MapTiler tiles), signed in as the E2E test user. Build
+`c7c15c7` (`version.json`), imported into the stack by the coordinator just before; the app is the
+same as `ba5b99a`. Lighthouse 13.6.0, DevTools throttling, mobile preset, median of 3. Page loads
+and the sign-in only; nothing was written.
 
-_Placeholder: not run by the builder._ Shape of the command (page loads and the sign-in only;
-nothing is written):
+| Case               | Score | FCP    | LCP     | TBT    | CLS   | Speed Index | Total bytes | Script bytes | Map chunk |
+| ------------------ | ----- | ------ | ------- | ------ | ----- | ----------- | ----------- | ------------ | --------- |
+| origin-first-visit | 66    | 2.58 s | 10.35 s | 224 ms | 0.054 | 3.24 s      | 3009.7 KB   | 2643.4 KB    | 1580.2 KB |
 
-```bash
-LIGHTHOUSE_ORIGIN=http://localhost:8000 WORKSPACE_E2E_IDENTIFIER=… WORKSPACE_E2E_PASSWORD=… \
-  npm run perf:lighthouse
-```
+Runs: LCP 10.35, 10.31, 10.37 s; TBT 224, 171, 257 ms.
 
-To fill in: the date and time, the stack's `version.json` (`summary.json` → `version`), what the
-account opened to (`finalPath`: `/workspace/` is the starter, `/workspace/dashboards/<id>` is a
-saved dashboard), the medians table, and any differences from the fakes (real tiles, real API
-sizes, the server's own compression).
+- **What it opened:** the test account has saved dashboards, so `/workspace/` opened a saved
+  dashboard (`/workspace/dashboards/<id>`), not the starter. That dashboard holds a Map.
+- **Delivery is uncompressed**, as S3 will serve it today: the Map chunk's transfer size equals its
+  resource size (1.58 MB). It downloads from 8.0 s to 21.7 s.
+- **FCP is faster than on the fakes** (2.58 s against 6.8 s uncompressed): the template embedding
+  loads the entry files directly. **LCP is a widget's text** (selector
+  `div.relative > div.h-full > div.flex > p`), with almost all of it render delay (about 10.3 s
+  after a 25 ms first byte).
+- **TBT straddles the threshold** (171–257 ms); the app chunk's scripting is about 470 ms of main
+  thread under 4× CPU.
