@@ -40,7 +40,7 @@ afterEach(() => {
 });
 
 /** A tall widget at the top (30 rows, ~2400 px), and one of `type` below it, far off screen. */
-function doc(type: string): Dashboard {
+function doc(type: string, topType = AT_ONCE): Dashboard {
 	const w = (id: string, t: string, y: number, h: number): WidgetInstance => ({
 		id,
 		type: t,
@@ -56,20 +56,21 @@ function doc(type: string): Dashboard {
 		version: 3,
 		createdAt: "2026-11-01T00:00:00.000Z",
 		updatedAt: "2026-11-01T00:00:00.000Z",
-		body: { widgets: [w("top", AT_ONCE, 0, 30), w("far", type, 30, 4)] }
+		body: { widgets: [w("top", topType, 0, 30), w("far", type, 30, 4)] }
 	};
 }
 
-async function renderView(type: string) {
+async function renderView(type: string, topType?: string) {
 	const app = await initApp(createMemoryPlatform(), {
 		channel: createMemoryTabHub().channel(),
 		tabId: "t1"
 	});
-	await render(Harness, {
-		props: { view: doc(type) },
+	const screen = await render(Harness, {
+		props: { view: doc(type, topType) },
 		context: new Map([[APP_CONTEXT_KEY, app]])
 	});
 	await expect.element(page.getByTestId("widget-far")).toBeInTheDocument();
+	return screen;
 }
 
 const far = () => document.querySelector<HTMLElement>('[data-testid="widget-far"]')!;
@@ -121,6 +122,20 @@ test("a fullscreen frame loads its code at once", async () => {
 	history.replaceState(null, "", "/workspace/shared/tok?widget=far");
 	await renderView(NEAR);
 	await expect.poll(() => near.mock.calls.length).toBe(1);
+});
+
+test("once its code has loaded, a frame mounted off screen shows at once", async () => {
+	const { near } = registerTypes();
+	// One frame near the screen (at the top) loads the code.
+	const first = await renderView(AT_ONCE, NEAR);
+	await expect.poll(() => near.mock.calls.length).toBe(1);
+	await expect.poll(() => document.querySelector('[data-widget="top"]')).not.toBeNull();
+	first.unmount();
+	// A second, far below the screen, doesn't wait to be scrolled near.
+	await renderView(NEAR);
+	await expect.poll(() => far().querySelector('[data-widget="far"]')).not.toBeNull();
+	expect(far().getBoundingClientRect().top).toBeGreaterThan(window.innerHeight + 200);
+	expect(near).toHaveBeenCalledTimes(1);
 });
 
 test("a type that doesn't opt in loads at once, off screen", async () => {

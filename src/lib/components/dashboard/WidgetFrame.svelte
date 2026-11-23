@@ -184,10 +184,12 @@
 		if (fullscreen) near = true;
 	});
 	$effect(() => {
-		if (ready || !section) return;
+		const t = type;
+		if (ready || !section || !t) return;
 		const observer = new IntersectionObserver(
 			(entries) => {
-				if (entries.some((entry) => entry.isIntersecting)) near = true;
+				// Near, or another frame has loaded the code meanwhile.
+				if (loadedWidget(t) || entries.some((entry) => entry.isIntersecting)) near = true;
 			},
 			// This document's viewport, also inside an iframe (whose edge would clip the margin).
 			{ root: document, rootMargin: "200px" }
