@@ -1111,3 +1111,119 @@ export async function routeSectionRegions(
 		}
 	);
 }
+
+const LOCATIONS = /\/api\/2\.0\/pesticides\/locations\/$/;
+
+/** A `pesticides/locations/` feature, as the server sends it (a local response, 2026-11-22). */
+export type LocationFeature = {
+	type: "Feature";
+	id: string;
+	geometry: { type: "Point"; coordinates: [number, number] };
+	properties: {
+		id: string;
+		source: string;
+		external_id: string;
+		name: string;
+		type: string;
+		type_label: string;
+		address: string;
+		city: string;
+		school_district: string | null;
+		school_district_id: string | null;
+		school_district_url: string | null;
+		grade_span: string | null;
+		enrollment: number | null;
+		capacity: number | null;
+	};
+};
+
+type LocationRow = {
+	id: string;
+	source: string;
+	external_id: string;
+	type: string;
+	name: string;
+	address: string;
+	city_name: string;
+	zip: string;
+	point: { lat: number; lng: number };
+	regions: Record<string, { type: string; external_id: string; name: string }>;
+};
+
+/** Roosevelt High (`regions/locations.json`), whose regions (server ids) list it. */
+const ROOSEVELT_HIGH = "qfpem";
+const ROOSEVELT_REGIONS = ["r6phe", "njyup", "c85na"];
+
+/** Roosevelt High's place in a Where: the school a Map can focus on. */
+export const ROOSEVELT_PLACE = {
+	kind: "location",
+	source: "cde-public",
+	code: "10621661035831"
+} as const;
+
+/**
+ * Roosevelt High as a `pesticides/locations/` feature, built from the place fixture
+ * (`regions/locations.json`), so its point is the place's own. Its type's label is the regions
+ * meta's.
+ */
+async function rooseveltFeature(): Promise<LocationFeature> {
+	const rows = (await json<{ data: LocationRow[] }>(`${API_FIXTURES}regions/locations.json`))!;
+	const row = rows.data.find((r) => r.id === ROOSEVELT_HIGH)!;
+	const meta = (await json<{ data: { location_types: Record<string, { label: string }> } }>(
+		`${API_FIXTURES}regions/meta.json`
+	))!;
+	return {
+		type: "Feature",
+		id: row.id,
+		geometry: { type: "Point", coordinates: [row.point.lng, row.point.lat] },
+		properties: {
+			id: row.id,
+			source: row.source,
+			external_id: row.external_id,
+			name: row.name,
+			type: row.type,
+			type_label: meta.data.location_types[row.type].label,
+			address: row.address,
+			city: row.city_name,
+			school_district: row.regions.school_district?.name ?? null,
+			school_district_id: null,
+			school_district_url: null,
+			grade_span: "9-12",
+			enrollment: null,
+			capacity: null
+		}
+	};
+}
+
+/** The made-up sites, by the region (server id) each lies in (`fixtures/map-locations.json`). */
+export const LOCATION_SITES = (
+	JSON.parse(readFileSync(FIXTURES + "map-locations.json", "utf8")) as {
+		regions: Record<string, LocationFeature[]>;
+	}
+).regions;
+
+/**
+ * Answers the Map's schools and child care, `pesticides/locations/?region=<server id>` (repeatable
+ * or comma-separated), as the server does: every type, each site in any of the regions asked for
+ * once; every site with no region. The sites are the made-up ones (`LOCATION_SITES`) and Roosevelt
+ * High in its regions. Returns the requests made (their query strings, as sent).
+ */
+export async function routeMapLocations(context: BrowserContext): Promise<URLSearchParams[]> {
+	const roosevelt = await rooseveltFeature();
+	const byRegion: Record<string, LocationFeature[]> = structuredClone(LOCATION_SITES);
+	for (const region of ROOSEVELT_REGIONS) (byRegion[region] ??= []).push(roosevelt);
+	const requests: URLSearchParams[] = [];
+	await context.route(
+		(url) => LOCATIONS.test(url.pathname),
+		(route) => {
+			const params = new URL(route.request().url()).searchParams;
+			requests.push(params);
+			const regions = params.getAll("region").flatMap((r) => r.split(","));
+			const lists =
+				regions.length > 0 ? regions.map((r) => byRegion[r] ?? []) : Object.values(byRegion);
+			const features = [...new Map(lists.flat().map((f) => [f.id, f])).values()];
+			return route.fulfill({ json: { type: "FeatureCollection", features } });
+		}
+	);
+	return requests;
+}

@@ -29,6 +29,7 @@ import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { thresholdMarks } from "$lib/thresholds/marks.svelte";
 import { chartType } from "$lib/widgets/chart";
 import { DEFAULT_RANGE } from "$lib/widgets/defaults";
+import { mapOptions } from "$lib/widgets/map/options";
 import {
 	FORECASTS_ENTRY,
 	fakeForecastsAdapter,
@@ -811,6 +812,8 @@ test("get data view: the Map and the Chart render the same What", async () => {
 		"pesticide-use",
 		"hms-smoke",
 		"pesticide-notices",
+		"locations:school",
+		"locations:child_care",
 		"fill"
 	]);
 });
@@ -2184,6 +2187,144 @@ describe("now widgets", () => {
 				.toBeVisible();
 			expect(fillGroup().getByRole("radio").elements()).toHaveLength(1);
 			expect((await current()).options).toEqual({ fill: "zipcode" });
+		});
+	});
+
+	describe("Schools and child care", () => {
+		const box = (name: string) => page.getByRole("checkbox", { name, exact: true });
+		const none = () =>
+			page.getByRole("group", { name: "Air quality" }).getByRole("radio", { name: "None" });
+		const locations = async (current: () => Promise<Draft>) =>
+			(await current()).data.layers.find((l) => l.dataset === "locations");
+
+		test("a section per group, a checkbox per type; ticks save in the meta's order, unticking all removes the layer", async () => {
+			const { current, host } = await show(monitorsDraft(["m1"], { type: "map" }));
+			const schools = host.querySelector<HTMLElement>("[data-what-section='locations:school']");
+			const care = host.querySelector<HTMLElement>("[data-what-section='locations:child_care']");
+			await expect.element(page.getByRole("button", { name: "Schools" })).toBeEnabled();
+			await expect.element(box("Public school")).toBeVisible();
+			expect(schools?.textContent).toContain("Private school");
+			expect(care?.querySelectorAll("input[type=checkbox]")).toHaveLength(1);
+			await animationsSettled(host);
+			const what = host.querySelector("[aria-labelledby$=-what]")!;
+			expect((await axe.run(what)).violations).toEqual([]);
+			await expect.element(none()).toBeEnabled();
+			await box("Child care").click();
+			expect(await locations(current)).toEqual({
+				dataset: "locations",
+				locationTypes: ["child_care"]
+			});
+			await expect.element(none()).toBeEnabled();
+			await box("Public school").click();
+			expect((await locations(current))?.locationTypes).toEqual(["public_school", "child_care"]);
+			await expect.element(none()).toBeEnabled();
+			await box("Public school").click();
+			await box("Child care").click();
+			expect(await locations(current)).toBeUndefined();
+			await expect.element(none()).toBeEnabled();
+		});
+
+		test("a group hidden in the Map's Layers shows again once its types are unticked and ticked", async () => {
+			const draft = monitorsDraft(["m1"], { type: "map" });
+			draft.data.layers.push({ dataset: "locations", locationTypes: ["child_care"] });
+			draft.options = { hiddenLocationGroups: ["child_care"] };
+			const { current } = await show(draft);
+			const hidden = async () => mapOptions(await current()).hiddenLocationGroups;
+			await box("Public school").click();
+			expect(await hidden()).toEqual(["child_care"]);
+			await box("Child care").click();
+			expect(await hidden()).toBeUndefined();
+			await box("Child care").click();
+			expect((await locations(current))?.locationTypes).toEqual(["public_school", "child_care"]);
+			expect(await hidden()).toBeUndefined();
+		});
+
+		test("a Chart shows the location sections greyed, Map only", async () => {
+			await show(areasDraft(["06019"]));
+			for (const name of ["Schools", "Child care"]) {
+				const trigger = page.getByRole("button", { name });
+				await expect.element(trigger).toBeDisabled();
+				await expect
+					.element(trigger)
+					.toHaveAccessibleDescription(m.get_data_section_only_for({ types: "Map" }));
+			}
+		});
+
+		test("a saved type no group offers shows greyed and ticked with its reason, and can be unticked", async () => {
+			const draft = monitorsDraft(["m1"], { type: "map" });
+			draft.data.layers.push({ dataset: "locations", locationTypes: ["gone_type"] });
+			const platform = createMemoryPlatform();
+			setPlatform(platform);
+			const { current, host } = await show(draft);
+			const gone = box("gone_type");
+			await expect.element(gone).toBeChecked();
+			await expect.element(gone).toBeEnabled();
+			await expect.element(gone).toHaveAccessibleDescription(m.getdata_map_location_type_gone());
+			await expect
+				.element(page.getByRole("button", { name: `${m.getdata_map_locations_gone()} gone_type` }))
+				.toBeVisible();
+			await animationsSettled(host);
+			const what = host.querySelector("[aria-labelledby$=-what]")!;
+			expect((await axe.run(what)).violations).toEqual([]);
+			await gone.click();
+			expect(await locations(current)).toBeUndefined();
+			await expect.element(gone).not.toBeInTheDocument();
+			expect(platform.errors.reports).toEqual([]);
+		});
+
+		test("groups that fail to load show no sections, are reported, and load on the next type change", async () => {
+			let failing = true;
+			fake.metadata = fixtureMetadata({
+				catalog: async () => CATALOG,
+				guidelinePollutants: async () => ["pm25"],
+				locationGroups: async () => {
+					if (failing) throw new Error("offline");
+					return fixtureMetadata().locationGroups();
+				}
+			});
+			const platform = createMemoryPlatform();
+			setPlatform(platform);
+			const { host } = await show(monitorsDraft(["m1"], { type: "map" }));
+			await expect.poll(() => platform.errors.reports.length).toBeGreaterThan(0);
+			expect(host.querySelectorAll("[data-what-section^='locations']")).toHaveLength(0);
+			await expect.element(none()).toBeEnabled();
+			failing = false;
+			await page.getByRole("radio", { name: "Chart" }).click();
+			await page.getByRole("radio", { name: "Map" }).click();
+			await expect.element(box("Public school")).toBeVisible();
+		});
+
+		/** A Map draft of monitor m1 with only Child care ticked. */
+		const childCareMap = () => {
+			const draft = monitorsDraft(["m1"], { type: "map" });
+			draft.data.layers.push({ dataset: "locations", locationTypes: ["child_care"] });
+			return draft;
+		};
+
+		test("Show as a Chart names the ticked groups it leaves out, from the meta", async () => {
+			const { current } = await show(childCareMap());
+			await expect.element(box("Child care")).toBeChecked();
+			await page.getByRole("radio", { name: "Chart" }).click();
+			await expect
+				.element(page.getByText(m.get_data_dropped_locations({ layers: "Child care" })))
+				.toBeVisible();
+			// Only the ticked group: the untouched Schools section isn't named.
+			expect(
+				page.getByText(m.get_data_dropped_locations({ layers: "Schools and Child care" })).query()
+			).toBeNull();
+			expect((await current()).data.layers.some((l) => l.dataset === "locations")).toBe(false);
+		});
+
+		test("with the groups unknown, the left-out note names none", async () => {
+			fake.metadata = fixtureMetadata({
+				catalog: async () => CATALOG,
+				locationGroups: async () => {
+					throw new Error("offline");
+				}
+			});
+			await show(childCareMap());
+			await page.getByRole("radio", { name: "Chart" }).click();
+			await expect.element(page.getByText(m.get_data_dropped_locations_unnamed())).toBeVisible();
 		});
 	});
 

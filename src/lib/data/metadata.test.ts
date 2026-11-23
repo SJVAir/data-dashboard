@@ -498,7 +498,15 @@ describe("createWebMetadata", () => {
 
 	it("reads monitor groups, entry help and location type labels", async () => {
 		vi.mocked(getRegionsMeta).mockResolvedValue({
-			location_types: { child_care: { label: "Child care" } }
+			location_groups: { child_care: { key: "child_care", label: "Child care", order: 0 } },
+			location_types: {
+				child_care: {
+					type: "child_care",
+					label: "Child care",
+					source: "cdss-ccl",
+					group: "child_care"
+				}
+			}
 		} as never);
 		const md = createWebMetadata();
 		expect(await md.monitorGroups()).toEqual([
@@ -511,6 +519,77 @@ describe("createWebMetadata", () => {
 		expect(await md.entryTypeHelp("humidity")).toBeNull();
 		expect(await md.locationTypeLabel("child_care")).toBe("Child care");
 		expect(await md.locationTypeLabel("nope")).toBeNull();
+	});
+
+	it("reads location groups and sources from the regions meta", async () => {
+		vi.mocked(getRegionsMeta).mockResolvedValue({
+			location_groups: {
+				child_care: { key: "child_care", label: "Child care", order: 1 },
+				school: { key: "school", label: "Schools", order: 0 }
+			},
+			location_types: {
+				public_school: {
+					type: "public_school",
+					label: "Public school",
+					source: "cde-public",
+					group: "school"
+				},
+				private_school: {
+					type: "private_school",
+					label: "Private school",
+					source: "cde-private",
+					group: "school"
+				},
+				child_care: {
+					type: "child_care",
+					label: "Child care",
+					source: "cdss-ccl",
+					group: "child_care"
+				},
+				museum: { type: "museum", label: "Museum", source: "osm", group: "museum" }
+			}
+		} as never);
+		const md = createWebMetadata();
+		const pub = { type: "public_school", label: "Public school", source: "cde-public" };
+		const priv = { type: "private_school", label: "Private school", source: "cde-private" };
+		expect(await md.locationGroups()).toEqual([
+			{ key: "school", label: "Schools", order: 0, types: [pub, priv] },
+			{
+				key: "child_care",
+				label: "Child care",
+				order: 1,
+				types: [{ type: "child_care", label: "Child care", source: "cdss-ccl" }]
+			},
+			{
+				key: "museum",
+				label: "Museum",
+				order: 2,
+				types: [{ type: "museum", label: "Museum", source: "osm" }]
+			}
+		]);
+		expect(await md.locationSources()).toEqual(["cde-public", "cde-private", "cdss-ccl", "osm"]);
+	});
+
+	it("makes a type whose group the meta doesn't define a group of its own", async () => {
+		vi.mocked(getRegionsMeta).mockResolvedValue({
+			location_groups: {},
+			location_types: {
+				a: { type: "a", label: "A", source: "sa", group: "a" },
+				b: { type: "b", label: "B", source: "sb", group: "missing" }
+			}
+		} as never);
+		expect(await createWebMetadata().locationGroups()).toEqual([
+			{ key: "a", label: "A", order: 0, types: [{ type: "a", label: "A", source: "sa" }] },
+			{ key: "b", label: "B", order: 1, types: [{ type: "b", label: "B", source: "sb" }] }
+		]);
+	});
+
+	it("locationGroups is [] when the meta lists no location types", async () => {
+		vi.mocked(getRegionsMeta).mockResolvedValue({
+			location_groups: { school: { key: "school", label: "Schools", order: 0 } },
+			location_types: {}
+		} as never);
+		expect(await createWebMetadata().locationGroups()).toEqual([]);
 	});
 
 	it("monitorGroups is [] for none and null when the field is absent", async () => {

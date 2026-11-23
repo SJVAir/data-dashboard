@@ -49,7 +49,11 @@ const META = {
 		city: { type: "city", label: "City", count: 50, parents: [], browsable: false },
 		zipcode: { type: "zipcode", label: "ZIP code", count: 300, parents: [], browsable: false }
 	},
-	location_types: {}
+	location_types: {},
+	location_groups: {
+		school: { key: "school", label: "Schools", order: 0 },
+		child_care: { key: "child_care", label: "Child care", order: 1 }
+	}
 };
 
 const NAMES: Record<string, string> = {

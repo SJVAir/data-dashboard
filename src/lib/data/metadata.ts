@@ -134,6 +134,14 @@ export function figureFromScale(
 	return field ? { field, label: label ?? null } : null;
 }
 
+export type LocationTypeInfo = { type: string; label: string; source: string };
+export type LocationGroup = {
+	key: string;
+	label: string;
+	order: number;
+	types: LocationTypeInfo[];
+};
+
 export interface MetadataSource {
 	/** `"unavailable"` when the server has no catalog or it can't be fetched; never rejects except for `signal`'s abort. */
 	catalog(signal?: AbortSignal): Promise<CatalogEntry[] | "unavailable">;
@@ -204,6 +212,14 @@ export interface MetadataSource {
 	entryTypeHelp(entryType: string, signal?: AbortSignal): Promise<string | null>;
 	/** The regions meta's label for a location type; `null` when unknown. */
 	locationTypeLabel(type: string, signal?: AbortSignal): Promise<string | null>;
+	/**
+	 * The regions meta's location groups, by `order`, each with its types in meta order; a type
+	 * with no (or an unknown) group is a group of its own (key = type, label = type label,
+	 * ordered after the named groups). `[]` when the meta lists no location types.
+	 */
+	locationGroups(signal?: AbortSignal): Promise<LocationGroup[]>;
+	/** The location sources the regions meta lists (`location_types[t].source`), deduplicated. */
+	locationSources(signal?: AbortSignal): Promise<string[]>;
 }
 
 const UNIT_MINUTES: Record<string, number> = {
@@ -516,6 +532,34 @@ export function createWebMetadata(): MetadataSource {
 			const types: Partial<Record<string, { label: string }>> = (await regionsMeta(signal))
 				.location_types;
 			return (Object.hasOwn(types, type) && types[type]?.label) || null;
+		},
+		async locationGroups(signal) {
+			const meta = await regionsMeta(signal);
+			const defined = meta.location_groups;
+			const named = new Map<string, LocationGroup>();
+			for (const [id, g] of Object.entries(defined)) {
+				named.set(id, { key: g.key, label: g.label, order: g.order, types: [] });
+			}
+			// A type whose group the meta doesn't define (a newer server's) is a group of its own.
+			const alone: LocationGroup[] = [];
+			for (const t of Object.values(meta.location_types)) {
+				const info = { type: t.type, label: t.label, source: t.source };
+				const group = Object.hasOwn(defined, t.group) ? named.get(t.group) : null;
+				if (group) group.types.push(info);
+				else alone.push({ key: t.type, label: t.label, order: 0, types: [info] });
+			}
+			const groups = [...named.values()]
+				.filter((g) => g.types.length > 0)
+				.sort((a, b) => a.order - b.order);
+			const next = groups.reduce((n, g) => Math.max(n, g.order + 1), 0);
+			alone.forEach((g, i) => (g.order = next + i));
+			return [...groups, ...alone];
+		},
+		async locationSources(signal) {
+			const types = (await regionsMeta(signal)).location_types as Partial<
+				Record<string, { source: string }>
+			>;
+			return [...new Set(Object.values(types).flatMap((t) => (t ? [t.source] : [])))];
 		}
 	};
 }

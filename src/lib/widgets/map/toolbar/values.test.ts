@@ -28,6 +28,7 @@ const offer: MapOffer = {
 	smokeAndFire: false,
 	fill: false,
 	notices: false,
+	locations: [],
 	use: null
 };
 const rows = { types: true, inactive: true, inside: true };
@@ -313,5 +314,40 @@ describe("pesticide use rows", () => {
 		expect(
 			withoutToolbar({ useFigure: "acres-treated", useShown: false, at: "2022-01-01" })
 		).toEqual({ at: "2022-01-01" });
+	});
+});
+
+describe("location group rows", () => {
+	const groups = [
+		{ key: "school", label: "Schools" },
+		{ key: "child_care", label: "Child care" }
+	];
+	const withGroups = { ...offer, locations: groups };
+	it("each group's row shows unless hidden", () => {
+		const shown = toValues({ hiddenLocationGroups: ["school"] }, withGroups, defaults, "pm25");
+		expect(shown["location:school"]).toBe(false);
+		expect(shown["location:child_care"]).toBe(true);
+	});
+	it("the rows map to hiddenLocationGroups, and none hidden is never written", () => {
+		const off = toOptions(
+			{},
+			{ ...defaults, "location:school": false },
+			["location:school"],
+			defaults
+		);
+		expect(off).toEqual({ hiddenLocationGroups: ["school"] });
+		const on = toOptions(
+			off,
+			{ ...defaults, "location:school": true },
+			["location:school"],
+			defaults
+		);
+		expect(on).toEqual({});
+	});
+	it("Layers shows for location groups alone", () => {
+		expect(groupsShown(withGroups, 1).layers).toBe(true);
+	});
+	it("Reset removes hiddenLocationGroups", () => {
+		expect(withoutToolbar({ hiddenLocationGroups: ["school"] })).toEqual({});
 	});
 });

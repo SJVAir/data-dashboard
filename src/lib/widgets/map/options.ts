@@ -14,6 +14,8 @@ export const HMS_SMOKE = "hms-smoke";
 export const HMS_FIRE = "hms-fire";
 /** The Map's spray notices layer: place-less, drawn over the whole map. */
 export const PESTICIDE_NOTICES = "pesticide-notices";
+/** The Map's schools and child care layer (the dashboard's own id; no catalog entry). */
+export const LOCATIONS = "locations";
 /** The Map's pesticide use layer: place-less, drawn over the whole map. */
 export const PESTICIDE_USE = "pesticide-use";
 /**
@@ -60,6 +62,12 @@ export const MapOptionsSchema = z.strictObject({
 		.array(SafeIdSchema)
 		.max(32)
 		.refine((ids) => new Set(ids).size === ids.length, { message: "Types must be unique" })
+		.optional(),
+	/** Location groups switched off. */
+	hiddenLocationGroups: z
+		.array(SafeIdSchema)
+		.max(32)
+		.refine((ids) => new Set(ids).size === ids.length, { message: "Groups must be unique" })
 		.optional()
 });
 
@@ -76,7 +84,8 @@ export const MAP_TOOLBAR_KEYS = [
 	"useShown",
 	"inactive",
 	"inside",
-	"hiddenTypes"
+	"hiddenTypes",
+	"hiddenLocationGroups"
 ] as const;
 
 /** A Map's options; invalid or missing options read as none (nothing marked). */

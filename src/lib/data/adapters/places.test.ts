@@ -61,8 +61,11 @@ const SCHOOLS: Record<string, ReturnType<typeof location>> = {
 	)
 };
 
+const sources = vi.fn(async () => ["cde-public", "cde-private", "cdss-ccl"]);
+
 beforeEach(() => {
 	vi.resetAllMocks();
+	sources.mockResolvedValue(["cde-public", "cde-private", "cdss-ccl"]);
 	vi.mocked(getLocationsByCode).mockImplementation(
 		async (_source, codes) =>
 			Object.values(SCHOOLS).filter(
@@ -72,8 +75,37 @@ beforeEach(() => {
 });
 
 describe("createWebLocationResolver", () => {
+	it("one caller's abort during the sources fetch rejects only that caller", async () => {
+		let release!: (list: string[]) => void;
+		sources.mockReturnValue(new Promise<string[]>((r) => (release = r)));
+		const resolver = createWebLocationResolver(sources);
+		const controller = new AbortController();
+		const a = resolver.resolve("cde-public", "1", controller.signal);
+		const b = resolver.resolve("cde-public", "2");
+		controller.abort();
+		await expect(a).rejects.toBeDefined();
+		release(["cde-public"]);
+		expect(await b).toMatchObject({ name: "School 2" });
+		expect(sources).toHaveBeenCalledTimes(1);
+	});
+
+	it("retries the sources lookup after it fails", async () => {
+		sources.mockRejectedValueOnce(new Error("down"));
+		const resolver = createWebLocationResolver(sources);
+		await expect(resolver.resolve("cde-public", "1")).rejects.toThrow("down");
+		expect(await resolver.resolve("cde-public", "1")).toMatchObject({ name: "School 1" });
+		expect(sources).toHaveBeenCalledTimes(2);
+	});
+
+	it("makes one request for a source the meta lists", async () => {
+		const resolver = createWebLocationResolver(sources);
+		await resolver.resolve("cde-public", "1");
+		expect(getLocationsByCode).toHaveBeenCalledTimes(1);
+		expect(sources).toHaveBeenCalledTimes(1);
+	});
+
 	it("maps a location's ZIP, city and county to keys in that order", async () => {
-		expect(await createWebLocationResolver().resolve("cde-public", "1")).toEqual({
+		expect(await createWebLocationResolver(sources).resolve("cde-public", "1")).toEqual({
 			name: "School 1",
 			keys: ["zipcode:93702", "city:0627000", "county:06019"],
 			details: { type: "public_school", city: "", zip: "", address: "" },
@@ -83,7 +115,7 @@ describe("createWebLocationResolver", () => {
 	});
 
 	it("leaves out the regions a location lacks", async () => {
-		expect(await createWebLocationResolver().resolve("cde-public", "2")).toEqual({
+		expect(await createWebLocationResolver(sources).resolve("cde-public", "2")).toEqual({
 			name: "School 2",
 			keys: ["county:06019"],
 			details: { type: "public_school", city: "", zip: "", address: "" },
@@ -95,18 +127,18 @@ describe("createWebLocationResolver", () => {
 		vi.mocked(getLocationsByCode).mockResolvedValueOnce([
 			{ ...SCHOOLS["1"], point: { lat: 36.7, lng: -119.8 } }
 		] as never);
-		const found = await createWebLocationResolver().resolve("cde-public", "1");
+		const found = await createWebLocationResolver(sources).resolve("cde-public", "1");
 		expect(found?.point).toEqual({ lat: 36.7, lon: -119.8 });
 	});
 
 	it("matches a code that is one of the location's aliases", async () => {
-		expect(await createWebLocationResolver().resolve("cde-public", "2b")).toMatchObject({
+		expect(await createWebLocationResolver(sources).resolve("cde-public", "2b")).toMatchObject({
 			name: "School 2"
 		});
 	});
 
 	it("keeps a retired location's retirement", async () => {
-		expect(await createWebLocationResolver().resolve("cde-public", "3")).toEqual({
+		expect(await createWebLocationResolver(sources).resolve("cde-public", "3")).toEqual({
 			name: "School 3",
 			keys: ["zipcode:93721", "county:06019"],
 			details: { type: "public_school", city: "", zip: "", address: "" },
@@ -116,16 +148,16 @@ describe("createWebLocationResolver", () => {
 	});
 
 	it("resolves a code the server doesn't know to null", async () => {
-		expect(await createWebLocationResolver().resolve("cde-public", "999")).toBeNull();
+		expect(await createWebLocationResolver(sources).resolve("cde-public", "999")).toBeNull();
 	});
 
 	it("resolves an unknown source to null without a request", async () => {
-		expect(await createWebLocationResolver().resolve("schools", "1")).toBeNull();
+		expect(await createWebLocationResolver(sources).resolve("schools", "1")).toBeNull();
 		expect(getLocationsByCode).not.toHaveBeenCalled();
 	});
 
 	it("batches codes asked for in the same tick, one request per source", async () => {
-		const resolver = createWebLocationResolver();
+		const resolver = createWebLocationResolver(sources);
 		const found = await Promise.all([
 			resolver.resolve("cde-public", "1"),
 			resolver.resolve("cde-public", "2"),
@@ -138,7 +170,7 @@ describe("createWebLocationResolver", () => {
 	});
 
 	it("sends at most 100 codes per request", async () => {
-		const resolver = createWebLocationResolver();
+		const resolver = createWebLocationResolver(sources);
 		await Promise.all(
 			Array.from({ length: 150 }, (_, i) => resolver.resolve("cde-public", `${i}`))
 		);
@@ -147,7 +179,7 @@ describe("createWebLocationResolver", () => {
 	});
 
 	it("caches each code, including an unknown one", async () => {
-		const resolver = createWebLocationResolver();
+		const resolver = createWebLocationResolver(sources);
 		await resolver.resolve("cde-public", "1");
 		await resolver.resolve("cde-public", "999");
 		await resolver.resolve("cde-public", "1");
@@ -156,14 +188,14 @@ describe("createWebLocationResolver", () => {
 	});
 
 	it("retries a failed lookup on the next call", async () => {
-		const resolver = createWebLocationResolver();
+		const resolver = createWebLocationResolver(sources);
 		vi.mocked(getLocationsByCode).mockRejectedValueOnce(new Error("offline"));
 		await expect(resolver.resolve("cde-public", "1")).rejects.toThrow("offline");
 		expect(await resolver.resolve("cde-public", "1")).toMatchObject({ name: "School 1" });
 	});
 
 	it("rejects only the caller whose signal aborts", async () => {
-		const resolver = createWebLocationResolver();
+		const resolver = createWebLocationResolver(sources);
 		const controller = new AbortController();
 		const aborted = resolver.resolve("cde-public", "1", controller.signal);
 		const other = resolver.resolve("cde-public", "1");

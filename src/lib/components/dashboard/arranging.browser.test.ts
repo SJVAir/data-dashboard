@@ -1453,6 +1453,63 @@ test("the submenu by keyboard: Enter repeats, focus leaves an item that turns di
 	await expect.poll(() => document.activeElement).toBe(titleBar("Readings").element());
 });
 
+/**
+ * Holds every animation frame callback until released, one at a time: a busy machine (CI) can
+ * deliver a frame callback after the next key press.
+ */
+function holdFrames() {
+	const held: FrameRequestCallback[] = [];
+	const spy = vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+		held.push(cb);
+		return held.length;
+	});
+	return {
+		/** Runs the oldest held callback; false when none is left. */
+		step(): boolean {
+			const cb = held.shift();
+			cb?.(performance.now());
+			return !!cb;
+		},
+		release() {
+			spy.mockRestore();
+			while (held.length) held.shift()!(performance.now());
+		}
+	};
+}
+
+test("a menu's late opening frame doesn't pull focus out of its open submenu", async () => {
+	await seed([widget("a", { x: 4, y: 0, w: 6, h: 4 }, "Readings")]);
+	await focusBar("Readings");
+	const frames = holdFrames();
+	try {
+		await press("{Shift>}{F10}{/Shift}");
+		// Frames arrive one by one until focus is on Move; any left come after the ArrowRight.
+		while (document.activeElement?.textContent?.trim() !== "Move") {
+			if (!frames.step()) break;
+			await new Promise((resolve) => setTimeout(resolve));
+		}
+		expect(
+			document.activeElement?.textContent?.trim(),
+			"every held frame ran and focus never reached Move"
+		).toBe("Move");
+		await press("{ArrowRight}");
+		// Focus settles in the submenu before the late frame arrives.
+		await expect
+			.poll(() => document.activeElement?.closest("[data-slot=context-menu-sub-content]"))
+			.toBeTruthy();
+		await new Promise((resolve) => setTimeout(resolve));
+	} finally {
+		frames.release();
+	}
+	await animationFrames(2);
+	// The submenu is still open, with focus inside it (not back on Move).
+	const sub = document.querySelector("[role=menu][data-slot=context-menu-sub-content]");
+	expect(sub?.getAttribute("data-state")).toBe("open");
+	expect(document.activeElement?.closest("[role=menu]")).toBe(sub);
+	await press("{Escape}");
+	await press("{Escape}");
+});
+
 test("the ⋯ menu is as wide as its items: no label wraps", async () => {
 	await seed(halves());
 	await page.getByRole("button", { name: "Actions for Readings" }).click();

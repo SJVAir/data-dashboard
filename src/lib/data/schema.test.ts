@@ -55,6 +55,13 @@ describe("WidgetDataConfigSchema", () => {
 		expect(layer({ monitors: [], monitorTypes: [] })).toBe(true);
 	});
 
+	it("a locations layer's ticked types must be unique", () => {
+		const layer = (l: object) => LayerSchema.safeParse({ dataset: "locations", ...l }).success;
+		expect(layer({ locationTypes: ["a", "b"] })).toBe(true);
+		expect(layer({ locationTypes: ["a", "a"] })).toBe(false);
+		expect(layer({ locationTypes: ["a b"] })).toBe(false);
+	});
+
 	it("Where is saved on the data, not the layer", () => {
 		const r = WidgetDataConfigSchema.parse({
 			place: county,

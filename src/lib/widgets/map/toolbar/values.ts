@@ -7,6 +7,9 @@ import { MAP_TOOLBAR_KEYS, type MapOptions } from "../options";
 /** The toolbar value key of the spray notices row. */
 export const NOTICES_KEY = "notices";
 
+/** The prefix of a location group row's value key (`location:<group key>`). */
+export const LOCATION_PREFIX = "location:";
+
 /** The toolbar value keys of the pesticide use rows (the Layers row, the figure). */
 export const USE_KEY = "use";
 export const USE_FIGURE_KEY = "useFigure";
@@ -24,6 +27,8 @@ export type MapOffer = {
 	fill: boolean;
 	/** The tile has a drawable spray notices layer. */
 	notices: boolean;
+	/** The location groups the tile draws (a type of theirs ticked), in order: a row each. */
+	locations: { key: string; label: string }[];
 	/** The tile has a drawable pesticide use layer: its figures. */
 	use: { figures: string[] } | null;
 };
@@ -57,6 +62,9 @@ export function toValues(
 	if (drawn !== undefined) values.pollutant = drawn;
 	const hidden = new Set(options.hiddenTypes);
 	for (const type of offer.types) values[`${TYPE_PREFIX}${type}`] = !hidden.has(type);
+	const hiddenGroups = new Set(options.hiddenLocationGroups);
+	for (const { key } of offer.locations)
+		values[`${LOCATION_PREFIX}${key}`] = !hiddenGroups.has(key);
 	return values;
 }
 
@@ -71,9 +79,16 @@ export function toOptions(
 	const out: Record<string, unknown> = { ...current };
 	const hidden = new Set(current.hiddenTypes);
 	let typesChanged = false;
+	const hiddenGroups = new Set(current.hiddenLocationGroups);
+	let groupsChanged = false;
 	for (const key of changed) {
 		const value = next[key];
-		if (key.startsWith(TYPE_PREFIX)) {
+		if (key.startsWith(LOCATION_PREFIX)) {
+			const group = key.slice(LOCATION_PREFIX.length);
+			if (value === false) hiddenGroups.add(group);
+			else hiddenGroups.delete(group);
+			groupsChanged = true;
+		} else if (key.startsWith(TYPE_PREFIX)) {
 			const type = key.slice(TYPE_PREFIX.length);
 			if (value === false) hidden.add(type);
 			else hidden.delete(type);
@@ -98,6 +113,10 @@ export function toOptions(
 	if (typesChanged) {
 		if (hidden.size === 0) delete out.hiddenTypes;
 		else out.hiddenTypes = [...hidden];
+	}
+	if (groupsChanged) {
+		if (hiddenGroups.size === 0) delete out.hiddenLocationGroups;
+		else out.hiddenLocationGroups = [...hiddenGroups];
 	}
 	return out as MapOptions;
 }
@@ -131,7 +150,12 @@ export function groupsShown(
 	return {
 		pollutant: offer.pollutants.length >= 2,
 		monitors: monitorRowCount >= 2,
-		layers: offer.smokeAndFire || offer.fill || offer.notices || offer.use !== null,
+		layers:
+			offer.smokeAndFire ||
+			offer.fill ||
+			offer.notices ||
+			offer.locations.length > 0 ||
+			offer.use !== null,
 		use: offer.use !== null
 	};
 }

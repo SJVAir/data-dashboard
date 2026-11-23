@@ -55,7 +55,16 @@ const META = {
 		mtrs: { type: "mtrs", label: "Section", count: 5000, parents: [], browsable: false }
 	},
 	location_types: {
-		public_school: { type: "public_school", label: "Public school", source: "cde-public" }
+		public_school: {
+			type: "public_school",
+			label: "Public school",
+			source: "cde-public",
+			group: "school"
+		}
+	},
+	location_groups: {
+		school: { key: "school", label: "Schools", order: 0 },
+		child_care: { key: "child_care", label: "Child care", order: 1 }
 	}
 };
 

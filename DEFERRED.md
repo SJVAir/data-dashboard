@@ -786,6 +786,15 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   after the import. **Revisit when** shipping sjvair.com `develop` to production (with the
   "everything ready" deploy above).
 
+- **The dashboard needs sjvair.com #351 deployed first.** _Noted 2026-11-22 (step 5 spec 7c)._
+  The dashboard pins `@sjvair/sdk` `5.0.0-beta.17`, whose `RegionsMeta` throws when
+  `regions/meta/` has no `location_groups` (added by sjvair.com #351, `develop` 1af05307). The
+  location resolver now reads each location type's source from the regions meta, so on a server
+  without #351 school places would stop resolving across the whole app: the place picker, Current
+  conditions, "Can we go outside?" and the Map. Why noted, not handled: nothing is live, and SDK
+  5.0 has no fallbacks for older servers by design. **Revisit at** the production deploy: deploy
+  sjvair.com `develop` (with #351) before, or with, the dashboard build that carries spec 7c.
+
 - **Region meta counts are cached for 1 hour with no invalidation.** _Deferred 2026-11-03
   (step 3 spec 1)._ `regions/meta/` `count` can lag an import by up to an hour. **Revisit if**
   an import flow needs the new counts immediately (then invalidate the key from the import
@@ -969,6 +978,19 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   run": the menu item detaches and the click times out). It is held at 2.19.2 (the popover works
   there). **Revisit when** upgrading `bits-ui` or on the next `shadcn-svelte add`: check that
   test first.
+
+- **bits-ui mounts a top-level menu's focus scope twice (worked around, not reported).**
+  _Noted 2026-11-22 (step 5 spec 7c, Task 1)._ In `bits-ui` 2.19.2 the root context or dropdown
+  menu's `FocusScope` mounts twice as it opens, so two one-frame open focuses are queued. The
+  second mount's `unmount()` also briefly sends focus back to the trigger before its frame
+  (harmless today). On a busy machine the second frame could land after ArrowRight had opened a
+  submenu, focus the parent menu and close the submenu: the CI flake in "the submenu by keyboard:
+  Enter repeats, focus leaves an item that turns disabled". It's worked around in
+  `src/lib/components/menu/open-auto-focus.ts` (the menu content wrappers do the open focus
+  themselves, skipped while focus is already in an open menu); the upstream issue isn't filed.
+  **Revisit when** upgrading `bits-ui`: check whether it still mounts twice, and if not drop the
+  wrapper (the test "a menu's late opening frame doesn't pull focus out of its open submenu"
+  must still pass).
 
 - **Link length in Google Classroom and webmail.** _Deferred 2026-10-25 (Foundations spec 3)._
   The 8,000-character share-link cap (`MAX_LINK_URL`) is provisional: it needs a manual check
@@ -1166,6 +1188,21 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   map-sdk. **Revisit when** map-sdk offers an outline-only (no-wording) mode for regions (raised
   with the coordinator).
 
+- **A point in Where: the Map's schools layer keeps the region it found when the pollutant
+  changes.** _Deferred 2026-11-22 (step 5 spec 7c, Task 4)._ A point's schools and child care load
+  for the region `placeRegion` gives, looked up for the Map's pollutant. The layer is looked up
+  again only when the Where or the layer's presence changes, so a pollutant change keeps the
+  region found before. Why: points rarely change region by pollutant, and refetching sites on
+  every pollutant change costs a lookup for nothing. **Revisit if** a point's schools are reported
+  wrong after a pollutant change.
+
+- **The Map's schools and child care sites are kept for the session.** _Deferred 2026-11-22
+  (step 5 spec 7c)._ Sites are fetched once per session per region, and once valley-wide (a Map
+  with no Where), shared across Maps and kept in memory, with no expiry and no size bound. Why:
+  sites rarely change, the server caches its answers for 24 hours, and the valley-wide list is
+  about 1.5 MB raw (2,782 sites), too much to fetch again per Map. **Revisit if** long-open tabs
+  show stale sites, or memory grows with many regions visited.
+
 - **Comparing mixed kinds of place in one widget.** _Deferred 2026-11-04 (step 4 spec 2);
   rewritten 2026-11-22 (step 5 spec 7a)._ Monitors and areas now combine: a Chart or Table's areas
   filter, its monitors (ticked types or searched) are listed. Schools and points stay single and are
@@ -1313,7 +1350,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   only set the rule. Step 5 spec 6b is built and didn't take it up; raised with the user at the
   end of 6b (2026-11-20), who chose to look at it again after spec 7. **Revisit when** step 5
   spec 7 (schools and child care) is done: the spec 7 session raises it with the user at the end
-  of spec 7, as 6b did. Sooner if an agency or researcher asks for trends.
+  of spec 7, as 6b did. Spec 7c, the last part of spec 7, is built (2026-11-22, PR pending) and
+  didn't take it up; its session raises it with the user before 7c merges. Sooner if an agency or
+  researcher asks for trends.
 - **An hourly or finer Map.** _Deferred 2026-11-18 (step 5 spec 6a)._ The Map steps by day,
   month or year (`MAP_LEVELS`). Why: an hour's figures over the valley need their own snapshot
   and many more stops (a week is 168), and nobody has asked. **Revisit when** someone asks to
@@ -1483,23 +1522,26 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   region mode and a follow-the-view mode. Why: the dashboard loads its own data and passes plain
   `DataSource`s, and no other host (monitor-map 5.0, mobile) draws schools. The schools preset
   documents the feature properties a host supplies. **Revisit if** monitor-map, mobile, or another
-  host wants schools without its own data layer. (Spec 7c, the dashboard's schools spec, builds the
-  schools data on the dashboard side; this item stays for other hosts.)
+  host wants schools without its own data layer. Checked against `@sjvair/map-sdk`
+  `0.1.0-beta.22` in spec 7c; still true: 7c builds the schools data on the dashboard side
+  (`src/lib/widgets/map/data/`), so this item stays for other hosts.
 - **map-sdk: a focus point under a school, edge cases.** _Deferred 2026-11-12 (map-sdk part 4,
   reviews)._ The focus row is left out only while the school's badge is drawn at exactly the focus
   point's coordinates: a camera on a world copy (longitude past ±180), focus coordinates that lost
   digits (a URL, `toFixed`), or a basemap/theme switch (until the map settles) bring the row back.
   The view summary may still count the place twice right after a bubble splits, until the next
   move. Why: the dashboard takes the focus point from the school feature itself, at SJV zooms.
-  **Revisit if** the dashboard's schools spec (spec 7c) shows the place twice in practice.
+  Checked against `@sjvair/map-sdk` `0.1.0-beta.22` in spec 7c; still true: the dashboard's
+  focus school takes the site's own coordinates (equal on three local sites), and a visual check
+  showed one badge with the ring. **Revisit if** the place shows twice in practice.
 - **map-sdk: schools' count bubbles, small gaps.** _Deferred 2026-11-12 (map-sdk part 4, final
   review)._ A type a newer server adds is drawn (no filter) and counted in a bubble's number but has
   no line in the bubble's tooltip; and `drawnAt` keeps every focus point it was asked about until
   teardown, re-checking each when the map settles. Why: three known types today, one focus point
   per tile. Also, a points plugin's `drawnAt` doesn't guard against a point layer missing from the
   style (unreachable today: teardown runs before every style change). **Revisit when** the server
-  adds a location type, or a host moves the focus point often; check it when spec 7c (schools on the
-  Map) is built.
+  adds a location type, or a host moves the focus point often. Checked against `@sjvair/map-sdk`
+  `0.1.0-beta.22` in spec 7c; still true.
 - **map-sdk: the focus area's wash at the poles and the date line.** _Deferred 2026-11-11 (map-sdk
   part 3; seen in the globe screenshots)._ The wash's world polygon stops at ±85°, so on the globe
   the polar caps stay unwashed, and a faint seam shows along the antimeridian when zoomed far out.
@@ -1518,47 +1560,11 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   alone (no reading, no "No level"). **Revisit on** an accessibility pass of the map, or with part 5
   if the list gets per-layer groups.
 
-- **The dashboard's school and child-care source table is hand-kept.** _Noted 2026-11-11 (sdk-js
-  #61; the user: record it); updated 2026-11-16 (step 5 spec 5a)._ The SDK's strict source list
-  is fixed: since `@sjvair/sdk` `5.0.0-beta.12`, `LocationSource` and `LocationType` accept any
-  string, so a new source no longer fails `/regions/locations/` or `/pesticides/locations/`. But
-  the dashboard's `LOCATION_SOURCES` table (`src/lib/data/adapters/places.ts`) is keyed on the
-  open type, so the compiler no longer flags a new source, and an unlisted one resolves to
-  nothing. **Revisit when** sjvair.com adds a location source: add it to the table in the same
-  change, and when spec 7c (schools on the Map) is built, which reads the same sources.
-
 - **One figure per place for a whole range ("where was it worst over the period").**
   _Deferred 2026-11-15 (step 5 spec 4)._ The Map shows one day at a time (the stepper), not a
   figure for the whole range. Why: a year of daily rows for a whole region type is too much to
   load, and the right shape is a server-side figure per region per range. **Revisit when**
   someone asks for it, or the server offers that figure.
-
-- **The focus school drawn twice.** _Deferred 2026-11-12 (step 5 spec 2)._ A school is both the
-  focus pin and, once schools are a Map data set, a school badge. The user's lean (not a decision)
-  is to keep it in the schools data with the focus ring around the badge and one feature-list row.
-  map-sdk-c0 says both fit: the badge (about 20 px) sits inside the ring's hole (about 26 px), and
-  the focus row drops only on an exact coordinate match, so the focus point must take the school
-  feature's own coordinates. **Revisit with** spec 7c (schools and child care on the Map; its
-  decision 28 takes the lean above).
-
-- **Schools and child care as a Map data set.** _Deferred 2026-11-12 (step 5 spec 2; the user)._
-  `@sjvair/map-sdk` `0.1.0-beta.12` (map-sdk #28, published) adds `schoolsPlugin({ id?, source,
-layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, `external_id`),
-  the `--school-marker` and `--child-care-marker` tokens, six new `mapsdk_*` keys
-  (`location_type_unknown`, `school_address`, `school_district`, `school_grades`,
-  `schools_cluster_line`, `schools_legend_school`) for `host/messages.ts`, and the optional
-  `MetadataProvider.locationTypeLabel?(type, signal?)`, which the dashboard's `mapMetadata`
-  adapter must implement from the regions meta's `location_types`. Why: not in spec 2, and
-  deferred again 2026-11-13 (step 5 spec 3, the user): it would be a new data set in Get data and
-  a second Layers row. Spec 3 moved the pin to `0.1.0-beta.13` and the adapter now implements
-  `locationTypeLabel`, so what is left is the schools data set itself, an entry in
-  `src/lib/widgets/map/data/` and its Layers row. The user moved the trigger to after spec 5
-  (2026-11-16), then to after spec 6 (2026-11-17): it becomes its own small spec in step 5 (spec
-  7), since spec 6b decides how a Map's layers reach charts and tables. Spec 6b is built
-  (2026-11-20): a `MapSend` kind and one case in `show-in.ts` take a new layer (see
-  `ARCHITECTURE.md` → "Widget catalog" → Map). Spec 7 was rescoped 2026-11-21 and split in three;
-  this item is **spec 7c** (7a built the Data Portal's What and monitors; 7b is Current
-  conditions). **Revisit with** spec 7c.
 
 - **A Map draws no smoke or fire, and says nothing, without catalog labels.** _Found 2026-11-12
   (step 5 spec 2)._ If the dataset catalog lacks `hms-smoke` or `hms-fire`, that layer isn't drawn
@@ -2308,14 +2314,15 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   the full block arrives (the dashboard's 50 ms `LENS_WAIT` plus the fetch). Real data does this
   too: sjvair.com selects sections by bounding-box overlap (`bboverlaps`), which includes boxes
   that only touch. Fix in map-sdk: hide a township only once its whole block has loaded. Short
-  and not urgent. **Revisit with** the next `@sjvair/map-sdk` beta that spec 7 or step 6 needs;
+  and not urgent. **Revisit with** the next `@sjvair/map-sdk` beta that step 6 needs (spec 7 stayed
+  on `0.1.0-beta.22`);
   check it with `.superpowers/lens-check/` in map-sdk.
 - **map-sdk: a township the lens leaves goes clear for 1 frame.** _Deferred 2026-11-20 (the user;
   found by the same check)._ New in `0.1.0-beta.21`/`beta.22` from map-sdk #38: a leaving
   township's sections are gone from the drawn tiles, but it shows again only at `sourcedata` or
   `idle`, a frame later (8–14 of 30 moves per run; `0.1.0-beta.19` didn't do this). Fix in
   map-sdk: show it again on the same frame its sections go. **Revisit with** the next
-  `@sjvair/map-sdk` beta that spec 7 or step 6 needs, with the entry above.
+  `@sjvair/map-sdk` beta that step 6 needs, with the entry above.
 - **The Monthly and Yearly legend line takes its units from the catalog.** _Deferred 2026-11-20
   (step 5 spec 6b, Task 11 review)._ map-sdk's own "(units)" line reads the monitors meta's scale
   units, while the Monthly or Yearly figure line that replaces it ("µg/m³ · Average of 24-hour
@@ -2343,6 +2350,16 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   at a tile edge on recentre.
 
 ## Widgets
+
+- **A new widget's pollutant from the monitors meta's `default_pollutant`.** _Deferred 2026-11-22
+  (spec 7c brainstorm, the user's call)._ A new widget, the starter dashboard, a Map added from the
+  Add menu, the Forecast strip's monitor search and the Where pickers use PM2.5 from
+  `DEFAULT_LAYER` (`src/lib/widgets/defaults.ts`), though `monitors/meta/` sends
+  `default_pollutant` and the SDK exposes it. Why: people pick the pollutant in the Data Portal,
+  and PM2.5 is the one most will want (the user: "Users will edit things as they need, and PM2.5
+  will probably be the most common one they want"). **Revisit when** people often switch away
+  from PM2.5, or a deployment needs another default. The readers are synchronous; the brainstorm's
+  lean then was a `defaultPollutant()` metadata method read where widgets are created.
 
 - **"Can we go outside?" with several pollutants: combining their guidelines.** _Deferred
   2026-11-22 (spec 7b plan, the user's choice)._ The widget holds one pollutant, chosen from those
@@ -3332,17 +3349,21 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   checks (sizes after layout, an animation), not wrong behaviour. **Revisit when** one fails in
   CI, or when touching the test: wait on the settled state (a poll on the final size, or the
   animation's end) instead of a fixed moment.
-- **"The submenu by keyboard: Enter repeats, focus leaves an item that turns disabled" flaked in
-  CI.** _Noted 2026-11-22 (step 5 spec 7b, PR #65)._
-  `src/lib/components/dashboard/arranging.browser.test.ts` failed in `focusItem` ("expected
-  'Size' / 'Move' to be 'Right'"): CI's screenshot shows the Move submenu had opened (the poll saw
-  two menus with focus inside the newest) and then closed again, so the ArrowDowns moved focus in
-  the parent menu. It is not 7b's: it failed on `step-5` itself too (1 of 4 CI runs; 2 of 5 on the
-  7b branch). It never failed locally (alone, the whole file, or a full `npm test` pinned to 4
-  cores under `TZ=America/New_York`), and a pointer resting where the menu opens didn't trigger
-  it. What closes the submenu wasn't found. **Revisit when** it fails in CI again, or when
-  touching the arrange submenu: find what closes the submenu (log bits-ui's `onOpenChange` with a
-  stack), then wait on the submenu staying open rather than one poll.
+- **Two arranging tests flake in CI under full-suite load.** _Noted 2026-11-22 (step 5 spec 7c,
+  Task 1)._ On `step-5-spec-7c-flake`, whose `ci.yml` ran `npm test` three times per run, each
+  failed in one pass and passed in the others:
+  - `src/lib/components/dashboard/arranging.browser.test.ts`, "a pointer resize animates the
+    frame's size as it snaps" ("expected +0 to be 1": likely the animation was over before the poll
+    saw it), in runs 45097726529 (before the menu fix), 45099109524 and 45099115463.
+  - The same file, "autoscroll asks for animation frames only while the pointer is in the edge
+    zone" ("expected 0 to be greater than 0": no frame was asked for in its 150 ms in the edge
+    zone), in run 45099112411.
+
+  Not fixed in spec 7c: neither involves menus or 7c's code; they're timing checks, likely
+  starved by the load. **Revisit when** either fails in CI again, or when touching that test: start the size
+  animation paused or long enough to be seen (as the keyboard-resize entry above suggests), and
+  wait on the autoscroll's first frame rather than counting frames in a fixed 150 ms.
+
 - **WebKit E2E tests flake on CI.** _Noted 2026-11-22 (step 5 spec 7b, PR #65)._ In six manual
   `ci.yml` runs (three on `step-5`, three on `step-5-spec-7b`), the WebKit job failed four times,
   on both branches, on one or two tests each time, never the same set; a rerun passed. Neither
@@ -3350,7 +3371,11 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   earlier version from the account", `e2e/safety.spec.ts` "Delete now moves focus to the next
   row's Restore button", `e2e/place-picker.spec.ts` "the Share dialog asks before a live link
   carries the point" (its text matched two elements) and `e2e/map.spec.ts` "the view summary
-  follows a refresh while the view stays still" (moved 0.095 against < 0.02). The full
+  follows a refresh while the view stays still" (moved 0.095 against < 0.02). On
+  `step-5-spec-7c` (three manual runs on c47e917, 2026-11-22, step 5 spec 7c), the WebKit job
+  failed all three: run 45107208071 also failed `e2e/map.spec.ts` "a Map's pesticide use › the
+  township card's Show square miles pins the lens from the keyboard, and Escape clears it", and
+  runs 45107202392 and 45107205355 failed on the known recovery and safety tests above. The full
   three-engine job runs only on manual runs, not on PRs. **Revisit before** relying on the
   WebKit job as a merge gate, or if one of these fails twice in a row.
 - **"A resize animation redraws once, after it ends" flaked in CI.** _Noted 2026-11-12 (step 5

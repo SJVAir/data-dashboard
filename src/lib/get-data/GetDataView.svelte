@@ -12,7 +12,7 @@
 	import { adapterOffers, getMetadata, getResolvers } from "$lib/data";
 	import { csvPending, saveDataCsv } from "$lib/data/csv";
 	import { AIR_QUALITY } from "$lib/data/layer-kind";
-	import type { CatalogEntry, Level } from "$lib/data/metadata";
+	import type { CatalogEntry, Level, LocationGroup } from "$lib/data/metadata";
 	import { fillableTypes } from "$lib/data/snapshot";
 	import type { ChosenPlace, DateRangeSpec, Layer, PesticideFilters } from "$lib/data/schema";
 	import type { WidgetInstance } from "$lib/documents/schema";
@@ -88,6 +88,7 @@
 	import {
 		isMapShaped,
 		mapShowingOnly,
+		setLocationTypes,
 		setMapFill,
 		setMapPesticideFilters,
 		setNotices,
@@ -255,6 +256,32 @@
 		return () => {
 			active = false;
 		};
+	});
+	/**
+	 * The location groups (the regions meta's, by order), a section each on every type's What, once
+	 * loaded. When they can't be loaded none show, the failure is reported, and the next type change
+	 * asks again (as the guideline pollutants do).
+	 */
+	let locationGroups = $state.raw<LocationGroup[] | undefined>();
+	/** Asked since the last type change (so a failed load isn't asked again until the next one). */
+	let locationGroupsAsked = false;
+	/** Aborts a groups load still running when the view closes (a type change doesn't). */
+	const closing = new AbortController();
+	onDestroy(() => closing.abort());
+	$effect(() => {
+		void draftType;
+		if (locationGroups || untrack(() => locationGroupsAsked)) return;
+		locationGroupsAsked = true;
+		getMetadata()
+			.locationGroups(closing.signal)
+			.then(
+				(groups) => {
+					if (!closing.signal.aborted) locationGroups = groups;
+				},
+				(error: unknown) => {
+					if (!closing.signal.aborted) report(error, { operation: "location-groups" });
+				}
+			);
 	});
 	const loadMapPollutants = async () => {
 		const p = await getMetadata().mapPollutants();
@@ -714,6 +741,18 @@
 						: m.get_data_range_cut_left_out(counted)
 			);
 		}
+		if (what.includes("locations")) {
+			// The ticked groups' labels (the regions meta's); none known: a note naming none.
+			const ticked = dropped.conversion.locationTypes ?? [];
+			const names = (locationGroups ?? [])
+				.filter((g) => g.types.some((t) => ticked.includes(t.type)))
+				.map((g) => g.label);
+			out.push(
+				names.length
+					? m.get_data_dropped_locations({ layers: formatList(names) })
+					: m.get_data_dropped_locations_unnamed()
+			);
+		}
 		if (what.includes("marks")) out.push(m.get_data_marks_left_out());
 		if (what.includes("fill")) out.push(m.getdata_note_fill_dropped());
 		if (what.includes("alert")) out.push(m.get_data_level_left_out());
@@ -866,6 +905,7 @@
 	function switchType(to: WidgetType): void {
 		const next = to.type;
 		guidelinesAsked = false;
+		locationGroupsAsked = false;
 		if (offersNow(to) && known) {
 			void convertToNow(to, known);
 			return;
@@ -1156,6 +1196,8 @@
 							fill: mapOptions(plain).fill,
 							fillTypes,
 							onfill: (type) => setMapFill(draft, type),
+							locationGroups,
+							onlocations: (types) => setLocationTypes(draft, types, locationGroups),
 							blocks: mapBlocks
 						}}
 					/>

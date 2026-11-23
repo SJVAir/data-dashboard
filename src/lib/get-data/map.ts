@@ -3,7 +3,7 @@
  * converting a draft to and from it.
  */
 import { everyMonitorType } from "$lib/data/layer-kind";
-import type { CatalogEntry, Level } from "$lib/data/metadata";
+import type { CatalogEntry, Level, LocationGroup } from "$lib/data/metadata";
 import type { DateRangeSpec, Layer, PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
 import { addDays, parseDateKey } from "$lib/format";
 import { resolveRange } from "$lib/format/range";
@@ -13,6 +13,7 @@ import {
 	AIR_QUALITY,
 	HMS_FIRE,
 	HMS_SMOKE,
+	LOCATIONS,
 	MAP_MAX_STOPS,
 	MAP_TYPE,
 	PESTICIDE_NOTICES,
@@ -79,6 +80,59 @@ export function setSmokeAndFire(data: WidgetDataConfig, on: boolean): void {
 /** Whether `data` has the spray notices layer. */
 export function hasNotices(data: WidgetDataConfig): boolean {
 	return data.layers.some((l) => l.dataset === PESTICIDE_NOTICES);
+}
+
+/** The Map's schools and child care layer, if it has one. */
+export function locationsLayer(data: WidgetDataConfig): Layer | undefined {
+	return data.layers.find((l) => l.dataset === LOCATIONS);
+}
+
+/**
+ * Sets the ticked location types (the caller keeps the meta's order), as the one place-less
+ * locations layer after the notices and ahead of the use; `[]` removes the layer. A group of
+ * `groups` left with no type ticked leaves `hiddenLocationGroups` too, so ticking it again shows
+ * it (as removing the use layer drops its options).
+ */
+export function setLocationTypes(
+	draft: Draft,
+	types: string[],
+	groups: readonly LocationGroup[] = []
+): void {
+	const { data } = draft;
+	dropUntickedGroups(draft, types, groups);
+	if (!types.length) {
+		data.layers = data.layers.filter((l) => l.dataset !== LOCATIONS);
+		return;
+	}
+	const existing = locationsLayer(data);
+	if (existing) {
+		existing.locationTypes = [...types];
+		return;
+	}
+	const at = data.layers.findIndex(isMapUse);
+	data.layers.splice(at < 0 ? data.layers.length : at, 0, {
+		dataset: LOCATIONS,
+		locationTypes: [...types]
+	});
+}
+
+/**
+ * Removes from `hiddenLocationGroups` every group with none of `types` ticked: all of them when
+ * none is, else those of `groups` with none ticked.
+ */
+function dropUntickedGroups(draft: Draft, types: string[], groups: readonly LocationGroup[]): void {
+	const hidden = mapOptions(draft).hiddenLocationGroups;
+	if (!hidden?.length) return;
+	const ticked = new Set(types);
+	const empty = new Set(
+		groups.filter((g) => !g.types.some((t) => ticked.has(t.type))).map((g) => g.key)
+	);
+	const kept = types.length ? hidden.filter((key) => !empty.has(key)) : [];
+	if (kept.length === hidden.length) return;
+	const options = { ...mapOptions(draft) };
+	if (kept.length) options.hiddenLocationGroups = kept;
+	else delete options.hiddenLocationGroups;
+	writeOptions(draft, options);
 }
 
 /**
@@ -188,8 +242,9 @@ export function setMapPesticideFilters(
  * Whether `draft` already has the Map's shape, so opening it as a Map converts nothing: no day
  * selection and no date range the Map's span rules out at its resolution (`mapLevelOf`, with
  * `catalog`; none is Now); zero or one air-quality layer first, and at most `maxPlaces` places in
- * its Where; then only smoke and fire layers, then at most one spray notices layer and, last, at
- * most one use layer (each with no entry type, and optional filters).
+ * its Where; then only smoke and fire layers, then at most one spray notices layer, at most one
+ * locations layer and, last, at most one use layer (each with no entry type, and optional
+ * filters).
  */
 export function isMapShaped(
 	draft: Draft,
@@ -208,9 +263,18 @@ export function isMapShaped(
 	if (pollutants.length > 1) return false;
 	if (pollutants.some((l) => !l.entryType)) return false;
 	if (fromWhere(data).length > (mapType.accepts?.maxPlaces ?? 1)) return false;
-	// Smoke and fire, then the notices, then the use, each a step that never goes back.
+	// Smoke and fire, then the notices, then the locations, then the use, each a step that never
+	// goes back.
 	const step = (l: Layer) =>
-		isHms(l) ? 0 : l.dataset === PESTICIDE_NOTICES ? 1 : l.dataset === PESTICIDE_USE ? 2 : -1;
+		isHms(l)
+			? 0
+			: l.dataset === PESTICIDE_NOTICES
+				? 1
+				: l.dataset === LOCATIONS
+					? 2
+					: l.dataset === PESTICIDE_USE
+						? 3
+						: -1;
 	let last = 0;
 	for (const layer of rest) {
 		const at = step(layer);
@@ -356,6 +420,8 @@ export function toMapDraft(
 		? draft.data.layers.find((l) => l.dataset === PESTICIDE_NOTICES)
 		: undefined;
 	if (notices) data.layers.push(structuredClone(notices));
+	const locations = fromMap ? locationsLayer(draft.data) : undefined;
+	if (locations) data.layers.push(structuredClone(locations));
 	const useOptions: MapOptions = {};
 	let use: Layer | undefined;
 	if (fromMap) {
@@ -382,7 +448,13 @@ export function toMapDraft(
 	const source = mainLayer(draft.data, catalog) ?? draft.data.layers[0];
 	// With no pollutant, nothing takes the source layer's place, so it counts as left out too.
 	const others = draft.data.layers.some(
-		(l) => (noPollutant || l !== source) && !kept.has(l) && !isHms(l) && l !== notices && l !== use
+		(l) =>
+			(noPollutant || l !== source) &&
+			!kept.has(l) &&
+			!isHms(l) &&
+			l !== notices &&
+			l !== locations &&
+			l !== use
 	);
 	// A pollutant replaces the source layer only when the Map has one and the source wasn't the
 	// use, which the Map keeps as its own.
@@ -408,7 +480,8 @@ export function toMapDraft(
 /**
  * A Map draft cut to its pollutant (no layers with none), at its Where, over its range (if it has
  * one), with no options. `dropped` says when other layers (smoke and fire, notices, use) were left
- * out (`"overlays"`), when marks were (`"marks"`) and when a region fill was (`"fill"`).
+ * out (`"overlays"`), when schools and child care were (`"locations"`), when marks were
+ * (`"marks"`) and when a region fill was (`"fill"`).
  */
 export function mapShowingOnly(
 	draft: Draft,
@@ -418,7 +491,10 @@ export function mapShowingOnly(
 	const pollutant = pollutantLayer(draft.data, catalog);
 	const layer: Layer | undefined = pollutant ? structuredClone({ ...pollutant }) : undefined;
 	const dropped: NowDropped[] = [];
-	if (draft.data.layers.some((l) => l !== pollutant)) dropped.push("overlays");
+	if (draft.data.layers.some((l) => l !== pollutant && l.dataset !== LOCATIONS)) {
+		dropped.push("overlays");
+	}
+	if (locationsLayer(draft.data)) dropped.push("locations");
 	if (options.marks?.length) dropped.push("marks");
 	if (options.fill) dropped.push("fill");
 	return {
@@ -478,7 +554,9 @@ export function fromMapDraft(
 	if (use && type.type === CHART_TYPE && figure) {
 		// The use has its own outcome, so "overlays" stays only for the other layers left out.
 		const pollutant = pollutantLayer(draft.data, catalog);
-		const others = draft.data.layers.some((l) => l !== pollutant && l !== use);
+		const others = draft.data.layers.some(
+			(l) => l !== pollutant && l !== use && l.dataset !== LOCATIONS
+		);
 		if (!others) dropped = dropped.filter((d) => d !== "overlays");
 		converted.draft.data.layers.push({
 			dataset: PESTICIDE_USE,
@@ -486,5 +564,10 @@ export function fromMapDraft(
 			...(use.filters ? { filters: copyFilters(use.filters) } : {})
 		});
 	}
-	return { ...converted, dropped: [...new Set([...dropped, ...converted.dropped])] };
+	const locationTypes = locationsLayer(draft.data)?.locationTypes;
+	return {
+		...converted,
+		dropped: [...new Set([...dropped, ...converted.dropped])],
+		...(dropped.includes("locations") && { locationTypes: [...(locationTypes ?? [])] })
+	};
 }

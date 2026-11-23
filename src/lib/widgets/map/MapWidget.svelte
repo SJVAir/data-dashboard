@@ -16,12 +16,19 @@
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import { getMetadata } from "$lib/data";
-	import type { CatalogEntry } from "$lib/data/metadata";
+	import { unavailableMessage } from "$lib/data/messages";
+	import type { CatalogEntry, LocationGroup } from "$lib/data/metadata";
 	import { getNowClient } from "$lib/data/now";
 	import type { QueryState, UnavailableReason } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
-	import { formatNumber, pacificDay, parseDateKey } from "$lib/format";
-	import { HMS_FIRE, HMS_SMOKE, hasNotices, hasSmokeAndFire } from "$lib/get-data/map";
+	import { formatList, formatNumber, pacificDay, parseDateKey } from "$lib/format";
+	import {
+		HMS_FIRE,
+		HMS_SMOKE,
+		hasNotices,
+		hasSmokeAndFire,
+		locationsLayer
+	} from "$lib/get-data/map";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
 	import {
@@ -60,6 +67,7 @@
 	import { runShowIn } from "./show-in-items";
 	import FillLayer from "./layers/FillLayer.svelte";
 	import HmsLayers from "./layers/HmsLayers.svelte";
+	import LocationsLayer from "./layers/LocationsLayer.svelte";
 	import NoticesLayer from "./layers/NoticesLayer.svelte";
 	import UseLayers from "./layers/UseLayers.svelte";
 	import MapLegendOverlay from "./MapLegendOverlay.svelte";
@@ -113,6 +121,45 @@
 	loadPollutants();
 
 	const known = $derived(Array.isArray(catalog) ? catalog : undefined);
+
+	/** The ticked location types (missing or empty: none, so nothing is drawn). */
+	const locationTypes = $derived(locationsLayer(widget.data)?.locationTypes ?? []);
+	/**
+	 * The regions meta's location groups (their keys, labels and types), loaded once the tile
+	 * ticks a type; `"failed"` when they couldn't be read ("Retry" asks again).
+	 */
+	let locationGroups = $state.raw<LocationGroup[] | "failed" | undefined>();
+	function loadLocationGroups(): void {
+		locationGroups = undefined;
+		metadata.locationGroups().then(
+			(groups) => (locationGroups = groups),
+			() => (locationGroups = "failed")
+		);
+	}
+	$effect(() => {
+		if (locationTypes.length && untrack(() => locationGroups) === undefined) {
+			untrack(loadLocationGroups);
+		}
+	});
+	/**
+	 * The location groups drawn: each with a ticked type, in the meta's order, labelled by it,
+	 * with its ticked types. A ticked type the meta doesn't list is in none, so isn't drawn.
+	 */
+	const tickedGroups = $derived.by(() => {
+		if (!Array.isArray(locationGroups) || !locationTypes.length) return [];
+		return locationGroups.flatMap((g) => {
+			const types = g.types.map((t) => t.type).filter((t) => locationTypes.includes(t));
+			return types.length ? [{ key: g.key, label: g.label, types }] : [];
+		});
+	});
+	/**
+	 * The tile draws schools or child care: once the groups are known, a group has a ticked type
+	 * (types the meta doesn't list draw nothing); until then, or when they fail (their note and
+	 * Retry show over the map), any ticked type.
+	 */
+	const drawsLocations = $derived(
+		Array.isArray(locationGroups) ? tickedGroups.length > 0 : locationTypes.length > 0
+	);
 	const layer = $derived(mainLayer(widget.data, known));
 	/** A dataset's name from the catalog (smoke and fire's layer labels). */
 	const datasetLabel = (id: string) => known?.find((d) => d.id === id)?.label;
@@ -173,6 +220,9 @@
 		},
 		get noticesLabel() {
 			return noticesLabel;
+		},
+		get locationGroups() {
+			return tickedGroups;
 		},
 		get use() {
 			return !!useLayer;
@@ -283,6 +333,7 @@
 		hasPollutant ||
 			hasSmokeAndFire(widget.data) ||
 			hasNotices(widget.data) ||
+			drawsLocations ||
 			!!useLayer ||
 			!!savedFill
 	);
@@ -511,8 +562,22 @@
 
 	const data: MapData = new MapData(() => dataInput, { now: getNowClient(), rating: metadata });
 	onDestroy(() => data.destroy());
-	const { monitorsSource, smokeSource, fireSource, hotspotsSource, fillSource, noticesSource } =
-		data;
+	const {
+		monitorsSource,
+		smokeSource,
+		fireSource,
+		hotspotsSource,
+		fillSource,
+		noticesSource,
+		locationsSource
+	} = data;
+
+	/** The location groups on the map: those drawn that the Layers rows haven't switched off. */
+	const locationsShown = $derived(
+		tickedGroups.filter((g) => wiring.locationGroupsShown.includes(g.key))
+	);
+	/** The groups shown, named as one list ("Schools and Child care"), for the notes. */
+	const locationsLabel = $derived(formatList(locationsShown.map((g) => g.label)));
 
 	/** The map body's size (the legend folds, the stepper narrows, the section zoom). */
 	let width = $state(0);
@@ -806,6 +871,7 @@
 		mapShowsLabel([
 			hasSmokeAndFire(widget.data) ? m.get_data_smoke_and_fire() : undefined,
 			hasNotices(widget.data) ? noticesLabel : undefined,
+			...tickedGroups.map((g) => g.label),
 			useLayer ? datasetLabel(PESTICIDE_USE) : undefined,
 			savedFill ? fillInfo?.plural : undefined
 		])
@@ -945,6 +1011,36 @@
 				message: m.map_notices_filter_gone(),
 				hook: "map-notices-gone",
 				...(markable && { action: { label: m.widget_edit_data(), onclick: editData } })
+			});
+		}
+		if (locationTypes.length && locationGroups === "failed") {
+			notes.push({
+				message: m.map_locations_groups_failed(),
+				hook: "map-locations-groups-failed",
+				action: { label: m.widget_state_retry(), onclick: loadLocationGroups }
+			});
+		}
+		if (locationsShown.length && data.locationsFailed) {
+			notes.push({
+				message: m.map_locations_failed({ layers: locationsLabel }),
+				hook: "map-locations-failed",
+				action: { label: m.widget_state_retry(), onclick: () => data.retryLocations() }
+			});
+		}
+		// No Retry: only another Where brings them back. Said once when the place's own note
+		// already gives the same reason.
+		const locationsWhy = data.locationsUnavailable;
+		if (
+			locationsShown.length &&
+			locationsWhy &&
+			!(note?.status === "unavailable" && note.reason === locationsWhy)
+		) {
+			notes.push({
+				message: m.sentence_join({
+					first: m.map_locations_unavailable({ layers: locationsLabel }),
+					second: unavailableMessage(locationsWhy)
+				}),
+				hook: "map-locations-unavailable"
 			});
 		}
 		if (useFailed) {
@@ -1129,6 +1225,19 @@
 		byRef={noticesByRef}
 		note={noticesNote}
 	/>
+	{#each locationsShown as group (group.key)}
+		<LocationsLayer
+			{map}
+			id={`locations-${group.key}`}
+			source={locationsSource}
+			label={group.label}
+			types={group.types}
+			later={tickedGroups
+				.slice(tickedGroups.findIndex((g) => g.key === group.key) + 1)
+				.map((g) => `locations-${g.key}`)}
+			{loads}
+		/>
+	{/each}
 {/if}
 
 <div

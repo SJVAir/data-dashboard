@@ -8,6 +8,7 @@ import {
 	getCommodityDetails,
 	getHMSFire,
 	getHMSSmoke,
+	getPesticideLocations,
 	getPesticidesMeta,
 	getPesticideSections,
 	getPesticideTownships,
@@ -57,6 +58,7 @@ import { periodStops } from "./days";
 import { mapConfig } from "./host/config";
 import { mapMessages } from "./host/messages";
 import { NOTICES_SCALE } from "./data/notices";
+import { resetLocationsCache } from "./data/locations";
 import { resetUseCaches } from "./data/use";
 import { mapOptions } from "./options";
 import { regionShapes, regionTypeShapes } from "./regions";
@@ -126,6 +128,7 @@ vi.mock("@sjvair/map-sdk", async (original) => {
 		hmsSmokePlugin: plugin("hms-smoke"),
 		hmsFirePlugin: plugin("hms-fire"),
 		pointsPlugin: plugin("points"),
+		schoolsPlugin: plugin("schools"),
 		shapesPlugin: plugin("shapes"),
 		shapesLens: createFakeLens,
 		cleanFires: (d: unknown[]) => d,
@@ -146,6 +149,7 @@ vi.mock("@sjvair/sdk", async (original) => ({
 	getActivePesticideNotices: vi.fn(),
 	getChemicalDetails: vi.fn(),
 	getCommodityDetails: vi.fn(),
+	getPesticideLocations: vi.fn(),
 	getPesticidesMeta: vi.fn(),
 	getPesticideSections: vi.fn(),
 	getPesticideTownships: vi.fn(),
@@ -412,6 +416,8 @@ beforeEach(async () => {
 	vi.mocked(getPesticideSections).mockResolvedValue(useSections() as never);
 	vi.mocked(getPesticidesMeta).mockResolvedValue(PESTICIDES_META as never);
 	vi.mocked(getActivePesticideNotices).mockResolvedValue(noticeCollection([]) as never);
+	resetLocationsCache();
+	vi.mocked(getPesticideLocations).mockResolvedValue(siteCollection([]) as never);
 	vi.mocked(mapConfig).mockReturnValue({ maptilerKey: "test", projection: "mercator" });
 	const { getMetadata, getQueryClient } = await import("$lib/data");
 	vi.mocked(getMetadata).mockReturnValue(fixtureMetadata({ catalog: async () => CATALOG }));
@@ -3320,6 +3326,10 @@ const ZIP_META = {
 		}
 	},
 	location_types: {},
+	location_groups: {
+		school: { key: "school", label: "Schools", order: 0 },
+		child_care: { key: "child_care", label: "Child care", order: 1 }
+	},
 	buffers: []
 };
 
@@ -4976,4 +4986,351 @@ test("at about 300 px tall the legend fits under the toolbar and scrolls", async
 	tall.remove();
 	frame.style.height = "800px";
 	await expect.poll(() => card.getAttribute("tabindex")).toBe("-1");
+});
+
+/** A school or child care site at `[lon, lat]`, as `pesticides/locations/` gives it. */
+function site(id: string, type: string, lon = -119.75, lat = 36.75) {
+	return {
+		type: "Feature",
+		id,
+		geometry: { type: "Point", coordinates: [lon, lat] },
+		properties: {
+			id,
+			source: type === "child_care" ? "cdss-ccl" : "cde-public",
+			external_id: `code-${id}`,
+			name: `Site ${id}`,
+			type,
+			type_label: type,
+			address: null,
+			city: null,
+			school_district: null,
+			school_district_id: null,
+			school_district_url: null,
+			grade_span: null,
+			enrollment: null,
+			capacity: null
+		}
+	};
+}
+
+function siteCollection(features: unknown[]) {
+	return { type: "FeatureCollection", features };
+}
+
+type SchoolsPlugin = {
+	id: string;
+	options: {
+		layerLabel: string;
+		types?: string[];
+		source: {
+			status: { state: string; reason?: string };
+			features: { features: { geometry: { coordinates: number[] } }[] } | null;
+		};
+	};
+};
+
+const schoolsOf = (map: FakeMap, key: string) =>
+	map.plugins.find((p) => p.id === `locations-${key}`) as unknown as SchoolsPlugin | undefined;
+
+/** A Map of PM2.5 in county 019 (or `at`'s Where) with the locations layer ticking `types`. */
+function locationsMap(types: string[], at: LayerAt = region("019")): WidgetInstance {
+	const widget = mapWidget(at);
+	widget.data.layers.push({ dataset: "locations", locationTypes: types });
+	return widget;
+}
+
+describe("schools and child care on the Map", () => {
+	test("a plugin per group with a ticked type, labelled and filtered by the group", async () => {
+		vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+		vi.mocked(getPesticideLocations).mockResolvedValue(
+			siteCollection([site("s1", "public_school"), site("c1", "child_care")]) as never
+		);
+		await show(locationsMap(["public_school", "child_care"]));
+		const map = await madeMap();
+		map.ready = true;
+		await expect
+			.poll(() => pluginIds(map))
+			.toEqual(["focus", "locations-school", "locations-child_care", "monitors"]);
+		const school = schoolsOf(map, "school")!;
+		const care = schoolsOf(map, "child_care")!;
+		expect(school.options).toMatchObject({ layerLabel: "Schools", types: ["public_school"] });
+		expect(care.options).toMatchObject({ layerLabel: "Child care", types: ["child_care"] });
+		// One source, shared: the presets filter it, the dashboard never copies it.
+		expect(school.options.source).toBe(care.options.source);
+		await expect.poll(() => school.options.source.features?.features).toHaveLength(2);
+		// One request for the county, every type.
+		expect(getPesticideLocations).toHaveBeenCalledTimes(1);
+		expect(getPesticideLocations).toHaveBeenCalledWith({ region: "r019" });
+	});
+
+	test("missing or empty ticks draw nothing, and load nothing", async () => {
+		for (const types of [[], undefined]) {
+			fakeMaps.reset();
+			const widget = mapWidget(region("019"));
+			widget.data.layers.push({
+				dataset: "locations",
+				...(types && { locationTypes: types })
+			});
+			const screen = await show(widget);
+			const map = await madeMap();
+			map.ready = true;
+			await expect.poll(() => pluginIds(map)).toContain("monitors");
+			expect(pluginIds(map).some((id) => id.startsWith("locations-"))).toBe(false);
+			await screen.unmount();
+		}
+		expect(getPesticideLocations).not.toHaveBeenCalled();
+	});
+
+	test("a Map with only schools draws them", async () => {
+		await show(
+			noPollutant(region("019"), [{ dataset: "locations", locationTypes: ["child_care"] }])
+		);
+		const map = await madeMap();
+		await expect.poll(() => pluginIds(map)).toEqual(["focus", "locations-child_care"]);
+		expect(getMonitors).not.toHaveBeenCalled();
+	});
+
+	test("the plugins stay mounted across a refetch", async () => {
+		vi.mocked(getPesticideLocations)
+			.mockRejectedValueOnce(new Error("offline"))
+			.mockResolvedValue(siteCollection([site("s1", "public_school")]) as never);
+		const screen = await show(locationsMap(["public_school"]));
+		const map = await madeMap();
+		map.ready = true;
+		await expect.poll(() => schoolsOf(map, "school")).toBeTruthy();
+		const mounted = schoolsOf(map, "school");
+		const retry = screen.getByRole("button", { name: m.widget_state_retry() });
+		await retry.click();
+		await expect.poll(() => mounted!.options.source.features?.features).toHaveLength(1);
+		// The same plugin, never removed and added again.
+		expect(schoolsOf(map, "school")).toBe(mounted);
+	});
+
+	test("a group ticked after a later one is drawn in the meta's order, kept on refetch", async () => {
+		vi.mocked(getPesticideLocations)
+			.mockRejectedValueOnce(new Error("offline"))
+			.mockResolvedValue(
+				siteCollection([site("s1", "private_school"), site("c1", "child_care")]) as never
+			);
+		const widget = locationsMap(["child_care"]);
+		const screen = await show(widget);
+		const map = await madeMap();
+		map.ready = true;
+		await expect.poll(() => schoolsOf(map, "child_care")).toBeTruthy();
+		const ticked = schoolsOf(map, "child_care");
+		await screen.rerender({
+			widget: { ...widget, data: locationsMap(["private_school", "child_care"]).data }
+		});
+		await expect.poll(() => schoolsOf(map, "school")).toBeTruthy();
+		// Bottom first, as map-sdk's legend reads them: Schools, then Child care.
+		const locations = () => pluginIds(map).filter((id) => id.startsWith("locations-"));
+		expect(locations()).toEqual(["locations-school", "locations-child_care"]);
+		const school = schoolsOf(map, "school");
+		const care = schoolsOf(map, "child_care");
+		// Placed below Child care: Child care's plugin was never made again.
+		expect(care).toBe(ticked);
+		// The sites are fetched again (Retry after the failed load): both plugins stay, in order.
+		await screen.getByRole("button", { name: m.widget_state_retry() }).click();
+		await expect.poll(() => care!.options.source.features?.features).toHaveLength(2);
+		expect(schoolsOf(map, "school")).toBe(school);
+		expect(schoolsOf(map, "child_care")).toBe(care);
+		expect(locations()).toEqual(["locations-school", "locations-child_care"]);
+	});
+
+	test("a Layers row per group; switching one off hides that group only", async () => {
+		vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+		const screen = await showLive(locationsMap(["public_school", "child_care"]), editing());
+		const map = await madeMap();
+		map.ready = true;
+		await expect.element(screen.getByRole("checkbox", { name: "Schools" })).toBeChecked();
+		await expect.element(screen.getByRole("checkbox", { name: "Child care" })).toBeChecked();
+		const rows = fakeToolbars.last!.groups.find((g) => g.id === "layers")?.rows ?? [];
+		expect(rows.map((r) => ("label" in r ? r.label : r.id))).toEqual(["Schools", "Child care"]);
+		await screen.getByRole("checkbox", { name: "Schools" }).click();
+		await expect.poll(() => pluginIds(map)).toEqual(["focus", "locations-child_care", "monitors"]);
+		expect(optionsOf()).toEqual({ hiddenLocationGroups: ["school"] });
+		await screen.getByRole("checkbox", { name: "Schools" }).click();
+		await expect.poll(() => pluginIds(map)).toContain("locations-school");
+		expect(optionsOf()).toBeUndefined();
+	});
+
+	test("a viewer hides a group for themselves, writing nothing", async () => {
+		const widget = locationsMap(["public_school", "child_care"]);
+		const changes = new ViewerChanges();
+		const screen = await showViewer(widget, changes);
+		const map = await madeMap();
+		map.ready = true;
+		await expect.poll(() => pluginIds(map)).toContain("locations-child_care");
+		await screen.getByRole("checkbox", { name: "Child care" }).click();
+		await expect.poll(() => pluginIds(map)).not.toContain("locations-child_care");
+		expect(changes.get(widget.id)).toEqual({ hiddenLocationGroups: ["child_care"] });
+		expect(optionsOf()).toBeUndefined();
+	});
+
+	test("the locations failing: a note naming them, Retry, and the pollutant still draws", async () => {
+		vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
+		vi.mocked(getPesticideLocations)
+			.mockRejectedValueOnce(new Error("offline"))
+			.mockResolvedValue(siteCollection([site("s1", "public_school")]) as never);
+		const screen = await show(locationsMap(["public_school", "child_care"]));
+		const map = await madeMap();
+		map.ready = true;
+		const message = m.map_locations_failed({ layers: "Schools and Child care" });
+		await expect.element(screen.getByText(message)).toBeVisible();
+		await expect.poll(() => drawn(map)).toEqual(["a"]);
+		await screen.getByRole("button", { name: m.widget_state_retry() }).click();
+		await expect.poll(() => screen.getByText(message).query()).toBeNull();
+		await expect
+			.poll(() => schoolsOf(map, "school")?.options.source.features?.features)
+			.toHaveLength(1);
+	});
+
+	test("only Child care ticked: the failed note names only Child care", async () => {
+		vi.mocked(getPesticideLocations).mockRejectedValue(new Error("offline"));
+		const screen = await show(locationsMap(["child_care"]));
+		const map = await madeMap();
+		map.ready = true;
+		await expect
+			.element(screen.getByText(m.map_locations_failed({ layers: "Child care" })))
+			.toBeVisible();
+		expect(screen.getByText(/Schools/).query()).toBeNull();
+	});
+
+	test("only types the meta doesn't list: nothing to draw, said as such", async () => {
+		const screen = await show(
+			noPollutant(region("019"), [{ dataset: "locations", locationTypes: ["museum"] }])
+		);
+		await expect.element(screen.getByText(m.map_empty_add_layers())).toBeVisible();
+	});
+
+	test("a refetch with one group hidden keeps the other's plugin", async () => {
+		vi.mocked(getPesticideLocations)
+			.mockRejectedValueOnce(new Error("offline"))
+			.mockResolvedValue(siteCollection([site("c1", "child_care")]) as never);
+		const widget = locationsMap(["public_school", "child_care"]);
+		widget.options = { hiddenLocationGroups: ["school"] };
+		const screen = await show(widget);
+		const map = await madeMap();
+		map.ready = true;
+		await expect.poll(() => schoolsOf(map, "child_care")).toBeTruthy();
+		expect(schoolsOf(map, "school")).toBeUndefined();
+		const mounted = schoolsOf(map, "child_care");
+		await screen.getByRole("button", { name: m.widget_state_retry() }).click();
+		await expect.poll(() => mounted!.options.source.features?.features).toHaveLength(1);
+		expect(schoolsOf(map, "child_care")).toBe(mounted);
+		expect(schoolsOf(map, "school")).toBeUndefined();
+	});
+
+	test("the groups failing: a note, and Retry reads them again", async () => {
+		const groups = fixtureMetadata().locationGroups;
+		const locationGroups = vi
+			.fn<typeof groups>()
+			.mockRejectedValueOnce(new Error("offline"))
+			.mockImplementation(groups);
+		vi.mocked(getMetadata).mockReturnValue(
+			fixtureMetadata({ catalog: async () => CATALOG, locationGroups })
+		);
+		const screen = await show(locationsMap(["child_care"]));
+		const map = await madeMap();
+		map.ready = true;
+		await expect.element(screen.getByText(m.map_locations_groups_failed())).toBeVisible();
+		expect(pluginIds(map)).not.toContain("locations-child_care");
+		await screen.getByRole("button", { name: m.widget_state_retry() }).click();
+		await expect.poll(() => pluginIds(map)).toContain("locations-child_care");
+		expect(screen.getByText(m.map_locations_groups_failed()).query()).toBeNull();
+	});
+
+	test("a Where with no region on the server: the layer says why", async () => {
+		vi.mocked(getResolvers).mockReturnValue({
+			locations: { resolve: async () => null },
+			regions: { resolve: async () => null }
+		} as never);
+		const screen = await show(
+			noPollutant(region("019"), [{ dataset: "locations", locationTypes: ["child_care"] }])
+		);
+		const map = await madeMap();
+		map.ready = true;
+		await expect
+			.poll(() => schoolsOf(map, "child_care")?.options.source.status)
+			.toMatchObject({ state: "unavailable", reason: "region-unresolved" });
+		await expect
+			.element(
+				screen.getByText(
+					m.sentence_join({
+						first: m.map_locations_unavailable({ layers: "Child care" }),
+						second: m.data_unavailable_region_unresolved()
+					})
+				)
+			)
+			.toBeVisible();
+		expect(getPesticideLocations).not.toHaveBeenCalled();
+	});
+
+	/** A school in Where: the resolver's point, and its ZIP code (its region on the server). */
+	function schoolResolvers(lon: number, lat: number) {
+		vi.mocked(getResolvers).mockReturnValue({
+			locations: {
+				resolve: async () => ({ name: "Site s1", keys: ["zipcode:93721"], point: { lat, lon } })
+			},
+			regions: {
+				resolve: async (type: string, code: string) => ({ id: `z${code}`, name: code })
+			}
+		} as never);
+	}
+	const school = { place: { kind: "location" as const, source: "cde-public", code: "code-s1" } };
+
+	test("the focus school with its type ticked: the pin sits on the site's own point", async () => {
+		const [lon, lat] = [-119.8123456, 36.7654321];
+		schoolResolvers(lon, lat);
+		vi.mocked(getPesticideLocations).mockResolvedValue(
+			siteCollection([site("s1", "public_school", lon, lat)]) as never
+		);
+		await show(locationsMap(["public_school"], school));
+		const map = await madeMap();
+		map.ready = true;
+		await expect
+			.poll(() => schoolsOf(map, "school")?.options.source.features?.features)
+			.toHaveLength(1);
+		const feature = schoolsOf(map, "school")!.options.source.features!.features[0];
+		await expect.poll(() => focusOf(map)?.geometry).toBeTruthy();
+		// Exactly equal, so map-sdk draws one badge with the ring and one list row.
+		expect((focusOf(map)!.geometry as { coordinates: number[] }).coordinates).toEqual(
+			feature.geometry.coordinates
+		);
+		expect(getPesticideLocations).toHaveBeenCalledWith({ region: "z93721" });
+	});
+
+	test("a site whose point differs from the resolver's: the pin follows the resolver", async () => {
+		const [lon, lat] = [-119.8123456, 36.7654321];
+		schoolResolvers(lon, lat);
+		vi.mocked(getPesticideLocations).mockResolvedValue(
+			siteCollection([site("s1", "public_school", lon + 0.001, lat - 0.001)]) as never
+		);
+		await show(locationsMap(["public_school"], school));
+		const map = await madeMap();
+		map.ready = true;
+		await expect
+			.poll(() => schoolsOf(map, "school")?.options.source.features?.features)
+			.toHaveLength(1);
+		await expect
+			.poll(() => focusOf(map)?.geometry)
+			.toEqual({ type: "Point", coordinates: [lon, lat] });
+	});
+
+	test("the focus school with its type unticked: the pin as today", async () => {
+		const [lon, lat] = [-119.8123456, 36.7654321];
+		schoolResolvers(lon, lat);
+		vi.mocked(getPesticideLocations).mockResolvedValue(
+			siteCollection([site("s1", "public_school", lon, lat)]) as never
+		);
+		await show(locationsMap(["child_care"], school));
+		const map = await madeMap();
+		map.ready = true;
+		await expect.poll(() => pluginIds(map)).toContain("locations-child_care");
+		expect(pluginIds(map)).not.toContain("locations-school");
+		await expect
+			.poll(() => focusOf(map)?.geometry)
+			.toEqual({ type: "Point", coordinates: [lon, lat] });
+		expect(focusOf(map)!.label).toBe("Site s1");
+	});
 });

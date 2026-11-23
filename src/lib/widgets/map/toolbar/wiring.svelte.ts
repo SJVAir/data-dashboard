@@ -31,6 +31,7 @@ import {
 import {
 	activeFilters,
 	isExempt,
+	LOCATION_PREFIX,
 	NOTICES_KEY,
 	toOptions,
 	USE_KEY,
@@ -69,6 +70,11 @@ export type MapToolbarWiringInput = {
 	readonly notices: boolean;
 	/** The spray notices' label (the catalog's); undefined while unknown (no row then). */
 	readonly noticesLabel: string | undefined;
+	/**
+	 * The location groups the tile draws: those with a type of theirs ticked, in the regions
+	 * meta's order, labelled by it (a row each).
+	 */
+	readonly locationGroups: readonly { key: string; label: string }[];
 	/** Whether the tile has the pesticide use layer. */
 	readonly use: boolean;
 	/** The pesticide use label (the catalog's); undefined while unknown (no row then). */
@@ -99,14 +105,15 @@ function optionKeys(changed: string[]): (keyof MapOptions)[] {
 			if (key === NOTICES_KEY) return ["noticesShown"];
 			if (key === USE_KEY) return ["useShown"];
 			if (key.startsWith(TYPE_PREFIX)) return ["hiddenTypes"];
+			if (key.startsWith(LOCATION_PREFIX)) return ["hiddenLocationGroups"];
 			return (MAP_TOOLBAR_KEYS as readonly string[]).includes(key) ? [key as keyof MapOptions] : [];
 		})
 	);
 }
 
-/** Whether two option values are one (the hidden types in any order). */
+/** Whether two option values are one (the hidden types and groups in any order). */
 function sameOption(key: keyof MapOptions, a: unknown, b: unknown): boolean {
-	if (key === "hiddenTypes") {
+	if (key === "hiddenTypes" || key === "hiddenLocationGroups") {
 		const x = [...((a as string[] | undefined) ?? [])].sort();
 		const y = [...((b as string[] | undefined) ?? [])].sort();
 		return x.length === y.length && x.every((v, i) => v === y[i]);
@@ -166,6 +173,7 @@ export class MapToolbarWiring {
 				this.#in.notices &&
 				this.#in.noticesLabel !== undefined &&
 				!notShown.includes(PESTICIDE_NOTICES),
+			locations: this.#in.locationGroups.map(({ key, label }) => ({ key, label })),
 			use: this.#useOffer()
 		};
 		return JSON.stringify(offer);
@@ -186,6 +194,14 @@ export class MapToolbarWiring {
 	readonly fillShown = $derived(!(this.offer.fill && this.options.fillShown === false));
 	/** Whether the spray notices show: `noticesShown: false` hides them while their row is offered. */
 	readonly noticesShown = $derived(!(this.offer.notices && this.options.noticesShown === false));
+	/**
+	 * The keys of the location groups shown: each the tile draws, unless `hiddenLocationGroups`
+	 * switches it off (its row is offered whenever the group is drawn).
+	 */
+	readonly locationGroupsShown = $derived.by(() => {
+		const hidden = this.options.hiddenLocationGroups ?? [];
+		return this.offer.locations.map((g) => g.key).filter((key) => !hidden.includes(key));
+	});
 	/**
 	 * Whether pesticide use shows: `useShown: false` hides it (also before its row is offered, so
 	 * a hidden use never flashes while the catalog loads).

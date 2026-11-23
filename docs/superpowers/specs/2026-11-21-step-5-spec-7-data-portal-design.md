@@ -228,8 +228,9 @@ Settled at the 7b plan (the user, 2026-11-22; plan
     `types` allow-list (checked in `../map-sdk`'s working copy; confirm against the pinned
     `@sjvair/map-sdk` `0.1.0-beta.22`).
 26. **Where filters them:** one `getPesticideLocations({ region })` per area (`buffer` not used).
-    No Where: the whole valley in one call (the earlier check: 2,747 sites, about 191 KB
-    uncompressed). A school, address or point in Where loads the area its data uses (ZIP code
+    No Where: the whole valley in one call (the server session's measure, 2026-11-22: 2,782
+    sites locally, about 1.5 MB uncompressed and 195 KB gzipped, about 0.8 s uncached; the earlier
+    "191 KB uncompressed" was the gzipped size). A school, address or point in Where loads the area its data uses (ZIP code
     first).
 27. **Not markable, no "Show in a chart / table", each gets its card.** The schools preset is
     already `selectable: false`. Hover cards are static; interactive only pinned or focused.
@@ -237,6 +238,42 @@ Settled at the 7b plan (the user, 2026-11-22; plan
     recorded in `DEFERRED.md` → "The focus school drawn twice").
 29. **Show as from a Map with schools** drops them with a note, the way a region fill is dropped
     (`mapShowingOnly`, `get-data/map.ts:427`).
+
+Settled at the 7c brainstorm (the user, 2026-11-22; plan
+`docs/superpowers/plans/2026-11-22-step-5-spec-7c-schools-on-the-map.md`):
+
+- **Schools and child care are two sections in What, not one** (the user chose A). "Schools" holds
+  a Public school and a Private school checkbox; "Child care" holds one. Sections, headings and
+  order come from the regions meta: a `group` on each location type and the groups' labels and
+  order, a server and SDK change asked through the coordinator (suggested shape, as
+  `monitor_groups`: `location_groups: {key: {key, label, order}}` and `location_types[t].group`).
+  This replaces decision 24's single section; decision 25's checkbox per type stands.
+- **No Where loads the valley's sites in one call** (decision 26) through a second server and SDK
+  change: `pesticides/locations/` with no area returns every location (today it answers 400 "bbox
+  is required"). Asked with the groups change; 7c's PR waits for the `@sjvair/sdk` 5.0.0 beta that
+  carries both.
+- **The default pollutant stays PM2.5, hardcoded** (the user: "Users will edit things as they need,
+  and PM2.5 will probably be the most common one they want"). `DEFERRED.md` → "A new widget's
+  pollutant from the monitors meta's `default_pollutant`".
+
+My calls (2026-11-22), for the user to check in the plan:
+
+- **Saved shape:** one Map layer `{ dataset: "locations", locationTypes: [...] }` holding the ticked
+  types of both sections; nothing ticked removes it. It sits after the notices and before the use.
+- **Fetching:** one `getPesticideLocations({ region })` per area in Where (its sqid from the region
+  resolver), every type at once, deduplicated by site id; ticking only changes map-sdk's `types`
+  allow-list. A school in Where loads its first fallback region (ZIP code first); a point, the
+  region its PM2.5 lookup uses (as sharing does).
+- **Drawing:** one `schoolsPlugin` per group, labelled with the group's label, so the list, legend
+  and Layers show "Schools" and "Child care" apart. The toolbar gets a Layers row per group
+  (`hiddenLocationGroups` in the Map's options, like `hiddenTypes`).
+- **The focus school** takes the site's own coordinates (checked equal to the location lookup's),
+  so map-sdk drops the duplicate row; with the layer off or the school's type unticked, the pin is
+  as today.
+- **The location sources come from the regions meta** (`location_types[t].source`), replacing the
+  hand-kept `LOCATION_SOURCES` table.
+- **A saved type the meta no longer lists** shows as a greyed checkbox that can still be unticked
+  (7a's R21) and isn't drawn. A type with no group gets a section of its own, titled with its label.
 
 ## Approaches (the data shape; the user chose A)
 
@@ -453,3 +490,30 @@ The user's calls, 2026-11-22:
   lowering a level below the current reading shows the mark without a toast. **A behaviour change; say so in the PR.**
 - **R15:** an untitled two-pollutant card's notification is titled with both pollutants (the
   saved card's generated title); a browser test covers it.
+
+**7c** (2026-11-22): rulings by the session lead while building 7c (the 7c ledger's R1–R10).
+
+- **R1:** the flaky arrange-submenu test was investigated on a throwaway branch
+  (`step-5-spec-7c-flake`) so the logging for CI never reached the PR branch; only the fix was
+  applied. The cause was in the app: bits-ui 2.19.2 mounts a top-level menu's focus scope twice,
+  and the second opening-focus frame, landing after ArrowRight, closed the submenu. The menu
+  wrappers now do the opening focus themselves (`open-auto-focus.ts`; `DEFERRED.md` records the
+  workaround and when to drop it).
+- **R2:** Task 3 also touched the view that renders the "left out" notes.
+- **R3:** the focus school's coordinates were compared on the local stack (outside :40–:50, reads
+  only): the location lookup and the sites list agree exactly on three sites, so map-sdk draws the
+  focus school once with no dashboard change.
+- **R4:** sites are fetched once per session per region (and once valley-wide) and shared across
+  Maps; each Map filters the list, never copies it (the valley list is about 1.5 MB raw).
+- **R5:** every other reader of a widget's layers skips the locations layer, as it skips the
+  notices; an empty `locationTypes` draws and fetches nothing.
+- **R6:** a school in Where loads the first of its fallback regions (ZIP, then city, then county)
+  that the server has.
+- **R7:** a saved location type the meta no longer lists shows in a "No longer offered" block, ticked
+  and greyed, and can be unticked.
+- **R8:** notes name only the ticked groups, with the meta's labels joined by `formatList`; when the
+  groups can't be loaded the note names none ("A map layer couldn't be loaded.").
+- **R9:** the Map adds each group's plugin in the meta's group order, so the legend lists "Schools"
+  before "Child care" whatever order they were ticked in; ticking one group never remakes another.
+- **R10:** the Show as note reads "{layers}: shown only on a map, so left out."
+- The default pollutant stays PM2.5 (the user's call at the brainstorm; `DEFERRED.md`).

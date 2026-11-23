@@ -37,8 +37,36 @@ const fakes = vi.hoisted(() => ({
 	noticesUnavailable: { value: false },
 	/** Whether the notices' fake key names the layer's filters (as the real key does). */
 	noticesKeyFilters: { value: false },
-	noticeFilterNames: vi.fn<() => Promise<string[]>>(async () => ["chemical_id", "category"])
+	noticeFilterNames: vi.fn<() => Promise<string[]>>(async () => ["chemical_id", "category"]),
+	locationsSource: vi.fn<(where: string) => void>(),
+	locationsFetch: vi.fn<(key: string) => Promise<unknown>>(async () => ({ features: [] })),
+	locationsUnavailable: { value: false },
+	locationsLookupFails: { value: 0 }
 }));
+
+vi.mock("./locations", async (original) => {
+	const real = await original<typeof import("./locations")>();
+	return {
+		...real,
+		locationsEntry: {
+			...real.locationsEntry,
+			// Keyed by the Where alone, as the real key is by its areas' sqids.
+			source: async ({ data }: { data: WidgetInstance["data"] }) => {
+				const layer = data.layers.find((l) => l.dataset === "locations");
+				if (!layer?.locationTypes?.length) return null;
+				const where = JSON.stringify(data.place ?? data.selection ?? null);
+				fakes.locationsSource(where);
+				if (fakes.locationsLookupFails.value > 0) {
+					fakes.locationsLookupFails.value--;
+					throw new Error("offline");
+				}
+				if (fakes.locationsUnavailable.value) return { unavailable: "region-unresolved" };
+				const key = `locations:${where}`;
+				return { key, cadence: "hour", fetch: () => fakes.locationsFetch(key) };
+			}
+		}
+	};
+});
 
 vi.mock("./notices", async (original) => {
 	const real = await original<typeof import("./notices")>();
@@ -170,6 +198,22 @@ const withPesticides = (filters: PesticideFilters): WidgetInstance =>
 		}
 	}) as WidgetInstance;
 
+/** A Map with the locations layer, `types` ticked, at `place` (Fresno County by default). */
+const withLocations = (
+	types: string[] | undefined,
+	place: WidgetInstance["data"]["place"] = WIDGET.data.place
+): WidgetInstance =>
+	({
+		...WIDGET,
+		data: {
+			place,
+			layers: [
+				...WIDGET.data.layers,
+				{ dataset: "locations", ...(types && { locationTypes: types }) }
+			]
+		}
+	}) as WidgetInstance;
+
 const useQueryOf = (filters: PesticideFilters): UseQuery => ({
 	figure: "pounds-applied",
 	period: { year: 2023, month: null },
@@ -257,6 +301,11 @@ beforeEach(() => {
 	vi.mocked(getPesticideTownships).mockImplementation(async () => USE_RESPONSE as never);
 	fakes.noticeFilterNames.mockReset();
 	fakes.noticeFilterNames.mockImplementation(async () => ["chemical_id", "category"]);
+	fakes.locationsSource.mockClear();
+	fakes.locationsFetch.mockClear();
+	fakes.locationsFetch.mockImplementation(async () => ({ features: [] }));
+	fakes.locationsUnavailable.value = false;
+	fakes.locationsLookupFails.value = 0;
 });
 afterEach(() => vi.useRealTimers());
 
@@ -483,5 +532,116 @@ describe("MapData", () => {
 		});
 		expect(getPesticideTownships).not.toHaveBeenCalled();
 		gone.data.destroy();
+	});
+
+	it("the locations load once for the Where, never polled nor tied to the day", async () => {
+		const t = setup({ at: { day: "2026-11-10" }, widget: withLocations(["a"]) });
+		await flush();
+		expect(t.data.locations).toBe(true);
+		expect(fakes.locationsFetch).toHaveBeenCalledTimes(1);
+		expect(t.data.locationsState.status).toBe("ready");
+		expect(t.data.locationsFailed).toBe(false);
+		expect(t.data.locationsUnavailable).toBeUndefined();
+		// A step to another day, and an hour on, fetch nothing new.
+		t.set({ at: { day: "2026-11-11" } });
+		await flush();
+		await vi.advanceTimersByTimeAsync(HOUR);
+		expect(fakes.locationsFetch).toHaveBeenCalledTimes(1);
+		expect(fakes.locationsSource).toHaveBeenCalledTimes(1);
+		t.data.destroy();
+	});
+
+	it("ticking other types never refetches; a new Where does", async () => {
+		const t = setup({ at: "now", widget: withLocations(["a"]) });
+		await flush();
+		t.setWidget(withLocations(["a", "b"]), null);
+		await flush();
+		expect(fakes.locationsSource).toHaveBeenCalledTimes(1);
+		expect(fakes.locationsFetch).toHaveBeenCalledTimes(1);
+
+		t.setWidget(withLocations(["a", "b"], { kind: "region", type: "county", code: "kings" }), null);
+		await flush();
+		expect(fakes.locationsFetch).toHaveBeenCalledTimes(2);
+		expect(fakes.locationsFetch.mock.calls[1][0]).toContain("kings");
+		t.data.destroy();
+	});
+
+	it("without the layer, or with no type ticked, nothing loads", async () => {
+		for (const widget of [WIDGET, withLocations(undefined), withLocations([])]) {
+			const t = setup({ at: "now", widget });
+			await flush();
+			expect(t.data.locations).toBe(false);
+			expect(t.data.locationsState.status).toBe("idle");
+			t.data.destroy();
+		}
+		expect(fakes.locationsSource).not.toHaveBeenCalled();
+		expect(fakes.locationsFetch).not.toHaveBeenCalled();
+	});
+
+	it("removing the layer drops the locations; ticking a type again loads them", async () => {
+		const t = setup({ at: "now", widget: withLocations(["a"]) });
+		await flush();
+		t.setWidget(withLocations([]), null);
+		await flush();
+		expect(t.data.locations).toBe(false);
+		expect(t.data.locationsState.status).toBe("idle");
+		t.setWidget(withLocations(["b"]), null);
+		await flush();
+		expect(t.data.locationsState.status).toBe("ready");
+		expect(fakes.locationsSource).toHaveBeenCalledTimes(2);
+		t.data.destroy();
+	});
+
+	it("a Where with no region on the server makes the locations unavailable", async () => {
+		fakes.locationsUnavailable.value = true;
+		const t = setup({ at: "now", widget: withLocations(["a"]) });
+		await flush();
+		expect(t.data.locationsUnavailable).toBe("region-unresolved");
+		expect(fakes.locationsFetch).not.toHaveBeenCalled();
+		// Gone with the layer.
+		t.setWidget(WIDGET, null);
+		await flush();
+		expect(t.data.locationsUnavailable).toBeUndefined();
+		t.data.destroy();
+	});
+
+	it("retryLocations fetches the locations again after a failure", async () => {
+		fakes.locationsFetch.mockRejectedValueOnce(new Error("offline"));
+		const t = setup({ at: "now", widget: withLocations(["a"]) });
+		await flush();
+		expect(t.data.locationsFailed).toBe(true);
+		t.data.retryLocations();
+		await flush();
+		expect(fakes.locationsFetch).toHaveBeenCalledTimes(2);
+		expect(t.data.locationsFailed).toBe(false);
+		t.data.destroy();
+	});
+
+	it("a failed lookup shows as a failure; retryLocations looks up again", async () => {
+		fakes.locationsLookupFails.value = 1;
+		const t = setup({ at: "now", widget: withLocations(["a"]) });
+		await flush();
+		expect(t.data.locationsFailed).toBe(true);
+		expect(fakes.locationsFetch).not.toHaveBeenCalled();
+		t.data.retryLocations();
+		await flush();
+		expect(fakes.locationsSource).toHaveBeenCalledTimes(2);
+		expect(fakes.locationsFetch).toHaveBeenCalledTimes(1);
+		expect(t.data.locationsState.status).toBe("ready");
+		t.data.destroy();
+	});
+
+	it("a retried lookup that finds no region shows unavailable, not the old failure", async () => {
+		fakes.locationsLookupFails.value = 1;
+		const t = setup({ at: "now", widget: withLocations(["a"]) });
+		await flush();
+		expect(t.data.locationsFailed).toBe(true);
+		fakes.locationsUnavailable.value = true;
+		t.data.retryLocations();
+		await flush();
+		expect(t.data.locationsUnavailable).toBe("region-unresolved");
+		expect(t.data.locationsFailed).toBe(false);
+		expect(fakes.locationsFetch).not.toHaveBeenCalled();
+		t.data.destroy();
 	});
 });

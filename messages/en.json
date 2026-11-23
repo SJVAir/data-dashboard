@@ -1082,6 +1082,8 @@
 	"get_data_overlay_for": "Overlay for",
 	"get_data_smoke_and_fire": "Smoke and fire",
 	"getdata_note_fill_dropped": "Filled regions only apply to the map, so the fill was left out.",
+	"get_data_dropped_locations": "{layers}: shown only on a map, so left out.",
+	"get_data_dropped_locations_unnamed": "Layers shown only on a map were left out.",
 	"get_data_marks_left_out": "Marked monitors don't apply to this widget, so they were left out.",
 	"get_data_marks_hidden_left_out": [
 		{
@@ -1276,6 +1278,8 @@
 	"getdata_map_pesticide_filters": "Filter pesticides",
 	"getdata_map_notices_filter_skipped": "{filter}: doesn't apply to spray notices",
 	"getdata_map_use_switch": "Show pesticide use",
+	"getdata_map_locations_gone": "No longer offered",
+	"getdata_map_location_type_gone": "SJVAir no longer offers these places. Untick to remove them.",
 	"getdata_map_use_no_years": "No years with pesticide use data are available yet.",
 	"getdata_map_use_years_unavailable": "Pesticide use can't be shown right now: the years with data couldn't be loaded.",
 	"getdata_map_section_fallback": [
@@ -1378,6 +1382,9 @@
 	"map_fill_year_so_far": "{regionType}, this year so far",
 	"map_fill_failed": "The region fill couldn't be loaded.",
 	"map_notices_failed": "Spray notices couldn't be loaded.",
+	"map_locations_failed": "{layers} couldn't be loaded.",
+	"map_locations_unavailable": "{layers} can't be shown here",
+	"map_locations_groups_failed": "A map layer couldn't be loaded.",
 	"map_notices_filter_gone": "Spray notices can't be shown: a filter they use is no longer available.",
 	"map_notices_legend_units": "Numbered: how many notices",
 	"map_notices_legend_filters": "Filtered by {filters}",
