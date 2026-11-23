@@ -6,13 +6,15 @@ import type {
 } from "@sjvair/map-sdk/data";
 import type { Bounds } from "@sjvair/map-sdk";
 import type { RegionSummaryBulkType } from "@sjvair/sdk";
-import type { NowClient } from "$lib/data/now/client";
+import type { NowClient, NowSource } from "$lib/data/now/client";
+import { NowQuery } from "$lib/data/now/now-query.svelte";
 import { noticeFiltersSkipped } from "$lib/data/adapters/pesticides";
 import type { Layer, PesticideFilters } from "$lib/data/schema";
 import type { UnavailableReason } from "$lib/data/types";
 import { atKey, atOfKey, type SnapshotAt } from "$lib/data/snapshot";
 import type { WidgetInstance } from "$lib/documents/schema";
-import { hasNotices, hasSmokeAndFire } from "$lib/get-data/map";
+import { hasNotices, hasSmokeAndFire, locationsLayer } from "$lib/get-data/map";
+import { widgetWhere } from "$lib/widgets/shared/input";
 import { mapMessages } from "../host/messages";
 import { PESTICIDE_NOTICES, PESTICIDE_USE } from "../options";
 import type { MonitorFilters } from "../toolbar/values";
@@ -20,6 +22,7 @@ import { AHEAD, DayLayer } from "./day-layer.svelte";
 import { filtersKey } from "./filters-key";
 import { fillEntry, fillPolls, fillSourceOf, type FillData, type FillSource } from "./fill";
 import { hmsEntry, hmsPolls, hmsSourceOf, type HmsData } from "./hms";
+import { locationsEntry, type LocationsData } from "./locations";
 import { MonitorsBlock } from "./monitors-block.svelte";
 import {
 	NO_NOTICES,
@@ -33,6 +36,9 @@ import {
 import type { DayRating } from "./monitors";
 import type { UseQuery } from "./use";
 import { UseBlock } from "./use-block.svelte";
+
+/** Numbers the locations' stand-in sources after a failed lookup, unique across Maps. */
+let lookupFailures = 0;
 
 /** What the data blocks read from the widget, each time they run. */
 export type MapDataInput = {
@@ -67,7 +73,8 @@ export type MapDataInput = {
  * The map widget's loaded data: the monitors (the pollutant showing's readings, or the day
  * showing's figures, limited by the places), the region fill (the day's figures, or today's so
  * far on now; over the whole map), smoke and fire (now's or the day's) and the spray notices
- * (active now, or on the day showing; narrowed by the pesticide filters). Its effects
+ * (active now, or on the day showing; narrowed by the pesticide filters), and the schools and
+ * child care sites in the Where (every type; not tied to the day, never polled). Its effects
  * run in their own root; `destroy()` ends them and the queries. Give the input as an object of
  * getters, so each field is read on its own (the filters follow the loaded monitors: reading them
  * with the places would be a cycle).
@@ -81,6 +88,8 @@ export class MapData {
 	readonly #hms: DayLayer<HmsData>;
 	readonly #fill: DayLayer<FillData>;
 	readonly #notices: DayLayer<NoticesData>;
+	/** The schools and child care sites: one query, never polled (sites have no time). */
+	readonly #locations: NowQuery<LocationsData>;
 	/** Pesticide use: the townships, the sections in view and the lens's block. */
 	readonly useBlock: UseBlock;
 
@@ -97,6 +106,12 @@ export class MapData {
 	#noticeFilters = $state.raw<readonly string[] | null>(null);
 	/** A load of the notice filter names is in flight (not reactive: only a guard). */
 	#noticeFiltersLoading = false;
+	/** Why the locations can't load (a Where with no region on the server), if they can't. */
+	#locationsUnavailable = $state<UnavailableReason | undefined>();
+	/** Counts the locations' updates, so a late lookup for an older one is ignored. */
+	#locationsRun = 0;
+	/** Aborts the locations' lookup in flight. */
+	#locationsLookup: AbortController | null = null;
 
 	/** Narrow deriveds, so an effect re-runs only when the one value it needs changes. */
 	readonly #entryType = $derived.by(() => this.#getInput().entryType);
@@ -113,6 +128,18 @@ export class MapData {
 				{}
 		)
 	);
+
+	/** The Where, as a key: the locations are looked up again only when it changes. */
+	readonly #whereKey = $derived.by(() => JSON.stringify(widgetWhere(this.#getInput().widget.data)));
+
+	/**
+	 * Whether the tile loads the schools and child care sites: it has the layer with a type ticked
+	 * (missing or empty ticks are nothing ticked).
+	 */
+	readonly locations = $derived.by(
+		() => !!locationsLayer(this.#getInput().widget.data)?.locationTypes?.length
+	);
+	readonly locationsFailed = $derived(this.locationsState.status === "error");
 
 	/** Whether the tile has the pesticide use layer. */
 	readonly use = $derived.by(() =>
@@ -205,6 +232,9 @@ export class MapData {
 			polls: (at) => noticesPolls(at)
 		});
 
+		this.#locations = new NowQuery<LocationsData>(deps.now);
+		this.#locations.setPolling(false);
+
 		const useOn = () => this.#loads && this.use;
 		this.useBlock = new UseBlock(() => ({
 			get on() {
@@ -257,6 +287,12 @@ export class MapData {
 				this.#noticesRun++;
 				if (!on) this.#noticesUnavailable = undefined;
 				this.#notices.update({ on, at: this.#at(), ahead: this.#ahead(), today: this.#today });
+			});
+			$effect(() => {
+				// The Where and the layer's presence only: ticking other types never refetches.
+				const on = this.#loads && this.locations;
+				void this.#whereKey;
+				untrack(() => this.#updateLocations(on));
 			});
 			$effect(() => {
 				// Tried again each time the notices' state changes: the fetch loads the meta too, so a
@@ -366,6 +402,17 @@ export class MapData {
 		return this.#noticesUnavailable;
 	}
 
+	get locationsQuery(): NowQuery<LocationsData> {
+		return this.#locations;
+	}
+	get locationsState(): NowQuery<LocationsData>["state"] {
+		return this.#locations.state;
+	}
+	/** Why the locations can't load (a Where with no region on the server), if they can't. */
+	get locationsUnavailable(): UnavailableReason | undefined {
+		return this.#locationsUnavailable;
+	}
+
 	/** Why pesticide use can't load (a saved filter the server no longer has), if it can't. */
 	get useUnavailable(): UnavailableReason | undefined {
 		return this.useBlock.townshipsState === "filter-gone" ? "filter-gone" : undefined;
@@ -396,6 +443,10 @@ export class MapData {
 		this.#notices.retry();
 	}
 
+	retryLocations(): void {
+		this.#locations.retry();
+	}
+
 	/** Asks again for the pesticide use that failed (never polled: it changes once a year). */
 	retryUse(): void {
 		this.useBlock.retry();
@@ -407,6 +458,8 @@ export class MapData {
 		this.#hms.destroy();
 		this.#fill.destroy();
 		this.#notices.destroy();
+		this.#locationsLookup?.abort();
+		this.#locations.destroy();
 		this.useBlock.destroy();
 	}
 
@@ -425,6 +478,58 @@ export class MapData {
 			() => {
 				this.#noticeFiltersLoading = false;
 				if (again && this.noticesState.status === "ready") this.#loadNoticeFilters(false);
+			}
+		);
+	}
+
+	/**
+	 * Looks the locations' areas up for the widget's Where and loads them (or drops them when
+	 * off). A failed lookup becomes a source that fails with its error, so the layer shows the
+	 * failure, and Retry looks up again.
+	 */
+	#updateLocations(on: boolean): void {
+		const run = ++this.#locationsRun;
+		this.#locationsLookup?.abort();
+		this.#locationsLookup = null;
+		if (!on) {
+			this.#locationsUnavailable = undefined;
+			this.#locations.set(null);
+			return;
+		}
+		const lookup = new AbortController();
+		this.#locationsLookup = lookup;
+		const data = $state.snapshot(this.#getInput().widget.data);
+		const sourceFor = (signal: AbortSignal) =>
+			locationsEntry.source({ data, entryType: "", at: "now" }, signal);
+		const apply = (
+			source: NowSource<LocationsData> | null,
+			unavailable?: UnavailableReason
+		): void => {
+			if (run !== this.#locationsRun) return;
+			this.#locationsLookup = null;
+			this.#locationsUnavailable = unavailable;
+			this.#locations.set(source);
+		};
+		sourceFor(lookup.signal).then(
+			(source) =>
+				source && "unavailable" in source ? apply(null, source.unavailable) : apply(source),
+			(error) => {
+				if (lookup.signal.aborted) return;
+				let failed = true;
+				apply({
+					key: `map-locations:failed:${++lookupFailures}`,
+					cadence: "hour",
+					fetch: async (signal) => {
+						// The first fetch is the failed lookup; each Retry looks up again.
+						if (failed) {
+							failed = false;
+							throw error;
+						}
+						const again = await sourceFor(signal);
+						if (again && "fetch" in again) return again.fetch(signal);
+						throw error;
+					}
+				});
 			}
 		);
 	}
