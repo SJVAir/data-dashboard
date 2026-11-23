@@ -170,7 +170,9 @@ describe("Duplicate for another place", () => {
 		const app = {
 			current: { session: { doc: d, readOnly, flush }, isStarter },
 			index: { names: new Map(), items: [], duplicate },
-			sessions: { get: vi.fn(async () => copy) }
+			sessions: { get: vi.fn(async () => copy) },
+			starterArea: null,
+			starterTypesReady: vi.fn(async () => ["a", "b"])
 		} as unknown as AppContext;
 		return { app, flush, duplicate };
 	}
@@ -255,7 +257,14 @@ describe("Duplicate for another place", () => {
 		const d = doc([widget("a", [B], 0), widget("b", [B], 4)], B);
 		const { app, flush, duplicate } = setup(d, true);
 		(await run(app))(TO);
-		await vi.waitFor(() => expect(duplicate).toHaveBeenCalledWith(STARTER_ID, { from: B, to: TO }));
+		await vi.waitFor(() =>
+			expect(duplicate).toHaveBeenCalledWith(STARTER_ID, {
+				from: B,
+				to: TO,
+				area: null,
+				types: ["a", "b"]
+			})
+		);
 		expect(flush).not.toHaveBeenCalled();
 		await vi.waitFor(() => expect(openRename).toHaveBeenCalled());
 	});

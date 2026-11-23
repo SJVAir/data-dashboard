@@ -31,6 +31,7 @@ import { forecastType } from "$lib/widgets/forecast";
 import { outsideType } from "$lib/widgets/outside";
 import { dataTableType } from "$lib/widgets/table";
 import { mapType } from "$lib/widgets/map";
+import { loadMonitorTypes } from "$lib/widgets/map/start";
 import { noteType } from "$lib/widgets/notes";
 import { placeholderType } from "$lib/widgets/placeholder";
 import { AccountState, type Notify } from "./account.svelte";
@@ -70,6 +71,17 @@ export type AppContext = {
 	 * holds areas only); `null` when none was looked up (`starterAreaFor` then decides).
 	 */
 	starterArea: ChosenPlace | null;
+	/**
+	 * The catalog's monitor types, which the starter's Map ticks: `null` until loaded (`[]` when
+	 * the catalog couldn't be loaded). Metadata, not a preference: loaded once per app and kept
+	 * through "Clear my data".
+	 */
+	starterTypes: readonly string[] | null;
+	/**
+	 * Starts loading `starterTypes` (once per app) and resolves to them; never rejects. Every
+	 * exit from the starter awaits it, so its copy's Map has them.
+	 */
+	starterTypesReady(): Promise<readonly string[]>;
 	/**
 	 * The starter's "Change place": saves `place` as the space's chosen place and shows a fresh
 	 * starter there (every widget at once; no copy, no undo). A starter whose first edit already
@@ -144,6 +156,9 @@ class App implements AppContext {
 	// Raw: places are cloned into documents, and a deep proxy can't be.
 	starterPlace = $state.raw<ChosenPlace>(defaultStarterPlace());
 	starterArea = $state.raw<ChosenPlace | null>(null);
+	starterTypes = $state.raw<readonly string[] | null>(null);
+	/** The load of `starterTypes`, started once. */
+	#typesLoad: Promise<readonly string[]> | null = null;
 	/** Counts starter place changes: a lookup answered after a newer change (or a reset) is stale. */
 	#starterChange = 0;
 	readonly index: DashboardIndex;
@@ -449,11 +464,7 @@ class App implements AppContext {
 		// Replaced before anything awaits, so an edit can't reach the old starter meanwhile.
 		this.starterPlace = place;
 		if (starter) {
-			starter.discard();
-			this.#live.delete(STARTER_ID);
-			const fresh = this.#starter();
-			this.#open.set(STARTER_ID, Promise.resolve(fresh));
-			if (this.current.isStarter) this.current = { session: fresh, isStarter: true };
+			this.#replaceStarter(starter);
 		} else {
 			this.#open.delete(STARTER_ID);
 		}
@@ -463,6 +474,48 @@ class App implements AppContext {
 			// Shown for now; the next visit shows the place saved before.
 			report(error, { operation: "starter-place" });
 		}
+	}
+
+	/**
+	 * Shows a fresh starter in place of `starter` (unedited): every widget at once, no copy, no
+	 * undo. Its widget ids are the same, so fullscreen and open dialogs keep their target.
+	 * `keep`: `starter` isn't shown but may be about to be (opened, not yet made current), so it
+	 * stays usable: its first edit still makes a copy, and the next open gets the fresh one.
+	 */
+	#replaceStarter(starter: DocumentSession, keep = false): void {
+		if (!keep) starter.discard();
+		this.#live.delete(STARTER_ID);
+		const fresh = this.#starter();
+		this.#open.set(STARTER_ID, Promise.resolve(fresh));
+		if (this.current.isStarter) this.current = { session: fresh, isStarter: true };
+	}
+
+	starterTypesReady(): Promise<readonly string[]> {
+		this.#typesLoad ??= loadMonitorTypes()
+			// It never rejects; were it to, the starter's first edit would wait forever.
+			.catch((): string[] => [])
+			.then((types) => {
+				try {
+					this.#typesArrived(types);
+				} catch (error) {
+					report(error, { operation: "starter-types" });
+				}
+				return types;
+			});
+		return this.#typesLoad;
+	}
+
+	/**
+	 * The catalog's monitor types arrived: kept, and the shown starter (built before, so without
+	 * them) is replaced by one with them, unless its first edit started its hand-off (the copy
+	 * gets them then) or the app is closed.
+	 */
+	#typesArrived(types: readonly string[]): void {
+		this.starterTypes = types;
+		if (this.#closed || types.length === 0) return;
+		const starter = this.#live.get(STARTER_ID);
+		if (!starter || this.#handedOff()) return;
+		this.#replaceStarter(starter, this.current.session !== starter);
 	}
 
 	async copyStarter(): Promise<DocumentSession | null> {
@@ -476,6 +529,8 @@ class App implements AppContext {
 	#starter(): DocumentSession {
 		const { debounceMs, now } = this.options;
 		const resets = this.resetCount;
+		// Shown at once; replaced by one with the types when they arrive (`#typesArrived`).
+		if (this.starterTypes === null) void this.starterTypesReady();
 		const starter = starterSession({
 			platform: this.platform,
 			space: this.space,
@@ -485,8 +540,8 @@ class App implements AppContext {
 			now,
 			place: this.starterPlace,
 			area: this.starterArea,
-			types: [],
-			typesReady: async () => [],
+			types: this.starterTypes ?? [],
+			typesReady: () => this.starterTypesReady(),
 			...this.#guards,
 			onCopied: (copy) => {
 				// A hand-off that finished after the data was cleared mustn't come back.

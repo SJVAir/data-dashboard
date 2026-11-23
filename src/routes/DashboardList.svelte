@@ -104,8 +104,10 @@
 	}
 
 	async function createFromStarter() {
+		// The copy's Map has the catalog's monitor types, so they're loaded first.
+		const types = await app.starterTypesReady();
 		await navigate("/dashboards/:id", {
-			params: { id: await app.index.createFromStarter(app.starterPlace, app.starterArea, []) }
+			params: { id: await app.index.createFromStarter(app.starterPlace, app.starterArea, types) }
 		});
 	}
 </script>

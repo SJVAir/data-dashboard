@@ -49,11 +49,13 @@ type Target = {
  */
 async function targetOf(app: AppContext, id?: string): Promise<Target | null> {
 	if (id === undefined) {
+		// The starter's Map has the catalog's monitor types, so they're loaded first.
+		const types = app.current.isStarter ? await app.starterTypesReady() : [];
 		const { session, isStarter } = app.current;
 		if (!session) return null;
 		if (isStarter)
 			return {
-				doc: starterDashboard(app.starterPlace, app.starterArea, []),
+				doc: starterDashboard(app.starterPlace, app.starterArea, types),
 				name: currentDashboardName(app) ?? "",
 				readOnly: false,
 				isStarter: true,

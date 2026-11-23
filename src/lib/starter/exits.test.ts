@@ -21,10 +21,20 @@ import { writeSelection } from "$lib/widgets/calendars/shared/write-selection";
 import { placeRegion } from "$lib/data";
 import { STARTER_AREA_KEY, STARTER_PLACE_KEY, saveStarterPlace } from "./place.svelte";
 import { STARTER_ID } from "./starter";
+import { loadMonitorTypes } from "$lib/widgets/map/start";
+import { MAP_TYPE } from "$lib/widgets/map/options";
+import { dashboardActions } from "$lib/actions/dashboard";
+import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
+import { takeAfterMenuClose } from "$lib/components/menu/menu-state.svelte";
 
 // Sharing's navigation and dialogs aren't used here (and the router needs a page).
 vi.mock("../../router", () => ({ navigate: vi.fn() }));
-vi.mock("$lib/components/dialogs/lazy.svelte", () => ({ openShare: vi.fn() }));
+vi.mock("$lib/components/dialogs/lazy.svelte", () => ({
+	openShare: vi.fn(),
+	openPlacePicker: vi.fn(),
+	askWhichPlace: vi.fn()
+}));
+vi.mock("$lib/components/dialogs/RenameDialog.svelte", () => ({ openRename: vi.fn() }));
 vi.mock("svelte-sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
 // Any point is in ZIP 93721.
 vi.mock("$lib/data", async (importOriginal) => ({
@@ -32,9 +42,38 @@ vi.mock("$lib/data", async (importOriginal) => ({
 	placeRegion: vi.fn(async () => ({ type: "zipcode", code: "93721" }))
 }));
 
+// The catalog's monitor types, as loaded (a test controls when they arrive).
+vi.mock("$lib/widgets/map/start", async (importOriginal) => ({
+	...(await importOriginal<typeof import("$lib/widgets/map/start")>()),
+	loadMonitorTypes: vi.fn()
+}));
+
+const TYPES = ["purpleair", "airnow"];
+
+beforeEach(() => {
+	vi.mocked(loadMonitorTypes).mockReset();
+	vi.mocked(loadMonitorTypes).mockImplementation(async () => [...TYPES]);
+});
+
+/** Makes the next load answer only when `answer` is called. */
+function holdTypes() {
+	let answer!: (types: string[]) => void;
+	vi.mocked(loadMonitorTypes).mockImplementationOnce(
+		() => new Promise<string[]>((resolve) => (answer = resolve))
+	);
+	return (types: string[] = [...TYPES]) => answer(types);
+}
+
+/** The monitor types `doc`'s Map ticks (`undefined`: none). */
+function mapTypes(doc: Dashboard): string[] | undefined {
+	const map = doc.body.widgets.find((w) => w.type === MAP_TYPE)!;
+	return map.data.layers.find((l) => l.monitorTypes)?.monitorTypes;
+}
+
 const SCHOOL: ChosenPlace = { kind: "location", source: "schools", code: "123" };
 const POINT: ChosenPlace = { kind: "point", lat: 36.7378, lon: -119.7871 };
 const ZIP: ChosenPlace = { kind: "region", type: "zipcode", code: "93721" };
+const TULARE: ChosenPlace = { kind: "region", type: "county", code: "06107" };
 
 /** The app, with `place` saved as the starter's place first (none: unset). */
 async function setup(place?: ChosenPlace) {
@@ -49,12 +88,45 @@ async function stored(platform: ReturnType<typeof createMemoryPlatform>, id: str
 	return (await platform.documents.get("anonymous", id)) as Dashboard;
 }
 
+/** The one stored dashboard, once there is one. */
+async function newest(platform: ReturnType<typeof createMemoryPlatform>) {
+	let id = "";
+	await vi.waitFor(async () => {
+		const ids = await platform.documents.list("anonymous");
+		expect(ids).toHaveLength(1);
+		id = typeof ids[0] === "string" ? ids[0] : (ids[0] as { id: string }).id;
+	});
+	return stored(platform, id);
+}
+
+/** The starter, shown. */
+async function showStarter(app: Awaited<ReturnType<typeof initApp>>) {
+	const starter = (await app.sessions.get(STARTER_ID))!;
+	app.current = { session: starter, isStarter: true };
+	return starter;
+}
+
+/** Runs the open dashboard's menu item `id` as the menu does (after it closes). */
+async function run(app: Awaited<ReturnType<typeof initApp>>, id: string) {
+	const ctx = { target: {} as Element, payload: {} };
+	const item = dashboardActions(app)(ctx).find((i) => i.id === id)!;
+	item.run!(ctx);
+	takeAfterMenuClose()?.();
+}
+
 /**
  * `doc` is the starter at `place`; its Chart (areas only, decision 2) at `area` when `place` is a
  * school or point (Fresno County when no region was looked up).
  */
-function expectFromStarter(doc: Dashboard, place: ChosenPlace, area: ChosenPlace = DEFAULT_PLACE) {
+function expectFromStarter(
+	doc: Dashboard,
+	place: ChosenPlace,
+	area: ChosenPlace = DEFAULT_PLACE,
+	types: string[] | null = TYPES
+) {
 	expect(DashboardSchema.safeParse(doc).success).toBe(true);
+	// `null`: none ticked.
+	expect(mapTypes(doc)).toEqual(types ?? undefined);
 	expect(doc.copiedFrom).toBe(STARTER_ID);
 	expect(doc.body.placeBar).toEqual({ place });
 	expect(JSON.stringify(doc)).not.toContain("default-place");
@@ -93,17 +165,34 @@ describe("the starter's place in the app", () => {
 describe("every exit from the starter holds the chosen place", () => {
 	it("New from starter", async () => {
 		const { platform, app } = await setup(SCHOOL);
-		const id = await app.index.createFromStarter(app.starterPlace, app.starterArea, []);
-		expectFromStarter(await stored(platform, id), SCHOOL);
+		const answer = holdTypes();
+		await run(app, "new-from-starter");
+		// It waits for the catalog's monitor types.
+		await new Promise((resolve) => setTimeout(resolve, 10));
+		expect(await platform.documents.list("anonymous")).toHaveLength(0);
+		answer();
+		expectFromStarter(await newest(platform), SCHOOL);
 	});
 
 	it("Duplicate of the starter", async () => {
 		const { platform, app } = await setup(SCHOOL);
-		const id = await app.index.duplicate(STARTER_ID, {
-			from: app.starterPlace,
-			to: app.starterPlace
-		});
-		expectFromStarter(await stored(platform, id), SCHOOL);
+		await showStarter(app);
+		await run(app, "duplicate-dashboard");
+		expectFromStarter(await newest(platform), SCHOOL);
+	});
+
+	it("Duplicate of the starter for another place", async () => {
+		// At an area, so every widget (the Chart too) moves to the new place.
+		const { platform, app } = await setup(ZIP);
+		await showStarter(app);
+		vi.mocked(openPlacePicker).mockClear();
+		await run(app, "duplicate-for-another-place");
+		await vi.waitFor(() => expect(openPlacePicker).toHaveBeenCalled());
+		const { pick } = vi.mocked(openPlacePicker).mock.calls[0][0] as {
+			pick: (p: ChosenPlace) => void;
+		};
+		pick(TULARE);
+		expectFromStarter(await newest(platform), TULARE);
 	});
 
 	it("the first edit's copy", async () => {
@@ -159,6 +248,7 @@ describe("every exit from the starter holds the chosen place", () => {
 		const local = { version: 0, createdAt: time, updatedAt: time };
 		expect(DashboardSchema.safeParse({ ...doc, ...local }).success).toBe(true);
 		expect(doc.body.placeBar).toEqual({ place: SCHOOL });
+		expect(mapTypes(doc)).toEqual(TYPES);
 		expect(JSON.stringify(doc)).not.toContain("default-place");
 		// No copy is made: the starter stays the starter.
 		expect(app.current.session).toBe(starter);
@@ -424,5 +514,137 @@ describe("Change place on the starter to the place it shows", () => {
 		await app.changeStarterPlace({ ...DEFAULT_PLACE } as ChosenPlace);
 		expect(app.current.session).toBe(starter);
 		expect(await platform.preferences.get("anonymous", STARTER_PLACE_KEY)).toBeUndefined();
+	});
+});
+
+describe("the starter's monitor types", () => {
+	const rename = { op: "setField", target: { path: "name" }, from: null, to: "Mine" } as const;
+	const ids = (doc: Dashboard) => doc.body.widgets.map((w) => w.id);
+
+	it("the starter shows at once without types, then with them", async () => {
+		const answer = holdTypes();
+		const { app } = await setup();
+		const starter = await showStarter(app);
+		expect(mapTypes(starter.doc)).toBeUndefined();
+		expect(app.starterTypes).toBeNull();
+		answer();
+		await vi.waitFor(() => expect(mapTypes(app.current.session!.doc)).toEqual(TYPES));
+		expect(app.starterTypes).toEqual(TYPES);
+		expect(await app.sessions.get(STARTER_ID)).toBe(app.current.session);
+	});
+
+	it("swap keeps widget ids", async () => {
+		const answer = holdTypes();
+		const { app } = await setup();
+		const starter = await showStarter(app);
+		const before = ids(starter.doc);
+		expect(before).toEqual(Array.from({ length: 7 }, (_, i) => `starter-${i + 1}`));
+		answer();
+		await vi.waitFor(() => expect(app.current.session).not.toBe(starter));
+		expect(ids(app.current.session!.doc)).toEqual(before);
+		expect(app.current.isStarter).toBe(true);
+	});
+
+	it("first edit before the types arrive", async () => {
+		const answer = holdTypes();
+		const { platform, app } = await setup();
+		const starter = await showStarter(app);
+		starter.apply(rename);
+		answer();
+		await vi.waitFor(() => expect(app.current.isStarter).toBe(false));
+		const copy = app.current.session!;
+		await copy.flush();
+		const doc = await stored(platform, copy.doc.id);
+		expectFromStarter(doc, DEFAULT_PLACE);
+		expect(doc.name).toBe("Mine");
+	});
+
+	it("an edited starter isn't swapped", async () => {
+		const answer = holdTypes();
+		const { app } = await setup();
+		const starter = await showStarter(app);
+		starter.apply(rename);
+		answer();
+		await vi.waitFor(() => expect(app.current.isStarter).toBe(false));
+		const copy = app.current.session!;
+		await new Promise((resolve) => setTimeout(resolve, 10));
+		expect(app.current.session).toBe(copy);
+		expect(app.current.isStarter).toBe(false);
+	});
+
+	it("place change during the load", async () => {
+		const answer = holdTypes();
+		const { app } = await setup();
+		await showStarter(app);
+		await app.changeStarterPlace(TULARE);
+		answer();
+		await vi.waitFor(() => expect(mapTypes(app.current.session!.doc)).toEqual(TYPES));
+		const shown = app.current.session!;
+		expect(shown.doc.body.placeBar).toEqual({ place: TULARE });
+		expect(app.current.isStarter).toBe(true);
+		expect(app.openSessions()).toEqual([shown]);
+		expect(await app.sessions.get(STARTER_ID)).toBe(shown);
+	});
+
+	it("a starter opened but not yet shown when they arrive stays usable", async () => {
+		const answer = holdTypes();
+		const { platform, app } = await setup();
+		const opened = (await app.sessions.get(STARTER_ID))!;
+		answer();
+		await app.starterTypesReady();
+		// The next open gets one with the types.
+		const fresh = (await app.sessions.get(STARTER_ID))!;
+		expect(fresh).not.toBe(opened);
+		expect(mapTypes(fresh.doc)).toEqual(TYPES);
+		// Made current after all, its first edit still makes a copy, with the types.
+		app.current = { session: opened, isStarter: true };
+		opened.apply(rename);
+		await vi.waitFor(() => expect(app.current.isStarter).toBe(false));
+		const copy = app.current.session!;
+		await copy.flush();
+		expectFromStarter(await stored(platform, copy.doc.id), DEFAULT_PLACE);
+	});
+
+	it("loads once per app, kept through Clear my data", async () => {
+		const { app } = await setup();
+		await showStarter(app);
+		await app.starterTypesReady();
+		await app.resetAfterClear();
+		expect(app.starterTypes).toEqual(TYPES);
+		const starter = (await app.sessions.get(STARTER_ID))!;
+		expect(mapTypes(starter.doc)).toEqual(TYPES);
+		expect(loadMonitorTypes).toHaveBeenCalledOnce();
+	});
+
+	it("a closed app swaps nothing", async () => {
+		const answer = holdTypes();
+		const { app } = await setup();
+		const starter = await showStarter(app);
+		await app.close();
+		answer();
+		await app.starterTypesReady();
+		expect(app.current.session).toBeNull();
+		expect(app.openSessions()).toEqual([]);
+		expect(mapTypes(starter.doc)).toBeUndefined();
+	});
+
+	it("a failed load resolves with none", async () => {
+		vi.mocked(loadMonitorTypes).mockRejectedValueOnce(new Error("no"));
+		const { app } = await setup();
+		await showStarter(app);
+		await expect(app.starterTypesReady()).resolves.toEqual([]);
+		expect(app.starterTypes).toEqual([]);
+	});
+
+	it("catalog unavailable", async () => {
+		vi.mocked(loadMonitorTypes).mockResolvedValueOnce([]);
+		const { platform, app } = await setup();
+		const starter = await showStarter(app);
+		await app.starterTypesReady();
+		expect(app.starterTypes).toEqual([]);
+		// Nothing to swap in.
+		expect(app.current.session).toBe(starter);
+		await run(app, "new-from-starter");
+		expectFromStarter(await newest(platform), DEFAULT_PLACE, DEFAULT_PLACE, null);
 	});
 });

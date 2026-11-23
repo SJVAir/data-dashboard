@@ -200,12 +200,14 @@ async function duplicateDashboard(app: AppContext, id?: string): Promise<void> {
 	if (!target || target.session.readOnly) return;
 	// The index copies the stored document, so store this tab's edits first.
 	if (!target.isStarter) await target.session.flush();
+	// The starter's copy has the catalog's monitor types, so they're loaded first.
+	const types = target.isStarter ? await app.starterTypesReady() : [];
 	const copyId = target.isStarter
 		? await app.index.duplicate(STARTER_ID, {
 				from: app.starterPlace,
 				to: app.starterPlace,
 				area: app.starterArea,
-				types: []
+				types
 			})
 		: await app.index.duplicate(target.session.doc.id);
 	await openDashboard(copyId);
@@ -244,11 +246,13 @@ async function copyWithPlace(
 	if (session.readOnly) return;
 	// The index copies the stored document, so store this tab's edits first.
 	if (!isStarter) await session.flush();
+	// The starter's copy has the catalog's monitor types, so they're loaded first.
+	const types = isStarter ? await app.starterTypesReady() : [];
 	// The starter is built at its chosen place, the bar's place `from`.
 	const copyId = await app.index.duplicate(isStarter ? STARTER_ID : session.doc.id, {
 		from,
 		to,
-		...(isStarter ? { area: app.starterArea } : {})
+		...(isStarter ? { area: app.starterArea, types } : {})
 	});
 	await openDashboard(copyId);
 	await nameOpenedCopy(app, copyId);
@@ -430,8 +434,9 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 				icon: LayoutTemplate,
 				group: "create",
 				run: () =>
-					void app.index
-						.createFromStarter(app.starterPlace, app.starterArea, [])
+					void app
+						.starterTypesReady()
+						.then((types) => app.index.createFromStarter(app.starterPlace, app.starterArea, types))
 						.then((id) => openDashboard(id))
 			},
 			{
