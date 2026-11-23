@@ -964,6 +964,19 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   there). **Revisit when** upgrading `bits-ui` or on the next `shadcn-svelte add`: check that
   test first.
 
+- **bits-ui mounts a top-level menu's focus scope twice (worked around, not reported).**
+  _Noted 2026-11-22 (step 5 spec 7c, Task 1)._ In `bits-ui` 2.19.2 the root context or dropdown
+  menu's `FocusScope` mounts twice as it opens, so two one-frame open focuses are queued. The
+  second mount's `unmount()` also briefly sends focus back to the trigger before its frame
+  (harmless today). On a busy machine the second frame could land after ArrowRight had opened a
+  submenu, focus the parent menu and close the submenu: the CI flake in "the submenu by keyboard:
+  Enter repeats, focus leaves an item that turns disabled". It's worked around in
+  `src/lib/components/menu/open-auto-focus.ts` (the menu content wrappers do the open focus
+  themselves, skipped while focus is already in an open menu); the upstream issue isn't filed.
+  **Revisit when** upgrading `bits-ui`: check whether it still mounts twice, and if not drop the
+  wrapper (the test "a menu's late opening frame doesn't pull focus out of its open submenu"
+  must still pass).
+
 - **Link length in Google Classroom and webmail.** _Deferred 2026-10-25 (Foundations spec 3)._
   The 8,000-character share-link cap (`MAX_LINK_URL`) is provisional: it needs a manual check
   that long links survive Google Classroom and a common webmail client, which needs real
@@ -3335,6 +3348,21 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   checks (sizes after layout, an animation), not wrong behaviour. **Revisit when** one fails in
   CI, or when touching the test: wait on the settled state (a poll on the final size, or the
   animation's end) instead of a fixed moment.
+- **Two arranging tests flake in CI under full-suite load.** _Noted 2026-11-22 (step 5 spec 7c,
+  Task 1)._ On `step-5-spec-7c-flake`, whose `ci.yml` ran `npm test` three times per run, each
+  failed in one pass and passed in the others:
+  - `src/lib/components/dashboard/arranging.browser.test.ts`, "a pointer resize animates the
+    frame's size as it snaps" ("expected +0 to be 1": likely the animation was over before the poll
+    saw it), in runs 45097726529 (before the menu fix), 45099109524 and 45099115463.
+  - The same file, "autoscroll asks for animation frames only while the pointer is in the edge
+    zone" ("expected 0 to be greater than 0": no frame was asked for in its 150 ms in the edge
+    zone), in run 45099112411.
+
+  Not fixed in spec 7c: neither involves menus or 7c's code; they're timing checks, likely
+  starved by the load. **Revisit when** either fails in CI again, or when touching that test: start the size
+  animation paused or long enough to be seen (as the keyboard-resize entry above suggests), and
+  wait on the autoscroll's first frame rather than counting frames in a fixed 150 ms.
+
 - **WebKit E2E tests flake on CI.** _Noted 2026-11-22 (step 5 spec 7b, PR #65)._ In six manual
   `ci.yml` runs (three on `step-5`, three on `step-5-spec-7b`), the WebKit job failed four times,
   on both branches, on one or two tests each time, never the same set; a rerun passed. Neither

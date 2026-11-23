@@ -6,7 +6,7 @@
  * follows the first; on a busy machine it can arrive after the next key press, when ArrowRight
  * has already opened a submenu and moved focus into it. Focusing the parent menu then closes the
  * submenu, and the arrow keys move in the parent instead. This does the same focus, but only
- * while the menu is still open and focus isn't already in a menu.
+ * while the menu is still open and focus isn't already in an open menu.
  */
 export function menuOpenAutoFocus(
 	event: Event,
@@ -20,7 +20,7 @@ export function menuOpenAutoFocus(
 		const node = content();
 		// Not once it's closing (it stays in the page for its exit animation).
 		if (!node?.isConnected || node.dataset.state !== "open") return;
-		if (document.activeElement?.closest("[role=menu]")) return;
+		if (document.activeElement?.closest("[role=menu][data-state=open]")) return;
 		node.focus({ preventScroll: true });
 	});
 }

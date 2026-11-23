@@ -1488,7 +1488,10 @@ test("a menu's late opening frame doesn't pull focus out of its open submenu", a
 			if (!frames.step()) break;
 			await new Promise((resolve) => setTimeout(resolve));
 		}
-		expect(document.activeElement?.textContent?.trim()).toBe("Move");
+		expect(
+			document.activeElement?.textContent?.trim(),
+			"every held frame ran and focus never reached Move"
+		).toBe("Move");
 		await press("{ArrowRight}");
 		// Focus settles in the submenu before the late frame arrives.
 		await expect
