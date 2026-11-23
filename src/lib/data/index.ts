@@ -49,7 +49,7 @@ export function getMetadata(): MetadataSource {
 export function getResolvers(): Pick<AdapterContext, "regions" | "locations" | "points"> {
 	resolvers ??= {
 		regions: createWebRegionResolver(),
-		locations: createWebLocationResolver(),
+		locations: createWebLocationResolver((signal) => getMetadata().locationSources(signal)),
 		points: createWebPointResolver()
 	};
 	return resolvers;

@@ -1512,15 +1512,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   alone (no reading, no "No level"). **Revisit on** an accessibility pass of the map, or with part 5
   if the list gets per-layer groups.
 
-- **The dashboard's school and child-care source table is hand-kept.** _Noted 2026-11-11 (sdk-js
-  #61; the user: record it); updated 2026-11-16 (step 5 spec 5a)._ The SDK's strict source list
-  is fixed: since `@sjvair/sdk` `5.0.0-beta.12`, `LocationSource` and `LocationType` accept any
-  string, so a new source no longer fails `/regions/locations/` or `/pesticides/locations/`. But
-  the dashboard's `LOCATION_SOURCES` table (`src/lib/data/adapters/places.ts`) is keyed on the
-  open type, so the compiler no longer flags a new source, and an unlisted one resolves to
-  nothing. **Revisit when** sjvair.com adds a location source: add it to the table in the same
-  change, and when spec 7c (schools on the Map) is built, which reads the same sources.
-
 - **One figure per place for a whole range ("where was it worst over the period").**
   _Deferred 2026-11-15 (step 5 spec 4)._ The Map shows one day at a time (the stepper), not a
   figure for the whole range. Why: a year of daily rows for a whole region type is too much to

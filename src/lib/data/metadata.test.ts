@@ -513,6 +513,60 @@ describe("createWebMetadata", () => {
 		expect(await md.locationTypeLabel("nope")).toBeNull();
 	});
 
+	it("reads location groups and sources from the regions meta", async () => {
+		vi.mocked(getRegionsMeta).mockResolvedValue({
+			location_groups: {
+				child_care: { key: "child_care", label: "Child care", order: 1 },
+				school: { key: "school", label: "Schools", order: 0 }
+			},
+			location_types: {
+				public_school: {
+					type: "public_school",
+					label: "Public school",
+					source: "cde-public",
+					group: "school"
+				},
+				private_school: {
+					type: "private_school",
+					label: "Private school",
+					source: "cde-private",
+					group: "school"
+				},
+				child_care: {
+					type: "child_care",
+					label: "Child care",
+					source: "cdss-ccl",
+					group: "child_care"
+				},
+				museum: { type: "museum", label: "Museum", source: "osm" }
+			}
+		} as never);
+		const md = createWebMetadata();
+		const pub = { type: "public_school", label: "Public school", source: "cde-public" };
+		const priv = { type: "private_school", label: "Private school", source: "cde-private" };
+		expect(await md.locationGroups()).toEqual([
+			{ key: "school", label: "Schools", order: 0, types: [pub, priv] },
+			{
+				key: "child_care",
+				label: "Child care",
+				order: 1,
+				types: [{ type: "child_care", label: "Child care", source: "cdss-ccl" }]
+			},
+			{
+				key: "museum",
+				label: "Museum",
+				order: 2,
+				types: [{ type: "museum", label: "Museum", source: "osm" }]
+			}
+		]);
+		expect(await md.locationSources()).toEqual(["cde-public", "cde-private", "cdss-ccl", "osm"]);
+	});
+
+	it("locationGroups is [] when the meta lists no location types", async () => {
+		vi.mocked(getRegionsMeta).mockResolvedValue({ location_types: {} } as never);
+		expect(await createWebMetadata().locationGroups()).toEqual([]);
+	});
+
 	it("monitorGroups is [] for none and null when the field is absent", async () => {
 		vi.mocked(getMonitorsMeta).mockResolvedValue({
 			monitor_groups: {},

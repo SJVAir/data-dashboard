@@ -145,6 +145,24 @@ export function fixtureMetadata(overrides: Partial<MetadataSource> = {}): Metada
 		entryTypeHelp: async (entryType) =>
 			entryType === "pm25" ? "Fine particles from smoke, dust, and vehicle exhaust." : null,
 		locationTypeLabel: async (type) => (type === "child_care" ? "Child care" : null),
+		locationGroups: async () => [
+			{
+				key: "school",
+				label: "Schools",
+				order: 0,
+				types: [
+					{ type: "public_school", label: "Public school", source: "cde-public" },
+					{ type: "private_school", label: "Private school", source: "cde-private" }
+				]
+			},
+			{
+				key: "child_care",
+				label: "Child care",
+				order: 1,
+				types: [{ type: "child_care", label: "Child care", source: "cdss-ccl" }]
+			}
+		],
+		locationSources: async () => ["cde-public", "cde-private", "cdss-ccl"],
 		...overrides
 	};
 }
