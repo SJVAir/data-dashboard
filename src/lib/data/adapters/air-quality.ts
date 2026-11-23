@@ -11,6 +11,7 @@ import {
 	monitorOpenDays,
 	monitorSummaryTasks,
 	rawTasks,
+	type BulkMonitorScope,
 	type Fetched,
 	type SummaryOptions,
 	type FetchTask
@@ -36,14 +37,13 @@ async function placesOf(
 	signal: AbortSignal
 ): Promise<{ places: Place[]; info: PlaceInfo[] }> {
 	if (target.kind === "monitors") {
-		const monitors = await ctx.metadata.monitors(signal);
-		const names = new Map(monitors.map((m) => [m.id, m.name]));
+		const names = await monitorNames(ctx, signal);
 		return {
 			places: target.ids.map((id) => ({ place: `monitor:${id}`, id })),
 			info: target.ids.map((id) => ({ place: `monitor:${id}`, name: names.get(id) ?? id }))
 		};
 	}
-	if (target.kind === "all") return { places: [], info: [] };
+	if (target.kind === "all" || target.kind === "monitor-set") return { places: [], info: [] };
 	const found = await resolveRegionKeys(target.keys, ctx.regions, signal);
 	const places: Place[] = [];
 	const info: PlaceInfo[] = [];
@@ -87,11 +87,12 @@ function placeProcessors(
 
 /**
  * Runs every group's tasks together with limited concurrency, then collects each group's points
- * by place id, in time order.
+ * by place id, in time order. A name a bulk response gives a place goes into `names`.
  */
 async function collect(
 	groups: FetchTask[][],
-	signal: AbortSignal
+	signal: AbortSignal,
+	names?: Map<string, string>
 ): Promise<Array<Map<string, SeriesPoint[]>>> {
 	const tagged = groups.flatMap((tasks, group) => tasks.map((task) => ({ group, task })));
 	const results: Fetched[][] = await runLimited(
@@ -102,7 +103,8 @@ async function collect(
 	const maps = groups.map(() => new Map<string, SeriesPoint[]>());
 	results.forEach((fetched, i) => {
 		const byId = maps[tagged[i].group];
-		for (const { id, points } of fetched) {
+		for (const { id, points, name } of fetched) {
+			if (name !== undefined && names) names.set(id, name);
 			const list = byId.get(id);
 			// A loop, not `push(...points)`: a month of raw entries can exceed the argument limit.
 			if (list) for (const point of points) list.push(point);
@@ -150,29 +152,54 @@ async function rawSeries(
 }
 
 /**
- * Summaries over the range: completed periods at the requested resolution, the open period
- * filled from finer levels and aggregated up (one `now` for both, so a period can't be open in
- * one and closed in the other). The last completed period, backfilled from a finer level, is
- * used only where the coarse response lacks it (its rollup hasn't run yet); it is complete data,
- * so not partial. A place a response leaves out has no data: an empty series.
+ * Summaries over the range: completed periods at the requested resolution, and at hour and day the
+ * open period filled from finer levels and aggregated up (one `now` for both, so a period can't be
+ * open in one and closed in the other). Monthly and yearly series come from the server's stored
+ * rows alone, the current period's nightly (not final) row included; a month with no row yet is
+ * missing. The last completed hour or day, backfilled from a finer level, is used only where the
+ * response lacks it (its rollup hasn't run yet); it is complete data, so not partial. A place a
+ * response leaves out has no data: an empty series.
  *
- * `opts` (totals, completeness) is for monitor targets only: bulk endpoints return means, and
+ * `opts` (totals, completeness) is for monitors only, one by one or the whole layer's bulk
+ * monitor rows (each its monitor's own summary, with its `sum`): region rows are means, and
  * summing them would be wrong.
  *
- * A daily figure request (a calendar's) takes every day from the server: daily rows over the
- * whole range, plus the open-day rows (today so far, yesterday while unsettled) when the range
- * reaches them. Nothing is filled or backfilled from finer levels, so no day is computed here.
+ * A figure request takes every period from the server: at `day`, daily rows over the whole range
+ * plus the open-day rows (today so far, yesterday while unsettled) when the range reaches them;
+ * at `month` and `year`, the stored rows (the current period's nightly row included). Nothing is
+ * filled or backfilled from finer levels, so no figure is computed here.
+ *
+ * `bulk` scopes the whole layer's (`all`) bulk monitor requests by region and monitor type.
  */
 export async function summarySeries(
 	req: AdapterRequest,
 	places: Place[],
 	processors: Array<string | null>,
 	signal: AbortSignal,
-	opts?: SummaryOptions
+	opts?: SummaryOptions,
+	bulk?: BulkMonitorScope
 ): Promise<Series[]> {
+	return (await namedSummarySeries(req, places, processors, signal, opts, bulk)).series;
+}
+
+/**
+ * `summarySeries`, with the names the bulk monitor responses give their monitors (by id): the
+ * whole layer's monitors may be ones the monitors list doesn't have (weather stations).
+ */
+export async function namedSummarySeries(
+	req: AdapterRequest,
+	places: Place[],
+	processors: Array<string | null>,
+	signal: AbortSignal,
+	opts?: SummaryOptions,
+	bulk?: BulkMonitorScope
+): Promise<{ series: Series[]; names: Map<string, string> }> {
 	const { target, entryType, now } = req;
-	// Bulk (region) endpoints return means, so only a monitor target reads sums.
-	const how = opts?.total && target.kind === "monitors" ? "sum" : "mean";
+	const names = new Map<string, string>();
+	// Monitor rows (one by one, or the whole layer's bulk) are each monitor's own summaries;
+	// region rows are means, so only monitors read sums.
+	const monitorRows = target.kind === "monitors" || target.kind === "all";
+	const how = opts?.total && monitorRows ? "sum" : "mean";
 	const figure = !!opts?.figure;
 	const segments = planSegments({
 		resolution: req.resolution,
@@ -189,10 +216,11 @@ export async function summarySeries(
 			once(() => monitorOpenDays(p.id, entryType, processors[i], signal))
 		])
 	);
-	const bulkOpen = once(() => bulkOpenDays(entryType, regionIds, signal));
+	const bulkOpen = once(() => bulkOpenDays(entryType, regionIds, signal, bulk));
 
-	// Bulk rows are means: only the figure applies to them, not totals or completeness.
-	const bulkOpts: SummaryOptions | undefined = opts?.figure ? { figure: opts.figure } : undefined;
+	// Region rows are means: only the figure applies to them, not totals or completeness.
+	const bulkOpts: SummaryOptions | undefined =
+		target.kind === "all" ? opts : opts?.figure ? { figure: opts.figure } : undefined;
 
 	// Tasks for a segment; `only` limits monitors to some ids (bulk requests can't be limited).
 	const tasksFor = (seg: Segment, only?: Set<string>): FetchTask[] => {
@@ -226,7 +254,8 @@ export async function summarySeries(
 			now,
 			signal,
 			bulkOpts,
-			figure ? bulkOpen : undefined
+			figure ? bulkOpen : undefined,
+			bulk
 		);
 	};
 	// Complete and fill together; the backfill waits to see which places lack the last period.
@@ -235,7 +264,8 @@ export async function summarySeries(
 			segments.filter((s) => !s.aggregateTo).flatMap((s) => tasksFor(s)),
 			segments.filter((s) => s.aggregateTo && !s.backfill).flatMap((s) => tasksFor(s))
 		],
-		signal
+		signal,
+		names
 	);
 	const to = req.resolution as Period;
 	const knownIds = (): string[] =>
@@ -256,7 +286,8 @@ export async function summarySeries(
 			const needed = new Set(need);
 			const [first] = await collect(
 				[tasksFor(seg, target.kind === "monitors" ? needed : undefined)],
-				signal
+				signal,
+				names
 			);
 			const take = (id: string) => ids.length === 0 || needed.has(id);
 			for (const [id, pts] of first) if (take(id)) backfill.set(id, pts);
@@ -271,7 +302,8 @@ export async function summarySeries(
 				if (short.length > 0) {
 					const [extra] = await collect(
 						[tasksFor(sub, target.kind === "monitors" ? new Set(short) : undefined)],
-						signal
+						signal,
+						names
 					);
 					const shortSet = new Set(short);
 					for (const [id, pts] of extra) {
@@ -290,7 +322,7 @@ export async function summarySeries(
 					id
 				}))
 			: places;
-	return all.map(({ place, id }) => {
+	const series = all.map(({ place, id }) => {
 		const coarse = complete.get(id) ?? [];
 		const have = new Set(coarse.map((p) => p.t));
 		const missing = aggregate(backfill.get(id) ?? [], to, now, how).filter((p) => !have.has(p.t));
@@ -301,11 +333,15 @@ export async function summarySeries(
 			)
 		};
 	});
+	return { series, names };
 }
 
-/** Summary options asking for the daily figure, only at the daily level. */
+/** The levels a figure is read at: a day's figure, and a month's or year's average of them. */
+const FIGURE_LEVELS: ReadonlySet<string> = new Set(["day", "month", "year"]);
+
+/** Summary options asking for the figure, only at the levels that have one. */
 function figureOpts(req: AdapterRequest): SummaryOptions | undefined {
-	return req.dailyFigure && req.resolution === "day" ? { figure: req.dailyFigure } : undefined;
+	return req.figure && FIGURE_LEVELS.has(req.resolution) ? { figure: req.figure } : undefined;
 }
 
 /**
@@ -316,10 +352,11 @@ async function summarySeriesWithWorstHour(
 	req: AdapterRequest,
 	places: Place[],
 	processors: Array<string | null>,
-	signal: AbortSignal
+	signal: AbortSignal,
+	bulk?: BulkMonitorScope
 ): Promise<Series[]> {
 	if (!req.worstHour || req.resolution !== "day") {
-		return summarySeries(req, places, processors, signal, figureOpts(req));
+		return summarySeries(req, places, processors, signal, figureOpts(req), bulk);
 	}
 	const hourlyReq: AdapterRequest = {
 		...req,
@@ -328,8 +365,8 @@ async function summarySeriesWithWorstHour(
 		offered: req.offered.filter((r) => r === "raw" || r === "hour")
 	};
 	const [daily, hourly] = await Promise.all([
-		summarySeries(req, places, processors, signal, figureOpts(req)),
-		summarySeries(hourlyReq, places, processors, signal)
+		summarySeries(req, places, processors, signal, figureOpts(req), bulk),
+		summarySeries(hourlyReq, places, processors, signal, undefined, bulk)
 	]);
 	const hourlyByPlace = new Map(hourly.map((s) => [s.place, s.points]));
 	return daily.map((series) => {
@@ -344,12 +381,70 @@ async function summarySeriesWithWorstHour(
 	});
 }
 
+/** The monitors' names by id, from the monitors list. */
+async function monitorNames(
+	ctx: AdapterContext,
+	signal: AbortSignal
+): Promise<Map<string, string>> {
+	const monitors = await ctx.metadata.monitors(signal);
+	return new Map(monitors.map((m) => [m.id, m.name]));
+}
+
+/**
+ * A monitor set's data: one bulk request per period for every monitor of its types inside its
+ * regions (everywhere with none), then each searched monitor the bulk didn't return fetched one by
+ * one (`monitors`, today's path). One series per monitor, bulk ones first; names from the list.
+ */
+async function fetchMonitorSet(
+	req: AdapterRequest,
+	ctx: AdapterContext,
+	signal: AbortSignal
+): Promise<QueryData> {
+	const { target } = req;
+	if (target.kind !== "monitor-set") throw new Error("Not a monitor set");
+	let region: string[] | undefined;
+	if (target.regionKeys) {
+		const found = await resolveRegionKeys(target.regionKeys, ctx.regions, signal);
+		region = found.map((r, i) => {
+			if (r === null) throw new Error(`Region ${target.regionKeys![i]} can't be looked up`);
+			return r.id;
+		});
+	}
+	const bulkReq: AdapterRequest = { ...req, target: { kind: "all" } };
+	const bulk = await summarySeriesWithWorstHour(bulkReq, [], [], signal, {
+		...(region && { region }),
+		type: target.types
+	});
+	const have = new Set(bulk.map((s) => s.place));
+	const missing = target.ids.filter((id) => !have.has(`monitor:${id}`));
+	const searched =
+		missing.length > 0
+			? await fetchTarget({ ...req, target: { kind: "monitors", ids: missing } }, ctx, signal)
+			: null;
+	const names = await monitorNames(ctx, signal);
+	const series = [...bulk, ...(searched?.series ?? [])];
+	const places: PlaceInfo[] = series.map((s) => {
+		const id = s.place.slice("monitor:".length);
+		return { place: s.place, name: names.get(id) ?? id };
+	});
+	return {
+		series,
+		places,
+		resolution: req.resolution,
+		fromRaw: req.downsampleFromRaw,
+		// Bulk rows are each type's published series, which can differ.
+		processor: null,
+		fetchedAt: req.now.getTime()
+	};
+}
+
 async function fetchTarget(
 	req: AdapterRequest,
 	ctx: AdapterContext,
 	signal: AbortSignal
 ): Promise<QueryData> {
 	if (req.target.kind === "fallback") throw new Error("A fallback is fetched one key at a time");
+	if (req.target.kind === "monitor-set") return fetchMonitorSet(req, ctx, signal);
 	const [{ places, info }, processors] = await Promise.all([
 		placesOf(req.target, ctx, signal),
 		placeProcessors(req, ctx, signal)
@@ -363,8 +458,7 @@ async function fetchTarget(
 			: await summarySeriesWithWorstHour(req, places, processors, signal);
 	let placeInfo = info;
 	if (req.target.kind === "all") {
-		const monitors = await ctx.metadata.monitors(signal);
-		const names = new Map(monitors.map((m) => [m.id, m.name]));
+		const names = await monitorNames(ctx, signal);
 		placeInfo = series.map((s) => ({
 			place: s.place,
 			name: names.get(s.place.slice("monitor:".length)) ?? s.place.slice("monitor:".length)
@@ -421,7 +515,8 @@ async function fetchAirQuality(
 export const airQualityAdapter: DatasetAdapter = {
 	id: "air-quality",
 	target: (layer, ctx) => layerTarget(layer, ctx),
-	// Regions (and so points and schools) and the whole layer have no raw entries.
+	// Regions (and so points and schools), the whole layer and a monitor set (fetched in bulk) have
+	// no raw entries.
 	offered: (base, target) => (target.kind === "monitors" ? base : base.filter((r) => r !== "raw")),
 	// No overlays yet: its temperature and humidity are raw-only, which regions can't serve, and
 	// have no scale to draw as bands (they wait for the weather summaries).

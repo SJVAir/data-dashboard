@@ -1,0 +1,144 @@
+import type { Feature } from "geojson";
+import { getResolvers, placeRegion } from "$lib/data";
+import type { Layer, WidgetDataConfig } from "$lib/data/schema";
+import type { UnavailableReason } from "$lib/data/types";
+import { nowInput, widgetWhere } from "../shared/input";
+import { frameOf, type Frame, type Where } from "./framing";
+import { regionKey, regionShapes, type RegionRef } from "./regions";
+
+export type FrameState =
+	| "idle"
+	| "loading"
+	| "ready"
+	| { unavailable: UnavailableReason }
+	| {
+			error: unknown;
+	  };
+
+/** No shapes. The frame's maps are replaced whole (`$state.raw`), never changed in place. */
+const noShapes = (): Map<string, Feature> => new Map();
+
+/**
+ * A Where and the layer's searched monitors, as a key (another tab's copy of the same places is
+ * the same key).
+ */
+const placesKey = (where: Where, layer: Layer | undefined) =>
+	JSON.stringify([where.place ?? null, where.selection ?? null, layer?.monitors ?? null]);
+
+const isAbort = (e: unknown) => e instanceof DOMException && e.name === "AbortError";
+
+/**
+ * A map's frame, kept in step with its layer and its data's Where: what it highlights, outlines,
+ * pins and fits, with the region shapes to outline. Each change aborts the previous lookups. A frame that
+ * can't be completed still holds what's known (its pin, its monitors), so the map still draws.
+ */
+export class MapFrame {
+	/** The places' frame; null while a new one resolves. */
+	frame = $state.raw<Frame | null>(null);
+	shapes = $state.raw<Map<string, Feature>>(noShapes());
+	state = $state.raw<FrameState>("idle");
+	#tries = $state(0);
+	#stop: () => void;
+	/** The places `frame` was made for. */
+	#frameFor: string | null = null;
+
+	constructor(layer: () => Layer | undefined, data: () => WidgetDataConfig) {
+		this.#stop = $effect.root(() => {
+			$effect(() => {
+				const current = layer();
+				const all = data();
+				// A deep copy, read here so a change of Where reruns the frame.
+				const where = widgetWhere(all);
+				void this.#tries;
+				const controller = new AbortController();
+				this.#load(current, where, all, controller.signal);
+				return () => controller.abort();
+			});
+		});
+	}
+
+	destroy(): void {
+		this.#stop();
+	}
+
+	/** Looks the current layer up again (after an error). */
+	retry(): void {
+		this.#tries++;
+	}
+
+	#set(key: string, frame: Frame, shapes: Map<string, Feature>, state: FrameState) {
+		this.#frameFor = key;
+		this.frame = frame;
+		this.shapes = shapes;
+		this.state = state;
+	}
+
+	#load(layer: Layer | undefined, where: Where, data: WidgetDataConfig, signal: AbortSignal) {
+		const key = placesKey(where, layer);
+		const { needs, ...rest } = frameOf(layer, where);
+		const frame: Frame = { ...rest, regions: [], pin: null };
+		if (needs.length === 0) {
+			this.#set(key, frame, noShapes(), frame.focus === "none" ? "idle" : "ready");
+			return;
+		}
+		// Other places' frame is gone while the new one resolves (no stale outline; with no
+		// target, the camera stays where it is). The same places keep theirs meanwhile.
+		if (key !== this.#frameFor) {
+			this.frame = null;
+			this.#frameFor = null;
+		}
+		this.state = "loading";
+		this.#resolve(frame, needs, data, signal).then(
+			({ frame, shapes, state }) => {
+				if (!signal.aborted) this.#set(key, frame, shapes, state);
+			},
+			(error: unknown) => {
+				if (signal.aborted || isAbort(error)) return;
+				this.#set(key, frame, noShapes(), { error });
+			}
+		);
+	}
+
+	async #resolve(
+		frame: Frame,
+		needs: ReturnType<typeof frameOf>["needs"],
+		data: WidgetDataConfig,
+		signal: AbortSignal
+	): Promise<{ frame: Frame; shapes: Map<string, Feature>; state: FrameState }> {
+		let regions: RegionRef[] = [];
+		let pin: Frame["pin"] = null;
+		// A single region (a place, or a point's) must have a shape; a selection needs one.
+		let single = false;
+		for (const need of needs) {
+			if (need.kind === "regions") {
+				regions = need.refs;
+				single = need.refs.length === 1;
+			} else if (need.kind === "location") {
+				const found = await getResolvers().locations.resolve(need.source, need.code, signal);
+				if (!found?.point) {
+					return { frame, shapes: noShapes(), state: { unavailable: "location-unresolved" } };
+				}
+				const { lat, lon } = found.point;
+				pin = { kind: "location", name: found.name, lat, lon };
+			} else {
+				pin = { kind: "point", lat: need.point.lat, lon: need.point.lon };
+				// The region the Map shows now for its Where (`nowInput` reads it from `data`).
+				const input = nowInput(data, need.layer);
+				const region = input ? await placeRegion(input, signal) : null;
+				const withPin = { ...frame, pin };
+				if (!region) {
+					return { frame: withPin, shapes: noShapes(), state: { unavailable: "point-outside" } };
+				}
+				regions = [region];
+				single = true;
+			}
+		}
+		const shapes = regions.length > 0 ? await regionShapes(regions, signal) : noShapes();
+		const done: Frame = { ...frame, regions, pin };
+		const missing = single
+			? regions.some((r) => !shapes.has(regionKey(r)))
+			: regions.length > 0 && shapes.size === 0;
+		const state: FrameState = missing ? { unavailable: "region-unresolved" } : "ready";
+		return { frame: done, shapes, state };
+	}
+}

@@ -2,8 +2,8 @@ import { getRegionsByCode, getRegionsMeta, type RegionType } from "@sjvair/sdk";
 import { regionDisplayName } from "@sjvair/sdk/regions";
 import type { ResolvedRange } from "$lib/format/range";
 import { untilAborted, type EntryTypeMeta, type MetadataSource } from "../metadata";
-import type { Layer, PesticideFilters, Resolution } from "../schema";
-import type { QueryData, Target, UnavailableReason } from "../types";
+import type { PesticideFilters, Resolution } from "../schema";
+import type { QueryData, QueryLayer, Target, UnavailableReason } from "../types";
 
 /** A region found on the server: its sqid, name, and (when retired) the retirement marker. */
 export type ResolvedRegion = {
@@ -37,6 +37,8 @@ export interface LocationResolver {
 		keys: string[];
 		/** What a place picker row shows: its type (`regions/meta/` `location_types`) and where. */
 		details?: { type: string; city: string; zip: string; address: string };
+		/** Where the place is (never put in a URL, log, or error message). */
+		point?: { lat: number; lon: number };
 		retired?: { since: string; replacedBy: { source: string; code: string } | null };
 	} | null>;
 }
@@ -63,8 +65,8 @@ export type AdapterRequest = {
 	downsampleFromRaw: boolean;
 	/** Attach each day point's worst hourly average (set only where it applies). */
 	worstHour: boolean;
-	/** The summary field each day point reads as `figure` (honored at resolution `"day"`). */
-	dailyFigure?: string;
+	/** The summary field each point reads as `figure` (honored at `"day"`, `"month"`, `"year"`). */
+	figure?: string;
 	range: ResolvedRange;
 	/** The levels this adapter can fetch for `target` (see `DatasetAdapter.offered`). */
 	offered: Resolution[];
@@ -79,7 +81,10 @@ export type AdapterRequest = {
 export interface DatasetAdapter {
 	/** The catalog dataset id this adapter serves. */
 	id: string;
-	target(layer: Layer, ctx: AdapterContext): Promise<Target | { unavailable: UnavailableReason }>;
+	target(
+		layer: QueryLayer,
+		ctx: AdapterContext
+	): Promise<Target | { unavailable: UnavailableReason }>;
 	/** The levels of the entry type's catalog `base` this adapter can actually fetch for `target`. */
 	offered(base: Resolution[], target: Target): Resolution[];
 	/**
@@ -110,7 +115,6 @@ const CODED_REGION_TYPES: Record<CodedRegionType, true> = {
 	urban_area: true,
 	protected: true,
 	ab617: true,
-	place: true,
 	mtrs: true,
 	custom: true
 };

@@ -124,10 +124,37 @@ describe("widget thresholds", () => {
 			true
 		);
 	});
-	it("rejects two thresholds", () => {
+	it("rejects two thresholds for the same entryType", () => {
+		expect(
+			DashboardSchema.safeParse(
+				withWidgets([
+					widget([
+						{ level: "a", entryType: "x" },
+						{ level: "b", entryType: "x" }
+					])
+				])
+			).success
+		).toBe(false);
+		expect(
+			DashboardSchema.safeParse(
+				withWidgets([
+					widget([
+						{ level: "a", entryType: "x" },
+						{ level: "b", entryType: "y" }
+					])
+				])
+			).success
+		).toBe(true);
+	});
+	it("rejects more than one threshold without an entryType", () => {
 		expect(
 			DashboardSchema.safeParse(withWidgets([widget([{ level: "a" }, { level: "b" }])])).success
 		).toBe(false);
+		expect(
+			DashboardSchema.safeParse(
+				withWidgets([widget([{ level: "a" }, { level: "b", entryType: "x" }])])
+			).success
+		).toBe(true);
 	});
 	it("rejects a level key over the code limit", () => {
 		expect(
@@ -167,5 +194,28 @@ describe("note widgets", () => {
 	it("leaves other types' options free-form", () => {
 		const w = { ...note({ anything: 1 }), type: "other" };
 		expect(DashboardSchema.safeParse(withWidgets([w])).success).toBe(true);
+	});
+});
+
+describe("map widgets", () => {
+	const map = (options: unknown) => ({
+		id: "m1",
+		type: "map",
+		title: null,
+		rect: { x: 0, y: 0, w: 6, h: 6 },
+		data: { layers: [] },
+		options
+	});
+
+	it("accepts a Map with no options or valid ones", () => {
+		expect(DashboardSchema.safeParse(withWidgets([map(undefined)])).success).toBe(true);
+		expect(DashboardSchema.safeParse(withWidgets([map({ marks: ["a"] })])).success).toBe(true);
+	});
+
+	it("refuses a dashboard whose Map has invalid options", () => {
+		const r = DashboardSchema.safeParse(withWidgets([map({ marks: "x" })]));
+		expect(r.success).toBe(false);
+		if (!r.success)
+			expect(r.error.issues.some((i) => i.path.join(".") === "body.widgets.0.options")).toBe(true);
 	});
 });

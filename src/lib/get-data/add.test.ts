@@ -12,12 +12,14 @@ import { SyncWorker } from "$lib/sync/worker.svelte";
 import { chartType } from "$lib/widgets/chart";
 import { dataTableType } from "$lib/widgets/table";
 import { registerWidgetType } from "$lib/widgets/registry";
-import { addFromDraft, addTargets } from "./add";
+import { addFromDraft, addTargets, NEW_DASHBOARD } from "./add";
 import type { Draft } from "./draft.svelte";
 
 // The live-link rule's region lookup: any point is in ZIP 93721.
 vi.mock("$lib/data", () => ({
 	placeRegion: async () => ({ type: "zipcode", code: "93721" }),
+	// Point lookups read the catalog for the widget's resolution; without one, Automatic's range level.
+	getMetadata: () => ({ catalog: async () => "unavailable" as const }),
 	getResolvers: () => ({
 		regions: { resolve: async () => ({ id: "z1", name: "ZIP 93721" }) }
 	})
@@ -27,12 +29,13 @@ const POINT = { kind: "point", lat: 36.7378, lon: -119.7871 } as const;
 const ZIP = { kind: "region", type: "zipcode", code: "93721" } as const;
 const FRESNO = { kind: "region", type: "county", code: "06019" } as const;
 
-function draft(place: Draft["data"]["layers"][number]["place"] = FRESNO): Draft {
+function draft(place: Draft["data"]["place"] = FRESNO): Draft {
 	return {
 		type: "chart",
 		data: {
 			dateRange: { kind: "trailing", amount: 30, unit: "day" },
-			layers: [{ dataset: "air-quality", entryType: "pm25", place }]
+			place,
+			layers: [{ dataset: "air-quality", entryType: "pm25" }]
 		}
 	};
 }
@@ -117,12 +120,14 @@ describe("addFromDraft", () => {
 		await put(platform, makeDoc("d1"));
 		const now: Draft = {
 			type: "current-conditions",
-			data: { layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }] },
-			thresholds: [{ level: "unhealthy_sensitive" }]
+			data: { place: FRESNO, layers: [{ dataset: "air-quality", entryType: "pm25" }] },
+			thresholds: [{ level: "unhealthy_sensitive", entryType: "pm25" }]
 		};
 		await addFromDraft(app, "d1", now);
 		const session = (await app.sessions.get("d1"))!;
-		expect(session.doc.body.widgets.at(-1)!.thresholds).toEqual([{ level: "unhealthy_sensitive" }]);
+		expect(session.doc.body.widgets.at(-1)!.thresholds).toEqual([
+			{ level: "unhealthy_sensitive", entryType: "pm25" }
+		]);
 		// Off stores none.
 		await addFromDraft(app, "d1", { ...now, thresholds: undefined });
 		expect("thresholds" in session.doc.body.widgets.at(-1)!).toBe(false);
@@ -200,8 +205,7 @@ describe("addFromDraft", () => {
 
 		const { widgetId } = await addFromDraft(app, "d1", draft(POINT));
 
-		const placeIn = (doc: Dashboard) =>
-			doc.body.widgets.find((w) => w.id === widgetId)!.data.layers[0].place;
+		const placeIn = (doc: Dashboard) => doc.body.widgets.find((w) => w.id === widgetId)!.data.place;
 		const session = (await app.sessions.get("d1"))!;
 		await expect.poll(() => placeIn(session.doc)).toEqual(ZIP);
 		await expect.poll(async () => placeIn(await stored(platform, SPACE, "d1"))).toEqual(ZIP);
@@ -248,6 +252,46 @@ describe("addTargets", () => {
 		const { app } = await anonymous();
 		expect(addTargets(app, STARTER_ID, undefined)).toEqual({
 			selected: { id: STARTER_ID, name: "Starter dashboard" },
+			others: []
+		});
+	});
+	it("never offers a read-only dashboard, as the button or in others", async () => {
+		const { platform, app } = await withDashboards();
+		await put(platform, { ...makeDoc("d3"), schemaVersion: 99 as never, name: "Future" });
+		await app.index.refresh();
+		expect(app.index.items.find((d) => d.id === "d3")?.readOnly).toBe(true);
+		const targets = addTargets(app, "d3", "d3");
+		expect(targets.selected.id).toBe(STARTER_ID);
+		expect(targets.others.map((t) => t.id).sort()).toEqual(["d1", "d2"]);
+	});
+
+	it("never offers a dashboard this tab has open read-only (invalid or unkept)", async () => {
+		for (const readOnly of ["invalid", "unkept"] as const) {
+			const { app } = await withDashboards();
+			const session = (await app.sessions.get("d2"))!;
+			session.readOnly = readOnly;
+			const targets = addTargets(app, "d2", "d2");
+			expect(targets.selected.id).toBe(STARTER_ID);
+			expect(targets.others.map((t) => t.id)).toEqual(["d1"]);
+		}
+	});
+
+	it("skips ids in skip, even the route and last-opened ones", async () => {
+		const { app } = await withDashboards();
+		const targets = addTargets(app, "d2", "d2", new Set(["d2"]));
+		expect(targets.selected.id).toBe(STARTER_ID);
+		expect(targets.others.map((t) => t.id)).toEqual(["d1"]);
+	});
+
+	it("a skipped starter falls to the first remaining dashboard, else a new one", async () => {
+		const { app } = await withDashboards();
+		const skip = new Set([STARTER_ID]);
+		const first = addTargets(app, STARTER_ID, undefined, skip);
+		expect(first.selected.id).toBe(app.index.items[0].id);
+		expect(first.others.map((t) => t.id)).not.toContain(first.selected.id);
+		const { app: empty } = await anonymous();
+		expect(addTargets(empty, STARTER_ID, undefined, skip)).toEqual({
+			selected: { id: NEW_DASHBOARD, name: "New dashboard" },
 			others: []
 		});
 	});

@@ -115,9 +115,12 @@ Decided 2026-09-28. The dashboard a first-time visitor sees (not a blank page):
 ### Get data (formerly the Data Explorer and "Widget Creation view")
 
 **Renamed 2026-11-05 (the user, step 4 spec 3, which built it; spec:
-`docs/superpowers/specs/2026-11-05-step-4-spec-3-get-data-design.md`).** The top nav says
-**"Data"**; the page heading is **"Get data"**, or **"Edit data"** when opened from a widget. In
-docs it's "the Get data view". Older text saying "Widget Creation" or "Data Explorer" means this
+`docs/superpowers/specs/2026-11-05-step-4-spec-3-get-data-design.md`).** **Shown to people as
+the "Data Portal"** (the user, 2026-11-19, step 5 spec 6a; it was "Data" in the nav, "Get data"
+and "Edit data" as headings): the top nav and the heading say **"Data Portal"**, opened from a
+widget the heading adds "Changing a widget's data", the widget menu item is **"Open in Data
+Portal"**, and messages say "…in the Data Portal". In docs and code it's still "the Get data
+view" (and "Edit data" for it opened on a widget). Older text saying "Widget Creation" or "Data Explorer" means this
 view. People mostly know what they want, so it isn't an explorer (sjvair.com's Pesticide and
 Facility Emissions explorers are "the explorers"). It doesn't overlap Release 3's Analysis view.
 
@@ -131,10 +134,18 @@ now inside the dataset sections.
 
 **Layout (option A).**
 
-- **Left column, top to bottom:** **When** (the date control), **Where** (the places, with
-  "Change", which opens the shared place picker in `multiple` mode up to the widget type's
-  `maxPlaces`), **What** (one collapsible section per dataset; Air Quality starts open), and
-  **More options** → **Show values** (the resolution override, with a "?" toggletip).
+- **Left column, top to bottom (changed in step 5 spec 7a):** **What** first (one list of
+  sections for every widget type, in catalog order; what a type can't show is greyed out with its
+  reason, never hidden; Air quality starts open), then **When**, **Where** (always shown; empty
+  reads "Everywhere"; "Change" opens the shared place picker in `multiple` mode up to the widget
+  type's `maxPlaces`, only the Map and the single-place types set one), **Data resolution** (its
+  own section since step 5 spec 6a, with a "?" toggletip), and **More options** (the threshold
+  line). **What is the data; When and Where filter it.** The column scrolls on its own
+  (`scrollFocusable`) with the preview in view from `md:` up; on a phone the columns stack. The
+  Air quality section is radios with None (never blocked) over the catalog's available
+  pollutants, a checkbox per monitor type in the meta's groups, and a Monitors search listing the
+  chosen monitors, each removable (see "Widget data selection: What, Where and monitors (spec
+  7a)").
 - **Right:** a large live preview with a **Show as** switch (Chart | Data table today) and a
   **"Dashboard size"** switch that shows it at the size it will land (the type's `defaultSize`).
   It's the real widget component in a view-only frame, so its states (loading, "No data",
@@ -208,18 +219,18 @@ offers **Air Quality** and **Air Quality Forecasts** (`forecasts`); spec 3b (202
   nothing is drawn on a second axis inside the main plot. Bars or a line follow the catalog's
   `display.chart`, from `y_min`. Each strip takes a fixed share of the height and the main chart
   keeps at least half. The legend names each layer and its source ("Temperature · CIMIS #80 -
-  Fresno State", "Pounds applied · Sulfur"), with no correlation wording. A strip can be
-  coarser than the chart: pesticide use is monthly or yearly, so under a daily chart it is one
-  bar per month spanning that month's days ("Monthly total"; a month only partly in the range
-  shows its whole-month total, marked). An empty pesticide strip says "No pesticide use
-  reported for these dates."
+  Fresno State", "Pounds applied · Sulfur"), with no correlation wording. Every strip is at the
+  dataset's one resolution (step 5 spec 6a, see "Datasets line up"): pesticide use is offered
+  only at Monthly and Yearly, so it is plain monthly or yearly bars, and a daily chart can't hold
+  it (spec 3b's whole-month bars under a daily chart are gone). Smoke's day bands appear only on
+  daily charts. An empty pesticide strip says "No pesticide use reported for these dates."
 - **Overlays borrow the main layer's places.** Only the main layer stores places (the shared
   place picker's `place` or `selection`), so "Change" re-targets every layer at once. An overlay
   is fetched for each of the main layer's places; the **Data table** shows a column per place
   per layer, and the **CSV** has every place's overlay rows (categorical values get
-  `level_key` and `level_label` columns). An overlay the Table can't show (it failed, or the
-  periods are longer than a day) gets a note under the table, so the Table never silently
-  disagrees with the Chart.
+  `level_key` and `level_label` columns). The Table has one row per period for every layer (no
+  coarser value repeated down finer rows). An overlay the Table can't show (it failed) gets a
+  note under the table, so the Table never silently disagrees with the Chart.
 - **The adapter decides which entry types can be overlays** (`DatasetAdapter.overlays`): the
   forecasts adapter offers all of its own; air quality offers none (its temperature and
   humidity are raw-only). One already in a widget stays listed, checked, so it can be removed.
@@ -258,17 +269,28 @@ offers **Air Quality** and **Air Quality Forecasts** (`forecasts`); spec 3b (202
   unavailable ("filter-gone").
 - **Table and CSV:** the CSV gains `source_id` and `source_name` (the weather station) and
   `filters` (the pesticide filters) after `level_label`, then `aggregate` (the catalog's `sum`,
-  `mean`, or empty) last, so a total reads as one. The legend, strip tags, Table caption and
+  `mean`, or empty), so a total reads as one. Since step 5 spec 6a every widget's CSV (the
+  calendars too) ends with `figure` (the value the widget shows; blank when null),
+  `figure_label` (the server's name for it) and `rated` (the calendar's values: "Yes", "Not
+  enough data", "Not final yet") on every row; `mean` stays the plain mean. The legend, strip tags,
+  Table caption and
   cells say "Daily total" for a summed layer at every resolution, "Daily average" for a mean,
-  and the entry type's label for a layer that never rolls up. Weather offers no "Every
+  and the entry type's label for a layer that never rolls up. A pollutant with a scale figure
+  carries the figure's name instead (since spec 6a; see "Datasets line up"). Weather offers no
+  "Every
   measurement" (see `DEFERRED.md`).
 - A saved pesticide category, cancer group, method or narrowing that `pesticides/meta/` no
   longer lists is "filter-gone" too.
 - One chart row per place is in `DEFERRED.md`.
 
 **Show as.** The data types (those with `accepts.datasets`) are offered; one that can't show
-the current data (too many places, a dataset it doesn't accept, a span outside its `span`) is
-greyed out with a short reason, never hidden. Switching keeps the data. Spec 5's calendars
+the current data (too many places, a dataset it doesn't accept, a span outside its `span`, or
+the dataset's resolution, since step 5 spec 6a) is greyed out with a short reason, never hidden.
+Switching keeps the data. From a Current conditions draft with several pollutants, the other
+types keep the **first** pollutant (layer order) and its alert level, and the form notes the rest
+("Ozone was left out: this type shows one pollutant.", the names joined through the `format`
+module's list helper); the note is `NowDropped` `"pollutants"` with the entry types in `leftOut`
+(`firstPollutantOnly` in `src/lib/widgets/current/pollutants.ts`, then `fromNowDraft`). Spec 5's calendars
 appear by registering descriptors (see "Widget-type contract"), with no change here.
 
 **Add to dashboard.** The button names its target: the dashboard Get data was opened from, else
@@ -290,21 +312,53 @@ directly. Leaving with unsaved changes (Cancel, Back, a nav link) asks **"Discar
 (an alert dialog). Cancel goes Back only from an entry the app pushed; on a page opened from
 its link it goes to the dashboard (or `/` from `/data`), never off the app.
 
-**Show values ("More options"; was "Detail" until spec 3b).** **Automatic** (spec 1's
-resolution rule, the default), or **Every measurement**, **Hourly**, **Daily**, **Monthly**,
-**Yearly**, stored on the main layer as `resolution` (Automatic stores nothing). A "?"
-toggletip beside it (a button on the bits-ui popover: opens on click, tap or Enter, also on
-hover, closes on Escape or a click outside, announced) explains it. Only levels the entry type's catalog `resolutions` offer are listed; one the point
-budget (places × periods) can't serve for the current range is greyed with the reason. No
-level has a range cap of its own: the server's 31-day cap on raw and hourly is per request,
-and the adapters ask a calendar month (or 31 raw days) at a time (and a stored one that becomes blocked goes back to Automatic). A type with a pinned
-`resolution` hides it. Collapsed by default.
+**Data resolution (its own section after What since step 5 spec 6a; was "Show values" under
+"More options", and "Detail" until spec 3b).** **Automatic** (the default), or **Every
+measurement**, **Hourly**, **Daily**, **Monthly**, **Yearly** (`LEVELS`; no Quarterly or
+Seasonal), stored once for the whole dataset as `WidgetDataConfig.resolution` (Automatic stores
+nothing; see "Datasets line up"). A "?" toggletip beside it (a button on the bits-ui popover:
+opens on click, tap or Enter, also on hover, closes on Escape or a click outside, announced)
+explains it. A level a chosen dataset doesn't offer is greyed with the reason naming the dataset
+("Weather has no individual measurements"); one the point budget (places × periods) can't serve
+for the current range is greyed with that reason. A chosen level never changes by itself: one
+that becomes blocked stays chosen, with its reason, and the action bar waits until it's changed.
+Automatic says when the datasets moved it ("Automatic data resolution is now Monthly: …"). No
+level has a range cap of its own: the server's 31-day cap on raw and hourly is per request, and
+the adapters ask a calendar month (or 31 raw days) at a time. A type with a pinned `resolution`
+hides it. A Map offers Daily, Monthly and Yearly.
 
 **Routes** (see "Routing, URL state & undo"): `/data` (from the top nav),
 `/dashboards/:id/widgets/new` (from "Add widget"; `?type=` picks the starting Show as), and
 `/dashboards/:id/widgets/:widgetId/edit` (Edit data). The URL holds only where you are: **the
 draft never goes in the URL**, so coordinates never do. An unknown dashboard or widget id shows
 the not-found page.
+
+**Opened from a Map (step 5 spec 6b).** The Map's "Show in a chart" / "Show in a table" open
+`/dashboards/:id/widgets/new` (or `/data`; see "Widget catalog" → Map) with the starting draft in
+**history state** (`navigate(path, { state: { getData: HandOff } })`, read back as `route.state`
+and validated with `HandOffSchema`, in `src/lib/widgets/map/hand-off.ts` so this chunk doesn't
+load the conversion). The URL is unchanged, so nothing about the Map leaks into it. A reload or
+Back / Forward to that entry starts from the Map's draft again; an invalid one is ignored and the
+normal saved draft is used.
+
+- **No saved draft:** a visit from a Map starts from the hand-off, keeps edits for this visit
+  only, and never writes the device's saved draft (as Edit data). "Add to" targets the Map's
+  dashboard when the person can edit it; a read-only dashboard is never a target (`addTargets`
+  skips dashboards known to be read-only, and the hand-off's `skip`); "Add to" then names the
+  last-opened dashboard, else the starter; when the starter is skipped, it falls to the first
+  listed dashboard, else New dashboard.
+- **Leaving:** with changes, the action bar's Cancel, Back and nav links ask "Discard changes?".
+
+- **Notes:** the conversion's notes travel in `HandOff.notes` (dropped items minus marks and
+  places, plus the pollutant, the cut and the selection) and show on this visit. A note counts
+  the hidden marks left out ("‹N› marked monitors aren't shown on the map, so they were left
+  out."); it states the problem only, since a viewer can't change it, and stays until the person
+  changes places through Change places. The notes clear on the next edit.
+- **No keep dialog (spec 7a, 2026-11-21).** The 6b "choose which places to keep" dialog (the
+  Where control's keep mode, `keepsOnSwitch` in `offer.ts`, its focus and Cancel rules) was
+  removed: a Chart or Table has no cap, and the Map's marks arrive as searched monitors. A
+  one-place type and the Map (25 places) still block with `"places"`.
+- **Resolution:** Show as and the hand-off agree: a ranged Map's saved resolution is kept.
 
 **The draft.** Kept in memory on the view and saved through the platform adapter as a
 preference (device-local, never synced) so a reload or later visit starts from it: one draft
@@ -450,6 +504,22 @@ notify.
 - **The watcher** is a dashboard-level component (lazy-loaded) that subscribes to every widget
   with a threshold, so a minimized or off-screen tile still fires; it shares each widget's query
   with the tile, so there is one fetch per place.
+- **One watch per pollutant on Current conditions** (step 5 spec 7b). Each of a Current
+  conditions card's pollutants has its own alert level (a threshold tagged with its `entryType`),
+  and each pollutant with one is watched on its own (`watchesOf` in
+  `src/lib/thresholds/watched.ts`, reading the card as `onePollutant` shows that pollutant). The
+  mark, "last told" and the notification tag are held under **`markKey(widgetId, entryType)`**
+  (`widgetId:entryType`); every other type is watched once, under `markKey(widgetId)` (its id).
+  Each pollutant's crossing toasts on its own and names the pollutant; a notification's title is
+  the saved card's title (an untitled card's generated one names every pollutant). The card's
+  rows each show their own mark, and the taskbar entry and the fullscreen button show
+  **`widgetMark`**: the first marked pollutant in layer order, in its level's colour. Removing a
+  card prunes every pollutant's "last told".
+- **Changing a watch's alert level starts it afresh.** The watch's key includes its threshold,
+  so changing a pollutant's alert level forgets that pollutant's "last told" (other pollutants on
+  the card keep theirs), on any watched type, as turning a level Off and back On does: the next
+  reading seeds again, so lowering a level below the current reading shows the mark without a
+  toast.
 
 **2. Automated alerting — server-side, requires an account.** The dashboard only
 _creates rules_; the server evaluates them on its periodic task and delivers through a
@@ -1199,10 +1269,11 @@ days" is 30), except a trailing-hours range, which is its elapsed hours / 24.
     data".
   - **Pesticide use** is monthly and yearly (the server's `months` and `years`; spec 3b).
   - Weather now has server summaries (CIMIS stations, sjvair.com #313, used by spec 3b); PM10's are deferred (see `DEFERRED.md`).
-- **Number overlays and coarser strips (spec 3b).** A number overlay's strip is pinned to the
-  main data's resolution (`pin`): `chooseResolution` falls back to the nearest coarser level the
-  overlay's entry type offers (a daily chart gets monthly pesticide bars). An overlay's own saved
-  `resolution` is ignored. Level overlays keep spec 3's behavior (no pin).
+- **One resolution per dataset (step 5 spec 6a; replaces spec 3b's coarser strips).** Every
+  layer is fetched at the dataset's resolution (the rules module's `effectiveResolution`; see
+  "Datasets line up"), with no per-layer pin and no fallback to a coarser level. A layer that
+  can't serve it isn't fetched (only possible from an untrusted document, which then shows a
+  note).
 - **Totals follow the catalog's `aggregate` (the user, 2026-11-07, `@sjvair/sdk` 5.0.0-beta.6;
   decision 2 of spec 3b's plan).** Each catalog entry type has a top-level `aggregate`: `"sum"`
   (weather precipitation, ETo, ETr; pounds applied, acres treated, applications) reads the
@@ -1211,10 +1282,15 @@ days" is 30), except a trailing-hours range, which is its elapsed hours / 24.
   forecasts, smoke density, and others) never rolls up. `display.chart` picks bars or a line
   and nothing else. Pesticide Yearly still reads the server's `years[]`, since summing months can
   fall short of a year; summing is only for an open month.
-- **Incomplete periods are stitched from finer data** — e.g. the current month (no
-  monthly rollup until it ends) is computed from daily summaries so far, today from
-  hourly. Fixes the "current month shows nothing" problem for every widget.
-- **The last completed period is backfilled too** (2026-10-22, Foundations spec 2). Server
+- **Incomplete periods are stitched from finer data, at hour and day only** — the open
+  hour and day are computed from finer levels so far (the day figure's requests read today from
+  `daily/open/`). **Since step 5 spec 6a, months and years come from the
+  server's stored rows alone** (sjvair.com #342): the server writes, each night, the current
+  month's and year's row through yesterday with `is_final: false`, so the dashboard no longer
+  fills them from daily data. A period that starts today has no row until the next night, and
+  draws as no data.
+- **The last completed hour or day is backfilled too** (2026-10-22, Foundations spec 2; months
+  and years no longer, since spec 6a). Server
   rollups lag the period's end: hour H is summarized at about H+1:45 for monitors and H+1:50
   for regions, daily rollups run at about 01:10 Pacific, monthly ones on the 1st at about
   01:25, and yearly ones at about 02:05 (all on Pacific time since 2026-11-04). So the query
@@ -1225,14 +1301,15 @@ days" is 30), except a trailing-hours range, which is its elapsed hours / 24.
   stays empty until the server task runs. Since step 4 spec 1 the backfill's own last
   sub-period is filled one level finer again, and the backfill is skipped for places whose
   coarse value has arrived.
-- Advanced **resolution override** in Widget Creation (Release 1 step 4); data table and
-  exports show the resolution used.
-- **Where resolution lives** (decided 2026-09-28): each layer (and so each
-  `QueryDescriptor`) carries `resolution` (`"auto"` by default), so Collections and exports
-  keep it. A `WidgetType` may **pin** a resolution: calendars `"day"` (the hour × weekday
-  heatmap's `"hour"` pin went with the widget, dropped 2026-11-09). **Priority:
-  widget-type pin → user override → automatic ladder.** Pinned widgets don't show the
-  override.
+- The **Data resolution** control in Get data (Release 1 step 4; renamed from "Show values" in
+  step 5 spec 6a); data table and exports show the resolution used.
+- **Where resolution lives** (decided 2026-09-28; revised 2026-11-18, step 5 spec 6a): the
+  widget's data carries one `resolution` for every layer (`WidgetDataConfig.resolution`,
+  missing for Automatic), so Collections and exports keep it. A `WidgetType` may **pin** a
+  resolution: calendars `"day"` (the hour × weekday heatmap's `"hour"` pin went
+  with the widget, dropped 2026-11-09). **Priority: widget-type pin → the stored resolution →
+  Automatic** (the ladder, moved up to a level every layer offers). Pinned widgets don't show the
+  control.
 - Long raw exports (notebook bundles, CSV) use the monthly **CSV archive** endpoint.
 
 **Live refresh:**
@@ -1368,6 +1445,78 @@ The stack is per document and per session (not persisted).
   with a different `to`. Two deletes also agree: two `setField deletedAt` changes that both set
   a time don't overlap.
 
+## Datasets line up (dashboard only)
+
+Decided 2026-11-18 (the user, step 5 spec 6a; spec
+`docs/superpowers/specs/2026-11-18-step-5-spec-6a-dataset-rules-design.md`). The user: "People
+should be limited to only creating valid datasets which can be used for data analysis. You can't
+analyze data that doesn't line up."
+
+> **Datasets line up (dashboard only).** A dataset is the set of layers in one widget. Every
+> layer in it covers the same date or date range and uses the same data resolution. The
+> dashboard never mixes times (for example 2026 monitors with 2023 pesticide use) or resolutions
+> (for example daily PM2.5 with monthly pesticide totals) in one dataset. A dataset not offered at
+> the chosen resolution can't be selected. Comparing two time windows is two datasets, each
+> following this rule (a later feature).
+
+It covers the dashboard only, not monitor-map or mobile.
+
+- **One stored resolution per dataset.** `WidgetDataConfig.resolution` (missing means
+  **Automatic**, which is never stored) is used for every layer. There is no per-layer
+  resolution: an earlier document's `Layer.resolution` is dropped by the schema and opens as
+  Automatic. Types that pin a resolution keep it (the calendars' `day`).
+- **The rules module** (`src/lib/data/dataset-rules.ts`) answers every question the rule raises,
+  for Get data, the query client, the Chart, the Table and the Map. `LEVELS` (`raw`, `hour`,
+  `day`, `month`, `year`; no quarter or season) and `MAP_LEVELS` (`day`, `month`, `year`).
+  `layerOffers` is what one layer offers: its catalog `resolutions` that its adapter can fetch for
+  the places (`offered.ts`; region air quality has no raw). An air-quality entry type listing only
+  `raw` offers every level, downsampled. `datasetOffers` is what every layer offers. Smoke, fire
+  and spray notices offer `day` only, pesticide use `month` and `year`, forecasts `day`.
+- **Automatic** (`effectiveResolution`) starts from the range ladder (see "Data resolution &
+  live refresh") and takes the finest level at or above it that every layer offers. When the
+  datasets moved it, Get data says so: "Automatic data resolution is now Monthly: Pesticide Use is
+  reported by month." A widget left open follows a growing range.
+- **Ticked monitor types are their own place kind** (`PlaceKind` `"monitor-types"`,
+  `src/lib/data/dataset-rules.ts`, spec 7a): like regions, they have **no raw**, because they come
+  from the bulk monitor summaries, so an air-quality entry type that lists only `raw` offers
+  nothing at them. Searched monitors alone still offer raw. Ticked types are fetched **in bulk by
+  region and `type`**: one bulk summaries request per period scoped by the Where's regions (one
+  valley-wide request with no Where), carrying the ticked type ids as the server's repeatable `type`
+  filter (`@sjvair/sdk` 5.0.0-beta.16); the dashboard never filters by type itself. Raw for ticked
+  types is in `DEFERRED.md`.
+- **Whole periods.** At Monthly or Yearly the range is whole months or years. The stored range
+  keeps its kind; `resolveRange(range, now, resolution)` widens it, so "last 12 months" at
+  Monthly is the last 12 calendar months, the current one so far. When the range widens, Get data
+  shows the resolved dates, ending at today with "(so far)" when the range holds the current
+  period. A custom range at a coarse resolution is picked in whole periods (month or year
+  pickers).
+- **Get data greys out, never hides**: datasets the chosen resolution doesn't offer, resolutions a
+  chosen dataset doesn't offer (the reason names the dataset), and Show as types that can't show
+  the dataset at its resolution. The action bar stays blocked while a dataset doesn't line up.
+- **Untrusted documents** (a share link, `/import#…`) that don't line up open without errors and
+  are drawn, never rewritten: the main layer (a Map's first pollutant) decides the resolution,
+  the layers that don't offer it aren't drawn, and a note says why and to change it in Edit data.
+- **One figure per pollutant, everywhere.** "Monthly" is one value per Pacific calendar month in
+  every widget, and each pollutant's value is the figure its scale is built on, named by the
+  metadata (`MetadataSource.figure(entryType, resolution)`, through `figureFromScale`):
+  - hourly and finer: the period's mean;
+  - daily: `scale.daily_statistic` (PM2.5's 24-hour average, ozone's highest 1-hour average);
+    null is "Not enough data";
+  - monthly and yearly: `scale.period_statistic` (the row's `daily_statistic_mean`, the average
+    of the daily figures); null when too few of the days had one;
+  - an entry type with no `daily_statistic` (weather): the mean at every level.
+
+  So daily Charts and Tables of O3, NO2, SO2 and CO show the day's peak figure, not its mean, and
+  their level bands match the figure the scale is defined for. The series name, the table
+  header, the legend and the CSV name the figure (`daily_statistic_label` or
+  `period_statistic_label`). Choosing the plain mean instead is in `DEFERRED.md`.
+
+- **Coarse series come from the server's stored rows only**, the current period's nightly row
+  (`is_final: false`) included. The dashboard no longer fills months or years from daily data.
+  Daily and finer still fill today from `daily/open/` (see "Data resolution & live refresh").
+- **Later:** a weekly resolution, Quarterly and Seasonal, comparing two datasets, an hourly Map,
+  smoke and notices by month, and the plain-mean option are all in `DEFERRED.md`.
+
 ## Widget data selection (partial datasets)
 
 Decided 2026-09-23 (IDEA.md Open Question #2).
@@ -1383,9 +1532,9 @@ type QueryDescriptor = {
 	entryType?: string; // pollutant/entry type where applicable
 	dateRange: DateRangeSpec; // set / rolling (to-date or trailing) / custom (see "Get data")
 	timeSubRange?: { start: string; end: string }; // e.g. calendar day-range selection
-	place?: PlaceRef; // one place (any kind), the common case; or…
-	selection?: SpatialSelection; // …several monitors or regions. Never both; neither = whole layer
-	resolution?: "auto" | Resolution; // default "auto"
+	place?: PlaceRef; // Where: one area, school or point (never a monitor); or…
+	selection?: SpatialSelection; // …several areas (regions only). Never both; neither = everywhere
+	resolution: Resolution; // the dataset's (WidgetDataConfig.resolution, or Automatic's pick)
 };
 
 type Resolution = "raw" | "hour" | "day" | "month" | "quarter" | "season" | "year";
@@ -1393,15 +1542,24 @@ type Resolution = "raw" | "hour" | "day" | "month" | "quarter" | "season" | "yea
 type WidgetDataConfig = {
 	dateRange?: DateRangeSpec; // absent for time: "now" | "none" widget types
 	timeSubRange?: { start: string; end: string }; // per widget, not per layer
-	layers: Array<Omit<QueryDescriptor, "dateRange" | "timeSubRange">>; // ≤ 1 pollutant layer
+	resolution?: Resolution; // one for every layer; missing = Automatic (step 5 spec 6a)
+	place?: PlaceRef; // Where, for the whole widget (step 5 spec 7a); see below
+	selection?: SpatialSelection;
+	layers: Layer[]; // ≤ 1 pollutant layer (Current conditions: one per pollutant); no place
 };
 
+// A layer (the saved shape, `LayerSchema`) is the dataset and entry type plus its filters, and, on
+// the air-quality layer, the monitors What asks for:
+//   monitors?: string[];     // monitors picked by the Monitors search, wherever they are
+//   monitorTypes?: string[]; // ticked monitor types: every monitor of them inside Where
+// (monitors may also sit on a single-place widget's one layer, a Forecast strip's)
+
 type PlaceRef =
-	| { kind: "monitor"; id: string }
 	| { kind: "region"; type: string; code: string } // e.g. county + "06019" (see below)
 	| { kind: "location"; source: string; code: string } // a school or child-care site
 	| { kind: "point"; lat: number; lon: number; label?: string }
 	| { kind: "default-place" }; // the starter's chosen place, read from a preference
+// There is no monitor kind: monitors are What (a layer's `monitors`), not Where.
 
 type DateRangeSpec =
 	| { kind: "set"; unit: "year" | "month" | "week" | "day"; start: string }
@@ -1420,14 +1578,21 @@ type DateRangeSpec =
   `meta/datasets/`, or any failed fetch, gives `catalog-unavailable` (retried on the next
   query). Production stays unavailable until sjvair.com #293 (which adds the catalog and the
   code filter on `regions/`) is live there.
+- **The snapshot query** (step 5 spec 4, `src/lib/data/snapshot/`): a second read shape beside the
+  series query, for a whole layer at one moment: **one figure per place for one day** (or
+  today so far), not a series per place. It uses the bulk summaries (one request per day, scoped
+  by regions or, for a region fill, by a whole region type), applies the same day rules as the
+  calendars (`day-state.ts`), and is polled only while a day is not final. Series queries are
+  unchanged.
 - **`timeSubRange` lives on `WidgetDataConfig`** (decided 2026-10-22), next to `dateRange`,
   not on each layer's descriptor: the range is per widget. A layer resolves to a
   `QueryDescriptor` by taking the widget's `dateRange` and `timeSubRange`.
 - **Dates are Pacific calendar dates** (`YYYY-MM-DD`). `"to-date"` and `"trailing"` are the
   two groups of the Rolling method (see "Get data").
-- **A layer holds one place or a multi-selection** (decided 2026-10-13): `place` takes any
-  `PlaceRef`, including a point or a school, which is how a chart keeps "my location";
-  `selection` is for several monitors or regions (maps, comparisons).
+- **Where is on the widget, not on a layer** (decided 2026-10-13; moved by spec 7a, 2026-11-21;
+  see "Widget data selection: What, Where and monitors (spec 7a)" below): `WidgetDataConfig.place`
+  takes a `PlaceRef` (an area, a school or a point, which is how a chart keeps "my location");
+  `selection` is for several areas. Monitors are never places.
 - **`default-place`** (decided 2026-10-13) is how the built-in starter says "the chosen
   place" while "Change place" stays a preference. It resolves at display time. When an
   edit turns the starter into a personal copy, every `default-place` is replaced by the
@@ -1617,21 +1782,21 @@ kinds (not `default-place`, which only the built-in starter uses). Server suppor
     place.
   - **What it's for:** the host passes the dataset and entry type (the widget's pollutant
     layer), the mode, and the cap. **Single** mode closes on the first pick; **multiple** mode
-    (`accepts.maxPlaces`: Chart 5, Data table 10) keeps picks as removable chips until
+    (a cap only where `accepts.maxPlaces` is set: the Map's 25) keeps picks as removable chips until
     **Done**, which needs at least one pick (an empty Done would idle the widget; Remove widget
     exists for that), and **Cancel** discards them.
-  - **One kind at a time:** several places are one `SpatialSelection` (all monitors or all
-    regions, region ids `"type:code"`), the shape the Map widget syncs with. The first pick
-    sets the kind; rows of the other kind stay visible but are `aria-disabled` with a reason
-    ("This widget compares regions. Remove the regions to compare monitors."). The reasons say
-    "This widget …", since the picker serves every widget type. **Schools and "your location"
-    are single-place only:** either can be the only pick. With exactly one place picked (of any
-    kind, a school or your location too), choosing one replaces it (the user's decision,
-    2026-11-05); with two or more picked they are greyed out with a reason. With a school or
-    your location picked, regions and monitors are greyed out; another school or your location
-    replaces it. At the cap, the rest read "This widget shows up to 5 places." One pick is
-    stored as the layer's `place`, two or more as its `selection`; removing back to one stores
-    a `place` again.
+  - **One kind at a time (changed in spec 7a):** the picker has three modes. A Chart's or Table's
+    Where (`areas`) offers areas only; a Map's and a single-place widget's Where offers areas,
+    schools and points; the Monitors search (`monitors`, in the Air quality section) offers
+    monitors only. Several areas are one `SpatialSelection` (`kind: "regions"`, ids `"type:code"`),
+    the shape the Map widget syncs with. **Schools and "your location" are single-place only:**
+    either can be the only pick. With exactly one place picked (of any kind), choosing one
+    replaces it (the user's decision, 2026-11-05); with two or more picked they are greyed out
+    with a reason; with a school or your location picked, areas are greyed out and another
+    school or your location replaces it. The reasons say "This widget …", since the picker serves
+    every widget type. A Chart or Table has no cap on areas; the Map keeps 25. One pick is stored
+    as the widget's `place`, two or more as its `selection`; removing back to one stores a
+    `place` again.
   - **Pollutant fit:** monitors whose type can't supply the entry type (`monitors/meta/`
     `monitors[<type>].entries`) are hidden, not greyed out. Regions, schools, and points aren't
     filtered (no bulk coverage; see `DEFERRED.md`); a place with no data shows "No data".
@@ -1680,12 +1845,12 @@ Collections — see "Analysis: Collections & engine".)
 range. Narrowing _when_ is done with a calendar or chart widget's **own** time selection
 (for staging its data), not a map time scrubber and not by filtering other widgets.
 
-One selection model, three ways to produce it:
+One selection model (regions only since spec 7a), three ways to produce it:
 
 ```ts
 type SpatialSelection = {
-	kind: "monitors" | "regions";
-	ids: string[]; // monitors: server ids; regions: "type:code" keys (see "Stable ids")
+	kind: "regions"; // spec 7a: never monitors (those are a layer's `monitors`)
+	ids: string[]; // "type:code" keys (see "Stable ids")
 	source?: GeoJSON.Geometry; // present when produced by a drawn shape
 };
 ```
@@ -1714,6 +1879,116 @@ type SpatialSelection = {
 Build order: A and B first (both share one selection state); C
 later. Drawing tools belong in `@sjvair/map-sdk` as an **opt-in plugin, off by
 default**, so sjvair.com's map and the mobile app are unaffected (see Open Question #3).
+
+**Widget data selection: What, Where and monitors (step 5 spec 7a, built 2026-11-21/22).** Spec:
+`docs/superpowers/specs/2026-11-21-step-5-spec-7-data-portal-design.md`. The user's rule (2026-11-21):
+**What is the data; When and Where are filters for it.** With no Where, a widget shows everything its
+What asks for, for every data set. This section replaces the earlier "a layer holds its places"
+shape.
+
+- **Where is the widget's**: `WidgetDataConfig.place` / `selection` (`src/lib/data/schema.ts`), beside
+  `dateRange`. It holds areas, schools and points, and `default-place` in the starter; **never
+  monitors**. `PlaceRef` has no `monitor` kind and `SpatialSelection` is `kind: "regions"` only. A
+  Chart's or Table's Where offers areas only (`areasOnly`, `src/lib/places/replace.ts`); the Map
+  and the single-place types keep schools, addresses and "my location". A school or point stands for
+  the areas it sits in (ZIP code, then city, then county).
+- **Monitors are What**: the air-quality layer's `monitors` (ids from the Monitors search, counted
+  wherever they are) and `monitorTypes` (ticked monitor types, counted only inside Where's areas;
+  every monitor of the type with no Where). `monitors` may also sit on a single-place widget's one
+  layer (a Forecast strip's forecasts layer); `monitorTypes` is meaningful on the air-quality layer
+  only. An unticked type means "not shown": no widget reads "nothing ticked" as "everything".
+  With the pollutant on None the ticks and monitors stay saved, greyed out ("Choose a pollutant to
+  show monitors"), and draw nothing.
+- **No selection limit.** `LIMITS.SELECTION_MAX` is gone (`schema.test.ts` checks it stays gone).
+  The size check an incoming document needs is `MAX_DOCUMENT_CHARS` (1,000,000 characters,
+  `sharing/envelope.ts`).
+- **The internal `QueryLayer`** is what the query client reads: `queryLayer(data, layer)`
+  (`src/lib/widgets/shared/input.ts`) builds it from a saved `Layer` plus the widget's Where
+  (`widgetWhere`), carrying `monitors` and `monitorTypes` only on an air-quality layer with an
+  entry type (and a Forecast strip's `monitors`). It is the one place a query layer is built, so
+  the saved shape can change behind it. `widgetMonitors(data)` and `widgetPlaceKind(data)` read
+  the same fields for the rest of the app.
+- **The target `monitor-set`** (`src/lib/data/types.ts`, built in `adapters/targets.ts`) is what a
+  layer with monitors asks for: ticked types, the Where's region keys (null with no Where) and the
+  searched ids. It is fetched in bulk by region and type (see "Datasets line up"), and any
+  searched monitor the bulk answer lacks is fetched one by one.
+- **What a widget draws.** _Chart and Table_: one line (column) per monitor, with Where's areas
+  only narrowing which monitors; with areas and no monitors, one line (column) per area as before;
+  with neither, an empty prompt saying what to add. **No cap on lines or columns** (the user:
+  "It's not our job to make sure a user's chart isn't cluttered"); `maxPlaces` is gone for both.
+  Each line gets its own colour, dash and marker, so 125 lines differ before any repeat
+  (`seriesShape`, `src/lib/charts/series.ts`); colour is never the only cue. _Map_: one pollutant
+  or none; it draws the ticked types inside Where plus the searched monitors. With no pollutant
+  it still draws its other layers, and a region fill draws as outlines, uncoloured, with no
+  legend section. _Single-place types_ (Current conditions, "Can we go outside?", the Forecast
+  strip, the calendars) take one place in Where or one searched monitor, not both.
+- **Schools and child care are What on the Map** (step 5 spec 7c, built 2026-11-22). They are
+  one place-less layer, `{ dataset: "locations", locationTypes: [...] }`, after the notices and
+  ahead of the use (`setLocationTypes`, `src/lib/get-data/map.ts`), shown when at least one type
+  is ticked; unticking every type removes it. What has one section per location group
+  (`locations:<group key>`, from the regions meta; see "Metadata as source of truth"), a checkbox
+  per type, written in the meta's order. A saved type the meta no longer lists shows ticked and
+  greyed in a "No longer offered" block and can be unticked. The sections are greyed for every
+  other widget type ("Map only"), and every other reader of a widget's layers skips the locations
+  layer, as it skips the notices; "Show as" another type leaves it out with a note naming the
+  ticked groups ("Schools: shown only on a map, so left out."). Where filters it like everything
+  else: the sites inside Where's areas (a school or point: its fallback region, the first of ZIP,
+  city and county the server has), or the whole valley's with no Where. Unticking a group's last
+  type also takes the group off the Map's `hiddenLocationGroups` (below), so ticking it again
+  shows it.
+- **Compatibility.** There is no compatibility code for documents saved before this shape (the user,
+  2026-11-22: nobody has any). The drop-on-read steps, the Map's `showing` option and the
+  several-pollutant Map handling were removed; schemas that were strict stay strict, so an old
+  local test dashboard fails to open and is cleared by clearing the site's data.
+
+**A map's places are its Where (step 5 spec 1, built 2026-11-11; Option A, the user,
+2026-11-11; moved off the layer by spec 7a).** The Map widget's Where is the widget's `place` /
+`selection` (areas, schools, points), read through `widgetWhere` like every other type, and its
+data is an air-quality layer (`{ dataset: "air-quality", entryType? , monitors?, monitorTypes? }`).
+There's no separate focus field and no saved camera: what the map frames is always what the
+picker saved. The monitors drawn are what What asks for (see "Widget data selection: What, Where
+and monitors (spec 7a)"); the places only decide what's highlighted, which monitors the ticked
+types are limited to, and where the camera goes.
+
+- A **region** is outlined and highlighted, and the map fits its bounds. A **monitor** is
+  highlighted and centered (zoom 12 at least). A **school or child-care site** gets a labeled
+  pin (zoom 13). Several monitors or regions are all highlighted and fitted.
+- An **exact point** frames **its region** (the one its data uses), outlined, with a pin inside
+  reading "Your location" for the owner or "Shared location" for a viewer. The tiles asked for
+  are the region's, so MapTiler never learns the point unless the person zooms in on it. When
+  the region can't be found, the map opens on the Valley's view, not the point.
+- The picker reads and writes the layer through `applyChange` (undoable). A picker change, undo,
+  "Change place" or another tab re-targets the map. "Change place" moves a one-place map and
+  leaves a several-place map alone, as for every widget.
+- **Clicks don't select in spec 1.** Hover shows map-sdk's tooltip, and the feature list reaches
+  every monitor by keyboard. A tap on a phone shows no reading yet: that waits on map-sdk's
+  pinned card for a click or tap, its own map-sdk release, which spec 1 needs before it merges.
+  Feature picking (method A: the card's Select/Remove and Shift-click) comes in spec 2.
+
+**A Map's pesticide filters (step 5 spec 5a, built 2026-11-16; pesticide use joined in 5b,
+2026-11-17).** A Map has **one pesticide filter set**, the same `PesticideFiltersSchema` charts'
+pesticide layers use (chemical, commodity, product, categories, cancer group, method, narrow-to).
+It is saved on each of the Map's pesticide layers (the notices, and the place-less pesticide use)
+and kept in step by `setMapPesticideFilters` (`src/lib/get-data/map.ts`); `mapPesticideFilters`
+reads the first. Get data's Map section edits it with `PesticideFilters.svelte`, shown in the
+"Spray notices" section, and in the "Pesticide use" section once use is on. **The set outlives
+either layer while the other is on:** turning notices off keeps it on the use layer, and turning
+them on again takes it from there (`setNotices`); turning use on takes the notices' set
+(`setUse`). Turning off the last pesticide layer removes the set with it. One set applies to use,
+its classes, the section card's detail, and the notices. Filters are owner choices in Get data,
+never toolbar rows.
+
+- **Only what the notices take is sent.** The notices request carries only the filters the
+  pesticides meta lists in `notice_filters` (`toNoticeParams`). A saved filter not listed (the
+  crop: notices record none) is named "‹filter›: doesn't apply to spray notices" in Get data and
+  in the legend, and is left out of the legend's "Filtered by" line. It is never dropped
+  silently.
+- **Filter-gone** works as on charts, but only for the filters the notices take: a saved
+  chemical or product the server no longer has, or a code the meta no longer lists, makes the
+  layer unavailable with a banner. A gone crop doesn't.
+- **Pesticide use takes every filter** (`toUseParams`), so any gone filter makes use
+  unavailable (`useFiltersGone`), with the banner and, since `@sjvair/map-sdk` `0.1.0-beta.20`,
+  the reason in the legend's status row too.
 
 ## Map SDK: `@sjvair/map-sdk` + monitor-map rebuilt on it
 
@@ -1864,7 +2139,9 @@ release ships the same day (see `DEFERRED.md` → the deploy entry).
   back to hardcoded values; they show `unavailable` on a server without the meta.
 - **Plugins never fetch.** The dashboard feeds its own data layer's results in as data
   sources. map-sdk's stores (`createMonitorsStore()`, in a `/stores` entry that can't reach the
-  map engine) are for live data.
+  map engine) are for live data in monitor-map and mobile. The dashboard's Map widget doesn't
+  use them: it loads all of its data, live data too, through the dashboard's data layer and
+  passes it in as plain data sources (the user, 2026-11-12, step 5 spec 2).
 - **`MapContext` outlives the GL map.** `MapView`'s `active={false}` (or unmounting) releases
   the WebGL context; showing it again rebuilds with the same camera, basemap, plugins, and
   selections. The core re-runs plugin setup after basemap changes, so plugins never check a
@@ -1926,6 +2203,485 @@ option the Map widget can use too:
   that is its category level's code (smoke density, burn status, the heat score's 0–4) shows only
   the level label, in rows, tooltips and accessible names (the user chose label only).
 
+**Shared options toolbar (decided by the user 2026-11-11, in the Map widget brainstorm).** map-sdk
+gets a shared, host-controlled options toolbar: plugins declare a group (Pollutant, Monitors,
+Layers, Overlays, Settings) and their options, the host owns the values, and the toolbar sizes
+itself by the map's box, or by a box the host passes as `MapView`'s `layoutRoot` (`0.1.0-beta.14`,
+2026-11-13; monitor-map's map plus its detail panel, so opening a monitor doesn't flip it to the
+options button). The dashboard's Map widget uses it (step 5 spec 3), and **monitor-map 5.0
+moves onto it** in place of its own options toolbar. That also changes mobile's map: mobile
+renders monitor-map through `monitorMapRoutes` (`@sjvair/monitor-map/routes`), whose
+`MonitorMapLayout` includes the options toolbar, so mobile re-pins and is re-tested after the move.
+map-sdk also adds an actions slot on the pinned card (the widget's Select/Remove). The Map widget's
+spec lists the exact map-sdk changes. **Built for monitor-map (5.0.0-beta.2, 2026-11-13):**
+`MonitorMapLayout` renders map-sdk's `OptionsToolbar` from map-sdk's presets (monitors, HMS,
+settings), plus its own EV charger and Wind groups, with the host's values in one flat record.
+
+**The Map's days and region fills (step 5 spec 4, built 2026-11-15; spec
+`docs/superpowers/specs/2026-11-15-step-5-spec-4-map-days-and-fills-design.md`).**
+
+- **Stops: days, months or years** (step 5 spec 4; months and years since step 5 spec 6a). A Map
+  with a date range steps through it at its data resolution (Daily, Monthly or Yearly,
+  `MAP_LEVELS`; chosen in Get data, with Automatic; see "Datasets line up"). At Daily its
+  **stops** are each Pacific day of the range before today, then **Now** if the range includes
+  today. At Monthly and Yearly they are each month or year of the range widened to whole periods,
+  the current one last as "so far" (`days.ts` `periodStops`; future periods are cut). A range
+  without today opens on its last stop; one with today opens on Now (Daily) or the current period
+  (Monthly, Yearly). A past stop loads from the **snapshot query** (below), Now from the live
+  readings as before. A Map with no range is Now only, has no resolution and shows no stepper.
+- **The span counts stops** (spec 6a): at most `MAP_MAX_STOPS` (366) at the resolution, checked
+  on the widened range (366 days, months or years). A longer range from another type is cut to
+  its last 366 stops, with a note. A trailing range keeps rolling at Daily and Monthly; at Yearly
+  it becomes a fixed custom range, since trailing ranges have no `year` unit (see `DEFERRED.md`).
+- **The stepper** (`DayStepper.svelte`, below the map): Previous and Next buttons and the
+  standard slider pattern (arrows one stop, Page Up and Down a week, a year of months or ten
+  years, Home and End the ends; `aria-valuetext` the long date, the month, the year, or "Now");
+  on a narrow tile only the buttons and the stop's name. Every drag has the buttons and keys as
+  its alternative. **"Not final yet"** shows once, in the strip beside the stop's name, when its
+  figures aren't final (the user, 2026-11-15); a monitor's tooltip, list row and accessible name
+  give the figure name, value, unit and level only.
+- **The saved stop** is the Map option `at` (spec 6a; was `day`): the Pacific date key of the
+  shown period's start (a day, a month's first day, a year's first day). In the code a stop is
+  `SnapshotAt`: `"now"`, `{ day }` or `{ start, resolution: "month" | "year" }`. Missing means
+  the last stop and the last stop is never written; a saved stop that isn't one of the range's
+  falls back to the last stop, drawn and not saved. **A run of steps is one undo step** (steps
+  within a second of the last fold into it; `step-run.ts`). **A viewer's step is held in the
+  page**, never written, so a read-only or live-shared dashboard steps with no write; "Make a
+  copy" keeps it. `at` isn't a toolbar key, so Reset leaves it.
+- **What a stop shows.** At Daily the monitors draw each monitor's daily figure for the day (the
+  scale's `daily_statistic`, named by `figureLabel`); a monitor with too thin a day reads "Not
+  enough data". At Monthly and Yearly they draw the period's figure (`scale.period_statistic`,
+  the row's `daily_statistic_mean`), coloured on **the same daily scale** (the user: it "provides
+  a general idea of what people were exposed to each day in the month"); a monitor with no
+  figure reads "Only {days} of {expected} days had a figure" (else "Too few days had a figure").
+  The figure is named in the tooltips and the feature list's note, not the legend (map-sdk has
+  no legend slot for it; see `DEFERRED.md`). The toolbar offers no Inactive row on a past stop (a
+  monitor with a figure then was reporting). **Smoke, fire and spray notices draw only at
+  Daily** (the day's: `hms/*?date=`); **pesticide use only at Monthly and Yearly**, for the
+  stop's month or year. A layer the resolution doesn't offer isn't drawn and has no toolbar row;
+  from an untrusted document, a note says so ("‹dataset› isn't shown at this data resolution.
+  Change it in Edit data."). **A stop where no monitor in the places has a figure says "No
+  figures for this day"** (or "this month", "this year"; once the stop has loaded, never while
+  it loads; it joins the map's notes and its accessible name). The hidden-marks note's reason is
+  "no figure for this period".
+- **Fetching ahead.** The neighbouring stops (one each side) are fetched ahead, so a step
+  draws at once; from Now, the day before it. That holds for the monitors' figures, smoke and
+  fire, the fill, and the spray notices (spec 5a). Sources that are still wanted are kept while
+  the queries swap, so a day fetched ahead is never aborted and fetched again.
+- **Refresh.** Now polls as before; a past stop polls hourly only until every figure is final
+  (the current month or year is never final, since the server writes it nightly through
+  yesterday); a range without today never polls once its stops are final. **Smoke and fire on a day
+  poll only while
+  that day's monitor figures aren't final** (HMS has no final flag, so the monitors' stand in
+  for it; a late plume for a settled day isn't picked up; see `DEFERRED.md`). "Today" turns over
+  at Pacific midnight (the Map checks once a minute); Now's smoke and fill are keyed by today's
+  Pacific date, so they are fetched afresh after midnight.
+- **Spray notices follow the day** (step 5 spec 5a; Daily only since spec 6a). Now shows the notices
+  active now; a day stop
+  shows those active on that Pacific day (`?date=`: scheduled from Pacific 00:00 of D-4 to before
+  Pacific 00:00 of D+1). **Now polls hourly** (`"hour"`): the server imports SprayDays once a
+  day, at 14:00 UTC, and an hourly poll picks the import up within an hour without the dashboard
+  hardcoding the schedule. **A past day polls hourly until Pacific 00:00 of D+5, then never**
+  (`noticesPolls`; the user, 2026-11-16): the daily import rewrites notices up to 4 days back, so
+  a day isn't settled until then. Now's cache key has its own prefix (`map-notices:now:<today>`)
+  apart from a day stop's (`map-notices:<day>`), so after midnight yesterday's stop never takes
+  over Now's undated data; it still carries today's Pacific date, so Now is fetched afresh after
+  midnight.
+- **Pesticide use follows the stop** (step 5 spec 6a; spec 5b's separate use period, `usePeriod`,
+  is gone). It is offered only at Monthly and Yearly, so it isn't offered on Now, and it draws
+  the stop's month or year (`use-period.ts` `periodOfStop`). A period whose year the meta doesn't
+  list says "No pesticide use reported for ‹period› yet." It never polls. A Chart with pesticide
+  use converted to a Map keeps its range (so the use stays drawable); a Map with use converted
+  to a Chart keeps the use, even from Now, and the Chart's Automatic then counts it (Monthly).
+- **Region fills.** The region type is the Map option `fill` (a region type id), written by Get
+  data's "Fill regions by", not a layer: a fill has no pollutant of its own (it follows
+  the Map's one pollutant, or draws as outlines with none). It is validated against the region metadata when drawn: an unknown type draws no
+  fill and the toolbar offers no row, and nothing is written. map-sdk's `regionsPlugin` draws every
+  current region of the type over the whole valley, under the monitors and the focus area, with
+  `selectable: false`; each figure is the stop's (the day's, or the month's or year's period
+  figure), or on Now today's so far, and the layer label says so ("ZIP Codes, today so far",
+  "this month so far", "this year so far"; the type's plural label otherwise). A region with no
+  figure is drawn
+  **outlined with no fill and reads "No data"** (in the list, the tooltip and the legend's
+  no-figure row). The legend has **one section** for the pollutant, shared by monitors and
+  fill, because both use the same `ScaleRef` (and the source's `scale` must be the same object
+  on each read: map-sdk matches a resolved scale by identity). The Layers group's fill row (a
+  checkbox, the type's plural label) hides the fill without unloading it, saved as `fillShown`
+  (only `false` is stored; a toolbar key that Reset clears).
+- **The snapshot query** (`src/lib/data/snapshot/`, imported only by lazy chunks): one figure per
+  place for one stop, from the bulk summaries. `monitorPeriodSource` and `regionPeriodSource`
+  (spec 6a) ask the bulk monthly or yearly summaries and read `scale.period_statistic`'s field
+  (`periodFigure`; a null figure keeps the row's day counts for its reason). `monitorDaySource` asks
+  `monitors/<type>/summaries/daily/` scoped by region; `regionDaySource` and `regionTodaySource`
+  ask `regions/<entry_type>/summaries/daily/` and `…/daily/open/` with `type=<Region.Type>`
+  (the server's whole-type scope, current regions only, so tracts match the GeoJSON's 978).
+  They share the calendars' `dayState` rules for final, pending, today and unrated figures.
+  A region the summaries leave out is a region with no figure, never an error.
+
+**The Map tile's toolbar (decided by the user 2026-11-12, in the step 5 spec 2 brainstorm; built
+in spec 3, 2026-11-13).** A Map tile is not a copy of monitor-map: its toolbar offers options only
+for the data that tile holds.
+
+- **A group appears only when it has a choice.** Pollutant, Monitors and Layers each show only
+  when the tile's data gives that group a choice (Pollutant and Monitors: two or more options;
+  Layers: the tile has smoke and fire, and its one row counts as a choice). There is no Overlays
+  group: wind belongs to monitor-map, outside map-sdk, and the tile has no overlay data. Settings
+  always shows, because its options set up the map itself.
+- **Layers holds only Fire & Smoke** (the user, 2026-11-13; **and the region fill's row since
+  step 5 spec 4, and a "Spray notices" row since spec 5a**): a show/hide switch for each. It
+  doesn't add or remove the data, which stays a Get data choice (the layers' data stays loaded
+  while hidden, so showing again is instant, with no new request). The group shows when the tile
+  has a fill, smoke and fire, or notices. The notices row (`NOTICES_KEY`, in `toolbar/values.ts`)
+  is saved as `noticesShown`: only `false` is stored, and it is a toolbar key, so Reset clears it.
+  It applies only while the row is offered. Spec 5b adds a "Pesticide use" row (`USE_KEY`), saved
+  as `useShown` the same way. The places' outline (focus area) is always drawn, with no row.
+- **The Pesticide use group** (step 5 spec 5b, built 2026-11-17) shows while the tile has a
+  drawable use layer: a Figure select (the catalog's `pesticide-use` entry types, saved as
+  `useFigure`, missing when it is the first). `useFigure` and `useShown` are toolbar keys, so
+  Reset clears them. Spec 5b's Year and Month selects (`usePeriod`) went in spec 6a: the use
+  follows the stepper's month or year.
+- **Monitors' "Inactive" and "Inside" options** show only when the loaded monitors include
+  inactive or indoor ones, and both are **off by default** (the user, 2026-11-13: a Map no longer
+  draws inactive or indoor monitors until someone turns them on). A monitor type with no monitor among the loaded ones for the Map's pollutant isn't offered. On a past stop (spec 4) the
+  Inactive row isn't offered, and `at` isn't a toolbar key, so Reset leaves it (see "The Map's
+  days and region fills").
+- **Left out on purpose:** a search slot (the place picker does that job) and Collocation Sites
+  (the dashboard loads none). A Map can have no pollutant ("None" in the Data Portal): it then
+  draws its other layers, and a region fill draws as outlines, uncoloured, with no legend section
+  (R19).
+- **Settings** keeps monitor-map's set: marker clusters, basemap, basemap theme (the variant), and
+  Reset to defaults.
+- **Values are saved with the tile**, in its options.
+- **The theme can differ from the dashboard's.** It opens on the basemap style's own default
+  variant, as monitor-map does today. There is no "Follow the dashboard" option: the list offers
+  only the variants MapTiler defines.
+- **The basemap is one saved value**, the variant id, which map-sdk stores. An unknown id falls
+  back to a default and never throws. Every MapTiler basemap is offered at its newest version; it
+  opens on Streets v4 without POI layers.
+- **The saved shape** (`MapOptionsSchema`, `src/lib/widgets/map/options.ts`), next to
+  `marks` (spec 7a removed `showing`: a Map holds one pollutant or none, the layer's entry type): `basemap`, `clustered`, `fireAndSmoke`, `inactive`, `inside`, and `hiddenTypes` (the
+  monitor types switched off, unique and bounded). Types are saved as the ones switched **off**, so
+  a type the server adds later shows as on with nothing to fix in old dashboards.
+- **Missing means default, and a default is never written.** A missing option is drawn as its
+  default; a choice equal to its default is stored as missing (a type switched back on leaves
+  `hiddenTypes`, an empty list is removed). So **Reset Map Options** needs no special handling:
+  putting each key back to its default removes it. The pollutant is the layer's, so it isn't reset; marks
+  and places stay.
+- **A saved value applies only while its row is offered.** A type switched off, or Inactive or
+  Inside off, filters the monitors only when the Monitors group shows that row. If the tile's data
+  later leaves the row out, nothing filters by it, so a tile can never hide monitors with no
+  visible way back. The value stays saved and applies again when the row returns.
+- **The toolbar's filters never hide the monitors the owner searched for** (a ruling
+  made while building, 2026-11-13; before spec 7a they were monitor places). A searched monitor
+  (the layer's `monitors`, `placeMonitors`) is
+  always drawn, even when inactive, indoors or of a type switched off: the Inactive and Inside
+  defaults and the type switches hide incidental monitors around a place, never one the owner
+  chose, and the toolbar offers no filter rows for them, since they can't be filtered (the user,
+  2026-11-13). So such a monitor is never "hidden by the map's options" in the hidden-marks note.
+- **No per-field fallback for invalid options** (changed while planning, 2026-11-13): the document
+  schema already rejects any invalid Map options (`DashboardBodySchema`'s refine), so such a
+  dashboard opens read-only and a per-field fallback could never run. A missing or invalid
+  options value read at a tile reads as none.
+- **One `applyChange` per toolbar action** (one undo step); a select-all heading and Reset are one
+  step each, matching map-sdk's one `onchange` per action. Converting away from the Map drops
+  these options, as it drops `marks`.
+- **Icons** are Lucide icons tinted with theme tokens, `--map-icon-monitors`, `-layers`,
+  `-basemap`, `-theme`, `-settings`, `-clusters` and `-fire` in `src/app.css`, each with a
+  dark-mode value, picked for at least 3:1 against the toolbar's background in both schemes.
+  The light values are monitor-map's hex colors, except clusters: `#1c86ee` (dodgerblue2), one
+  step darker than monitor-map's `#1e90ff`, to meet 3:1.
+- **The hidden-marks note gives its reasons.** A hidden mark's monitor type is looked up once
+  (page-wide cache), so the note names each reason that applies, one line each: the type doesn't
+  report the Map's pollutant; the mark is hidden by the map's options (its type switched off, or
+  inactive or indoor and those hidden); it is outside the map's places; or its reason can't be told
+  ("aren't shown"). The same lines are the map's accessible name and map-sdk's feature-list note.
+
+**The dashboard's Map widget (step 5 spec 1, built 2026-11-11).** How the dashboard hosts map-sdk
+(code in `src/lib/widgets/map/`, the host pieces in `host/`):
+
+- **Pinned exactly:** `@sjvair/map-sdk` `0.1.0-beta.21` and `@sjvair/sdk` `5.0.0-beta.15`
+  (`npm:@jsr/sjvair__sdk@5.0.0-beta.15`), never a range or a dist-tag. The moves:
+  - map-sdk `0.1.0-beta.16` (step 5 spec 4, 2026-11-15): region fills.
+  - map-sdk `0.1.0-beta.17` (step 5 spec 5a, 2026-11-16): shapes `zoomRange`, the lens, count
+    markers, and the legend's units line and note slot.
+  - map-sdk `0.1.0-beta.18` (spec 5a): a notice card holds the hover lens (used in 5b).
+  - map-sdk `0.1.0-beta.19` (spec 5a): count numbers drawn black or white by contrast with the
+    level colour (WCAG 1.4.3).
+  - map-sdk `0.1.0-beta.20` (spec 5b): `map.pin(pluginId, refKey)` (pin another plugin's
+    feature in place, with no camera move; a hover lens held by the card stays held),
+    `legendDisplay` on shapes plugins and the lens, and the unavailable status's `message` in the
+    legend.
+  - map-sdk `0.1.0-beta.21` (step 5 spec 6a): the lens no longer flashes its townships clear on a
+    recentre (`GlMapLike.isSourceLoaded`, unused here).
+  - SDK `5.0.0-beta.11` (spec 4): the whole-type region scope.
+  - SDK `5.0.0-beta.12` (spec 5a): `getActivePesticideNotices`, and the pesticides meta's notes,
+    badges, links and `notice_filters`.
+  - SDK `5.0.0-beta.13` (spec 5a): sections, townships and classes with colours (for 5b), the
+    meta's `spray-notice` scale, and each notice's `aerial_ground`.
+  - SDK `5.0.0-beta.14` (spec 5b): the meta's section and chemical link templates
+    (`links`, `link_params`) with `pesticideLinkUrl`, and `getPesticideSectionDetails` taking the
+    value filters and the month.
+  - SDK `5.0.0-beta.15` (spec 6a): the period figure (`daily_statistic_mean` and its day counts on
+    coarse summary rows; `period_statistic` and `period_statistic_label` on scales).
+
+  The dashboard no longer depends on `@maptiler/sdk` directly: the pin's label comes from
+  map-sdk's focus area.
+
+- **Config, shared by every map** (`host/config.ts`): the MapTiler key, Mercator projection
+  (no globe), `cooperativeGestures: true` (Ctrl/⌘-scroll or two fingers zoom, so scrolling the
+  page never zooms a map; also in fullscreen) and `telemetry: false`. MapTiler's usage report is
+  off, because the dashboard allows no analytics; its session id and tile cache stay on (the
+  user, 2026-11-11). With no `VITE_MAPTILER_KEY` the widget shows "Map unavailable". The key is
+  never logged.
+- **The dashboard loads, map-sdk draws** (step 5 spec 2, built 2026-11-12). The widget uses no
+  map-sdk store. Each map data set is one **entry** in `src/lib/widgets/map/data/` (monitors in
+  `monitors.ts`, smoke and fire in `hms.ts`) that says how it loads, how it becomes a plain
+  `DataSource`, and what it needs; `types.ts` has the interface. Loading goes through the data
+  layer's **now client** (`src/lib/data/now/`): a shared cache, polling paused while the page is
+  hidden (through the platform's `activity`, which the map takes from `useApp()`), retries and
+  error states. Live monitors refresh on the `"raw"` cadence (3 minutes), smoke and fire on
+  `"hour"`. Adding a data set later (schools, pesticides) means adding an entry. The Map
+  refreshes only while its date range includes today (spec 4; see "The Map's days and region fills").
+- **`MapData` is split into blocks** (step 5 spec 5a, `src/lib/widgets/map/data/`).
+  `loaded.svelte.ts`'s `MapData` keeps only the orchestration: the input, polling, the day's
+  fetch-ahead and destroy. The monitors are a `MonitorsBlock` (`monitors-block.svelte.ts`). Smoke
+  and fire, the fill and the notices are each a **`DayLayer`** (`day-layer.svelte.ts`): one main
+  query for Now or the day showing, plus `AHEAD` queries for the neighbouring days, which never
+  poll. Each block says how its source is made (`sourceFor`, which may be async) and when it polls
+  (`polls`). `switchQueries` (`switch.ts`) keeps the sources still wanted while the queries swap,
+  and `dataStatus` (`status.ts`) maps a query's state to map-sdk's. Every block is wired to
+  `setPolling` and `destroy`. A new day-following data set is one more `DayLayer`. Pesticide use
+  (spec 5b) follows no day, so it is a block of its own, `UseBlock` (`use-block.svelte.ts`; see
+  "Pesticide use" below).
+- **What a Map tile holds.** One Where (the widget's, since spec 7a; it was the first pollutant
+  layer's), one pollutant or none (one `air-quality` layer each, from
+  the monitors meta's `available_pollutants`; spec 7a made it **one pollutant or none**, with
+  `MAP_POLLUTANTS_MAX` and the several-pollutant handling removed), smoke and
+  fire on or off (two place-less layers, `hms-smoke` and `hms-fire`, added and removed together),
+  spray notices on or off (the place-less `{ dataset: "pesticide-notices", filters? }`, spec
+  5a), and pesticide use on or off (the place-less `{ dataset: "pesticide-use", filters? }`, spec
+  5b; a chart's place-held pesticide layers are another thing), and schools and child care (the
+  place-less `{ dataset: "locations", locationTypes }`, spec 7c). Saved options (`options.ts`,
+  `MapOptionsSchema`): `marks` (monitor ids, at most 25, unique); spec 4 added
+  `day` (renamed `at` in spec 6a), `fill` and `fillShown` (see "The Map's days and region
+  fills"), spec 5a added `noticesShown`, and spec 5b added `useFigure` and `useShown` (removed
+  with the use layer; its `usePeriod` went in spec 6a), and spec 7c added
+  `hiddenLocationGroups` (the location groups switched off in Layers). `MapOptionsSchema` is strict and the
+  document schema checks it, so a dashboard still holding `day` or `usePeriod` is refused as
+  invalid (no compatibility code: only test documents had them, the user, 2026-11-18). Missing
+  options read as their defaults.
+- **Spray notices** (step 5 spec 5a, built 2026-11-16; spec
+  `docs/superpowers/specs/2026-11-16-step-5-spec-5-pesticides-and-notices-design.md`). The
+  catalog's `pesticide-notices` (entry type `spray-notice`), loaded by `notices.ts` from
+  `pesticides/notices/active/` (Now) or `?date=` (a day stop, Daily only; see "The Map's days and
+  region
+  fills"), **valley-wide**: no bbox or region is sent, and the cache keys hold only the date and
+  the filter ids. The server caps a request at 2,000 matches; production's busiest 5-day window
+  since 2026-05-30 is 224 (see `DEFERRED.md` for early spring).
+  - **Markers.** Each notice is drawn at its section's centre (SprayDays gives the square mile,
+    not the field). The notices of one section are one `pointsPlugin` marker with a count
+    (`count: { property: "count" }`); a notice with no section is a marker of its own
+    (`notice:<id>`). They cluster, with summed counts, while the toolbar's Clusters setting is on
+    (radius 40, max zoom 9, as the monitors).
+  - **Colour and legend from the server.** The colour, the legend row and its label come from
+    the pesticides meta's one-level `scales["spray-notice"]` (the user, 2026-11-16, chosen over a
+    map-sdk change for unscaled layers), through one `ScaleRef` constant (`NOTICES_SCALE`), since
+    map-sdk matches a resolved scale by identity. map-sdk draws the count number black or white
+    by contrast with that colour. The legend's units line reads "Numbered: how many notices", and
+    its note (`NoticesLegendNote.svelte`) holds the "none" line ("No spray notices for this day",
+    or "No spray notices right now" on Now; the user, 2026-11-16), the active filters, the
+    filters that don't apply, and the meta's explainer.
+  - **The card** (`NoticeCard.svelte`, through `noticeTooltips` in `notice-tooltip.ts`): the
+    scheduled window, an "Active" tag on Now only, section and county, amount and units, the
+    method (the meta's `methods` label for the notice's `aerial_ground`), products and chemicals
+    with "of concern" in text, the explainer and the SprayDays sign-up link (http(s) only).
+    Several notices in a section give a list card, each row opening its notice, with Back. On
+    hover it is a **static summary** (nothing focusable inside map-sdk's `role=tooltip`); pinned
+    or keyboard-focused it is interactive (WCAG 2.4.3, 4.1.2). Snippets are cached by refKey and
+    form, and the card reads its marker's latest properties, so a poll or a day-stop change
+    updates an open card in place and keeps the open notice and focus. If the open notice
+    leaves, the card falls back to the list, keeping focus inside it.
+  - **Accessible names** come from Paraglide plurals ("2 spray notices, ‹section›, ‹county›",
+    with whole-sentence variants when the section or county is missing), so the feature list
+    reaches every notice and the count is never only on the marker.
+  - **Failures.** A failed load shows the note banner with Retry. A saved filter the server no
+    longer has makes the source `unavailable` (`filter-gone`) with a banner, never an empty
+    layer; only filters the notices take (the meta's `notice_filters`) can do that.
+- **Pesticide use** (step 5 spec 5b, built 2026-11-17; same spec). The catalog's
+  `pesticide-use`, drawn by township when zoomed out and by square-mile section when zoomed in.
+  - **The figure and the period.** `useFigure` is one of the catalog's `pesticide-use` entry
+    types (pounds applied, acres treated, applications); missing means the catalog's first, an
+    unknown one draws the first, and neither is written. The period is the stop's month or year
+    (spec 6a; it was the saved `usePeriod`), from `use-period.ts` `periodOfStop`, and is checked
+    against the meta's `years` before any request (the server answers an unlisted year with its
+    latest): an unlisted one asks for nothing and reads "No pesticide use reported for ‹period›
+    yet." `use-period.ts` also keys and labels it.
+  - **Loading** (`UseBlock`, with `use.ts`). The valley's townships come in one `townships/`
+    request per period and filters, with outlines only the first time (later requests ask
+    values only and join the remembered outlines). From the **section zoom**, the sections in the
+    view padded by half a view (`BBOX_PAD`) come from `sections/?bbox=`, debounced, and are asked
+    again only when the view leaves what is loaded. The section zoom is the explorer's
+    `sectionZoom()` (`use-geometry.ts`): from zoom 11, the first whole zoom whose view at the
+    tile's size holds at most 2,000 square miles, at a fixed latitude (the places' frame, else the
+    valley's townships), so a pan never changes it. A padded box the server refuses (400) is
+    asked again unpadded; a second refusal raises the section zoom one step for the session
+    (`refusedZoom`), with the townships still drawn. In-flight requests are shared and dropped on
+    failure. Nothing sends `county`, a point or a region: only a `bbox`, or nothing. **Use never
+    polls**; its data changes at most once a year.
+  - **The scale.** Each response's `classes.<figure>` becomes a map-sdk `Scale`
+    (`use-scale.ts`): `breaks[i]` is class i's inclusive upper bound, each colour is the class's
+    own `colors[i]` (never sampled from `meta.ramp`), and the labels are formatted through
+    `format` at the catalog's precision, with extra digits only when neighbouring breaks would
+    read the same. It is served through the host metadata provider under a **stable `ScaleRef`
+    per figure, level and query** (map-sdk matches a resolved scale by identity), registered
+    before the source exposes it. Zero use is **outlined with no fill** and reads "No data"
+    (`noFigure: "outline"`; `meta.ramp.no_data` isn't used). The cards' figures and the "In
+    township" line go through one helper, `formatUseValue`: a figure above zero never reads "0"
+    (a value that would round to zero gets more digits until it doesn't), and the shown figure
+    gets more digits while its rounded value falls outside its own class (the final review,
+    2026-11-17).
+  - **Three plugins** (`layers/UseLayers.svelte`): `shapesPlugin` "townships" up to the section
+    zoom, `shapesLens` "lens", and `shapesPlugin` "sections" from the section zoom (`zoomRange`),
+    all with `legendDisplay: "blocks"` and one legend section through the shared ref. The legend
+    names the figure, the period and the level, and its note (`UseLegendNote.svelte`) holds the
+    active filters and the meta's `pur_lag` and `shades_valley` notes. When a saved period isn't
+    listed or a filter is gone, the townships and sections sources report `unavailable` with a
+    translated `message` ("No data for ‹period›", filter-gone), which map-sdk draws as one status
+    row with the note under it at every zoom; the lens adds no row. A key that fails to load
+    exposes its empty scale, never the previous key's classes, and the failure banner says why.
+    Feature refKeys are prefixed so plugins never collide: `township:<PLSS id>` and
+    `section:<section id>` (`encodeRef`).
+  - **The lens.** At township zoom, resting on a township (about 50 ms) draws the sections of its
+    3 × 3 block of townships over it, shaded with the valley-wide section classes; leaving clears
+    it after a short grace, and Escape clears it. The township card's "Show square miles" pins
+    it: the keyboard and touch path.
+  - **The cards** (`TownshipCard.svelte`, `SectionCard.svelte`, through `use-tooltip.ts`, cached
+    per feature and form from mount, reading the latest properties by refKey, as notices do). On
+    hover a card is a static summary; pinned or focused it is interactive. Both show the
+    period's three figures, the shown figure's class in words and the active filters. The
+    township card adds the section count, "Show square miles" and "Zoom in". The section card
+    adds, from `sections/<id>/` (asked with the Map's filters, `narrow` and the month, only when
+    interactive; an LRU of 50), the year's months as small bars with a text alternative, "Peaks
+    in ‹month›", and up to 3 top chemicals with their badges in text (ranked by pounds; see
+    `DEFERRED.md`). Its explorer links (Section details, Records here, Notices here, and each
+    chemical's name) come from the meta's `links` through `pesticideLinkUrl`
+    (`section-links.ts`); a link the meta lacks is left out. Its "In township ‹id› · ‹figure›"
+    line makes the id a button ("Open township ‹id›") that swaps in the township's card in place
+    (`map.pin`), while the townships plugin lists the township.
+  - **Failures.** A failed load shows the note banner with Retry; a gone filter makes the sources
+    `unavailable` (`filter-gone`), with the banner and the reason in the legend.
+- **Schools and child care** (step 5 spec 7c, built 2026-11-22; spec
+  `docs/superpowers/specs/2026-11-21-step-5-spec-7-data-portal-design.md`). The locations layer
+  is drawn with map-sdk's schools preset.
+  - **Loading** (`locationsEntry`, `src/lib/widgets/map/data/locations.ts`). The sites come from
+    `getPesticideLocations`, every type at once (ticking a type filters what is loaded, never
+    refetches): per region in Where (by sqid; a school or point uses its fallback region), or
+    valley-wide in one request with no Where (about 2,800 sites, 1.5 MB raw). Each region's list
+    and the valley's are fetched **once per session and shared by every Map**, kept in memory
+    with no expiry (sites change rarely and the server caches for 24 hours; see `DEFERRED.md`);
+    each Map filters a list, never copies it. A failed fetch is forgotten, so the next load asks
+    again, and one caller's abort never cancels the shared fetch. Sites have no time, so the
+    layer ignores the day showing and never polls. A Where with no region on the server makes
+    the source `unavailable`, with the reason in the legend.
+  - **One `schoolsPlugin` per group** (`layers/LocationsLayer.svelte`): plugin id
+    `locations-<group key>`, labelled with the group's meta label, with the group's ticked types
+    as the preset's allow-list. Every plugin reads one shared source through getters, so a
+    refetch never remakes a plugin (or moves focus out of an open card); only a change of label
+    or types does. Each is placed under the monitors and under the next group's plugin, so the
+    legend lists the groups in the meta's order. The preset owns the badges, the count bubbles,
+    the legend rows and the cards (static on hover, interactive pinned or keyboard-focused).
+  - **Layers rows.** The toolbar has one row per drawn group (`location:<group key>`, in
+    `toolbar/values.ts` and `wiring.svelte.ts`); switching one off saves its key in
+    `hiddenLocationGroups`, which removes that group's plugin.
+  - **The focus school.** A school in Where is also a site in the sites list. Its focus pin takes
+    the location lookup's coordinates, which equal the site's own (checked on three local sites,
+    spec 7c), so map-sdk drops the focus row on the exact match and draws the focus ring around
+    the school's badge: one badge, one feature-list row.
+- **A tile draws only its own data.** Monitors are the ones in the places (a region or several:
+  those regions' monitors; monitor places: exactly those; a school or exact point: the monitors
+  in its `placeRegion` region, the one the frame uses), and only those reporting the Map's
+  pollutant. Smoke and fire are drawn everywhere, never clipped to the places. A tile never draws
+  another pollutant's or an earlier place's readings while a load is pending. A load error shows
+  one Retry.
+- **Marks.** A tap or click opens map-sdk's pinned card; its **Select** and **Remove** buttons,
+  Shift-click, and Shift+Enter in the feature list mark and unmark a monitor (`selectionMode:
+"multiple"`, `pickWith: "modifier"`, `card.actions`, `canSelect`). Marks are saved in
+  `options.marks` through `applyChange`, so they undo, and `setSelection` follows the document
+  (undo, redo, other tabs). At most 25, counting every mark: a 26th gets map-sdk's notice. Only
+  monitors can be marked, and view-only dashboards hide the buttons. Marks are kept when a
+  monitor leaves the tile's data (a place change, another pollutant chosen in the Data Portal, the
+  pollutant set to None): the mark stays, hidden, and a note under the map counts the hidden marks. Marks
+  are dropped, with a note, when converting away from the Map.
+- **The toolbar's wiring** (step 5 spec 3, `src/lib/widgets/map/toolbar/`). The Map's options
+  toolbar is map-sdk's `OptionsToolbar` in `MapView`'s `toolbar` snippet. `values.ts` turns saved
+  options into the toolbar's full effective record and back (saved values over defaults; a choice
+  equal to its default is stored as missing); `toolbar.svelte.ts` builds map-sdk's groups from the
+  tile's data (one `monitorsOptions` per map, its groups made inside a `$derived`); `wiring.svelte.ts`
+  connects them to the widget and to `changeTileOptions`. How each key drives the map: `pollutant`
+  is the layer's entry type (shown only with two or more pollutants offered); `type:*`, `inactive` and `inside` are **filters the dashboard applies to
+  the monitors' features inside `MapData`** (map-sdk never filters a host's data), and
+  `monitorsDrawn`, which the hidden-marks note reads, stays unfiltered; `clustered` is the
+  monitors plugin's clustering; `basemap` is `map.basemap.select`; `fireAndSmoke` adds or removes
+  the smoke and fire plugins. The pollutant shown is the one **drawn** (the layer's entry type, or none). The dashboard doesn't subscribe to
+  `map.basemap.onFallback`: fallbacks are drawn, not saved. The toolbar and the List button show
+  above the loading skeleton, and so do the map's notes (under the toolbar, using
+  `--mapsdk-toolbar-height`, which ends the banner crowding the zoom buttons).
+  Get data's "Show as" converts by the pollutant drawn.
+- **Providers:** `messages` maps every `mapsdk_*` key to a Paraglide message through an explicit
+  table (a test fails when map-sdk adds a key the table lacks); `format` wraps the dashboard's
+  `format` module (Pacific, " PT" off-Pacific), except relative time, which stays map-sdk's
+  (see `DEFERRED.md`); `metadata` is the dashboard's own adapter over its metadata cache (`host/metadata.ts`), so map
+  levels, colors, units and labels come from the same source as every other widget. Since step 5
+  spec 3 it also implements `monitorGroups`, `monitorTypeGroup`, `monitorTypeReports` (each entry's
+  `published`), `entryTypeHelp` (the entry's `description`) and `locationTypeLabel` (`"unavailable"`
+  on failure), so the toolbar's rows, groups, help and colors all come from the metadata, never
+  hardcoded. In the data layer's `MetadataSource`: `monitorGroups` (null when the server sends
+  none), `entryTypeHelp` and `locationTypeLabel` are new, `MonitorSummary` gains `inside`, and
+  `MonitorTypeInfo` gains `group`, `published` and `unflagged` (entries the meta lists without a
+  `published` flag: unknown, not false). `getMonitorsMeta()` needs `monitor_groups`; the fixtures
+  carry it.
+- **map-sdk's `theme.css` isn't imported.** It's Tailwind source, which only `app.css` compiles,
+  and `app.css` already defines every token it adds. `app.css` has map-sdk's `@source`.
+- **On screen only.** `MapView active` is true only while the widget is on screen (an
+  IntersectionObserver with a 200 px margin) and the page is visible. Off screen or hidden for
+  about 5 seconds, the map detaches and frees its WebGL context; coming back rebuilds it and
+  refits. Unmounting destroys it. A map that fails to start shows the widget's error state with
+  "Try again".
+- **The camera is never saved.** The map fits its places when it opens, when they change, and
+  on entering or leaving fullscreen, after the frame's animations settle. A pan or zoom lasts
+  only for the moment (it survives a theme switch's style reload). A map holding an exact point
+  frames the point's region, never the point (see "Widget data selection").
+- **Layers:** the monitors, smoke and fire, the spray notices, pesticide use and the schools
+  and child care groups as the tile's
+  entries give them (`selectedStyle: "ring"` marks the marked monitors), and map-sdk's **focus
+  area** (`focusAreaPlugin`, `focus.ts`): the places' outline with the surround dimmed, or a
+  labelled pin for a school or exact point. It
+  replaces spec 1's outline layer, pin layer and the dashboard's own pin label. **Draw order,
+  bottom to top:** the fill, pesticide use (townships, lens, sections), the focus area, smoke and
+  fire, the notices and the schools and child care groups (each placed under the monitors, the
+  groups in the meta's order), then the monitors (spec 5a ruling:
+  notices sit above the focus area, and the monitors stay on top; spec 5b ruling, checked on
+  screen: use sits above the fill, or its classes can't be matched to the legend and the fill
+  takes the pointer from the lens). `layers/order.ts` places each layer.
+- **One component per layer** (spec 5b, 2026-11-17): `layers/HmsLayers.svelte`,
+  `FillLayer.svelte`, `NoticesLayer.svelte` and `UseLayers.svelte` add and remove their plugins;
+  `MapNotes.svelte` holds the notes under the toolbar, all through one `MapNote.svelte` banner;
+  `MapLegendOverlay.svelte` holds the legend (its scroll wrapper is `role="group"`, named "Legend,
+  scrollable", and a Tab stop only while it overflows, through the shared `scrollFocusable`
+  attachment in `src/lib/components/shared/`; map-sdk's legend stays the only "Legend" region). `MapWidget.svelte` (about 1,020 lines) keeps the map's creation, the
+  marks sync and the wiring. Monitor places get
+  no focus area (only those monitors are drawn and the camera fits them). Region geometry comes
+  from `getRegionsGeoJSON`, kept in a page-wide in-memory cache in `src/lib/widgets/map/regions.ts`
+  (each region fetched once, one request per region type). `featureList={{ reveal: "focus" }}` is
+  the keyboard path, and the legend sits in the widget's card (a button on narrow maps).
+- **CSP:** `connect-src` and `img-src` both include `https://api.maptiler.com` (styles, tiles,
+  glyphs, sprites, and the logo; the user, 2026-11-11). sjvair.com holds the real list, so it
+  gets the same host (sjvair.com #330, on `develop`). `cdn.maptiler.com`, MapTiler's default
+  right-to-left text plugin, is blocked on purpose (see `DEFERRED.md` → "Right-to-left map
+  labels"); `check:build` allowlists it as a library default.
+- **"Clear my data" also deletes MapTiler's tile cache** (Cache Storage `maptiler_sdk`), in the
+  web platform adapter's reset (the user, 2026-11-11).
+
 ## Dashboard layout mechanics
 
 Decided 2026-09-23 (IDEA.md Open Question #4).
@@ -1975,18 +2731,18 @@ Decided 2026-09-23 (IDEA.md Open Question #8). All charts use uPlot. "SDK+" = ne
 
 **First widget set** (Release 1, except the Alerts feed, which ships with Release 2):
 
-| Widget                    | What it shows                                                                                          | Notes                        |
-| ------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------- |
-| Map                       | `map-sdk` `MapView` + plugins; spatial selection (feature/region, later drawn)                         | See "Map SDK"                |
-| Calendar — day-colored    | Each day colored by its average; day-range selection                                                   | Replaces the v1 calendar     |
-| Calendar — contribution   | GitHub-style grid with adjustable range (≥ 1 week); day-range selection                                |                              |
-| Chart                     | uPlot time series: at most one pollutant plus any non-pollutant layers, over the widget's date range   |                              |
-| Current conditions tile   | Big current value, level color, trend arrow, "updated N min ago", level guidance from `monitors/meta/` | Any `PlaceRef`               |
-| "Can we go outside?" card | Plain-language outdoor-activity recommendation from current level + guidance + today's CalHeatScore    | Schools; SDK+ (CalHeatScore) |
-| Forecast strip            | Today and tomorrow's AQI category + burn-day status, plus any active Air Alert                         | SDK+ (forecasts)             |
-| Alerts feed               | Recently fired alerts from the user's alert inbox (pollutant, forecast, pesticide-notice rules)        | Requires login               |
-| Data table                | Exact numbers for researchers; sortable, CSV export; the accessibility fallback for maps/charts        |                              |
-| Notes                     | Markdown text for annotating shared dashboards (built in step 4 spec 6)                                | No data source; see below    |
+| Widget                    | What it shows                                                                                                       | Notes                        |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| Map                       | `map-sdk` `MapView` + plugins; one pollutant or none; Where (a place or a regions selection) plus searched monitors | See "Map SDK"                |
+| Calendar — day-colored    | Each day colored by its average; day-range selection                                                                | Replaces the v1 calendar     |
+| Calendar — contribution   | GitHub-style grid with adjustable range (≥ 1 week); day-range selection                                             |                              |
+| Chart                     | uPlot time series: at most one pollutant plus any non-pollutant layers, over the widget's date range                |                              |
+| Current conditions tile   | Big current value, level color, trend arrow, "updated N min ago", level guidance from `monitors/meta/`              | Any `PlaceRef`               |
+| "Can we go outside?" card | Plain-language outdoor-activity recommendation from current level + guidance + today's CalHeatScore                 | Schools; SDK+ (CalHeatScore) |
+| Forecast strip            | Today and tomorrow's AQI category + burn-day status, plus any active Air Alert                                      | SDK+ (forecasts)             |
+| Alerts feed               | Recently fired alerts from the user's alert inbox (pollutant, forecast, pesticide-notice rules)                     | Requires login               |
+| Data table                | Exact numbers for researchers; sortable, CSV export; the accessibility fallback for maps/charts                     |                              |
+| Notes                     | Markdown text for annotating shared dashboards (built in step 4 spec 6)                                             | No data source; see below    |
 
 **Notes as built (step 4 spec 6, 2026-11-10).** Spec:
 `docs/superpowers/specs/2026-11-10-step-4-spec-6-notes-and-starter-design.md`. A Note is a
@@ -2010,8 +2766,13 @@ is a map idea instead (see `DEFERRED.md` → "Map plugins").
 - **Forecast strip:** today and tomorrow, each with its AQI category and burn status (the
   feed's text; "No Burning For All" has no level of its own yet), and an **Air Alert banner**
   when a declared alert's dates overlap today or tomorrow (Pacific).
-- **"Can we go outside?":** always reads PM2.5 and the school activity guidelines from
-  `monitors/meta/`, and adds today's CalHeatScore. **The heat needs no SDK work**:
+- **"Can we go outside?":** reads its saved pollutant and that pollutant's school activity
+  guidelines from `monitors/meta/`, and adds today's CalHeatScore. The Data Portal offers only the
+  pollutants with guidelines (`MetadataSource.guidelinePollutants()`, the monitors meta's entries
+  with `school_guidelines`, in its order); with one offered (PM2.5 today) no pollutant choice is
+  shown. A failed load of that list says nothing and changes nothing (the draft keeps its layer);
+  it is reported through the platform errors adapter and tried again on the next type change.
+  Combining several pollutants' guidelines is in `DEFERRED.md`. **The heat needs no SDK work**:
   `getHeatForPlace` already exists. A heat failure only blanks the heat line, never the card.
 - **Current conditions' number:** for monitor types and pollutants the server evaluates alerts
   for, the number is the **server's alert value** (the same trailing 60-minute figure the server
@@ -2019,6 +2780,17 @@ is a map idea instead (see `DEFERRED.md` → "Map plugins").
   says which pairs are evaluated); otherwise it is the **latest complete
   hourly average**. The tile says which it is ("updated N min ago", an averaging note), and a
   reading older than 3 hours is marked stale. Regions always use hourly averages.
+- **Current conditions with several pollutants** (step 5 spec 7b). The card holds one
+  air-quality layer per pollutant, in the order the Data Portal offers them (the catalog's), the
+  first holding the searched monitor (`src/lib/widgets/current/pollutants.ts`). The Data Portal
+  shows a checkbox per pollutant (no None; unticking the last is allowed, and Save then asks to
+  "Choose a pollutant") and an alert level per pollutant ("Alert level for Ozone"; one pollutant
+  reads "Alert level"). A saved level that isn't in its pollutant's scale shows the fallback with
+  a note and a **"Use {level}"** button that saves the shown level. The card shows **one row per
+  pollutant** (`CurrentRow`, each read as `onePollutant`), each with its own number, level, trend,
+  guidance and mark; with several, each row has its pollutant's name as an `h3`, the rows are a
+  group labelled "Current conditions by pollutant", and the column scrolls and is focusable. The
+  generated title names every pollutant ("PM2.5 and Ozone · Fresno County").
 
 **The two calendars as built (step 4 spec 5, 2026-11-09).** Both are `time: "range"` types with
 the resolution pinned to `"day"`, lazily loaded, set up in Get data, and limited to **one place
@@ -2047,7 +2819,9 @@ a date range outside their span.
   is "Not enough data" (EPA's completeness rule, applied by the server). Until the metadata
   carries `daily_statistic`, every past day is unrated and the widget says so once. It never falls
   back to the mean. Today is colored "so far" from the server's running figure, and a day whose
-  rollup hasn't finished shows "Not final yet" (`is_final`).
+  rollup hasn't finished shows "Not final yet" (`is_final`). Since step 5 spec 6a every widget
+  shows this same figure at Daily, and the average of these figures at Monthly and Yearly (see
+  "Datasets line up"), so one place and day never shows two numbers.
 - **Selecting days uses a two-click range for every pointer:** click a day, then click another to
   extend the range; a third click starts anew; clicking the only selected day clears it. Mouse
   drag and Shift-click also work, and the keyboard follows the date-grid pattern (one Tab stop,
@@ -2058,6 +2832,82 @@ a date range outside their span.
   unit and level, and whether the day is selected, at or above the threshold, partial or not final.
 - **The display-only threshold** (`thresholds: true`, off by default) marks and counts rated days
   at or above a level; no alerts or notifications.
+
+**The Map as built (step 5 spec 1, 2026-11-11).** Spec:
+`docs/superpowers/specs/2026-11-11-step-5-spec-1-map-widget-design.md`. Code:
+`src/lib/widgets/map/`. The descriptor (`index.ts`) is in the initial bundle and imports only an
+icon and messages; map-sdk, MapLibre and the rest load with `module.ts`.
+
+- **The descriptor:** `type: "map"`, label "Map", `time: "now"` (since spec 4 it is `time: "range"` with
+  the `now` flag), `accepts: { datasets: ["air-quality", HMS_SMOKE, HMS_FIRE],
+maxPollutantLayers: 1, maxPlaces: 25 }`, `thresholds`, `analyzable` and `downloadable` all `false`,
+  `menu` lists "Show in a chart" and "Show in a table" (below; empty without a mark to send).
+  "Change place" and "Edit data" come from the generic items. Sizes: 6 × 6 by
+  default, 3 × 4 at minimum.
+- **The pollutants come from metadata:** the map accepts only the monitors meta's
+  `available_pollutants` (today PM2.5 and ozone), because that's what map-sdk's monitors store
+  draws. Get data greys out the rest with a reason. A draft on another pollutant that becomes a
+  Map switches to the first allowed one, with a note.
+- **25 places at most** (`maxPlaces`, the Map's Where). A chart's data can become a map in Get
+  data's Show as, keeping all its places (up to 25, with the "left out" note beyond). Leaving a
+  Map for a one-place "now" type keeps the first place or searched monitor, with the same note.
+  Chart and Table have no cap since spec 7a, so Show as never asks which places to keep: the
+  "choose which to keep" dialog of 6b (`keepsOnSwitch`, the Where control's keep mode) was
+  removed; a one-place type and the Map still block with `"places"`.
+- **`addable(doc)`.** `addable` now gets the dashboard it's added to. The Map's gives one PM2.5
+  layer whose place is the bar's place when the bar shows, else the dashboard's most common
+  single place, else Fresno County (`placesToReplace(doc)[0]`, then `DEFAULT_LAYER`). Notes
+  ignores the argument.
+- **Add widget lists each type once.** A type with `addable` is added directly even if it is
+  also a data type, so the Map appears once, as a direct add, and isn't in Add widget's Get
+  data list (`addWidgetEntries()` in `registry.ts`).
+- **Title:** generated, never saved. One place reads "PM2.5 · {place}" (`label_join`, with the
+  viewer, so "(your location)" and "(shared location)" read right); several read "PM2.5 · {n}
+  places" (`label_join` and `get_data_places_count`).
+
+- **"Show in a chart" / "Show in a table" (step 5 spec 6b).** Spec:
+  `docs/superpowers/specs/2026-11-20-step-5-spec-6b-show-in-chart-design.md`. Looking is the
+  common case, so these items **open the Data Portal on a new Chart or Table of the Map's
+  marked monitors** rather than adding a widget; "Add to" there is the person's choice. They
+  show in the Map's ⋯ menu for owners and viewers alike, and only while at least one mark would
+  be sent.
+  - **What's sent:** the drawn marks, plus marks hidden only because they have no figure for the
+    stop shown (a chart covers the whole range). Marks hidden for any other reason (pollutant,
+    options, places, unknown) are left out and counted. "Drawn" is what this person sees: a
+    viewer's held toolbar changes count (`tileOptions`) and are never written.
+  - **The registry** (`send-registry.ts`, in the initial bundle, types only) holds, per widget
+    id, the marks to send, the left-out count and a getter for the Map's dataset as this person
+    sees it. The Map writes it whenever it isn't a preview (the marks may be empty, so the
+    section button works on a Map with none) and clears it on unmount. A **minimized Map offers
+    no items**: it isn't mounted, so no marks are known.
+  - **The hand-off** (`show-in.ts`, the Map's chunk) builds the starting draft: the Map's dataset
+    through the same `fromMapDraft` Show as calls, with the marks as the air-quality layer's
+    **searched monitors** and no ticked types (spec 7a; the Map's Where, pollutant, range and
+    resolution come along, and there is no keep dialog). It takes the Map's range and its saved
+    resolution (a Monthly Map gives a Monthly Chart; Automatic stays Automatic; a Map on Now gets the type's default range, the last 30
+    days). Show as does the same: `fromMapDraft` keeps a ranged Map's saved resolution for
+    range types that don't pin one, so the two routes never give different Charts. A `MapSend`
+    names the layer kind (`monitors`, or `section`); a new Map layer adds a kind and one case,
+    nothing else.
+  - **A pinned section card** (never the hover card, which can't take clicks) has **"Show in a
+    chart"** among its actions: one pesticide use layer on that `mtrs` section, the figure the
+    Map draws, its use filters, range and saved resolution, with a generated title (the PLSS
+    code). A section always gives a Chart, never a Table. The township card has none, since
+    townships aren't a chartable region type.
+  - **Where it opens:** `/dashboards/:id/widgets/new` when the Map's dashboard is the current,
+    editable one (the starter as `STARTER_ID`); else `/data`, which is tied to no dashboard (a
+    share link, or a read-only dashboard of the person's own). `HandOff` carries the draft, the
+    left-out count, whether it's over the cap, the Map's dashboard when read-only (`skip`) and
+    the conversion's notes.
+  - **Not in previews:** the items and the section button don't show in the Data Portal's Map
+    preview, where nothing else changes.
+  - **Viewers:** `MenuItem.forViewers` opts an item into read-only frames, and
+    `viewerTypeItems(app, widget, ctx)` (`src/lib/actions/widget.ts`) lists them for
+    `WidgetFrame` and the taskbar. Only the Map's two items opt in; the calendars' "Open these
+    days in a chart" adds a widget and stays hidden for viewers.
+
+How the widget hosts map-sdk is in "Map SDK" → "The dashboard's Map widget"; what its places are
+is in "Widget data selection".
 
 The remaining brainstormed widgets are tracked in `DEFERRED.md` → "Widgets".
 
@@ -2082,7 +2932,7 @@ type WidgetType = {
 		maxPlaces?: number;
 		onlyPollutant?: boolean; // only a pollutant (a layer with a daily scale) can be added
 	}; // explicit
-	addable?: () => WidgetDataConfig; // non-data types only: a direct add from "Add widget"
+	addable?: (doc: Dashboard) => { data: WidgetDataConfig; options?: Record<string, unknown> }; // a direct add from "Add widget"
 	placePicker?: boolean; // "now" widgets: one layer whose place is picked directly (no accordions)
 	thresholds: boolean; // supports self-monitoring thresholds
 	analyzable: boolean; // offers Mark for analysis / Analyze
@@ -2103,11 +2953,16 @@ which the document schema checks for `note` widgets (it is not left free-form). 
 strip**, and **"Can we go outside?"** are `time: "now"` with `placePicker: true`; for those,
 Get data hides the date section and shows **the shared place picker** instead of
 the dataset accordions, plus a **separate pollutant control** for Current conditions and
-"Can we go outside?" (gated by available pollutants); in `WidgetDataConfig` that's a
-**single layer whose `place` holds the picked place** (decided 2026-10-14: the separate
-`target` field was removed so every widget type stores places the same way). Current
-conditions and "Can we go outside?" have one pollutant layer (heat for "Can we go
-outside?" follows from the same place); the Forecast strip has one forecasts layer. **Map** and **Chart** are `time: "range"` and accept multiple layers.
+"Can we go outside?" (a checkbox per pollutant for Current conditions; for "Can we go outside?"
+the pollutants with school guidelines); in `WidgetDataConfig` the picked place is the widget's
+Where, **`place`** on the widget's data, and layers hold no place (step 5 spec 7a; every widget
+type stores places the same way). Current
+conditions holds one air-quality layer per pollutant (step 5 spec 7b; see "The three
+"now" widgets as built"), and "Can we go outside?" one pollutant layer (heat follows from the
+same place); the Forecast strip has one forecasts layer. **Chart** is `time: "range"` and accepts multiple layers. **Map** is `time: "range"` with the
+**`now` flag** (step 5 spec 4, 2026-11-15): the type offers "Now" as a When choice, and a Map with
+no `dateRange` shows now, as it did in specs 1–3 (`offersNow` and `showsNow` in
+`src/lib/widgets/time.ts`). It holds zero or one pollutant layer (spec 7a), and its Where takes up to 25 places.
 
 **`accepts.datasets` is explicit** (decided 2026-11-05, step 4 spec 3). It lists the catalog
 dataset ids a type can show; a type with no list accepts no datasets, so a new type can't
@@ -2115,8 +2970,10 @@ accidentally offer everything. Chart and Data table declare
 `["air-quality", "forecasts", "weather", "hms-smoke", "pesticide-use"]` (spec 3b);
 Notes declares none. The types with a list are the **data types**: "Add widget" opens Get data
 for them, and Get data's **What** sections and **Show as** choices come from their lists (see
-"Get data"). **`addable`** is only for non-data types (Notes, later the Map), which "Add widget"
-adds directly with the data it returns; Chart and Data table dropped it in spec 3.
+"Get data"). **`addable`** is a direct add: "Add widget" adds the type with the data it returns,
+given the open dashboard (`addable(doc)`, step 5 spec 1). Notes has it, and so does the Map,
+which is also a data type: a type with `addable` is added directly and listed once, not also
+through Get data. Chart and Data table dropped it in spec 3.
 
 **Analysis actions on widgets without a date range** (decided 2026-09-24). IDEA.md asks
 for "Mark for analysis" / "Analyze" on all widgets, but a Collection item needs a date
@@ -2178,6 +3035,14 @@ type MenuProvider = (ctx: MenuContext) => MenuItem[];
   Shift+F10 / Menu key (focused element). **On touchscreens it opens from the ⋯ buttons, not
   long-press** (decided 2026-10-28, step 2: long-press picks up widgets and is the browser's
   own gesture); the dashboard has its own visible ⋯ button for that reason.
+- **The menus do their own opening focus** (step 5 spec 7c). bits-ui 2.19.2 mounts a top-level
+  context or dropdown menu's focus scope twice as it opens, which queues two one-frame opening
+  focuses. On a busy machine the second could land after ArrowRight had opened a submenu,
+  focus the parent menu and close the submenu (a CI flake). The shadcn-svelte
+  `context-menu-content` and `dropdown-menu-content` wrappers pass `menuOpenAutoFocus`
+  (`src/lib/components/menu/open-auto-focus.ts`), which prevents bits-ui's own and focuses the
+  menu a frame later only while it is still open and focus isn't already in an open menu. Drop it
+  when a bits-ui upgrade no longer mounts twice (see `DEFERRED.md`).
 - **Baseline actions** (Release 1; IDEA.md's examples plus decided features):
   - _Global:_ Undo / Redo (in the dashboard's menu, not widgets'), "Clear my data",
     Sign in / out.
@@ -2395,8 +3260,13 @@ type WidgetInstance = {
 };
 ```
 
-**`thresholds` as built (step 4 spec 4, 2026-11-08).** The saved shape is an array of **at most
-one `{ level }` entry** (a level key from the pollutant's scale); **no entry means Off**.
+**`thresholds` as built (step 4 spec 4, 2026-11-08; per pollutant since step 5 spec 7b).** The
+saved shape is an array of `{ level, entryType? }` entries (`level` a key from the pollutant's
+scale); **no entry for a pollutant means Off**. Current conditions saves **one entry per
+pollutant, each tagged with its `entryType`** (`withThreshold`, read back with `thresholdFor` in
+`src/lib/thresholds/levels.ts`); every other type saves at most one untagged entry. The schema
+allows at most one entry per pollutant layer (`LIMITS.LAYERS_MAX`) and no two with the same
+`entryType`.
 Live tiles use it as their alert level; Charts use it for the threshold line (a Chart whose
 pollutant's scale lacks the key draws no line and says so). Switching a widget's type carries
 the level where the new type can hold it and says what was dropped. The `SelfMonitorThreshold`
@@ -2465,6 +3335,18 @@ counts as a week even on a Sunday, and the widget shows the rest of the period a
      standalone build shows "update required" instead.
   6. **Fixtures for every past `schemaVersion` are kept permanently**, and CI runs the
      whole migration chain against all of them.
+
+  **Read-only states** (`DocumentSession.readOnly`):
+  - `"unkept"` is a **valid** document that is read-only only because the untouched original
+    couldn't be stored first. It shows its message bar and its tiles below it, read-only, the way
+    the shared view renders them: no editing, moving, resizing, adding or marks; fullscreen
+    and viewer changes work as on a shared view (step 5 spec 3, 2026-11-13), and minimize isn't
+    offered because it writes the document. Nothing is
+    written: autosave and the journal stay off.
+  - `"newer"` (saved by a newer version) and `"invalid"` (couldn't be read) show only their
+    message, no tiles: an older app can't draw a newer format faithfully, and an invalid document
+    is never drawn (the security baseline), so recovery is their path.
+
 - **References, not data.** Documents store query descriptors, never fetched data, so
   they stay small and a recipient sees the same _query_ run against current data.
 
@@ -2756,6 +3638,38 @@ documents }`, with its own version separate from `schemaVersion`. A shared docum
   independent document.
 - **Server share → live link.** Recipients see the owner's current version read-only,
   with **"Make a copy"** to edit their own. Fits teacher → class and SJVAir → public.
+- **Viewer changes: a viewer can change what a tile shows, never what it holds** (the user,
+  2026-11-13; step 5 spec 3). On a read-only view that shows tiles, a widget's in-tile switches
+  (the Map's toolbar is the first user) work for the visit and are never saved, stored, sent or
+  logged. The module is `src/lib/widgets/shared/tile-options.svelte.ts`:
+  - `ViewerChanges` holds, in memory and per widget id, only the keys the viewer changed. A held
+    key set to `undefined` means "missing" (the drawn default). `SharedPage` owns one per share
+    token, so fullscreen and remounts keep the changes and leaving the page or opening another
+    dashboard drops them. An unkept dashboard (below) gets one per session.
+  - `tileOptions` reads a widget's options (saved, with the viewer's held keys on top);
+    `changeTileOptions` writes them: on an editable dashboard one undoable `applyChange` (a
+    starter's edit goes to its copy), on a read-only view held in memory; `viewerReset` drops held
+    keys. There is no undo for viewer changes.
+  - **Reset Map Options, for a viewer,** goes back to the owner's view, not the bare defaults: the
+    toolbar's defaults are the owner's effective values, so Reset reports only the keys where the
+    viewer differs, and those held keys are dropped.
+  - **A live update keeps only changed keys:** a value the viewer changed keeps the viewer's
+    choice, and everything else follows the owner. Held changes for a widget the owner removed are
+    dropped, and **a held value that fails validation is left out key by key** (a pollutant the
+    owner took out, say), so the drawn fallback applies.
+  - **"Make a copy" keeps the viewer's changes:** `makeCopy` saves `ViewerChanges.applyTo` of the
+    shared document it copies today (`view.doc`), with the held changes applied to the widgets'
+    options and validated like any document. Matching an existing copy stays by source id.
+  - **Marks stay owner-only:** Select and Remove stay hidden for viewers.
+  - **Opted-in items for viewers (step 5 spec 6b):** a type's menu items reach a read-only
+    frame only when marked `forViewers`; the Map's "Show in a chart" and "Show in a table" are.
+    What they send is the viewer's own view (the held pollutant and stop included), as a draft
+    in history state; nothing is written to the shared document, the viewer's dashboards or the
+    saved draft.
+  - **It is not "Show patterns".** The contribution calendar's "Show patterns" switch is a
+    personal display preference (device-wide, never in a document); viewer changes are per tile,
+    per visit, about the tile's own data, and can become part of a copy.
+  - Other widgets adopting it: see `DEFERRED.md`.
 
 ## Internationalization: English-only, translation-ready
 
@@ -2790,6 +3704,8 @@ commented out).
    single place that sends a language (`Accept-Language`), currently always `en`.
 8. **Layouts tolerate longer text** (Spanish ≈ 20–30% longer): no fixed-width text
    containers sized for English.
+9. **Names of places in the app are capitalized as proper nouns** ("Data Portal"; the user,
+   2026-11-19); all other UI text is in sentence case ("Add widget", "Download CSV").
 
 Deferred until translations exist (see `DEFERRED.md`): language picker, translation
 files, translated content for the server's (currently empty) catalogs, per-language
@@ -2866,6 +3782,21 @@ endpoint yet (since 2026-11-03 only `calenviroscreen`, `emissions`, `tempo`, and
   "At most one pollutant per widget" means at most one layer whose entry type has
   `kind: "pollutant"`, and the available-pollutants list filters which pollutants
   appear.
+- **Monitor groups and types come from the monitors meta** (spec 7a): the Air quality section's
+  groups ("Reference-grade", "Low-cost sensors") are `monitor_groups` sorted by `order`, each type
+  sits in the group its `group` key names (a type with no group gets one after the others), and
+  labels come from the meta (`metadata.monitorGroups()` and `monitorTypes()`). The type ids a
+  bulk request carries, and the weather stations' type, are the catalog entry's `monitor_types`
+  (`CatalogEntry.monitorTypes`; the air-quality entry lists its seven air types, weather lists
+  `cimis`): the dashboard never hardcodes them, and a new Map ticks the air-quality entry's list
+  (`everyMonitorType`).
+- **Location groups, types and sources come from the regions meta** (spec 7c): the Map's
+  schools and child care sections in What are `location_groups` sorted by `order` (labels such as
+  "Schools" and "Child care"), each type sits in the group its `group` key names (a type whose
+  group the meta doesn't define is a group of its own, after the others), and labels come from
+  `location_types` (`metadata.locationGroups()`). The location resolver reads each type's
+  `source` from the same meta (`metadata.locationSources()`), so no type id, group or source is
+  written in the dashboard's code.
 - **Weather (CIMIS) is its own dataset**, even though the server stores it as monitor
   entries: to users it's a different thing, and it isn't a pollutant. Its stations are
   listed via the catalog's `places_url` (`getMonitorsList({ dataset: "weather" })`).
@@ -2875,9 +3806,10 @@ endpoint yet (since 2026-11-03 only `calenviroscreen`, `emissions`, `tempo`, and
   maps. The client keeps an adapter registry keyed by dataset id, and **catalog entries
   without an adapter are hidden**, so the server can list datasets before the dashboard
   supports them.
-- **A layer with no selection** means "all features" on a map. Charts and calendars
-  **require** a place or selection (a monitor, region, or location). A **point** given to a range
-  widget (e.g. from the starter's "Change place" bar) is **kept as the point** (in the layer's `place`) and resolved
+- **No Where means everywhere** (spec 7a): a widget with no `place` or `selection` shows everything
+  its What asks for; a Chart or Table with no Where and no monitors has nothing to draw yet and
+  says what to add. A **point** given to a range
+  widget (e.g. from the starter's "Change place" bar) is **kept as the point** (the widget's `place`) and resolved
   at render to its smallest containing region with data, labeled "(your location)", the
   same rule as "now" widgets. Staging freezes it to that region.
 
@@ -3023,10 +3955,22 @@ external_id } }`). Lookups by code: `regions/?type=&external_id=a,b` (returns sq
    day can still change). **Open-day rows** (`…/summaries/daily/open/`, single monitor, bulk
    monitors and bulk regions) are today so far, plus yesterday until its nightly row exists
    (about 03:00 Pacific); `mergeOpenDays` / `mergeBulkOpenDays` add them to the stored rows
-   (the stored row wins on a shared day). The dashboard asks for them only for calendar
-   requests whose range reaches yesterday or today, never reads their `expected_count` or
+   (the stored row wins on a shared day). The dashboard asks for them only for daily-figure
+   requests (calendars, and since step 5 spec 6a every daily Chart and Table of a pollutant)
+   whose range reaches yesterday or today, never reads their `expected_count` or
    `is_complete`, and never computes a daily figure itself. A scale with levels but no
    `daily_statistic` leaves every day unrated, with one note.
+
+   **Period figure** (`@sjvair/sdk` `5.0.0-beta.15`, sjvair.com #342; step 5 spec 6a): a
+   `monitors/meta/` scale also carries `period_statistic` (`"daily_statistic_mean"` when
+   `daily_statistic` is set, else `null`) and `period_statistic_label` (its words). Monitor and
+   region summary rows coarser than a day carry `daily_statistic_mean` (the average of the
+   period's daily figures; `null` when fewer than 75%, rounded up, of the expected days have
+   one), `daily_statistic_days` and `daily_statistic_expected_days` (null on hourly and daily
+   rows and on types without a `daily_statistic`). Every widget reads a month's or year's value
+   from it (see "Datasets line up"), and a null one says "Only {days} of {expected} days had a
+   figure" from the day counts. Each night (monitors 02:15, regions 02:20 Pacific) the server
+   writes the current period's coarse rows through yesterday with `is_final: false`.
 
 4. **Alert metadata** — alertable entry types per monitor type, alert levels,
    evaluation windows (today only in server `ENTRY_CONFIG`).
@@ -3039,11 +3983,43 @@ external_id } }`). Lookups by code: `regions/?type=&external_id=a,b` (returns sq
    `regions/?within=…&within_mode=overlaps` (also the geojson variant): it keeps regions with
    at least 1% of their own area inside the parents and adds `also_in`; the default
    `contained` mode is unchanged. Details in sjvair.com's step 3 spec 1.
+   **Whole-type bulk region summaries** (sjvair.com #334, `@sjvair/sdk` `5.0.0-beta.11`,
+   2026-11-15, for step 5 spec 4's region fills): `regions/<entry_type>/summaries/<res>/` and
+   `…/summaries/daily/open/` take exactly one of `region` (repeatable sqids; retired and
+   old-vintage regions included) or `type` (one region type; SDK `RegionSummaryBulkType`, every
+   type but `land_use`). `type` is a SQL sub-select, so it has no id list and no 1,000-field
+   limit. It returns current regions with a boundary (tracts on `TRACT_VINTAGE` only), the same
+   set `/regions/geojson/` draws, but **only those with a summary row** (for open days, an hourly
+   row since the first open day). A shape missing from the response is "no data", not an error.
+   Both or neither is a 400 (`exclusive`, `required`); `land_use` or an unknown type is
+   `invalid_choice`; a blank `type=` counts as absent. Paging is unchanged: 168 rows a page with
+   the cross-page merge, open days 100 regions a page. The SDK's `RegionType` no longer has
+   `place` (the server dropped place regions in 2026-09).
 6. **Choice lists** — stage/processor labels + descriptions, pesticide categories/IARC.
    **Built:** `monitors/meta/` carries `stages` and `processors` labels (pesticide lists stay
    with the pesticide spec).
 7. **Display hints** — decimal precision, preferred chart type/scale per entry type.
    **Built:** each catalog entry type has `display: {precision, chart, y_min}`.
+
+**The pesticides meta for spray notices** (step 5 spec 5a, `@sjvair/sdk` `5.0.0-beta.12` and
+`5.0.0-beta.13`). `pesticides/meta/` gives the Map's notices everything they show: the
+one-level `scales["spray-notice"]` scale (the marker colour, the legend row and its label;
+pink `#e64980`, the user's pick), `notes` (the explainer, such as `noi_meaning`; server English,
+displayed and never stored), `links.spraydays_signup`, `badges`, the `methods` labels the card
+reads by each notice's `aerial_ground` (sjvair.com #338), and `notice_filters`. No colour, label
+or link is hardcoded.
+
+**The pesticides meta for pesticide use** (step 5 spec 5b, `@sjvair/sdk` `5.0.0-beta.13` and
+`5.0.0-beta.14`). The Map's use reads from `pesticides/meta/`: `years` (the periods offered,
+newest first; a period is checked against it before any request, since the server answers an
+unlisted year with its latest), `notes.pur_lag` (when the data is released) and
+`notes.shades_valley` (how the shading reads) for the legend note, `badges` for the section
+card's chemicals (in text), and `links` with `link_params` for the card's explorer links (filled
+by `pesticideLinkUrl`; a missing link is left out). The classes come with each `townships/` and
+`sections/` response (`classes.<figure>`: inclusive upper `breaks` and one colour per break),
+not from the meta; `meta.ramp` isn't sampled, and `ramp.no_data` isn't used (zero use is an
+outline). The figures' labels, units and precision come from the catalog's `pesticide-use` entry
+types.
 
 **Shared action tiers** (decided 2026-09-28). Scales with different step counts and names
 (6 AQ levels, 5 heat scores, …) are compared by a **`tier` (0–4) in metadata** for every

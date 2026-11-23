@@ -10,20 +10,6 @@ import type { LocationResolver, PointResolver } from "./registry";
 /** The region types a point or a school falls back through, smallest first. */
 const FALLBACK_TYPES = ["zipcode", "city", "county"] as const;
 
-/**
- * The location sources `getLocationsByCode` takes. The SDK exports the list only as a type, so
- * it is spelled out here; the `Record` makes the compiler flag a source added to the SDK.
- */
-const LOCATION_SOURCES: Record<LocationSource, true> = {
-	"cde-public": true,
-	"cde-private": true,
-	"cdss-ccl": true
-};
-
-function isLocationSource(source: string): source is LocationSource {
-	return Object.hasOwn(LOCATION_SOURCES, source);
-}
-
 /** The most codes one `getLocationsByCode` request takes. */
 const MAX_CODES = 100;
 
@@ -45,7 +31,8 @@ function resolvedLocation(location: Location): NonNullable<Resolved> {
 			city: location.city_name,
 			zip: location.zip,
 			address: location.address
-		}
+		},
+		point: { lat: location.point.lat, lon: location.point.lng }
 	};
 	if (location.retired) {
 		const by = location.retired.replaced_by;
@@ -60,23 +47,33 @@ function resolvedLocation(location: Location): NonNullable<Resolved> {
 /**
  * The web build's location resolver, through `getLocationsByCode`. A code may be a location's own
  * code or one of its aliases; a retired location still resolves; a code the server doesn't know
- * and a source the SDK doesn't know (with no request) are `null`. Codes asked for in the same
- * tick are batched into one request per source (at most 100 codes each), and each code is cached
- * for the resolver's lifetime, including an unknown code's `null`. A failed lookup rejects and is
- * retried on the next call; one caller's abort rejects only that caller.
+ * and a source the regions meta doesn't list (with no request) are `null`. Codes asked for in the
+ * same tick are batched into one request per source (at most 100 codes each), and each code is
+ * cached for the resolver's lifetime, including an unknown code's `null`. A failed lookup rejects
+ * and is retried on the next call; one caller's abort rejects only that caller.
  */
-export function createWebLocationResolver(): LocationResolver {
+export function createWebLocationResolver(
+	sources: (signal?: AbortSignal) => Promise<string[]>
+): LocationResolver {
+	let listed: Promise<string[]> | undefined;
+	const isLocationSource = async (source: string, signal?: AbortSignal) => {
+		listed ??= sources().catch((error) => {
+			listed = undefined;
+			throw error;
+		});
+		return (await untilAborted(listed, signal)).includes(source);
+	};
 	const cache = new Map<string, Promise<Resolved>>();
-	let pending = new Map<LocationSource, Map<string, Waiter>>();
+	let pending = new Map<string, Map<string, Waiter>>();
 
-	async function lookup(source: LocationSource, codes: Map<string, Waiter>) {
+	async function lookup(source: string, codes: Map<string, Waiter>) {
 		const list = [...codes.keys()];
 		const batches: string[][] = [];
 		for (let i = 0; i < list.length; i += MAX_CODES) batches.push(list.slice(i, i + MAX_CODES));
 		await Promise.all(
 			batches.map(async (batch) => {
 				try {
-					const locations = await getLocationsByCode(source, batch);
+					const locations = await getLocationsByCode(source as LocationSource, batch);
 					const found = new Map<string, NonNullable<Resolved>>();
 					for (const location of locations) {
 						const resolved = resolvedLocation(location);
@@ -102,8 +99,8 @@ export function createWebLocationResolver(): LocationResolver {
 	}
 
 	return {
-		resolve(source, code, signal) {
-			if (!isLocationSource(source)) return Promise.resolve(null);
+		async resolve(source, code, signal) {
+			if (!(await isLocationSource(source, signal))) return null;
 			const key = `${source}:${code}`;
 			let found = cache.get(key);
 			if (!found) {

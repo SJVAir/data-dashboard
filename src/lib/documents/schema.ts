@@ -1,7 +1,8 @@
 import { ChosenPlaceSchema, WidgetDataConfigSchema, hasDefaultPlace } from "$lib/data/schema";
-import { ThresholdSchema } from "$lib/thresholds/schema";
+import { ThresholdsSchema } from "$lib/thresholds/schema";
 import { GRID_COLUMNS, MAX_HEIGHT, MAX_ROW } from "$lib/layout/config";
 import { NOTE_TYPE, NoteOptionsSchema } from "$lib/notes/options";
+import { MAP_TYPE, MapOptionsSchema } from "$lib/widgets/map/options";
 import { z } from "$lib/zod";
 
 export { GRID_COLUMNS };
@@ -27,9 +28,20 @@ export const WidgetInstanceSchema = z.object({
 	minimized: z.object({ order: z.number().int().min(0) }).optional(),
 	data: WidgetDataConfigSchema,
 	options: z.record(z.string(), z.unknown()).optional(),
-	thresholds: z.array(ThresholdSchema).max(1).optional()
+	thresholds: ThresholdsSchema.optional()
 });
 export type WidgetInstance = z.infer<typeof WidgetInstanceSchema>;
+
+/**
+ * Whether `options` are valid for a widget of `type`: a Note's must parse (they're required), a
+ * Map's must parse when present, and other types' aren't checked here.
+ */
+export function widgetOptionsValid(type: string, options: unknown): boolean {
+	if (type === NOTE_TYPE) return NoteOptionsSchema.safeParse(options).success;
+	if (type === MAP_TYPE)
+		return options === undefined || MapOptionsSchema.safeParse(options).success;
+	return true;
+}
 
 export const DashboardBodySchema = z
 	.object({
@@ -43,10 +55,10 @@ export const DashboardBodySchema = z
 	})
 	.superRefine((b, ctx) => {
 		b.widgets.forEach((w, i) => {
-			if (w.type === NOTE_TYPE && !NoteOptionsSchema.safeParse(w.options).success)
+			if (!widgetOptionsValid(w.type, w.options))
 				ctx.addIssue({
 					code: "custom",
-					message: "Invalid note options",
+					message: w.type === NOTE_TYPE ? "Invalid note options" : "Invalid map options",
 					path: ["widgets", i, "options"]
 				});
 		});

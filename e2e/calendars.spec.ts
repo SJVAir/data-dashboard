@@ -20,7 +20,7 @@ import {
 
 test.use({ reducedMotion: "reduce" });
 
-const GET_DATA = { level: 1, name: "Get data" } as const;
+const GET_DATA = { level: 1, name: "Data Portal" } as const;
 const NOT_RATED_NOTE = /doesn't say yet how to rate a whole day/;
 const FRESNO = { kind: "region", type: "county", code: "06019" };
 
@@ -39,7 +39,7 @@ async function pastDay(scope: Locator, n: number): Promise<Locator> {
 
 /** Opens Get data from the top nav and picks the calendar `name` under "Show as". */
 async function showAs(page: Page, name: string): Promise<void> {
-	await nav(page).getByRole("link", { name: "Data", exact: true }).click();
+	await nav(page).getByRole("link", { name: "Data Portal", exact: true }).click();
 	await expect(page.getByRole("heading", GET_DATA)).toBeVisible();
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
 	await page.getByRole("radio", { name }).click();
@@ -101,7 +101,7 @@ test("a calendar is greyed out with its reason for two places and for a weather 
 	for (const name of ["Month calendar", "Year calendar"]) {
 		await expect(page.getByRole("radio", { name })).toBeDisabled();
 	}
-	await expect(page.getByText(/Year calendar: Shows up to 1 place/)).toBeVisible();
+	await expect(page.getByText(/Year calendar: Shows 1 place or monitor/)).toBeVisible();
 });
 
 test("a share link with a point place gets its region for a calendar", async ({ page }) => {
@@ -119,11 +119,11 @@ test("a share link with a point place gets its region for a calendar", async ({ 
 					rect: { x: 0, y: 0, w: 6, h: 8 },
 					data: {
 						dateRange: { kind: "trailing", amount: 2, unit: "month" },
+						place: { kind: "point", lat: 36.7372, lon: -119.7871 },
 						layers: [
 							{
 								dataset: "air-quality",
-								entryType: "pm25",
-								place: { kind: "point", lat: 36.7372, lon: -119.7871 }
+								entryType: "pm25"
 							}
 						]
 					}
@@ -161,7 +161,8 @@ async function openCalendar(
 					rect: { x: 0, y: 0, w: 8, h: 8 },
 					data: {
 						dateRange,
-						layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }]
+						place: FRESNO,
+						layers: [{ dataset: "air-quality", entryType: "pm25" }]
 					},
 					...(thresholds && { thresholds })
 				}

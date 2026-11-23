@@ -1,6 +1,6 @@
 import { TZDate } from "@date-fns/tz";
 import { addDays, startOfWeek, subMonths } from "date-fns";
-import type { DateRangeSpec } from "$lib/data/schema";
+import type { DateRangeSpec, Resolution } from "$lib/data/schema";
 import { TIME_ZONE, WEEK_STARTS_ON, pacificDay, parseDateKey, toKey, todayPacific } from "./index";
 
 export type { DateRangeSpec };
@@ -56,7 +56,42 @@ function fromDates(
 	};
 }
 
-export function resolveRange(spec: DateRangeSpec, now: Date): ResolvedRange {
+/**
+ * Resolves a range. At Monthly or Yearly the dates widen to whole periods (the first day of the
+ * start's period to the last day of the end's period, Pacific); a trailing range in months is
+ * then the last N calendar months including the current one. Other resolutions, and callers
+ * passing none, get the dates as picked. Quarter and season are not offered, so they don't widen.
+ */
+export function resolveRange(
+	spec: DateRangeSpec,
+	now: Date,
+	resolution?: Resolution
+): ResolvedRange {
+	const r = resolveExact(spec, now);
+	if (resolution !== "month" && resolution !== "year") return r;
+	let first = r.firstDate;
+	if (resolution === "month" && spec.kind === "trailing" && spec.unit === "month") {
+		const { y, m } = parseDateKey(r.lastDate);
+		first = toKey(new TZDate(y, m - spec.amount, 1, TIME_ZONE));
+	}
+	const widenedFirst =
+		resolution === "month" ? `${first.slice(0, 7)}-01` : `${first.slice(0, 4)}-01-01`;
+	const widenedLast =
+		resolution === "month" ? lastDayOfMonth(r.lastDate) : `${r.lastDate.slice(0, 4)}-12-31`;
+	if (widenedFirst === r.firstDate && widenedLast === r.lastDate) return r;
+	return fromDates(widenedFirst, widenedLast, r.rolling, now);
+}
+
+/** Whether `resolution` makes the range resolve to different dates than the person picked. */
+export function rangeWidened(spec: DateRangeSpec, now: Date, resolution?: Resolution): boolean {
+	// "Last N months" at Monthly means N calendar months by definition, so it isn't widened.
+	if (resolution === "month" && spec.kind === "trailing" && spec.unit === "month") return false;
+	const a = resolveExact(spec, now);
+	const b = resolveRange(spec, now, resolution);
+	return a.firstDate !== b.firstDate || a.lastDate !== b.lastDate;
+}
+
+function resolveExact(spec: DateRangeSpec, now: Date): ResolvedRange {
 	const today = todayPacific(now);
 	switch (spec.kind) {
 		case "set": {

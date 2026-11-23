@@ -9,7 +9,7 @@ import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { render } from "vitest-browser-svelte";
-import type { WidgetInstance } from "$lib/documents/schema";
+import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
 import { noteType } from "./index";
 import NoteWidget from "./NoteWidget.svelte";
@@ -158,7 +158,10 @@ test("long text scrolls inside the widget", async () => {
 test("the descriptor is a time-less, direct-add type", () => {
 	expect(noteType.time).toBe("none");
 	expect(noteType.accepts).toBeUndefined();
-	expect(noteType.addable?.()).toEqual({ data: { layers: [] }, options: { text: "" } });
+	expect(noteType.addable?.({} as Dashboard)).toEqual({
+		data: { layers: [] },
+		options: { text: "" }
+	});
 });
 
 /** An editable app whose current dashboard holds `widget`. */

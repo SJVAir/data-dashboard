@@ -197,7 +197,34 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
      monitor-map 5.0 needs a published `0.x`.
    - MIT licenses: `map-sdk` from creation, and `monitor-map` in its rebuild
    - the dashboard's Map widget on `map-sdk`: map feature clicking (method A), synced both
-     ways with step 4's shared place picker (method B)
+     ways with step 4's shared place picker (method B). **Seven specs** (the user, 2026-11-11;
+     spec 2 split into 2 and 3 on 2026-11-12; schools added 2026-11-17; spec 6 split into 6a and
+     6b on 2026-11-18),
+     each a PR into a `step-5` branch, which merges into `main` once at the end:
+     1. **The widget core:** live PM2.5 monitors around the widget's places, the places outlined
+        and framed, picker sync, "Change place", the location-privacy rules, lazy-loaded and
+        torn down when off screen. **Merged into `step-5` 2026-11-12** (#53, on map-sdk
+        `0.1.0-beta.9`).
+     2. The Map's data per tile (several data sets, monitors limited to the tile's places,
+        chosen in Get data and loaded through the dashboard's data layer), the saved map
+        selection, the reading card's Select/Remove and Shift-click, and the focus area (map-sdk
+        `0.1.0-beta.11`).
+     3. The options toolbar, built from the tile's data, plus Settings, on map-sdk's shared
+        toolbar (after map-sdk part 5), and viewer changes on read-only dashboards. **Merged
+        into `step-5` 2026-11-15** (#57, on map-sdk `0.1.0-beta.13` and `@sjvair/sdk`
+        `5.0.0-beta.10`).
+     4. A date-range mode and region fills.
+     5. Pesticide use by section and township, and spray notices.
+     6. In two parts (the user, 2026-11-18):
+        - **6a, dataset rules:** every layer of a widget covers the same dates at the same data
+          resolution (`ARCHITECTURE.md` → "Datasets line up"); the Map steps by day, month or
+          year; one figure per pollutant everywhere. **Merged into `step-5`** (#61,
+          2026-11-19), on `@sjvair/map-sdk` `0.1.0-beta.21` and `@sjvair/sdk`
+          `5.0.0-beta.15`.
+        - **6b:** "Show in a chart" / "Show in a table" from a map's selection. **Merged into
+          `step-5`** (#62, 2026-11-20), on `@sjvair/map-sdk` `0.1.0-beta.22`. Next: spec 7.
+     7. Schools and child care as a Map data set (added by the user 2026-11-17, after spec 6b,
+        since spec 6b decides how a Map's layers reach charts and tables).
    - **Critical path (decided 2026-09-28): only `map-sdk` → the dashboard's Map widget.**
      There is no interim single-map build on monitor-map 4.x.
    - **Parallel, not blocking:** monitor-map rebuilt on `map-sdk` on a branch. **The Map

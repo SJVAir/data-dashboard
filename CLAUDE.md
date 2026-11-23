@@ -80,7 +80,7 @@ reuse existing code only if it's exactly what the new design needs.
   integrations). This repo no longer depends on it (the v1 Monitors tab that embedded its
   `MapShell` was removed in Foundations spec 1). The new dashboard does not use it; see below.
   **Planned split (decided 2026-09-24):** a new `@sjvair/map-sdk` (sibling repo
-  `../map-sdk`, created 2026-11-03 as `SJVAir/map-sdk`; milestone 1 in progress) holds the per-map core, plugins, `MapView`, and data
+  `../map-sdk`, created 2026-11-03 as `SJVAir/map-sdk`; milestones 1 and 2 merged, published betas through `0.1.0-beta.22`) holds the per-map core, plugins, `MapView`, and data
   stores, while monitor-map is rebuilt on it (as its **5.0**) as the monitor-map
   _experience_ (MapShell, routes, panels, options toolbar, legend, the standalone build
   sjvair.com imports), keeping the `/core` and `/routes` entry points the mobile app uses. **Dashboard map widgets use
@@ -114,6 +114,9 @@ existing consumers (monitor-map is also used by sjvair.com and the mobile app).
 - **Metadata is the source of truth** (see `ARCHITECTURE.md` → "Metadata as source of
   truth"). Never hardcode labels, units, breakpoints, colors, scales, or coverage — read
   them from server `…/meta/` endpoints; if missing, add them server-side.
+- **Datasets line up (dashboard only)** (see `ARCHITECTURE.md` → "Datasets line up"): every
+  layer in a widget covers the same dates at the same data resolution. Never mix times or
+  resolutions in one dataset; a dataset not offered at the chosen resolution can't be selected.
 - **English-only but translation-ready** (see `ARCHITECTURE.md` →
   "Internationalization"): all UI strings through Paraglide messages, no concatenated
   sentences, all formatting through the shared `format` module, never store generated
@@ -155,36 +158,36 @@ by being done or explicitly dropped by the user (recorded under "Dropped").
 
 Installed:
 
-| Library                            | Purpose                                            |
-| ---------------------------------- | -------------------------------------------------- |
-| `sv-router`                        | Client-side routing                                |
-| `@sjvair/sdk`                      | Air quality data API                               |
-| `date-fns`                         | Date handling                                      |
-| `@date-fns/tz`                     | Pacific-time date math (via the `format` module)   |
-| Paraglide JS (inlang)              | UI message catalog (English-only today)            |
-| `zod`                              | Validating every incoming document                 |
-| `idb`                              | IndexedDB (inside the platform adapter only)       |
-| `lz-string`                        | URL-fragment document sharing                      |
-| shadcn-svelte / bits-ui            | Accessible UI primitives                           |
-| `svelte-sonner`                    | Toasts (via shadcn-svelte's `sonner`)              |
-| `@lucide/svelte`                   | Icons                                              |
-| `@sveltejs/enhanced-img`           | Optimized images                                   |
-| `color2k`                          | `readableColor` for text on level colors           |
-| Vitest                             | Unit tests and browser-mode component tests        |
-| `vitest-browser-svelte`            | Rendering components in Vitest browser mode        |
-| Playwright, `@axe-core/playwright` | E2E on Chromium/WebKit/Firefox; WCAG 2.2 AA checks |
-| `@sentry/browser`                  | Scrubbed error reports (via the platform adapter)  |
-| `lexical`, `@lexical/*`            | Notes editor (0.53.0, pinned exactly; lazy)        |
-| `marked`                           | Notes Markdown lexer, raw HTML off (18.2.0; lazy)  |
+| Library                            | Purpose                                                                    |
+| ---------------------------------- | -------------------------------------------------------------------------- |
+| `sv-router`                        | Client-side routing                                                        |
+| `@sjvair/sdk`                      | Air quality data API                                                       |
+| `date-fns`                         | Date handling                                                              |
+| `@date-fns/tz`                     | Pacific-time date math (via the `format` module)                           |
+| Paraglide JS (inlang)              | UI message catalog (English-only today)                                    |
+| `zod`                              | Validating every incoming document                                         |
+| `idb`                              | IndexedDB (inside the platform adapter only)                               |
+| `lz-string`                        | URL-fragment document sharing                                              |
+| shadcn-svelte / bits-ui            | Accessible UI primitives                                                   |
+| `svelte-sonner`                    | Toasts (via shadcn-svelte's `sonner`)                                      |
+| `@lucide/svelte`                   | Icons                                                                      |
+| `@sveltejs/enhanced-img`           | Optimized images                                                           |
+| `color2k`                          | `readableColor` for text on level colors                                   |
+| Vitest                             | Unit tests and browser-mode component tests                                |
+| `vitest-browser-svelte`            | Rendering components in Vitest browser mode                                |
+| Playwright, `@axe-core/playwright` | E2E on Chromium/WebKit/Firefox; WCAG 2.2 AA checks                         |
+| `@sentry/browser`                  | Scrubbed error reports (via the platform adapter)                          |
+| `lexical`, `@lexical/*`            | Notes editor (0.53.0, pinned exactly; lazy)                                |
+| `marked`                           | Notes Markdown lexer, raw HTML off (18.2.0; lazy)                          |
+| `@sjvair/map-sdk`                  | Map widget: core, plugins, `MapView` (0.1.0-beta.22, pinned exactly; lazy) |
 
 Planned (decided, not yet installed — see `ARCHITECTURE.md` → "Tech stack"):
 
-| Library                     | Purpose                                           |
-| --------------------------- | ------------------------------------------------- |
-| `uplot` (direct dependency) | **All** charts (time-series-first)                |
-| `@sjvair/map-sdk`           | Map widget: core, plugins, `MapView`, data stores |
-| `terra-draw`                | Drawn-shape map selection (via a map-sdk plugin)  |
-| JupyterLite + Pyodide       | Separate `/notebooks/` app (Release 3)            |
+| Library                     | Purpose                                          |
+| --------------------------- | ------------------------------------------------ |
+| `uplot` (direct dependency) | **All** charts (time-series-first)               |
+| `terra-draw`                | Drawn-shape map selection (via a map-sdk plugin) |
+| JupyterLite + Pyodide       | Separate `/notebooks/` app (Release 3)           |
 
 ## Environment Variables
 
@@ -223,6 +226,11 @@ Decided 2026-09-28.
   `package.json`), but only when the user asks. Once sjvair.com builds this repo's `main`
   (after the hosting track goes live), even these are production deploys and need
   explicit approval.
+- **Build each spec straight toward its step's final design** (the user, 2026-11-12, for every
+  remaining Release 1 step and most likely Release 2; this repo only). No stop-gap UI or interim
+  behaviour to make a feature usable between specs: a step branch merges into `main` once, at the
+  end. Between specs, keep the test suite green, every other widget working, and saved documents
+  opening without errors.
 - **`main` is not branch-protected** for now (see `DEFERRED.md`).
 - **The `planning` branch was merged into `main` on 2026-10-19** (PR #5), with the user's
   approval, once planning was finished.

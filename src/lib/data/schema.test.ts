@@ -12,27 +12,79 @@ import {
 
 const mapConfig = {
 	dateRange: { kind: "set", unit: "month", start: "2026-09-01" },
+	selection: { kind: "regions", ids: ["county:06019"] },
 	layers: [
-		{ dataset: "monitors", entryType: "pm25", resolution: "auto" },
-		{
-			dataset: "regions",
-			entryType: "pm25",
-			selection: { kind: "regions", ids: ["county:06019"] }
-		}
+		{ dataset: "monitors", entryType: "pm25" },
+		{ dataset: "regions", entryType: "pm25" }
 	]
 };
+
+const county = { kind: "region", type: "county", code: "06019" };
+
+/** Whether a widget's data with this Where (and one layer) parses. */
+const where = (w: object) =>
+	WidgetDataConfigSchema.safeParse({ ...w, layers: [{ dataset: "d" }] }).success;
 
 describe("WidgetDataConfigSchema", () => {
 	it("accepts a map-like config with two layers", () => {
 		expect(WidgetDataConfigSchema.safeParse(mapConfig).success).toBe(true);
 	});
 
-	it("accepts a chart config with a trailing range and a monitor place", () => {
-		const r = WidgetDataConfigSchema.safeParse({
+	it("monitors and types on the air-quality layer", () => {
+		const config = {
 			dateRange: { kind: "trailing", amount: 30, unit: "day" },
-			layers: [{ dataset: "monitors", place: { kind: "monitor", id: "abc" }, resolution: "day" }]
+			place: county,
+			layers: [
+				{
+					dataset: "air-quality",
+					entryType: "pm25",
+					monitors: ["abc", "Ab_9-z"],
+					monitorTypes: ["purpleair", "airnow"]
+				}
+			]
+		};
+		expect(WidgetDataConfigSchema.parse(config)).toEqual(config);
+	});
+
+	it("rejects repeated or unsafe monitors and types", () => {
+		const layer = (l: object) => LayerSchema.safeParse({ dataset: "air-quality", ...l }).success;
+		expect(layer({ monitors: ["a", "a"] })).toBe(false);
+		expect(layer({ monitors: ["../x"] })).toBe(false);
+		expect(layer({ monitorTypes: ["purpleair", "purpleair"] })).toBe(false);
+		expect(layer({ monitorTypes: ["a b"] })).toBe(false);
+		expect(layer({ monitors: [], monitorTypes: [] })).toBe(true);
+	});
+
+	it("a locations layer's ticked types must be unique", () => {
+		const layer = (l: object) => LayerSchema.safeParse({ dataset: "locations", ...l }).success;
+		expect(layer({ locationTypes: ["a", "b"] })).toBe(true);
+		expect(layer({ locationTypes: ["a", "a"] })).toBe(false);
+		expect(layer({ locationTypes: ["a b"] })).toBe(false);
+	});
+
+	it("Where is saved on the data, not the layer", () => {
+		const r = WidgetDataConfigSchema.parse({
+			place: county,
+			layers: [{ dataset: "air-quality", entryType: "pm25" }]
+		});
+		expect(r.place).toEqual(county);
+		expect(r.layers[0]).toEqual({ dataset: "air-quality", entryType: "pm25" });
+	});
+
+	it("a selection has no 500 limit", () => {
+		const ids = Array.from({ length: 600 }, (_, i) => `county:${i}`);
+		const r = WidgetDataConfigSchema.safeParse({
+			selection: { kind: "regions", ids },
+			layers: []
 		});
 		expect(r.success).toBe(true);
+		expect(LIMITS).not.toHaveProperty("SELECTION_MAX");
+	});
+
+	it("round-trips one data resolution and rejects an unknown one", () => {
+		const config = { resolution: "month", layers: [{ dataset: "air-quality", entryType: "pm25" }] };
+		expect(WidgetDataConfigSchema.parse(config)).toEqual(config);
+		expect(WidgetDataConfigSchema.safeParse({ ...config, resolution: "auto" }).success).toBe(false);
 	});
 
 	it("accepts the other place kinds", () => {
@@ -41,53 +93,38 @@ describe("WidgetDataConfigSchema", () => {
 			{ kind: "location", source: "school", code: "x1" },
 			{ kind: "point", lat: 36.7, lon: -119.8, label: "Home" }
 		]) {
-			expect(LayerSchema.safeParse({ dataset: "d", place }).success).toBe(true);
+			expect(where({ place })).toBe(true);
 		}
 	});
 
 	it("rejects an out-of-range point and too many layers", () => {
-		expect(
-			LayerSchema.safeParse({ dataset: "d", place: { kind: "point", lat: 91, lon: 0 } }).success
-		).toBe(false);
+		expect(where({ place: { kind: "point", lat: 91, lon: 0 } })).toBe(false);
 		const layers = Array.from({ length: LIMITS.LAYERS_MAX + 1 }, () => ({ dataset: "d" }));
 		expect(WidgetDataConfigSchema.safeParse({ layers }).success).toBe(false);
 	});
 
-	it("rejects a layer with both a place and a selection", () => {
-		const r = LayerSchema.safeParse({
-			dataset: "d",
-			place: { kind: "monitor", id: "a" },
-			selection: { kind: "monitors", ids: ["a"] }
-		});
-		expect(r.success).toBe(false);
+	it("rejects a Where with both a place and a selection", () => {
+		expect(where({ place: county, selection: { kind: "regions", ids: ["county:06019"] } })).toBe(
+			false
+		);
 	});
 
 	it("rejects bad selections", () => {
-		const sel = (kind: string, ids: string[]) =>
-			LayerSchema.safeParse({ dataset: "d", selection: { kind, ids } }).success;
+		const sel = (kind: string, ids: string[]) => where({ selection: { kind, ids } });
 		expect(sel("regions", ["06019"])).toBe(false);
-		expect(sel("monitors", ["a", "a"])).toBe(false);
-		expect(sel("monitors", [])).toBe(false);
-		const many = Array.from({ length: LIMITS.SELECTION_MAX + 1 }, (_, i) => `m${i}`);
-		expect(sel("monitors", many)).toBe(false);
-		expect(sel("monitors", many.slice(0, LIMITS.SELECTION_MAX))).toBe(true);
+		expect(sel("regions", ["county:1", "county:1"])).toBe(false);
+		expect(sel("regions", [])).toBe(false);
 	});
 
-	it("rejects monitor ids and entry types outside a safe character set", () => {
+	it("rejects entry types outside a safe character set", () => {
+		expect(where({ selection: { kind: "regions", ids: ["county:06019"] } })).toBe(true);
 		const layer = (l: object) => LayerSchema.safeParse({ dataset: "d", ...l }).success;
-		expect(layer({ place: { kind: "monitor", id: "../x" } })).toBe(false);
-		expect(layer({ place: { kind: "monitor", id: "a b" } })).toBe(false);
-		expect(layer({ place: { kind: "monitor", id: "Ab_9-z" } })).toBe(true);
-		expect(layer({ selection: { kind: "monitors", ids: ["ok", "../x"] } })).toBe(false);
 		expect(layer({ entryType: "pm25/../x" })).toBe(false);
 		expect(layer({ entryType: "pm25" })).toBe(true);
-		expect(layer({ selection: { kind: "regions", ids: ["county:06019"] } })).toBe(true);
 	});
 
 	it("region place types follow the selection ids' type rule", () => {
-		const region = (type: string) =>
-			LayerSchema.safeParse({ dataset: "d", place: { kind: "region", type, code: "06019" } })
-				.success;
+		const region = (type: string) => where({ place: { kind: "region", type, code: "06019" } });
 		expect(region("county")).toBe(true);
 		expect(region("school_district")).toBe(true);
 		expect(region("a:b")).toBe(false);
@@ -95,9 +132,8 @@ describe("WidgetDataConfigSchema", () => {
 	});
 
 	it("accepts a drawn source geometry and rejects one without a type", () => {
-		const base = { kind: "monitors", ids: ["a"] };
-		const withSource = (source: unknown) =>
-			LayerSchema.safeParse({ dataset: "d", selection: { ...base, source } }).success;
+		const base = { kind: "regions", ids: ["county:06019"] };
+		const withSource = (source: unknown) => where({ selection: { ...base, source } });
 		expect(withSource({ type: "Polygon", coordinates: [] })).toBe(true);
 		expect(withSource({ coordinates: [] })).toBe(false);
 	});
@@ -135,7 +171,7 @@ describe("TimeSubRangeSchema", () => {
 describe("default-place", () => {
 	const withPlace = (place: unknown) => {
 		const doc = starterDashboard(defaultStarterPlace());
-		doc.body.widgets[0].data = { layers: [{ dataset: "monitors", place }] } as never;
+		doc.body.widgets[0].data = { place, layers: [{ dataset: "monitors" }] } as never;
 		return doc;
 	};
 
@@ -145,8 +181,14 @@ describe("default-place", () => {
 		expect(StarterDashboardSchema.safeParse(doc).success).toBe(true);
 	});
 
+	it("a county place bar is kept", () => {
+		const doc = starterDashboard(defaultStarterPlace());
+		doc.body.placeBar = { place: county as never };
+		expect(DashboardSchema.parse(doc).body.placeBar).toEqual({ place: county });
+	});
+
 	it("leaves other places and the resolved starter valid; only the template holds it", () => {
-		expect(DashboardSchema.safeParse(withPlace({ kind: "monitor", id: "a" })).success).toBe(true);
+		expect(DashboardSchema.safeParse(withPlace(county)).success).toBe(true);
 		const starter = starterDashboard(defaultStarterPlace());
 		expect(DashboardSchema.safeParse(starter).success).toBe(true);
 		expect(StarterDashboardSchema.safeParse(starter).success).toBe(true);

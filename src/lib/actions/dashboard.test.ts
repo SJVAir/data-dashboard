@@ -5,12 +5,13 @@ import { openRename } from "$lib/components/dialogs/RenameDialog.svelte";
 import { takeAfterMenuClose } from "$lib/components/menu/menu-state.svelte";
 import type { ChosenPlace, Layer } from "$lib/data/schema";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
+import { toWhere } from "$lib/places/selection";
 import type { AppContext } from "$lib/store/app.svelte";
 import { STARTER_ID } from "$lib/starter/starter";
 import { chartType } from "$lib/widgets/chart";
-import { registerWidgetType } from "$lib/widgets/registry";
+import { registerWidgetType, type Addable, type WidgetType } from "$lib/widgets/registry";
 import { navigate } from "../../router";
-import { startGetData, dashboardActions } from "./dashboard";
+import { addWidget, startGetData, dashboardActions } from "./dashboard";
 import { isDisabled } from "./types";
 
 vi.mock("../../router", () => ({ navigate: vi.fn(async () => {}) }));
@@ -63,6 +64,73 @@ describe("Add widget", () => {
 		expect(navigate).not.toHaveBeenCalled();
 	});
 
+	describe("a type whose data needs a lookup first (the Map's monitor types)", () => {
+		let release: (a: Addable) => void = () => {};
+		const slow = {
+			...chartType,
+			type: "slow",
+			addable: () => new Promise<Addable>((resolve) => (release = resolve))
+		} as WidgetType;
+		const DATA: Addable = { data: { layers: [{ dataset: "air-quality", entryType: "pm25" }] } };
+		const appOn = (id: string) => {
+			const apply = vi.fn();
+			const a = {
+				current: { session: { doc: { id, body: { widgets: [] } }, readOnly: false, apply } }
+			} as unknown as AppContext;
+			return { a, apply };
+		};
+		beforeEach(() => registerWidgetType(slow));
+
+		it("adds once the lookup is done, on the same dashboard", async () => {
+			const { a, apply } = appOn("d1");
+			const done = addWidget(a, "slow");
+			expect(apply).not.toHaveBeenCalled();
+			release(DATA);
+			await done;
+			expect(apply).toHaveBeenCalledOnce();
+			expect(apply.mock.calls[0][0]).toMatchObject({
+				op: "addWidget",
+				widget: { data: DATA.data }
+			});
+		});
+
+		it("adds nothing when another dashboard is current by then", async () => {
+			const { a, apply } = appOn("d1");
+			const done = addWidget(a, "slow");
+			const other = appOn("d2");
+			a.current = other.a.current;
+			release(DATA);
+			await done;
+			expect(apply).not.toHaveBeenCalled();
+			expect(other.apply).not.toHaveBeenCalled();
+		});
+
+		it("ignores a second Add while one waits", async () => {
+			const { a, apply } = appOn("d1");
+			const first = addWidget(a, "slow");
+			expect(addWidget(a, "slow")).toBeUndefined();
+			release(DATA);
+			await first;
+			expect(apply).toHaveBeenCalledOnce();
+			// Once it's done, Add works again.
+			const again = addWidget(a, "slow");
+			release(DATA);
+			await again;
+			expect(apply).toHaveBeenCalledTimes(2);
+		});
+
+		it("another type's Add proceeds while one waits", async () => {
+			const { a, apply } = appOn("d1");
+			const first = addWidget(a, "slow");
+			expect(addWidget(a, chartType.type)).toBeUndefined();
+			expect(apply).toHaveBeenCalledOnce();
+			expect(apply.mock.calls[0][0]).toMatchObject({ widget: { type: chartType.type } });
+			release(DATA);
+			await first;
+			expect(apply).toHaveBeenCalledTimes(2);
+		});
+	});
+
 	it("a locked dashboard disables Add widget", () => {
 		const add = dashboardActions(app(false, "newer"))(CTX).find((i) => i.id === "add-widget");
 		expect(add && isDisabled(add)).toBe(true);
@@ -72,12 +140,13 @@ describe("Add widget", () => {
 describe("Duplicate for another place", () => {
 	const A: ChosenPlace = { kind: "region", type: "county", code: "06019" };
 	const B: ChosenPlace = { kind: "location", source: "schools", code: "123" };
-	const C: ChosenPlace = { kind: "monitor", id: "m1" };
+	const C: ChosenPlace = { kind: "region", type: "county", code: "06039" };
 	const TO: ChosenPlace = { kind: "region", type: "county", code: "06029" };
 
 	function widget(id: string, places: ChosenPlace[], y: number): WidgetInstance {
-		const layers: Layer[] = places.map((place) => ({ dataset: "air-quality", place }));
-		return { id, type: "chart", title: null, rect: { x: 0, y, w: 6, h: 4 }, data: { layers } };
+		const layers: Layer[] = places.length ? [{ dataset: "air-quality" }] : [];
+		const data = { ...toWhere(places), layers };
+		return { id, type: "chart", title: null, rect: { x: 0, y, w: 6, h: 4 }, data };
 	}
 	const note = (y: number): WidgetInstance => ({
 		id: `note-${y}`,

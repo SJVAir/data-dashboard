@@ -11,12 +11,15 @@
 
 	let {
 		widget,
+		markKey,
 		reading,
 		levels,
 		now,
 		children
 	}: {
 		widget: WidgetInstance;
+		/** The key the watcher writes this tile's mark under (`markKey`). */
+		markKey: string;
 		/** The tile's own reading, levels and clock: used only where marks are local (see below). */
 		reading: CurrentReading | undefined;
 		levels: Level[];
@@ -33,7 +36,7 @@
 		const level = markLevel(reading, threshold, levels, now);
 		return level ? { level, at: reading.at, pulse: 0 } : undefined;
 	});
-	const mark = $derived(local ? localMark : thresholdMarks[widget.id]);
+	const mark = $derived(local ? localMark : thresholdMarks[markKey]);
 </script>
 
 <!-- A "now" tile's frame: the threshold outline, its pulse, and the "Alert level reached" strip. -->

@@ -1,7 +1,7 @@
 import type { Level } from "../metadata";
 import { levelFor } from "../metadata";
-import type { DateRangeSpec, Layer } from "../schema";
-import type { PlaceInfo, QueryData, QueryInput } from "../types";
+import type { DateRangeSpec } from "../schema";
+import type { PlaceInfo, QueryData, QueryInput, QueryLayer } from "../types";
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -10,9 +10,12 @@ export const CURRENT_RANGE: DateRangeSpec = { kind: "trailing", amount: 6, unit:
 /** An hourly value that ended longer ago than this is "No recent data". */
 export const STALE_MS = 3 * HOUR_MS;
 
-/** What the current reading asks the query client for: the layer's hourly averages. */
-export function currentInput(layer: Layer): QueryInput {
-	return { layer, dateRange: CURRENT_RANGE, pin: "hour" };
+/**
+ * What the current reading asks the query client for: the layer's hourly averages (the "now"
+ * types' pinned resolution).
+ */
+export function currentInput(layer: QueryLayer): QueryInput {
+	return { layer, dateRange: CURRENT_RANGE, resolution: "hour" };
 }
 
 export type Trend = "rising" | "falling" | "steady";

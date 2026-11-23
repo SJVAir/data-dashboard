@@ -1,5 +1,5 @@
 import type { ResolvedRegion } from "./adapters/registry";
-import type { DateRangeSpec, Layer, Resolution, TimeSubRange } from "./schema";
+import type { ChosenPlace, DateRangeSpec, Layer, Resolution, TimeSubRange } from "./schema";
 
 /** `t` is the period start in epoch ms. A raw point has `mean = min = max = value`, `count = 1`. */
 export type SeriesPoint = {
@@ -11,7 +11,10 @@ export type SeriesPoint = {
 	partial: boolean;
 	/** A daily point's highest hourly mean and that hour's start (epoch ms); see `worstHours`. */
 	worstHour?: { t: number; value: number };
-	/** A daily point's server figure (`QueryInput.dailyFigure`): `null` when the row has it null. */
+	/**
+	 * The point's server figure (`QueryInput.figure`): `null` when the row has it null ("Not
+	 * enough data"). Present only when a figure was asked for.
+	 */
 	figure?: number | null;
 	/** The row's `is_final`, read together with `figure`; absent when the row has none. */
 	final?: boolean;
@@ -20,6 +23,22 @@ export type SeriesPoint = {
 	 * number: `mean = min = max = NaN`, so nothing may aggregate, downsample or plot it as a value.
 	 */
 	level?: string;
+};
+
+export type QueryPlace = ChosenPlace | { kind: "default-place" };
+export type QuerySelection = { kind: "regions"; ids: string[] };
+
+/**
+ * What one layer asks the query client for: its own fields plus where (never saved). Only an
+ * air-quality layer with an entry type carries `monitors` and `monitorTypes` (`queryLayer`).
+ */
+export type QueryLayer = Pick<Layer, "dataset" | "entryType" | "station" | "filters"> & {
+	place?: QueryPlace;
+	selection?: QuerySelection;
+	/** Every monitor of these types inside `place`/`selection` (none: everywhere). */
+	monitorTypes?: string[];
+	/** Monitors picked one by one, wherever they are. */
+	monitors?: string[];
 };
 
 /**
@@ -94,7 +113,9 @@ export const UNAVAILABLE_REASONS = [
 	"point-outside",
 	"monitor-unlisted",
 	"whole-layer-raw",
-	"filter-gone"
+	"filter-gone",
+	/** Monitors asked for, none of them measuring the layer's pollutant: nothing to fetch. */
+	"none-measure"
 ] as const;
 export type UnavailableReason = (typeof UNAVAILABLE_REASONS)[number];
 
@@ -107,6 +128,11 @@ export type QueryState =
 
 export type Target =
 	| { kind: "monitors"; ids: string[] }
+	/**
+	 * Every monitor of `types` inside the regions of `regionKeys` (`null`: everywhere), fetched in
+	 * bulk, plus the searched monitors `ids` wherever they are (one by one when the bulk lacks them).
+	 */
+	| { kind: "monitor-set"; ids: string[]; types: string[]; regionKeys: string[] | null }
 	| { kind: "regions"; keys: string[] }
 	/** A point or a school: its region keys tried in order (ZIP, city, county); one series. */
 	| { kind: "fallback"; via: Via; keys: string[] }
@@ -117,18 +143,23 @@ export type Target =
  * for date-times); it never changes the cache key, the resolution, or the fetch.
  */
 export type QueryInput = {
-	layer: Layer;
+	layer: QueryLayer;
 	dateRange: DateRangeSpec;
-	pin?: Resolution;
+	/**
+	 * The dataset's resolution (`effectiveResolution`), fetched exactly: the level itself, raw
+	 * downsampled to it when only raw is offered, else `no-resolution`. No coarser fallback.
+	 */
+	resolution: Resolution;
 	/**
 	 * Asks for each day's worst hourly average; honored only for one place on a daily view of at
 	 * most `WORST_HOUR_MAX_DAYS` days, and ignored otherwise (it doesn't change the cache key then).
 	 */
 	worstHour?: boolean;
 	/**
-	 * A summary field name (such as `mean_24h`) each daily point carries as `figure`; honored only
-	 * at resolution `"day"`, and part of the cache key when set.
+	 * The summary field (`MetadataSource.figure`, such as `mean_24h` or `daily_statistic_mean`)
+	 * each point carries as `figure`; honored only at `"day"`, `"month"` and `"year"`, and part of
+	 * the cache key when set.
 	 */
-	dailyFigure?: string;
+	figure?: string;
 	timeSubRange?: TimeSubRange;
 };

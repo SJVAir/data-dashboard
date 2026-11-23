@@ -51,6 +51,19 @@ for (const colorScheme of ["light", "dark"] as const) {
 			await expectNoViolations(page);
 		});
 
+		test("the Data Portal: a Chart's What, then a Map's (greyed sections and their reasons)", async ({
+			page
+		}) => {
+			await page.goto("data");
+			await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
+			await expect(page.getByRole("button", { name: "Fill regions by" })).toBeDisabled();
+			await expectNoViolations(page);
+			await page.getByRole("radio", { name: "Map" }).click();
+			await expect(page.getByRole("button", { name: "Fill regions by" })).toBeEnabled();
+			await expect(page.getByRole("button", { name: /^Weather/ })).toBeDisabled();
+			await expectNoViolations(page);
+		});
+
 		test("an empty dashboard", async ({ page }) => {
 			await page.goto("./dashboards");
 			await page.getByRole("button", { name: "New blank dashboard" }).click();

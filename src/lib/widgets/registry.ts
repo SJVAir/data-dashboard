@@ -1,7 +1,7 @@
 import type { Component } from "svelte";
 import type { MenuContext, MenuItem } from "$lib/actions/types";
 import type { DateRangeSpec, Resolution, WidgetDataConfig } from "$lib/data/schema";
-import type { WidgetInstance } from "$lib/documents/schema";
+import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { loadLazy } from "$lib/safety/lazy";
 import type { AppContext } from "$lib/store/app.svelte";
 
@@ -17,6 +17,9 @@ export type WidgetMenuEnv = { app: AppContext; widget: () => WidgetInstance | nu
  * A widget type's descriptor. It's in the initial bundle, so it imports neither the data layer
  * nor its component: those come with `load`.
  */
+/** What a direct add gives a new widget (`WidgetType.addable`). */
+export type Addable = { data: WidgetDataConfig; options?: Record<string, unknown> };
+
 export type WidgetType = {
 	type: string;
 	label: () => string;
@@ -24,6 +27,11 @@ export type WidgetType = {
 	minSize: { w: number; h: number };
 	defaultSize: { w: number; h: number };
 	time: "range" | "now" | "none";
+	/**
+	 * A range type that also offers "Now" as a When choice (the Map): a widget with no
+	 * `dateRange` shows now. Read it through `offersNow` and `showsNow` (`./time`).
+	 */
+	now?: boolean;
 	thresholds: boolean;
 	analyzable: boolean;
 	/** Offers "Download data (CSV)". */
@@ -31,6 +39,10 @@ export type WidgetType = {
 	accepts?: {
 		datasets?: string[];
 		maxPollutantLayers?: number;
+		/**
+		 * The most places a single-place type (or the Map) takes; none for a type that takes any
+		 * number (a Chart, a Table). Read it through `placeLimit`.
+		 */
 		maxPlaces?: number;
 		/** Only a pollutant (a layer with a daily scale) can be added. */
 		onlyPollutant?: boolean;
@@ -38,18 +50,24 @@ export type WidgetType = {
 	placePicker?: boolean;
 	resolution?: Resolution;
 	dateMethods?: DateRangeSpec["kind"][];
-	span?: { minDays?: number; maxDays?: number };
+	/**
+	 * The range's limits: `minDays` and `maxDays` in Pacific calendar days; `maxStops` in periods
+	 * at the dataset's resolution, on the range widened to whole periods (the Map's stops).
+	 */
+	span?: { minDays?: number; maxDays?: number; maxStops?: number };
 	/** The range a new widget of this type (and one with no range of its own) shows. */
 	defaultRange?: DateRangeSpec;
 	menu: (ctx: MenuContext, env: WidgetMenuEnv) => MenuItem[];
 	/** A dynamic `import()` of the type's code; `loadWidget` caches it after the first call. */
 	load: () => Promise<WidgetModule>;
 	/**
-	 * A direct add: Add widget lists the type (after the data types) and adds it with this data.
-	 * Data types (those with `accepts.datasets`) go through Get data instead. Returns the new
-	 * widget's data and, if it has any, its `options`.
+	 * A direct add: Add widget adds the type with this data. Data types (those with
+	 * `accepts.datasets`) go through Get data unless they're also `addable`, which adds them
+	 * directly. Gets the dashboard it's added to; returns the new widget's data and, if it has
+	 * any, its `options` (or a promise of them, when they need a lookup first: the Map's monitor
+	 * types).
 	 */
-	addable?: () => { data: WidgetDataConfig; options?: Record<string, unknown> };
+	addable?: (doc: Dashboard) => Addable | Promise<Addable>;
 	/** Runs right after Add widget adds a widget of this type (e.g. opening its editor). */
 	onAdded?: (app: AppContext, widgetId: string) => void;
 };
@@ -62,13 +80,27 @@ export function registerWidgetType(t: WidgetType): void {
 	types.set(t.type, t);
 }
 
+/**
+ * How many places `type` takes: its `accepts.maxPlaces`, any number (`Infinity`) for a data type
+ * without one (a Chart, a Table), none for a type that takes no data (a Note) or isn't known.
+ */
+export function placeLimit(type: WidgetType | undefined): number {
+	if (!type?.accepts?.datasets?.length) return 0;
+	return type.accepts.maxPlaces ?? Infinity;
+}
+
 export function getWidgetType(type: string): WidgetType | undefined {
 	return types.get(type);
 }
 
-/** The non-data types Add widget adds directly, in registration order. */
-export function addableWidgetTypes(): WidgetType[] {
-	return [...types.values()].filter((t) => t.addable);
+/**
+ * What Add widget lists, each type once, in registration order: data types open Get data
+ * (`direct: false`) unless they're also `addable`, which adds them directly (`direct: true`).
+ */
+export function addWidgetEntries(): { type: WidgetType; direct: boolean }[] {
+	return [...types.values()]
+		.filter((t) => t.addable || (t.accepts?.datasets?.length ?? 0) > 0)
+		.map((t) => ({ type: t, direct: !!t.addable }));
 }
 
 /** The types that take data from Get data (any `accepts.datasets`), in registration order. */

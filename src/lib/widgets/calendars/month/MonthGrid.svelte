@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { DayState } from "$lib/calendars/day-state";
+	import type { DayState } from "$lib/data/day-state";
 	import { readableColor } from "$lib/color";
 	import {
 		addDays,

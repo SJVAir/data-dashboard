@@ -4,6 +4,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { toast } from "svelte-sonner";
 import { render } from "vitest-browser-svelte";
 import { page } from "vitest/browser";
+import { placePicker } from "$lib/components/dialogs/lazy.svelte";
 import type { PlaceInfo, QueryData, QueryState, UnavailableReason } from "$lib/data/types";
 import { UNAVAILABLE_REASONS } from "$lib/data/types";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
@@ -23,7 +24,8 @@ const widget: WidgetInstance = {
 	title: null,
 	rect: { x: 0, y: 0, w: 4, h: 4 },
 	data: {
-		layers: [{ dataset: "air-quality", place: { kind: "region", type: "tract", code: "1" } }]
+		place: { kind: "region", type: "tract", code: "1" },
+		layers: [{ dataset: "air-quality" }]
 	}
 };
 
@@ -62,6 +64,7 @@ async function show(
 		onchoose?: () => void;
 		ownsEmpty?: boolean;
 		widget?: WidgetInstance;
+		pollutant?: string;
 	} = {}
 ) {
 	const { app, session } = await seed();
@@ -145,7 +148,9 @@ test("error offers Retry, with or without stale data", async () => {
 test("each unavailable reason has its own message", async () => {
 	const seen = new Set<string>();
 	const GONE = ["region-unresolved", "location-unresolved", "monitor-unlisted", "filter-gone"];
-	for (const reason of UNAVAILABLE_REASONS.filter((r) => !GONE.includes(r))) {
+	// none-measure names the pollutant: its own test.
+	const OWN = [...GONE, "none-measure"];
+	for (const reason of UNAVAILABLE_REASONS.filter((r) => !OWN.includes(r))) {
 		const { screen } = await show({ status: "unavailable", reason: reason as UnavailableReason });
 		const key = `widget_state_unavailable_${reason.replaceAll("-", "_")}` as const;
 		const text = (m as unknown as Record<string, () => string>)[key]();
@@ -153,7 +158,19 @@ test("each unavailable reason has its own message", async () => {
 		await expect.element(screen.getByText(text)).toBeInTheDocument();
 		await screen.unmount();
 	}
-	expect(seen.size).toBe(UNAVAILABLE_REASONS.length - GONE.length);
+	expect(seen.size).toBe(UNAVAILABLE_REASONS.length - OWN.length);
+});
+
+test("no-resolution doesn't point a read-only dashboard at Edit data", async () => {
+	const { screen, session } = await show({ status: "unavailable", reason: "no-resolution" });
+	await expect
+		.element(screen.getByText(m.widget_state_unavailable_no_resolution()))
+		.toBeInTheDocument();
+	session.readOnly = "invalid";
+	const view = "This data isn't available at the chosen data resolution.";
+	expect(m.widget_state_unavailable_no_resolution_view()).toBe(view);
+	await expect.element(screen.getByText(view, { exact: true })).toBeInTheDocument();
+	expect(screen.container.textContent).not.toContain("Data Portal");
 });
 
 test("the no-longer-available card: Remove removes the widget; no Choose another without onchoose", async () => {
@@ -180,9 +197,35 @@ test.each(["region-unresolved", "location-unresolved", "monitor-unlisted"] as co
 		const results = await axe.run(screen.container);
 		expect(results.violations).toEqual([]);
 		await screen.getByRole("button", { name: m.widget_state_choose_another() }).click();
-		expect(onchoose).toHaveBeenCalledOnce();
+		if (reason === "monitor-unlisted") {
+			// A gone searched monitor: the monitor search for this widget, not the place picker.
+			expect(onchoose).not.toHaveBeenCalled();
+			expect(placePicker).toMatchObject({ open: true, monitor: true, widgetId: "w1" });
+			placePicker.open = false;
+		} else {
+			expect(onchoose).toHaveBeenCalledOnce();
+		}
 	}
 );
+
+test("none-measure names the pollutant none of the chosen monitors measure", async () => {
+	const { screen } = await show(
+		{ status: "unavailable", reason: "none-measure" },
+		{ pollutant: "Ozone" }
+	);
+	expect(m.widget_state_unavailable_none_measure({ pollutant: "Ozone" })).toBe(
+		"None of the chosen monitors measure Ozone."
+	);
+	await expect
+		.element(screen.getByText("None of the chosen monitors measure Ozone."))
+		.toBeInTheDocument();
+	await screen.unmount();
+	// The pollutant not known yet: still its own reason, never the generic "No data".
+	const unnamed = await show({ status: "unavailable", reason: "none-measure" });
+	await expect
+		.element(unnamed.screen.getByText(m.widget_state_unavailable_none_measure_unnamed()))
+		.toBeInTheDocument();
+});
 
 test("point-outside says so, with Choose another", async () => {
 	const onchoose = vi.fn();
@@ -203,7 +246,8 @@ test("a retired school gets a note; Switch swaps the school and undo reverts", a
 	const schoolWidget: WidgetInstance = {
 		...widget,
 		data: {
-			layers: [{ dataset: "air-quality", place: { kind: "location", source: "cde", code: "1" } }]
+			place: { kind: "location", source: "cde", code: "1" },
+			layers: [{ dataset: "air-quality" }]
 		}
 	};
 	const places: PlaceInfo[] = [
@@ -252,13 +296,13 @@ test("a retired school gets a note; Switch swaps the school and undo reverts", a
 	const results = await axe.run(screen.container);
 	expect(results.violations).toEqual([]);
 	await screen.getByRole("button", { name: m.widget_state_switch() }).click();
-	expect(session.doc.body.widgets[0].data.layers[0].place).toEqual({
+	expect(session.doc.body.widgets[0].data.place).toEqual({
 		kind: "location",
 		source: "cde",
 		code: "2"
 	});
 	session.undo();
-	expect(session.doc.body.widgets[0].data.layers[0].place).toEqual({
+	expect(session.doc.body.widgets[0].data.place).toEqual({
 		kind: "location",
 		source: "cde",
 		code: "1"
@@ -283,13 +327,13 @@ test("a retired place gets a note; Switch applies one setWidgetData and undo rev
 		)
 		.toBeInTheDocument();
 	await screen.getByRole("button", { name: m.widget_state_switch() }).click();
-	expect(session.doc.body.widgets[0].data.layers[0].place).toEqual({
+	expect(session.doc.body.widgets[0].data.place).toEqual({
 		kind: "region",
 		type: "tract",
 		code: "2"
 	});
 	session.undo();
-	expect(session.doc.body.widgets[0].data.layers[0].place).toEqual({
+	expect(session.doc.body.widgets[0].data.place).toEqual({
 		kind: "region",
 		type: "tract",
 		code: "1"

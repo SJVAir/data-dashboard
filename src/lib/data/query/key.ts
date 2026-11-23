@@ -18,6 +18,13 @@ function sortedTarget(target: Target): Target {
 			return { kind: "monitors", ids: [...target.ids].sort() };
 		case "regions":
 			return { kind: "regions", keys: [...target.keys].sort() };
+		case "monitor-set":
+			return {
+				kind: "monitor-set",
+				ids: [...target.ids].sort(),
+				types: [...target.types].sort(),
+				regionKeys: target.regionKeys ? [...target.regionKeys].sort() : null
+			};
 		// A fallback's keys are tried in order, so their order is part of the request.
 		case "fallback":
 			return target;
@@ -50,16 +57,16 @@ export function queryKey(parts: {
 	/** Left out of the key unless true. */
 	worstHour?: boolean;
 	/** Left out of the key when absent. */
-	dailyFigure?: string;
+	figure?: string;
 	/** Left out of the key when absent, so layers saved before these existed keep their keys. */
 	station?: string;
 	filters?: PesticideFilters;
 }): string {
-	const { worstHour, dailyFigure, ...rest } = parts;
+	const { worstHour, figure, ...rest } = parts;
 	return stableJson({
 		...rest,
 		...(worstHour && { worstHour: true }),
-		...(dailyFigure && { dailyFigure }),
+		...(figure && { figure }),
 		target: sortedTarget(parts.target)
 	});
 }

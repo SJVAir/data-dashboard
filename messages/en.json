@@ -18,9 +18,10 @@
 	"page_title_list": "Your dashboards · SJVAir Dashboard",
 	"nav_label": "Main",
 	"nav_dashboards": "Dashboards",
-	"nav_data": "Data",
-	"get_data_heading": "Get data",
-	"edit_data_heading": "Edit data",
+	"nav_data": "Data Portal",
+	"get_data_heading": "Data Portal",
+	"edit_data_heading": "Data Portal",
+	"edit_data_subheading": "Changing a widget's data",
 	"picker_choose": "Choose a dashboard",
 	"all_dashboards": "All dashboards",
 	"saving": "Saving…",
@@ -377,6 +378,7 @@
 	"data_unavailable_point_outside": "Your location is outside the area SJVAir covers.",
 	"data_unavailable_monitor_unlisted": "This monitor is no longer listed.",
 	"data_unavailable_filter_gone": "A filter this widget uses is no longer available.",
+	"data_unavailable_none_measure": "None of the chosen monitors measure this pollutant.",
 	"data_unavailable_whole_layer_raw": "Choose a longer date range to show every monitor.",
 	"offline_notice": "You're offline. Data may be out of date.",
 	"update_available": "A new version is available.",
@@ -634,6 +636,10 @@
 	"based_on_shared_by": "Based on a shared dashboard by {displayName}",
 	"based_on_shared": "Based on a shared dashboard",
 	"widget_state_idle": "Choose a place to show data.",
+	"widget_state_idle_place_or_monitor": "Choose a place or a monitor to show data.",
+	"widget_empty_add_where_or_monitors": "Add a place, or choose which monitors to show.",
+	"widget_empty_add_layers": "Choose what to show in Edit data.",
+	"map_empty_add_layers": "Choose what this map shows in Edit data.",
 	"widget_state_empty": "No data for this range.",
 	"widget_state_error": "Couldn't load this data.",
 	"widget_state_retry": "Retry",
@@ -650,11 +656,14 @@
 	"widget_state_unavailable_unknown_dataset": "This dataset isn't available.",
 	"widget_state_unavailable_unknown_entry_type": "This measurement isn't available.",
 	"widget_state_unavailable_no_adapter": "This dataset can't be shown in this widget yet.",
-	"widget_state_unavailable_no_resolution": "This dataset has no data at a level of detail that fits this range.",
+	"widget_state_unavailable_no_resolution": "This data isn't available at the chosen data resolution. Change it in the Data Portal.",
+	"widget_state_unavailable_no_resolution_view": "This data isn't available at the chosen data resolution.",
 	"widget_state_unavailable_place_unsupported": "This dataset has no data for that kind of place.",
 	"widget_state_unavailable_point_outside": "Your location is outside the area SJVAir covers.",
 	"widget_state_unavailable_filter_gone": "A filter this widget uses is no longer available.",
 	"widget_state_unavailable_whole_layer_raw": "Too much data to show for this range. Choose a longer range or fewer places.",
+	"widget_state_unavailable_none_measure": "None of the chosen monitors measure {pollutant}.",
+	"widget_state_unavailable_none_measure_unnamed": "None of the chosen monitors measure this pollutant.",
 	"chart_label": "Chart of {places}",
 	"chart_keyboard_hint": "Use the left and right arrow keys to step through the points, and Home and End to jump to the first and last.",
 	"chart_value": "{value} {unit}",
@@ -686,19 +695,24 @@
 	"chart_overlay_failed": "Couldn't load {layer}.",
 	"chart_strip_axis": "{label} ({unit})",
 	"label_join": "{first} · {second}",
+	"sentence_join": "{first}. {second}",
 	"chart_strip_station": "{station} ({distance} mi away)",
 	"chart_strip_value": "{layer}: {value}",
-	"chart_whole_period": "Total for all of {period}",
 	"data_none_pesticides": "No pesticide use reported for these dates.",
+	"data_place_valley": "Whole valley",
+	"data_not_enough": "Not enough data",
 	"table_overlay_place": "{layer}, {place}",
 	"table_overlay_place_unit": "{layer}, {place} ({unit})",
-	"table_overlay_by_day": "{layer} shows only in tables with daily or more detailed rows.",
+	"widget_overlay_needs_place": "Add a place to show {layer} beside it.",
+	"widget_layer_not_lined_up": "{dataset} isn't shown: it isn't reported {level}. Change the data resolution in the Data Portal.",
+	"widget_layer_not_lined_up_raw": "{dataset} isn't shown: it has no individual measurements. Change the data resolution in the Data Portal.",
+	"widget_layer_not_lined_up_view": "{dataset} isn't shown: it isn't reported {level}.",
+	"widget_layer_not_lined_up_raw_view": "{dataset} isn't shown: it has no individual measurements.",
 	"widget_chart_title": "Chart",
 	"widget_calendar_month_title": "Month calendar",
 	"widget_calendar_year_title": "Year calendar",
 	"calendar_open_in_chart": "Open these days in a chart",
 	"calendar_daily_value": "Daily value",
-	"csv_rated": "Rated",
 	"csv_rated_yes": "Yes",
 	"csv_rated_not_enough": "Not enough data",
 	"csv_rated_not_final": "Not final yet",
@@ -724,7 +738,8 @@
 		}
 	],
 	"calendar_threshold_month_count": "{at} of {rated} in {month} so far",
-	"calendar_level_missing": "The chosen level isn't one of this pollutant's levels, so no days are marked. Choose another level in Get data.",
+	"calendar_level_missing": "The chosen level isn't one of this pollutant's levels, so no days are marked. Choose another level in the Data Portal.",
+	"calendar_level_missing_view": "The chosen level isn't one of this pollutant's levels, so no days are marked.",
 	"calendar_no_levels": "This pollutant has no levels, so its days can't be rated.",
 	"calendar_day_rating_unknown": "SJVAir doesn't say yet how to rate a whole day of this pollutant, so its days aren't rated.",
 	"calendar_day_rating_unavailable": "Day ratings can't be loaded right now.",
@@ -828,16 +843,6 @@
 	"table_partial": "(so far)",
 	"table_caption": "{resolution}",
 	"table_caption_raw": "{resolution} · computed from raw data",
-	"table_hidden_places": [
-		{
-			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
-			"selectors": ["countPlural"],
-			"match": {
-				"countPlural=one": "{count} more place isn't shown.",
-				"countPlural=other": "{count} more places aren't shown."
-			}
-		}
-	],
 	"range_set_week": "Week of {date}",
 	"range_to_date_year": "This year so far",
 	"range_to_date_month": "This month so far",
@@ -893,18 +898,10 @@
 	"place_via_point_shared": "{region} (shared location)",
 	"place_via_location": "{region} ({location})",
 	"widget_title_no_place": "{entry} · {range}",
-	"chart_hidden_places": [
-		{
-			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
-			"selectors": ["countPlural"],
-			"match": {
-				"countPlural=one": "{count} more place isn't shown.",
-				"countPlural=other": "{count} more places aren't shown."
-			}
-		}
-	],
 	"place_picker_label": "Search for a place",
-	"place_picker_placeholder": "Search for a city, ZIP, school, or monitor",
+	"place_picker_placeholder": "Search for a city, ZIP, or school",
+	"place_picker_placeholder_areas": "Search for a city, ZIP, or county",
+	"place_picker_placeholder_monitors": "Search for a monitor",
 	"place_picker_results": "Places found",
 	"place_picker_use_location": "Use my location",
 	"place_picker_locating": "Finding your location…",
@@ -951,6 +948,16 @@
 	"place_picker_reason_alone_picked": "Remove {name} to add other places.",
 	"place_picker_reason_alone_picked_unnamed": "Remove the school or location first to add other places.",
 	"place_picker_reason_at_cap": "This widget shows up to {max} places.",
+	"place_picker_keep": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Choose up to {count} place to keep.",
+				"countPlural=other": "Choose up to {count} places to keep."
+			}
+		}
+	],
 	"place_picker_chosen": "Chosen places",
 	"place_picker_remove": "Remove {name}",
 	"place_picker_your_location": "Your location",
@@ -1006,6 +1013,7 @@
 	"getdata_preset_specific_month": "A specific month…",
 	"getdata_preset_specific_year": "A specific year…",
 	"getdata_preset_custom": "Custom range…",
+	"getdata_when_now": "Now",
 	"get_data_when": "When",
 	"get_data_where": "Where",
 	"get_data_what": "What",
@@ -1029,6 +1037,26 @@
 	"get_data_custom_order": "The end date is before the start date.",
 	"get_data_places_change": "Change",
 	"get_data_places_change_label": "Change places",
+	"get_data_places_clear": "Clear",
+	"get_data_places_clear_label": "Clear places",
+	"get_data_places_cleared": "Places cleared.",
+	"get_data_where_everywhere": "Everywhere",
+	"get_data_where_place_or_monitor": "Choose a place or a monitor",
+	"get_data_where_one_monitor": "None: this shows one monitor",
+	"get_data_monitors": "Monitors",
+	"get_data_monitors_add": "Add monitors",
+	"get_data_monitors_choose": "Choose a monitor",
+	"get_data_monitors_dialog_title": "Add monitors",
+	"get_data_monitors_dialog_title_single": "Choose a monitor",
+	"get_data_monitors_picked": "Chosen monitors",
+	"get_data_monitors_row": "{name} ({network})",
+	"get_data_monitors_remove_label": "Remove {name}",
+	"get_data_monitors_loading": "Loading monitor names…",
+	"get_data_monitors_dialog_loading": "Loading monitors…",
+	"get_data_monitors_choose_pollutant": "Choose a pollutant before adding monitors",
+	"get_data_monitor_type_no_pollutant": "Choose a pollutant to show monitors",
+	"get_data_monitor_type_not_supplied": "Doesn't measure {pollutant}",
+	"get_data_monitor_group_other": "Other monitors",
 	"get_data_places_loading": "Loading place names…",
 	"get_data_places_count": [
 		{
@@ -1052,15 +1080,89 @@
 		}
 	],
 	"get_data_overlay_for": "Overlay for",
+	"get_data_smoke_and_fire": "Smoke and fire",
+	"getdata_note_fill_dropped": "Filled regions only apply to the map, so the fill was left out.",
+	"get_data_dropped_locations": "{layers}: shown only on a map, so left out.",
+	"get_data_dropped_locations_unnamed": "Layers shown only on a map were left out.",
+	"get_data_marks_left_out": "Marked monitors don't apply to this widget, so they were left out.",
+	"get_data_marks_hidden_left_out": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} marked monitor isn't shown on the map, so it was left out.",
+				"countPlural=other": "{count} marked monitors aren't shown on the map, so they were left out."
+			}
+		}
+	],
 	"get_data_show_as": "Show as",
-	"get_data_pollutant": "Pollutant",
 	"get_data_alert_level": "Alert level",
+	"get_data_alert_level_for": "Alert level for {pollutant}",
+	"get_data_choose_pollutant": "Choose a pollutant",
+	"get_data_alert_level_use": "Use {level}",
 	"get_data_tell_me_at_level_or_worse": "Tell me at {level} or worse",
 	"get_data_off": "Off",
 	"get_data_alert_level_replaced": "The saved alert level isn't one of this pollutant's levels, so {level} is used instead.",
 	"get_data_dates_left_out": "Dates don't apply to this widget, so they were left out.",
 	"get_data_overlays_left_out": "Other data layers don't apply to this widget, so they were left out.",
+	"get_data_pollutants_left_out": [
+		{
+			"declarations": [
+				"input pollutants",
+				"input countValue",
+				"local countPlural = countValue: plural"
+			],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{pollutants} was left out: this type shows one pollutant.",
+				"countPlural=other": "{pollutants} were left out: this type shows one pollutant."
+			}
+		}
+	],
 	"get_data_extra_places_left_out": "This widget shows one place, so the others were left out.",
+	"get_data_school_point_left_out": "This widget shows areas, and the school or point's area couldn't be found, so it was left out.",
+	"get_data_monitor_types_left_out": "This widget shows one place or one monitor, so the chosen monitor types were left out.",
+	"get_data_places_over_cap_left_out": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "This widget shows up to {count} place, so the others were left out.",
+				"countPlural=other": "This widget shows up to {count} places, so the others were left out."
+			}
+		}
+	],
+	"get_data_range_cut_left_out": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "This widget shows up to {count} day, so the earlier days were left out.",
+				"countPlural=other": "This widget shows up to {count} days, so the earlier days were left out."
+			}
+		}
+	],
+	"get_data_range_cut_left_out_months": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "This widget shows up to {count} month, so the earlier months were left out.",
+				"countPlural=other": "This widget shows up to {count} months, so the earlier months were left out."
+			}
+		}
+	],
+	"get_data_range_cut_left_out_years": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "This widget shows up to {count} year, so the earlier years were left out.",
+				"countPlural=other": "This widget shows up to {count} years, so the earlier years were left out."
+			}
+		}
+	],
+	"get_data_map_pollutant_instead": "The map shows {pollutants} only, so it uses {pollutant} instead of {previous}.",
 	"get_data_level_left_out": "This widget can't show a level, so the one you chose was left out.",
 	"get_data_alert_level_from_low_line": "The chart's line was at {level}, so the alert level starts there. At that level you'd be told even when the air is fine for most people. You can change it under Alert level.",
 	"get_data_pollutant_instead": "This widget shows only {pollutant}, so it uses that instead of {previous}.",
@@ -1074,7 +1176,7 @@
 			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
 			"selectors": ["countPlural"],
 			"match": {
-				"countPlural=one": "Shows up to {count} place",
+				"countPlural=one": "Shows {count} place or monitor",
 				"countPlural=other": "Shows up to {count} places"
 			}
 		}
@@ -1090,20 +1192,70 @@
 	"get_data_preview_large": "Large",
 	"get_data_preview_dashboard": "Dashboard size",
 	"get_data_preview_showing": "Showing {title}",
-	"get_data_show_values": "Show values",
-	"get_data_show_values_auto": "Automatic",
-	"get_data_show_values_raw": "Every measurement",
-	"get_data_show_values_hour": "Hourly",
-	"get_data_show_values_day": "Daily",
-	"get_data_show_values_month": "Monthly",
-	"get_data_show_values_year": "Yearly",
-	"get_data_show_values_help_label": "About Show values",
-	"get_data_show_values_help": "Each point on the chart is one value. Automatic picks a level that suits the dates you chose. Choose another for more detail or a smoother picture. Also called data resolution.",
+	"get_data_resolution": "Data resolution",
+	"get_data_resolution_auto": "Automatic",
+	"get_data_resolution_raw": "Every measurement",
+	"get_data_resolution_hour": "Hourly",
+	"get_data_resolution_day": "Daily",
+	"get_data_resolution_month": "Monthly",
+	"get_data_resolution_year": "Yearly",
+	"get_data_resolution_level_raw": "every measurement",
+	"get_data_resolution_level_hour": "hourly",
+	"get_data_resolution_level_day": "daily",
+	"get_data_resolution_level_month": "monthly",
+	"get_data_resolution_level_year": "yearly",
+	"get_data_resolution_help_label": "About data resolution",
+	"get_data_resolution_help": "Each point is one value. Every layer uses the same data resolution, so the data lines up. Automatic picks one that suits your dates and every dataset you chose.",
+	"get_data_resolution_not_offered": "{dataset} isn't reported {level}",
+	"get_data_resolution_auto_moved": "Automatic data resolution is now {level}: {dataset} is reported {by}.",
+	"get_data_resolution_by_hour": "by the hour",
+	"get_data_resolution_by_day": "by day",
+	"get_data_resolution_by_month": "by month",
+	"get_data_resolution_by_year": "by year",
+	"get_data_resolution_by_raw": "as individual measurements",
+	"get_data_resolution_not_offered_raw": "{dataset} has no individual measurements",
+	"get_data_dataset_not_offered": "Reported {by}. Set the data resolution to {level} to add it.",
+	"get_data_dataset_not_offered_raw": "Has no individual measurements. Set the data resolution to {level} to add it.",
+	"get_data_dataset_no_common": "Can't line up with the datasets you chose: it's reported {by}.",
+	"get_data_dataset_not_on_now": "Reported {by}, so it isn't shown on Now. Choose dates to add it.",
+	"get_data_type_resolution": "{type} can't show {level} data.",
+	"get_data_type_resolution_raw": "{type} can't show individual measurements.",
+	"get_data_map_resolution": "Maps show daily, monthly or yearly data.",
+	"get_data_misfits_blocked": [
+		{
+			"declarations": [
+				"input datasets",
+				"input countValue",
+				"local countPlural = countValue: plural"
+			],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{datasets} doesn't line up with the data resolution. Remove it or choose another data resolution.",
+				"countPlural=other": "{datasets} don't line up with the data resolution. Remove them or choose another data resolution."
+			}
+		}
+	],
+	"get_data_not_on_now_blocked": "{dataset} isn't shown on Now. Choose dates, or turn it off.",
+	"get_data_custom_start_month": "Start month",
+	"get_data_custom_end_month": "End month",
+	"get_data_custom_start_year": "Start year",
+	"get_data_custom_end_year": "End year",
+	"get_data_custom_month": "Month",
+	"get_data_custom_year": "Year",
+	"get_data_custom_year_invalid": "Enter a year as four digits, like 2024.",
+	"get_data_resolution_blocked": "Choose another data resolution: this one doesn't fit these dates, places and datasets.",
+	"get_data_resolution_unknown_blocked": "Choose another data resolution: this widget can't show the one it has.",
+	"get_data_range_widened": "Monthly data covers whole months: showing {start} to {end}.",
+	"get_data_range_widened_year": "Yearly data covers whole years: showing {start} to {end}.",
+	"get_data_range_widened_so_far": "Monthly data covers whole months: showing {start} to {end} (so far).",
+	"get_data_range_widened_year_so_far": "Yearly data covers whole years: showing {start} to {end} (so far).",
+	"get_data_range_so_far": "{range} (so far)",
+	"get_data_range_rolling_so_far": "{range} (so far) · moves forward each day",
 	"get_data_smoke_help_label": "About smoke days",
 	"get_data_smoke_help": "No band doesn't always mean no smoke. Smoke is spotted in daytime satellite images, so smoke that drifts in after dark may not show until the next day.",
 	"get_data_pesticide_help_label": "About pesticide totals",
 	"get_data_pesticide_help": "Yearly totals include reports that have no month, so a year can be larger than its months added together.",
-	"get_data_show_values_too_many": "Too much data for this range and these places",
+	"get_data_resolution_too_many": "Too much data for this range and these places",
 	"get_data_cancel": "Cancel",
 	"get_data_download_csv": "Download CSV",
 	"get_data_add_to": "Add to {name}",
@@ -1116,7 +1268,32 @@
 	"get_data_discard": "Discard",
 	"get_data_keep_editing": "Keep editing",
 	"get_data_none": "None",
-	"get_data_keep_one": "Keep at least one pollutant, weather or pesticide layer.",
+	"getdata_map_fill": "Fill regions by",
+	"get_data_section_only_for": "Only for {types}",
+	"get_data_section_always_shown": "This widget always shows these.",
+	"get_data_choices_label": "What, When and Where",
+	"get_data_preview_column_label": "Show as and preview",
+	"getdata_map_fill_none": "None",
+	"getdata_map_notices_switch": "Show spray notices",
+	"getdata_map_pesticide_filters": "Filter pesticides",
+	"getdata_map_notices_filter_skipped": "{filter}: doesn't apply to spray notices",
+	"getdata_map_use_switch": "Show pesticide use",
+	"getdata_map_locations_gone": "No longer offered",
+	"getdata_map_location_type_gone": "SJVAir no longer offers these places. Untick to remove them.",
+	"getdata_map_use_no_years": "No years with pesticide use data are available yet.",
+	"getdata_map_use_years_unavailable": "Pesticide use can't be shown right now: the years with data couldn't be loaded.",
+	"getdata_map_section_fallback": [
+		{
+			"declarations": ["input section"],
+			"selectors": ["section"],
+			"match": {
+				"section=notices": "Spray notices",
+				"section=*": "Pesticide use"
+			}
+		}
+	],
+	"get_data_map_smoke_help_label": "About smoke and fire",
+	"get_data_map_smoke_help": "Shows the smoke plumes and fire detections seen by satellite on the day the map shows, everywhere on the map, not only at this map's places.",
 	"get_data_level_only": "Add a pollutant, weather or pesticide layer to chart this.",
 	"get_data_station": "Station",
 	"get_data_station_nearby": "{name} ({miles} mi away)",
@@ -1144,8 +1321,254 @@
 	"get_data_search_error": "Couldn't search right now.",
 	"get_data_search_clear": "Clear {label}",
 	"edit_data_unavailable": "This widget's data can't be edited here.",
-	"widget_edit_data": "Edit data",
+	"widget_edit_data": "Open in Data Portal",
 	"widget_current_title": "Current conditions",
+	"widget_map_title": "Map",
+	"map_unavailable_no_key": "Map unavailable",
+	"map_pin_your_location": "Your location",
+	"map_pin_shared_location": "Shared location",
+	"map_legend_toggle": "Legend",
+	"map_legend_scroll": "Legend, scrollable",
+	"map_label": "{title} map",
+	"map_label_marks_hidden": "{title} map. {notes}",
+	"map_layer_places": "Places",
+	"map_no_monitors_chosen": "This map shows no monitors: no monitor types are chosen.",
+	"map_no_monitors_here": "No monitors here report this pollutant right now.",
+	"map_no_monitors_here_day": "No monitors here report this pollutant on this day.",
+	"map_no_monitors_here_month": "No monitors here report this pollutant in this month.",
+	"map_no_monitors_here_year": "No monitors here report this pollutant in this year.",
+	"map_smoke_fire_failed": "Smoke and fire couldn't be loaded.",
+	"map_refresh_failed": "Couldn't refresh. Showing earlier readings.",
+	"map_day_previous": "Previous day",
+	"map_day_next": "Next day",
+	"map_day_slider": "Day",
+	"map_day_now": "Now",
+	"map_day_not_final": "Not final yet",
+	"map_day_value_not_final": "{day}, not final yet",
+	"map_day_none_yet": "No days to show yet",
+	"map_month_previous": "Previous month",
+	"map_month_next": "Next month",
+	"map_month_slider": "Month",
+	"map_month_none_yet": "No months to show yet",
+	"map_year_previous": "Previous year",
+	"map_year_next": "Next year",
+	"map_year_slider": "Year",
+	"map_year_none_yet": "No years to show yet",
+	"map_stop_so_far": "{period} so far",
+	"map_period_days_with_figure": [
+		{
+			"declarations": [
+				"input days",
+				"input expected",
+				"input expectedValue",
+				"local expectedPlural = expectedValue: plural"
+			],
+			"selectors": ["expectedPlural"],
+			"match": {
+				"expectedPlural=one": "Only {days} of {expected} day had a figure",
+				"expectedPlural=other": "Only {days} of {expected} days had a figure"
+			}
+		}
+	],
+	"map_period_too_few_days": "Too few days had a figure",
+	"map_day_unrated": "{pollutant}'s days can't be rated",
+	"map_month_unrated": "{pollutant}'s months can't be rated",
+	"map_year_unrated": "{pollutant}'s years can't be rated",
+	"map_day_no_figures": "No figures for this day",
+	"map_month_no_figures": "No figures for this month",
+	"map_year_no_figures": "No figures for this year",
+	"map_fill_today_so_far": "{regionType}, today so far",
+	"map_fill_month_so_far": "{regionType}, this month so far",
+	"map_fill_year_so_far": "{regionType}, this year so far",
+	"map_fill_failed": "The region fill couldn't be loaded.",
+	"map_notices_failed": "Spray notices couldn't be loaded.",
+	"map_locations_failed": "{layers} couldn't be loaded.",
+	"map_locations_unavailable": "{layers} can't be shown here",
+	"map_locations_groups_failed": "A map layer couldn't be loaded.",
+	"map_notices_filter_gone": "Spray notices can't be shown: a filter they use is no longer available.",
+	"map_notices_legend_units": "Numbered: how many notices",
+	"map_notices_legend_filters": "Filtered by {filters}",
+	"map_notices_none_day": "No spray notices for this day",
+	"map_notices_none_now": "No spray notices right now",
+	"map_notices_name": [
+		{
+			"declarations": [
+				"input count",
+				"input countValue",
+				"input section",
+				"input county",
+				"local countPlural = countValue: plural"
+			],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} spray notice, {section}, {county}",
+				"countPlural=other": "{count} spray notices, {section}, {county}"
+			}
+		}
+	],
+	"map_notices_name_section": [
+		{
+			"declarations": [
+				"input count",
+				"input countValue",
+				"input section",
+				"local countPlural = countValue: plural"
+			],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} spray notice, {section}",
+				"countPlural=other": "{count} spray notices, {section}"
+			}
+		}
+	],
+	"map_notices_name_county": [
+		{
+			"declarations": [
+				"input count",
+				"input countValue",
+				"input county",
+				"local countPlural = countValue: plural"
+			],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} spray notice, {county}",
+				"countPlural=other": "{count} spray notices, {county}"
+			}
+		}
+	],
+	"map_notices_name_no_place": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} spray notice",
+				"countPlural=other": "{count} spray notices"
+			}
+		}
+	],
+	"map_notice_active": "Active",
+	"map_notice_through": "May begin through {date}",
+	"map_notice_where": "{section} · {county} (the square mile, not the field)",
+	"map_notice_where_section": "{section} (the square mile, not the field)",
+	"map_notice_where_county": "{county} (the area, not the field)",
+	"map_notice_where_no_place": "Section and county not given",
+	"map_notice_amount": "{amount} {units} treated",
+	"map_notice_amount_no_units": "{amount} treated",
+	"map_notice_method": "Method: {method}",
+	"map_notice_products": "Products",
+	"map_notice_chemicals": "Chemicals",
+	"map_notice_of_concern": "of concern",
+	"map_notice_none_listed": "None listed",
+	"map_notice_list_heading": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} notice of intent",
+				"countPlural=other": "{count} notices of intent"
+			}
+		}
+	],
+	"map_notice_back": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Back to the notice",
+				"countPlural=other": "Back to all {count} notices"
+			}
+		}
+	],
+	"map_notice_list_span": "Scheduled from {first} to {last}",
+	"map_notice_spraydays": "Sign up with SprayDays",
+	"map_use_class_range": "{low} to {high}",
+	"map_use_class_upto": "Up to {high}",
+	"map_use_layer": "{figure}, {period}",
+	"map_use_units_township": "{units} per township",
+	"map_use_units_section": "{units} per section",
+	"map_use_group": "Pesticide use",
+	"map_use_figure": "Figure",
+	"map_use_none_yet": "No pesticide use reported for {period} yet.",
+	"map_layer_not_lined_up": "{dataset} isn't shown at this data resolution. Change it in the Data Portal.",
+	"map_layer_not_lined_up_view": "{dataset} isn't shown at this data resolution.",
+	"map_use_legend_filters": "Filtered by {filters}",
+	"map_use_failed": "Pesticide use couldn't be loaded.",
+	"map_use_filter_gone": "Pesticide use can't be shown: a filter it uses is no longer available.",
+	"map_use_sections_failed": "Pesticide use by section couldn't be loaded.",
+	"map_use_card_figures": "Use in {period}",
+	"map_use_card_value": "{value} {units}",
+	"map_use_card_class": "Shade {tier} of {count}, {range} {units}",
+	"map_use_card_sections": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} square mile",
+				"countPlural=other": "{count} square miles"
+			}
+		}
+	],
+	"map_use_card_show_sections": "Show square miles",
+	"map_use_card_zoom_in": "Zoom in",
+	"map_use_card_in_township": "In township {township} · {value} {units}",
+	"map_use_card_in_township_no_figure": "In township {township}",
+	"map_use_card_township_open": "Open township {township}",
+	"map_use_card_link_section": "Section details",
+	"map_use_card_link_records": "Records here",
+	"map_use_card_link_notices": "Notices here",
+	"map_use_card_months": "By month, {year}",
+	"map_use_card_month_row": "{month}: {value} {units}",
+	"map_use_card_peak": "Peaks in {month}",
+	"map_use_card_top_chemicals": "Top chemicals by pounds",
+	"map_use_card_detail_failed": "This square mile's months and chemicals couldn't be loaded.",
+	"map_use_card_loading": "Loading this square mile's months and chemicals",
+	"map_marks_hidden_period": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} marked monitor has no figure for this period",
+				"countPlural=other": "{count} marked monitors have no figure for this period"
+			}
+		}
+	],
+	"map_mark_select": "Select",
+	"map_mark_remove": "Remove",
+	"map_show_in_chart": "Show in a chart",
+	"map_show_in_table": "Show in a table",
+	"map_show_in_failed": "Couldn't open the Data Portal. Please try again.",
+	"map_marks_limit": [
+		{
+			"declarations": ["input count", "input countValue", "local countPlural = countValue: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Limit reached: up to {count} marked monitor",
+				"countPlural=other": "Limit reached: up to {count} marked monitors"
+			}
+		}
+	],
+	"map_marks_hidden": [
+		{
+			"declarations": [
+				"input reason",
+				"input pollutant",
+				"input count",
+				"input countValue",
+				"local countPlural = countValue: plural"
+			],
+			"selectors": ["reason", "countPlural"],
+			"match": {
+				"reason=pollutant, countPlural=one": "{count} marked monitor doesn't report {pollutant}",
+				"reason=pollutant, countPlural=other": "{count} marked monitors don't report {pollutant}",
+				"reason=options, countPlural=one": "{count} marked monitor is hidden by the map's options",
+				"reason=options, countPlural=other": "{count} marked monitors are hidden by the map's options",
+				"reason=places, countPlural=one": "{count} marked monitor is outside this map's places",
+				"reason=places, countPlural=other": "{count} marked monitors are outside this map's places",
+				"reason=unknown, countPlural=one": "{count} marked monitor isn't shown",
+				"reason=unknown, countPlural=other": "{count} marked monitors aren't shown"
+			}
+		}
+	],
 	"current_trend_rising": "Rising",
 	"current_trend_falling": "Falling",
 	"current_trend_steady": "Steady",
@@ -1158,6 +1581,8 @@
 	"current_no_recent_data": "No recent data",
 	"current_not_enough_readings": "Not enough recent readings",
 	"current_no_data": "No data for this place",
+	"current_choose_pollutant": "Choose a pollutant to show data.",
+	"current_rows_label": "Current conditions by pollutant",
 	"current_alert_level_reached": "Alert level reached",
 	"current_average_help": "The value is an average over the period shown, and it updates as new readings arrive.",
 	"current_latest_reading_help": "This is the most recent single reading. It updates as new readings arrive.",
@@ -1178,11 +1603,12 @@
 	"widget_outside_title": "Can we go outside?",
 	"outside_heat_today": "Heat today",
 	"outside_heat_highest": "Highest in {place} (ZIP {zip})",
+	"outside_no_pollutant_data": "No {pollutant} data for this place",
 	"outside_no_heat_score_today": "No heat score today",
 	"outside_heat_load_failed": "Heat score couldn't be loaded",
 	"outside_no_guidance_for_level": "No guidance for this level",
 	"outside_no_activity_guidance": "No activity guidance is available",
-	"outside_no_pm25": "No PM2.5 data for this place",
+	"outside_no_guideline_pollutants": "No pollutant has school activity guidelines yet",
 	"alert_pollutant_at_place_is_now_level": "{pollutant} at {place} is now {level}",
 	"taskbar_restore_named_alert_reached": "Restore {title} (alert level reached)",
 	"widget_fullscreen_named_alert_reached": "Show {title} fullscreen (alert level reached)",
@@ -1207,5 +1633,92 @@
 	"note_link_apply": "Apply",
 	"note_link_remove": "Remove link",
 	"note_link_invalid": "Enter a web address (such as example.com) or an email address.",
-	"starter_note_welcome": "**Welcome to the SJVAir Dashboard.** These widgets show air quality for one place. Use **Change place** above to pick your school, city or ZIP Code. You can move, resize or add widgets, and your first change saves the dashboard as your own. This is a Note: edit it or delete it any time."
+	"starter_note_welcome": "**Welcome to the SJVAir Dashboard.** These widgets show air quality for one place. Use **Change place** above to pick your school, city or ZIP Code. You can move, resize or add widgets, and your first change saves the dashboard as your own. This is a Note: edit it or delete it any time.",
+	"mapsdk_list_button": "List",
+	"mapsdk_list_button_label": "List of features on the map",
+	"mapsdk_list_label": "Features on the map",
+	"mapsdk_list_sort_name": "Name",
+	"mapsdk_list_sort_value": "Value",
+	"mapsdk_list_row": "{name}, {value} {units}, {level}",
+	"mapsdk_list_row_no_units": "{name}, {value}, {level}",
+	"mapsdk_list_row_no_value": "{name}, no reading",
+	"mapsdk_list_row_level": "{name}, {level}",
+	"mapsdk_list_row_detail": "{name}, {detail}",
+	"mapsdk_list_row_level_detail": "{name}, {level}, {detail}",
+	"mapsdk_list_empty": "Nothing on the map in this view",
+	"mapsdk_selected_count_one": "{count} selected",
+	"mapsdk_selected_count_other": "{count} selected",
+	"mapsdk_selection_clear": "Clear",
+	"mapsdk_selection_clear_layer": "Clear selection: {layer}",
+	"mapsdk_selected_in_layer": "{layer}: {selected}",
+	"mapsdk_selection_cleared": "Selection cleared",
+	"mapsdk_summary_one": "{count} {layer}",
+	"mapsdk_summary_other": "{count} {layer}",
+	"mapsdk_summary_level": "{count} {level}",
+	"mapsdk_summary_with_levels": "{layer}: {levels}",
+	"mapsdk_no_level": "No level",
+	"mapsdk_zoom_in": "Zoom in",
+	"mapsdk_zoom_out": "Zoom out",
+	"mapsdk_map_label": "Map. Use arrow keys to pan, plus and minus to zoom.",
+	"mapsdk_unavailable": "{layer} isn't available right now",
+	"mapsdk_unavailable_line": "Isn't available right now",
+	"mapsdk_loading": "Loading",
+	"mapsdk_error_retry": "Try again",
+	"mapsdk_legend_label": "Legend",
+	"mapsdk_legend_threshold": "from {value}",
+	"mapsdk_legend_no_figure": "No data",
+	"mapsdk_reading_pause": ", ",
+	"mapsdk_controls_label": "Map controls",
+	"mapsdk_selection_label": "Selection",
+	"mapsdk_no_reading": "No reading",
+	"mapsdk_time_with_zone": "{time} {zone}",
+	"mapsdk_monitor_cluster_average": "(cluster avg)",
+	"mapsdk_monitor_cluster_title": "{type} Monitors",
+	"mapsdk_monitor_cluster_title_sjvair": "SJVAir {type} Monitors",
+	"mapsdk_monitor_cluster_count_one": "{count} monitor",
+	"mapsdk_monitor_cluster_count_other": "{count} monitors",
+	"mapsdk_monitor_cluster_count_area_one": "{count} monitor within a {area} mi² area",
+	"mapsdk_monitor_cluster_count_area_other": "{count} monitors within a {area} mi² area",
+	"mapsdk_monitor_cluster_max": "Max: {value} {units}",
+	"mapsdk_monitor_cluster_min": "Min: {value} {units}",
+	"mapsdk_monitor_interval_avg": "({interval} avg)",
+	"mapsdk_monitor_updated": "Last updated {when}",
+	"mapsdk_hms_smoke_name": "Smoke",
+	"mapsdk_hms_fire_detection": "Fire detection",
+	"mapsdk_hms_fire_box_header": "Fire ({units})",
+	"mapsdk_hms_fire_box_header_no_units": "Fire",
+	"mapsdk_hms_fire_average": "Average",
+	"mapsdk_level_with_units": "{level} {units}",
+	"mapsdk_hms_fire_detections_one": "{count} fire detection",
+	"mapsdk_hms_fire_detections_other": "{count} fire detections",
+	"mapsdk_collocation_reference": "Reference monitor",
+	"mapsdk_collocation_colocated": "Collocated monitor",
+	"mapsdk_collocation_interval_avg": "({interval} avg)",
+	"mapsdk_collocation_updated": "Last updated {when}",
+	"mapsdk_card_close": "Close",
+	"mapsdk_location_type_unknown": "Location",
+	"mapsdk_school_address": "{address}, {city}",
+	"mapsdk_school_district": "District: {district}",
+	"mapsdk_school_grades": "Grades: {grades}",
+	"mapsdk_schools_cluster_line": "{type}: {count}",
+	"mapsdk_schools_legend_school": "School",
+	"mapsdk_options_toolbar_label": "Map options",
+	"mapsdk_options_open": "Open map options",
+	"mapsdk_options_close": "Close map options",
+	"mapsdk_options_title": "Map Options",
+	"mapsdk_options_monitors": "Monitors",
+	"mapsdk_options_layers": "Layers",
+	"mapsdk_options_overlays": "Overlays",
+	"mapsdk_options_settings": "Settings",
+	"mapsdk_options_inactive": "Inactive",
+	"mapsdk_options_inside": "Inside",
+	"mapsdk_options_collocation_sites": "Collocation Sites",
+	"mapsdk_options_fire_smoke": "Fire & Smoke",
+	"mapsdk_options_schools": "Schools & Child Care",
+	"mapsdk_options_marker_clusters": "Marker Clusters",
+	"mapsdk_options_basemap": "Basemap",
+	"mapsdk_options_theme": "Theme",
+	"mapsdk_options_reset": "Reset Map Options",
+	"mapsdk_options_none": "None",
+	"time_zone_label": "PT"
 }

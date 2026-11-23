@@ -13,7 +13,8 @@ import { DocumentSession, type DocumentSessionOptions } from "$lib/store/documen
 import type { TabChannel } from "$lib/store/tab-channel";
 import { CHART_TYPE } from "$lib/widgets/chart";
 import { CURRENT_TYPE } from "$lib/widgets/current";
-import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
+import { DEFAULT_LAYER, DEFAULT_PLACE, DEFAULT_RANGE } from "$lib/widgets/defaults";
+import { areasOnly } from "$lib/places/replace";
 import { FORECAST_TYPE } from "$lib/widgets/forecast";
 import { OUTSIDE_TYPE } from "$lib/widgets/outside";
 import { resolveDefaultPlace } from "./resolve";
@@ -23,11 +24,11 @@ export const STARTER_ID = "starter";
 const STARTER_TIME = "2026-10-20T00:00:00Z";
 
 /** The starter's place in the template, replaced by the chosen place before anyone sees it. */
-const DEFAULT_PLACE = { kind: "default-place" } as const;
-const PM25 = { ...DEFAULT_LAYER, place: DEFAULT_PLACE };
+const TEMPLATE_PLACE = { kind: "default-place" } as const;
+const PM25 = { place: TEMPLATE_PLACE, layers: [DEFAULT_LAYER] };
 
 /**
- * The starter's widgets, in reading order, with each layer's data as Get data stores it for the
+ * The starter's widgets, in reading order, with each widget's data as Get data stores it for the
  * type (PM2.5; `starter.test.ts` checks they match). Rows of the 12-column grid: the welcome Note;
  * the "now" row, as tall as "Can we go outside?" fits; then the chart and the month calendar.
  */
@@ -39,22 +40,22 @@ function starterWidgets(): Omit<WidgetInstance, "id" | "title">[] {
 			data: { layers: [] },
 			options: { message: "starter_note_welcome" }
 		},
-		{ type: CURRENT_TYPE, rect: { x: 0, y: 2, w: 3, h: 7 }, data: { layers: [PM25] } },
-		{ type: OUTSIDE_TYPE, rect: { x: 3, y: 2, w: 3, h: 7 }, data: { layers: [PM25] } },
+		{ type: CURRENT_TYPE, rect: { x: 0, y: 2, w: 3, h: 7 }, data: PM25 },
+		{ type: OUTSIDE_TYPE, rect: { x: 3, y: 2, w: 3, h: 7 }, data: PM25 },
 		{
 			type: FORECAST_TYPE,
 			rect: { x: 6, y: 2, w: 6, h: 7 },
-			data: { layers: [{ dataset: "forecasts", place: DEFAULT_PLACE }] }
+			data: { place: TEMPLATE_PLACE, layers: [{ dataset: "forecasts" }] }
 		},
 		{
 			type: CHART_TYPE,
 			rect: { x: 0, y: 9, w: 8, h: 6 },
-			data: { dateRange: DEFAULT_RANGE, layers: [PM25] }
+			data: { dateRange: DEFAULT_RANGE, ...PM25 }
 		},
 		{
 			type: MONTH_CALENDAR_TYPE,
 			rect: { x: 8, y: 9, w: 4, h: 6 },
-			data: { dateRange: { kind: "to-date", unit: "month" }, layers: [PM25] }
+			data: { dateRange: { kind: "to-date", unit: "month" }, ...PM25 }
 		}
 	];
 }
@@ -83,9 +84,27 @@ export function starterTemplate(): Dashboard {
 	};
 }
 
-/** The starter at `place` (the space's chosen place), with its "Change place" bar. Never stored. */
-export function starterDashboard(place: ChosenPlace): Dashboard {
+/**
+ * The place a starter's Chart or Table shows (their Where holds areas only, decision 2): the
+ * starter's place when it's an area, else `area` (the school's or point's region, looked up when
+ * the place was chosen; `starterAreaOf`), else Fresno County.
+ */
+export function starterAreaFor(place: ChosenPlace, area?: ChosenPlace | null): ChosenPlace {
+	return place.kind === "region" ? place : (area ?? DEFAULT_PLACE);
+}
+
+/**
+ * The starter at `place` (the space's chosen place), with its "Change place" bar; its Chart (and
+ * any Table) at `starterAreaFor(place, area)`. Never stored.
+ */
+export function starterDashboard(place: ChosenPlace, area?: ChosenPlace | null): Dashboard {
 	const doc = resolveDefaultPlace(starterTemplate(), place);
+	const forAreas = starterAreaFor(place, area);
+	for (const widget of doc.body.widgets) {
+		if (areasOnly(widget.type) && widget.data.place) {
+			widget.data.place = structuredClone(forAreas);
+		}
+	}
 	doc.body.placeBar = { place: structuredClone(place) };
 	return doc;
 }
@@ -107,8 +126,8 @@ function freshCopy(source: Dashboard, now: Date, copiedFrom?: string): Dashboard
 }
 
 /** The starter at `place`, as a new document of this person's own. */
-export function copyOfStarter(now: Date, place: ChosenPlace): Dashboard {
-	return freshCopy(starterDashboard(place), now, STARTER_ID);
+export function copyOfStarter(now: Date, place: ChosenPlace, area?: ChosenPlace | null): Dashboard {
+	return freshCopy(starterDashboard(place, area), now, STARTER_ID);
 }
 
 export function blankDashboard(now: Date): Dashboard {
@@ -146,6 +165,8 @@ export type StarterSessionOptions = {
 	now?: () => Date;
 	/** The place the starter shows (the space's chosen place); its copy keeps it. */
 	place: ChosenPlace;
+	/** The region its Chart shows when `place` is a school or point (`starterAreaFor`). */
+	area?: ChosenPlace | null;
 	/** Called once the copy is stored, holding the first edit (if one started the hand-off). */
 	onCopied?: (copy: DocumentSession) => void;
 } & Pick<DocumentSessionOptions, "onNeedsReload" | "onCleared" | "onEdit">;
@@ -168,13 +189,13 @@ export function starterSession(opts: StarterSessionOptions): DocumentSession {
 		now,
 		onNeedsReload,
 		onCleared,
-		doc: starterDashboard(place),
+		doc: starterDashboard(place, opts.area),
 		onBeforeFirstEdit: async (change) => {
 			if (platform.reset.generation() !== generation) {
 				onCleared?.();
 				return null;
 			}
-			const doc = copyOfStarter(now(), place);
+			const doc = copyOfStarter(now(), place, opts.area);
 			// Storage doesn't validate: a copy that would hold `default-place` fails here instead.
 			// The throw fails the hand-off, so the starter's session shows the save error
 			// (`errorKind: "unavailable"`) and its edits stay queued.

@@ -5,10 +5,14 @@ import {
 	getHMSMeta,
 	getMonitorsList,
 	getMonitorsMeta,
+	getRegionsMeta,
 	type DatasetCatalog,
+	type MonitorGroup,
 	type SchoolGuidelines,
 	type Retired
 } from "@sjvair/sdk";
+import { pesticideMeta } from "./pesticide-meta";
+import type { Level as DatasetLevel } from "./dataset-rules";
 import type { Resolution } from "./schema";
 
 export type Retirement = { since: string; replacedBy?: string };
@@ -44,6 +48,11 @@ export type CatalogEntry = {
 	entryTypes: EntryTypeMeta[];
 	geographies: string[];
 	metaUrl?: string;
+	/**
+	 * The monitor types the dataset's monitors are (the catalog's `monitor_types`: the ids the bulk
+	 * summaries' `type` takes); absent for a dataset with no monitors.
+	 */
+	monitorTypes?: string[];
 	retired?: Retirement;
 };
 
@@ -77,12 +86,61 @@ export type MonitorSummary = {
 	/** The monitor's county; empty when the server has none. */
 	county: string;
 	active: boolean;
+	/** An indoor monitor (the list's `location` is `"inside"`). */
+	inside: boolean;
 };
 
-export type MonitorTypeInfo = { type: string; label: string; entryTypes: string[] };
+export type MonitorTypeInfo = {
+	type: string;
+	label: string;
+	entryTypes: string[];
+	/** The key of the monitor group it is listed under; `null` for none. */
+	group: string | null;
+	/** The entry types the map publishes for this type. */
+	published: string[];
+	/** Entry types the meta lists without a `published` flag (an older server's); unknown, not false. */
+	unflagged?: string[];
+};
 
-/** The summary field that colors a day, with its label; `label` is `null` when the server has none. */
-export type DailyFigure = { field: string; label: string | null };
+/**
+ * The summary field a pollutant's value is read from at a resolution (its "figure"), with its
+ * label; `label` is `null` when the server has none.
+ */
+export type Figure = { field: string; label: string | null };
+
+/** The figure keys of a monitors-meta scale (`null` or missing when it has none). */
+export type FigureScale = {
+	daily_statistic?: string | null;
+	daily_statistic_label?: string | null;
+	period_statistic?: string | null;
+	period_statistic_label?: string | null;
+};
+
+/**
+ * A scale's figure at `resolution`: at `day` its `daily_statistic` (with its label); at `month`
+ * and `year` its `period_statistic` (the average of the daily figures); otherwise, or when the
+ * scale names none, `null`: the plain mean.
+ */
+export function figureFromScale(
+	scale: FigureScale | null | undefined,
+	resolution: DatasetLevel
+): Figure | null {
+	const [field, label] =
+		resolution === "day"
+			? [scale?.daily_statistic, scale?.daily_statistic_label]
+			: resolution === "month" || resolution === "year"
+				? [scale?.period_statistic, scale?.period_statistic_label]
+				: [null, null];
+	return field ? { field, label: label ?? null } : null;
+}
+
+export type LocationTypeInfo = { type: string; label: string; source: string };
+export type LocationGroup = {
+	key: string;
+	label: string;
+	order: number;
+	types: LocationTypeInfo[];
+};
 
 export interface MetadataSource {
 	/** `"unavailable"` when the server has no catalog or it can't be fetched; never rejects except for `signal`'s abort. */
@@ -91,16 +149,27 @@ export interface MetadataSource {
 	levels(entryType: string, signal?: AbortSignal): Promise<Level[]>;
 	/**
 	 * The levels of a dataset's entry type: the forecasts scales for `"forecasts"`, the HMS
-	 * scales for `"hms-smoke"`, the CalHeatScore scales for `"calheatscore"`, otherwise the same as `levels`. `[]` if no scale.
+	 * scales for `"hms-smoke"`, the CalHeatScore scales for `"calheatscore"`, the pesticides
+	 * meta's for `"pesticide-notices"`, otherwise the same as `levels`. `[]` if no scale.
 	 */
 	datasetLevels(dataset: string, entryType: string, signal?: AbortSignal): Promise<Level[]>;
+	/**
+	 * The server's raw scale for a dataset's entry type, as the meta serves it: routes like
+	 * `datasetLevels` (and `"hms-fire"` to the HMS meta too), otherwise the monitors meta's.
+	 * `null` when there is none.
+	 */
+	serverScale(dataset: string, entryType: string, signal?: AbortSignal): Promise<unknown | null>;
+	/** How often a monitor type reports (the monitors meta's `expected_interval`); `null` when it has none. */
+	monitorTypeInterval(type: string, signal?: AbortSignal): Promise<string | null>;
 	/** The meta's `default_calibration`; `""` and unknown map to `null`. */
 	defaultProcessor(
 		monitorType: string,
 		entryType: string,
 		signal?: AbortSignal
 	): Promise<string | null>;
-	/** The entry type's school activity guidelines (PM2.5 only); `null` when it has none. */
+	/** The entry types with school activity guidelines, in the monitors meta's order. */
+	guidelinePollutants(signal?: AbortSignal): Promise<string[]>;
+	/** The entry type's school activity guidelines; `null` when it has none. */
 	schoolGuidelines(entryType: string, signal?: AbortSignal): Promise<SchoolGuidelines | null>;
 	/**
 	 * Where a scale's breakpoints come from; `dataset` routes like `datasetLevels`. `null` when
@@ -120,12 +189,37 @@ export interface MetadataSource {
 		entryType: string,
 		signal?: AbortSignal
 	): Promise<{ windowMinutes: number; expectedIntervalMinutes: number | null } | null>;
-	/** The entry type's daily figure (`scale.daily_statistic`); `null` when it has none. */
-	dailyFigure(entryType: string, signal?: AbortSignal): Promise<DailyFigure | null>;
+	/**
+	 * The entry type's figure at `resolution` (`figureFromScale` of its monitors-meta scale):
+	 * `null` is the plain mean.
+	 */
+	figure(entryType: string, resolution: DatasetLevel, signal?: AbortSignal): Promise<Figure | null>;
+	/**
+	 * The monitors meta's `available_pollutants`, in server order; `[]` when it lists none, and
+	 * `"unavailable"` when it can't be loaded. Never rejects except for `signal`'s abort.
+	 */
+	mapPollutants(signal?: AbortSignal): Promise<string[] | "unavailable">;
 	monitorType(monitorId: string, signal?: AbortSignal): Promise<string | null>;
 	monitors(signal?: AbortSignal): Promise<MonitorSummary[]>;
 	/** The monitor types (networks) with their labels and the entry types each can supply. */
 	monitorTypes(signal?: AbortSignal): Promise<MonitorTypeInfo[]>;
+	/**
+	 * The monitor groups (Reference-grade, Low-cost sensors) sorted by `order`; `[]` when the meta
+	 * has none, `null` when it lacks the field.
+	 */
+	monitorGroups(signal?: AbortSignal): Promise<MonitorGroup[] | null>;
+	/** The monitors meta's help text for an entry type; `null` when it has none. */
+	entryTypeHelp(entryType: string, signal?: AbortSignal): Promise<string | null>;
+	/** The regions meta's label for a location type; `null` when unknown. */
+	locationTypeLabel(type: string, signal?: AbortSignal): Promise<string | null>;
+	/**
+	 * The regions meta's location groups, by `order`, each with its types in meta order; a type
+	 * with no (or an unknown) group is a group of its own (key = type, label = type label,
+	 * ordered after the named groups). `[]` when the meta lists no location types.
+	 */
+	locationGroups(signal?: AbortSignal): Promise<LocationGroup[]>;
+	/** The location sources the regions meta lists (`location_types[t].source`), deduplicated. */
+	locationSources(signal?: AbortSignal): Promise<string[]>;
 }
 
 const UNIT_MINUTES: Record<string, number> = {
@@ -251,6 +345,7 @@ export function mapDatasetCatalog(catalog: DatasetCatalog): CatalogEntry[] {
 		setIfPresent(entry, "source", d.source);
 		setIfPresent(entry, "license", d.license);
 		setIfPresent(entry, "metaUrl", d.meta_url);
+		if (d.monitor_types) entry.monitorTypes = [...d.monitor_types];
 		setIfPresent(entry, "retired", retirement(d.retired));
 		return entry;
 	});
@@ -297,6 +392,7 @@ export function createWebMetadata(): MetadataSource {
 	const forecastsMeta = memoize(() => getForecastsMeta());
 	const monitorLevels = async (entryType: string, signal?: AbortSignal) =>
 		mapScaleLevels((await meta(signal)).entries[entryType]?.scale?.levels);
+	const regionsMeta = memoize(() => getRegionsMeta());
 	const hmsMeta = memoize(() => getHMSMeta());
 	const heatMeta = memoize(() => getCalHeatScoreMeta());
 	const catalog = memoize(async () => mapDatasetCatalog(await getDatasetCatalog()));
@@ -313,7 +409,8 @@ export function createWebMetadata(): MetadataSource {
 		},
 		levels: monitorLevels,
 		async datasetLevels(dataset, entryType, signal) {
-			// Each dataset with scales names its own meta endpoint here (forecasts, hms-smoke); the
+			// Each dataset with scales names its own meta endpoint here (forecasts, hms-smoke, the
+			// pesticides meta for the spray notices, shared with pesticide-meta's one fetch); the
 			// rest use the monitors'. A new dataset with its own scales adds its endpoint.
 			if (dataset === "forecasts") {
 				return mapScaleLevels((await forecastsMeta(signal)).scales[entryType]?.levels);
@@ -324,12 +421,36 @@ export function createWebMetadata(): MetadataSource {
 			if (dataset === "calheatscore") {
 				return mapScaleLevels((await heatMeta(signal)).scales[entryType]?.levels);
 			}
+			if (dataset === "pesticide-notices") {
+				return mapScaleLevels((await pesticideMeta(signal)).scales[entryType]?.levels);
+			}
 			return monitorLevels(entryType, signal);
 		},
-		async dailyFigure(entryType, signal) {
-			const scale = (await meta(signal)).entries[entryType]?.scale;
-			if (!scale?.daily_statistic) return null;
-			return { field: scale.daily_statistic, label: scale.daily_statistic_label ?? null };
+		async serverScale(dataset, entryType, signal) {
+			const scales = async () =>
+				dataset === "forecasts"
+					? (await forecastsMeta(signal)).scales
+					: dataset === "hms-smoke" || dataset === "hms-fire"
+						? (await hmsMeta(signal)).scales
+						: dataset === "calheatscore"
+							? (await heatMeta(signal)).scales
+							: dataset === "pesticide-notices"
+								? (await pesticideMeta(signal)).scales
+								: undefined;
+			const own = await scales();
+			if (own) return Object.hasOwn(own, entryType) ? own[entryType] : null;
+			return (await meta(signal)).entries[entryType]?.scale ?? null;
+		},
+		async monitorTypeInterval(type, signal) {
+			return (await meta(signal)).monitors[type]?.expected_interval || null;
+		},
+		async figure(entryType, resolution, signal) {
+			return figureFromScale((await meta(signal)).entries[entryType]?.scale, resolution);
+		},
+		async guidelinePollutants(signal) {
+			return Object.entries((await meta(signal)).entries)
+				.filter(([, entry]) => entry?.school_guidelines)
+				.map(([id]) => id);
 		},
 		async schoolGuidelines(entryType, signal) {
 			return (await meta(signal)).entries[entryType]?.school_guidelines ?? null;
@@ -342,7 +463,9 @@ export function createWebMetadata(): MetadataSource {
 						? (await hmsMeta(signal)).scales[entryType]
 						: dataset === "calheatscore"
 							? (await heatMeta(signal)).scales[entryType]
-							: (await meta(signal)).entries[entryType]?.scale;
+							: dataset === "pesticide-notices"
+								? (await pesticideMeta(signal)).scales[entryType]
+								: (await meta(signal)).entries[entryType]?.scale;
 			return scale?.source ?? null;
 		},
 		async defaultProcessor(monitorType, entryType, signal) {
@@ -361,6 +484,15 @@ export function createWebMetadata(): MetadataSource {
 				expectedIntervalMinutes: parseMinutes(alerts.expected_interval ?? monitor.expected_interval)
 			};
 		},
+		async mapPollutants(signal) {
+			try {
+				return [...((await meta(signal)).available_pollutants ?? [])];
+			} catch (error) {
+				// The memo is cleared on failure, so the next call asks again.
+				if (signal?.aborted) throw error;
+				return "unavailable";
+			}
+		},
 		async monitorType(monitorId, signal) {
 			return (await list(signal)).find((m) => m.id === monitorId)?.type ?? null;
 		},
@@ -370,15 +502,64 @@ export function createWebMetadata(): MetadataSource {
 				name: m.name,
 				type: m.type,
 				county: m.county ?? "",
-				active: m.is_active ?? true
+				active: m.is_active ?? true,
+				inside: m.location === "inside"
 			}));
 		},
 		async monitorTypes(signal) {
 			return Object.entries((await meta(signal)).monitors).map(([type, m]) => ({
 				type,
 				label: m.label,
-				entryTypes: Object.keys(m.entries ?? {})
+				entryTypes: Object.keys(m.entries ?? {}),
+				group: m.group ?? null,
+				published: Object.entries(m.entries ?? {})
+					.filter(([, entry]) => entry?.published === true)
+					.map(([id]) => id),
+				unflagged: Object.entries(m.entries ?? {})
+					.filter(([, entry]) => typeof entry?.published !== "boolean")
+					.map(([id]) => id)
 			}));
+		},
+		async monitorGroups(signal) {
+			const groups = (await meta(signal)).monitor_groups as
+				Record<string, MonitorGroup> | undefined;
+			return groups ? Object.values(groups).sort((a, b) => a.order - b.order) : null;
+		},
+		async entryTypeHelp(entryType, signal) {
+			return (await meta(signal)).entries[entryType]?.description || null;
+		},
+		async locationTypeLabel(type, signal) {
+			const types: Partial<Record<string, { label: string }>> = (await regionsMeta(signal))
+				.location_types;
+			return (Object.hasOwn(types, type) && types[type]?.label) || null;
+		},
+		async locationGroups(signal) {
+			const meta = await regionsMeta(signal);
+			const defined = meta.location_groups;
+			const named = new Map<string, LocationGroup>();
+			for (const [id, g] of Object.entries(defined)) {
+				named.set(id, { key: g.key, label: g.label, order: g.order, types: [] });
+			}
+			// A type whose group the meta doesn't define (a newer server's) is a group of its own.
+			const alone: LocationGroup[] = [];
+			for (const t of Object.values(meta.location_types)) {
+				const info = { type: t.type, label: t.label, source: t.source };
+				const group = Object.hasOwn(defined, t.group) ? named.get(t.group) : null;
+				if (group) group.types.push(info);
+				else alone.push({ key: t.type, label: t.label, order: 0, types: [info] });
+			}
+			const groups = [...named.values()]
+				.filter((g) => g.types.length > 0)
+				.sort((a, b) => a.order - b.order);
+			const next = groups.reduce((n, g) => Math.max(n, g.order + 1), 0);
+			alone.forEach((g, i) => (g.order = next + i));
+			return [...groups, ...alone];
+		},
+		async locationSources(signal) {
+			const types = (await regionsMeta(signal)).location_types as Partial<
+				Record<string, { source: string }>
+			>;
+			return [...new Set(Object.values(types).flatMap((t) => (t ? [t.source] : [])))];
 		}
 	};
 }

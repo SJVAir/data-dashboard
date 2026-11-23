@@ -6,6 +6,7 @@
 	import { menuScope } from "$lib/actions/scope";
 	import {
 		downloadItems,
+		viewerTypeItems,
 		placeItems,
 		restoreWidget,
 		taskbarActions,
@@ -19,8 +20,9 @@
 	import { pendingFocusTarget, requestFocus, takeFocus } from "$lib/layout/focus-request.svelte";
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
-	import { thresholdMarks } from "$lib/thresholds/marks.svelte";
+	import { widgetMark } from "$lib/thresholds/marks.svelte";
 	import MarkPulse from "$lib/thresholds/MarkPulse.svelte";
+	import { watchKeys } from "$lib/thresholds/watched";
 	import { getWidgetType } from "$lib/widgets/registry";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "$lib/widgets/shared/viewer";
 
@@ -50,6 +52,7 @@
 			? viewActions(widget.id, onfullscreen)
 			: taskbarActions(app, widget.id, onfullscreen);
 		return (ctx) => [
+			...(readOnly ? viewerTypeItems(app, () => widget, ctx) : []),
 			...placeItems(app, () => widget),
 			...downloadItems(app, () => widget, viewer),
 			...base(ctx)
@@ -173,7 +176,8 @@
 		{#each widgets as widget, i (widget.id)}
 			{@const title = widgetTitle(widget)}
 			{@const Icon = getWidgetType(widget.type)?.icon ?? CircleQuestionMark}
-			{@const mark = thresholdMarks[widget.id]}
+			<!-- Marked when any of its pollutants is: the first in layer order (decision C4). -->
+			{@const mark = widgetMark(widget.id, watchKeys(widget))}
 			<!-- At its alert level: an outline in the level's color, a warning icon, and the name says
 			     so; it flashes once per crossing (steady under reduced motion). -->
 			<div

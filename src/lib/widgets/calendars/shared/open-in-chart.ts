@@ -3,6 +3,7 @@ import { shownSelection } from "$lib/calendars/shown-selection";
 import { copyPlacement } from "$lib/layout/windowing";
 import type { AppContext } from "$lib/store/app.svelte";
 import { CHART_TYPE } from "../../chart";
+import { widgetWhere } from "../../shared/input";
 
 /**
  * Adds a new, independent Chart for the calendar's place and pollutant over the selected days it
@@ -22,10 +23,9 @@ export function openDaysInChart(app: AppContext, widgetId: string): void {
 		...copyPlacement(widgets, source),
 		data: {
 			dateRange: { kind: "custom", start: sub.start, end: sub.end },
-			layers: structuredClone(source.data.layers).map((layer) => {
-				delete layer.resolution;
-				return layer;
-			})
+			// The calendar's pinned `day` isn't stored, so the Chart starts at Automatic.
+			...widgetWhere(source.data),
+			layers: structuredClone(source.data.layers)
 		},
 		...(source.thresholds ? { thresholds: structuredClone(source.thresholds) } : {})
 	};

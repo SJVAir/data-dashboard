@@ -53,7 +53,8 @@ function summarize(raw: unknown): DashboardSummary | null {
 		copiedFrom: optionalString(doc.copiedFrom),
 		createdAt,
 		updatedAt,
-		deletedAt: optionalString(doc.deletedAt)
+		deletedAt: optionalString(doc.deletedAt),
+		readOnly: true
 	};
 }
 
@@ -203,8 +204,8 @@ export class DashboardIndex {
 	}
 
 	/** "New from starter": the starter at `place` (the space's chosen place). */
-	createFromStarter(place: ChosenPlace): Promise<string> {
-		return this.#create(copyOfStarter(this.#now(), place));
+	createFromStarter(place: ChosenPlace, area?: ChosenPlace | null): Promise<string> {
+		return this.#create(copyOfStarter(this.#now(), place, area));
 	}
 
 	/**
@@ -214,11 +215,15 @@ export class DashboardIndex {
 	 * `replace`: it is built at `from` (its chosen place), so its plain Duplicate passes that place
 	 * as both.
 	 */
-	async duplicate(id: string, replace?: { from: ChosenPlace; to: ChosenPlace }): Promise<string> {
+	async duplicate(
+		id: string,
+		replace?: { from: ChosenPlace; to: ChosenPlace; area?: ChosenPlace | null }
+	): Promise<string> {
 		let source: Dashboard;
 		if (id === STARTER_ID) {
 			if (!replace) throw new Error("Duplicating the starter needs its place");
-			source = starterDashboard(replace.from);
+			// `area`: the starter's Chart's region for a school or point place.
+			source = starterDashboard(replace.from, replace.area);
 		} else {
 			const loaded = loadDashboard(await this.#platform.documents.get(this.#space, id));
 			if (loaded.status !== "ok") throw new Error(`Dashboard ${id} can't be duplicated`);

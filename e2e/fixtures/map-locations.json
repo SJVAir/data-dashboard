@@ -1,0 +1,175 @@
+{
+	"$comment": "Schools and child care on the Map: made-up sites, by the region (server id) each lies in: Fresno County's (r6phe), in the shape of the server's pesticides/locations/ features (copied from a local response, 2026-11-22). e2e/map-data-server.ts adds Roosevelt High from regions/locations.json in its own regions.",
+	"regions": {
+		"r6phe": [
+			{
+				"type": "Feature",
+				"id": "tps01",
+				"geometry": {
+					"type": "Point",
+					"coordinates": [-120.2, 37.0]
+				},
+				"properties": {
+					"id": "tps01",
+					"source": "cde-public",
+					"external_id": "90000000000001",
+					"name": "Example Elementary",
+					"type": "public_school",
+					"type_label": "Public school",
+					"address": "100 Example Ave.",
+					"city": "Example City",
+					"school_district": "Example Unified",
+					"school_district_id": "tsd01",
+					"school_district_url": "/tools/pesticides/region/tsd01/example-unified/",
+					"grade_span": "K-6",
+					"enrollment": 400,
+					"capacity": null
+				}
+			},
+			{
+				"type": "Feature",
+				"id": "tps02",
+				"geometry": {
+					"type": "Point",
+					"coordinates": [-120.19, 37.01]
+				},
+				"properties": {
+					"id": "tps02",
+					"source": "cde-public",
+					"external_id": "90000000000002",
+					"name": "Example Middle",
+					"type": "public_school",
+					"type_label": "Public school",
+					"address": "200 Example Ave.",
+					"city": "Example City",
+					"school_district": "Example Unified",
+					"school_district_id": "tsd01",
+					"school_district_url": "/tools/pesticides/region/tsd01/example-unified/",
+					"grade_span": "7-8",
+					"enrollment": 600,
+					"capacity": null
+				}
+			},
+			{
+				"type": "Feature",
+				"id": "tps03",
+				"geometry": {
+					"type": "Point",
+					"coordinates": [-120.21, 36.99]
+				},
+				"properties": {
+					"id": "tps03",
+					"source": "cde-public",
+					"external_id": "90000000000003",
+					"name": "Example High",
+					"type": "public_school",
+					"type_label": "Public school",
+					"address": "300 Example Ave.",
+					"city": "Example City",
+					"school_district": "Example Unified",
+					"school_district_id": "tsd01",
+					"school_district_url": "/tools/pesticides/region/tsd01/example-unified/",
+					"grade_span": "9-12",
+					"enrollment": 1500,
+					"capacity": null
+				}
+			},
+			{
+				"type": "Feature",
+				"id": "tpv01",
+				"geometry": {
+					"type": "Point",
+					"coordinates": [-119.3, 36.95]
+				},
+				"properties": {
+					"id": "tpv01",
+					"source": "cde-private",
+					"external_id": "90000000000004",
+					"name": "Example Private Academy",
+					"type": "private_school",
+					"type_label": "Private school",
+					"address": "400 Sample Rd.",
+					"city": "Sample Town",
+					"school_district": "Example Unified",
+					"school_district_id": "tsd01",
+					"school_district_url": "/tools/pesticides/region/tsd01/example-unified/",
+					"grade_span": "K-12",
+					"enrollment": 80,
+					"capacity": null
+				}
+			},
+			{
+				"type": "Feature",
+				"id": "tcc01",
+				"geometry": {
+					"type": "Point",
+					"coordinates": [-119.45, 36.6]
+				},
+				"properties": {
+					"id": "tcc01",
+					"source": "cdss-ccl",
+					"external_id": "900000001",
+					"name": "EXAMPLE LITTLE LEARNERS",
+					"type": "child_care",
+					"type_label": "Child care",
+					"address": "500 SAMPLE ST.",
+					"city": "SAMPLE TOWN",
+					"school_district": "Example Unified",
+					"school_district_id": "tsd01",
+					"school_district_url": "/tools/pesticides/region/tsd01/example-unified/",
+					"grade_span": null,
+					"enrollment": null,
+					"capacity": 60
+				}
+			},
+			{
+				"type": "Feature",
+				"id": "tcc02",
+				"geometry": {
+					"type": "Point",
+					"coordinates": [-119.44, 36.61]
+				},
+				"properties": {
+					"id": "tcc02",
+					"source": "cdss-ccl",
+					"external_id": "900000002",
+					"name": "EXAMPLE DAY CARE",
+					"type": "child_care",
+					"type_label": "Child care",
+					"address": "510 SAMPLE ST.",
+					"city": "SAMPLE TOWN",
+					"school_district": "Example Unified",
+					"school_district_id": "tsd01",
+					"school_district_url": "/tools/pesticides/region/tsd01/example-unified/",
+					"grade_span": null,
+					"enrollment": null,
+					"capacity": 24
+				}
+			},
+			{
+				"type": "Feature",
+				"id": "tcc03",
+				"geometry": {
+					"type": "Point",
+					"coordinates": [-120.4, 36.6]
+				},
+				"properties": {
+					"id": "tcc03",
+					"source": "cdss-ccl",
+					"external_id": "900000003",
+					"name": "EXAMPLE PRESCHOOL",
+					"type": "child_care",
+					"type_label": "Child care",
+					"address": "600 SAMPLE AVE.",
+					"city": "EXAMPLE CITY",
+					"school_district": "Example Unified",
+					"school_district_id": "tsd01",
+					"school_district_url": "/tools/pesticides/region/tsd01/example-unified/",
+					"grade_span": null,
+					"enrollment": null,
+					"capacity": 100
+				}
+			}
+		]
+	}
+}

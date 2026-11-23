@@ -157,20 +157,37 @@ test("a keyboard resize animates the frame's size, not under reduced motion", as
 	await seed(halves());
 	await focusBar("Readings");
 	const before = page.getByTestId("widget-a").element().getBoundingClientRect();
+	// Record the animations the frame starts, so the test doesn't race a 200 ms animation that may
+	// finish before a poll sees it on a loaded machine.
+	const frame = page.getByTestId("widget-a").element();
+	const started: Animation[] = [];
+	const animate = frame.animate.bind(frame);
+	frame.animate = ((...args: Parameters<Element["animate"]>) => {
+		const a = animate(...args);
+		started.push(a);
+		return a;
+	}) as typeof frame.animate;
+	const sizeStarted = () =>
+		started.filter((a) =>
+			(a.effect as KeyframeEffect).getKeyframes().some((k) => k.width !== undefined)
+		);
 	await press("{Enter}");
 	await press("{Shift>}{ArrowLeft}{/Shift}");
-	await expect.poll(() => sizeAnimations("a").length).toBe(1);
-	const first = (sizeAnimations("a")[0].effect as KeyframeEffect).getKeyframes()[0];
+	await expect.poll(() => sizeStarted().length).toBe(1);
+	const first = (sizeStarted()[0].effect as KeyframeEffect).getKeyframes()[0];
 	expect(parseFloat(first.width as string)).toBeCloseTo(before.width, 0);
-	expect(sizeAnimations("a")[0].effect!.getTiming().duration).toBe(200);
+	expect(sizeStarted()[0].effect!.getTiming().duration).toBe(200);
 	await press("{Escape}");
+	await expect.poll(() => sizeAnimations("a")).toEqual([]);
 
 	await commands.setReducedMotion(true);
 	try {
+		started.length = 0;
 		await press("{Enter}");
 		await press("{Shift>}{ArrowLeft}{/Shift}");
 		await announced("5 columns wide, 4 rows tall.");
 		await nextFrame();
+		expect(sizeStarted()).toEqual([]);
 		expect(sizeAnimations("a")).toEqual([]);
 		await press("{Escape}");
 	} finally {
@@ -1434,6 +1451,63 @@ test("the submenu by keyboard: Enter repeats, focus leaves an item that turns di
 	await press("{Escape}");
 	await press("{Escape}");
 	await expect.poll(() => document.activeElement).toBe(titleBar("Readings").element());
+});
+
+/**
+ * Holds every animation frame callback until released, one at a time: a busy machine (CI) can
+ * deliver a frame callback after the next key press.
+ */
+function holdFrames() {
+	const held: FrameRequestCallback[] = [];
+	const spy = vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+		held.push(cb);
+		return held.length;
+	});
+	return {
+		/** Runs the oldest held callback; false when none is left. */
+		step(): boolean {
+			const cb = held.shift();
+			cb?.(performance.now());
+			return !!cb;
+		},
+		release() {
+			spy.mockRestore();
+			while (held.length) held.shift()!(performance.now());
+		}
+	};
+}
+
+test("a menu's late opening frame doesn't pull focus out of its open submenu", async () => {
+	await seed([widget("a", { x: 4, y: 0, w: 6, h: 4 }, "Readings")]);
+	await focusBar("Readings");
+	const frames = holdFrames();
+	try {
+		await press("{Shift>}{F10}{/Shift}");
+		// Frames arrive one by one until focus is on Move; any left come after the ArrowRight.
+		while (document.activeElement?.textContent?.trim() !== "Move") {
+			if (!frames.step()) break;
+			await new Promise((resolve) => setTimeout(resolve));
+		}
+		expect(
+			document.activeElement?.textContent?.trim(),
+			"every held frame ran and focus never reached Move"
+		).toBe("Move");
+		await press("{ArrowRight}");
+		// Focus settles in the submenu before the late frame arrives.
+		await expect
+			.poll(() => document.activeElement?.closest("[data-slot=context-menu-sub-content]"))
+			.toBeTruthy();
+		await new Promise((resolve) => setTimeout(resolve));
+	} finally {
+		frames.release();
+	}
+	await animationFrames(2);
+	// The submenu is still open, with focus inside it (not back on Move).
+	const sub = document.querySelector("[role=menu][data-slot=context-menu-sub-content]");
+	expect(sub?.getAttribute("data-state")).toBe("open");
+	expect(document.activeElement?.closest("[role=menu]")).toBe(sub);
+	await press("{Escape}");
+	await press("{Escape}");
 });
 
 test("the ⋯ menu is as wide as its items: no label wraps", async () => {

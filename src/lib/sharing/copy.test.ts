@@ -12,7 +12,11 @@ import { parseIncoming } from "./incoming";
 const mocked = vi.hoisted(() => ({
 	placeRegion: vi.fn(async () => ({ type: "zipcode", code: "93721" }))
 }));
-vi.mock("$lib/data", () => ({ placeRegion: mocked.placeRegion }));
+vi.mock("$lib/data", () => ({
+	placeRegion: mocked.placeRegion,
+	// Point lookups read the catalog for the widget's resolution; without one, Automatic's range level.
+	getMetadata: () => ({ catalog: async () => "unavailable" as const })
+}));
 
 const now = new Date("2026-10-25T12:00:00Z");
 
@@ -110,7 +114,7 @@ describe("a copy of a share with an exact location", () => {
 					{
 						...doc.body.widgets[0],
 						type: "chart",
-						data: { layers: [{ dataset: "air-quality", entryType: "pm25", place: point }] }
+						data: { place: point, layers: [{ dataset: "air-quality", entryType: "pm25" }] }
 					}
 				]
 			}
@@ -122,7 +126,7 @@ describe("a copy of a share with an exact location", () => {
 		const incoming = await incomingOf(withPoint());
 		const id = await saveCopy(app, incoming);
 		const stored = (await app.platform.documents.get(app.space, id)) as Dashboard;
-		expect(stored.body.widgets[0].data.layers[0].place).toEqual({
+		expect(stored.body.widgets[0].data.place).toEqual({
 			kind: "region",
 			type: "zipcode",
 			code: "93721"

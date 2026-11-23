@@ -1,23 +1,24 @@
 <script lang="ts">
 	import LocateFixedIcon from "@lucide/svelte/icons/locate-fixed";
 	import XIcon from "@lucide/svelte/icons/x";
-	import { onDestroy, tick } from "svelte";
+	import { onDestroy, tick, untrack } from "svelte";
 	import { Button } from "$lib/components/ui/button";
-	import type { PlaceRef } from "$lib/data/schema";
+	import { formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import type { GeoResult } from "$lib/platform/types";
 	import BrowsePanel from "./BrowsePanel.svelte";
 	import type { PlaceDirectory } from "./directory";
-	import { errorText, PickerState, refKey } from "./picker-state.svelte";
+	import { errorText, PickerState, refKey, type PickerOffer } from "./picker-state.svelte";
 	import ResultList from "./ResultList.svelte";
 	import type { PickerMode, Picks } from "./selection";
-	import type { PlaceOption } from "./types";
+	import type { PickRef, PlaceOption } from "./types";
 
 	// eslint-disable-next-line svelte/no-unused-props -- `purpose.dataset` is part of the host contract; only the entry type filters today.
 	let {
 		directory,
 		purpose,
 		mode,
+		offer = "where",
 		activeOnly = false,
 		initial,
 		recent,
@@ -25,12 +26,19 @@
 		locate,
 		pointKeys,
 		ondone,
-		oncancel
+		oncancel,
+		keepId: keepIdProp,
+		onkeepline
 	}: {
 		directory: PlaceDirectory;
 		/** What the places are for; only the entry type filters monitors today (by monitor type). */
 		purpose: { dataset: string; entryType: string };
 		mode: PickerMode;
+		/**
+		 * What it offers: `where` (areas, schools, addresses, "my location"), `areas` (no schools or
+		 * points: a Chart's or Table's Where), or `monitors` (monitors supplying the entry type only).
+		 */
+		offer?: PickerOffer;
 		activeOnly?: boolean;
 		initial: Picks;
 		/** Resolved by the host; also names any of `initial` they hold. */
@@ -43,12 +51,17 @@
 		/** Single mode: the first pick. Multiple mode: Done. */
 		ondone: (picks: Picks) => void;
 		oncancel: () => void;
+		/** The keep line's id, so a host dialog can use it as its description. */
+		keepId?: string;
+		/** Called with whether the keep line is shown, so a host names it only while it exists. */
+		onkeepline?: (shown: boolean) => void;
 	} = $props();
 
 	const uid = $props.id();
 	const listboxId = `${uid}-results`;
 	const locationReasonId = `${uid}-location-reason`;
 	const browseId = `${uid}-browse`;
+	const keepId = $derived(keepIdProp ?? `${uid}-keep`);
 
 	// `initial` seeds the picks once; later changes to it don't reset what the person picked.
 	// svelte-ignore state_referenced_locally
@@ -59,6 +72,7 @@
 			entryType: purpose.entryType,
 			activeOnly,
 			mode,
+			offer,
 			recent,
 			known,
 			locate,
@@ -71,6 +85,15 @@
 	onDestroy(() => picker.destroy());
 
 	const multiple = $derived(mode.kind === "multiple");
+	/** Keep state: started with more places than the cap; Done waits until enough are removed. */
+	const keepMax = $derived(
+		mode.kind === "multiple" && picker.picks.length > mode.max ? mode.max : null
+	);
+	$effect.pre(() => {
+		const shown = keepMax !== null;
+		untrack(() => onkeepline?.(shown));
+	});
+	onDestroy(() => onkeepline?.(false));
 
 	let input = $state<HTMLInputElement | null>(null);
 	let chips = $state<HTMLUListElement | null>(null);
@@ -103,7 +126,7 @@
 		}
 	}
 
-	async function remove(ref: PlaceRef, index: number) {
+	async function remove(ref: PickRef, index: number) {
 		picker.remove(ref);
 		await tick();
 		const buttons = chips?.querySelectorAll<HTMLButtonElement>("button") ?? [];
@@ -112,6 +135,11 @@
 </script>
 
 <div class="flex min-w-0 flex-col gap-3">
+	{#if keepMax !== null}
+		<p id={keepId} class="text-sm font-medium">
+			{m.place_picker_keep({ count: formatNumber(keepMax), countValue: keepMax })}
+		</p>
+	{/if}
 	{#if multiple && picker.picks.length > 0}
 		<ul bind:this={chips} aria-label={m.place_picker_chosen()} class="flex flex-wrap gap-1.5">
 			{#each picker.picks as ref, index (refKey(ref))}
@@ -144,34 +172,41 @@
 		aria-autocomplete="list"
 		aria-expanded={picker.rows.length > 0 ? "true" : "false"}
 		aria-controls={listboxId}
+		aria-describedby={keepMax !== null ? keepId : undefined}
 		aria-activedescendant={picker.active?.id}
-		placeholder={m.place_picker_placeholder()}
+		placeholder={offer === "monitors"
+			? m.place_picker_placeholder_monitors()
+			: offer === "areas"
+				? m.place_picker_placeholder_areas()
+				: m.place_picker_placeholder()}
 		value={picker.query}
 		oninput={(e) => picker.setQuery(e.currentTarget.value)}
 		{onkeydown}
 		class="border-input bg-card placeholder:text-muted-foreground focus-visible:border-ring focus-visible:outline-ring text-field h-9 w-full min-w-0 rounded-(--radius-control) border px-2.5 focus-visible:outline-2"
 	/>
 
-	<div class="flex flex-col items-start gap-1">
-		<Button
-			variant="outline"
-			size="sm"
-			aria-disabled={picker.locationReason ? "true" : undefined}
-			aria-describedby={picker.locationReason ? locationReasonId : undefined}
-			class="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-			onclick={() => picker.useLocation()}
-		>
-			<LocateFixedIcon aria-hidden="true" />
-			{m.place_picker_use_location()}
-		</Button>
-		{#if picker.locationReason}
-			<p id={locationReasonId} class="text-muted-foreground text-xs">{picker.locationReason}</p>
-		{/if}
-		<p data-picker-location-status role="status" class="text-sm">
-			{#if picker.geo.status === "locating"}{m.place_picker_locating()}{:else if picker.geo.status === "message"}{picker
-					.geo.text}{/if}
-		</p>
-	</div>
+	{#if offer === "where"}
+		<div class="flex flex-col items-start gap-1">
+			<Button
+				variant="outline"
+				size="sm"
+				aria-disabled={picker.locationReason ? "true" : undefined}
+				aria-describedby={picker.locationReason ? locationReasonId : undefined}
+				class="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+				onclick={() => picker.useLocation()}
+			>
+				<LocateFixedIcon aria-hidden="true" />
+				{m.place_picker_use_location()}
+			</Button>
+			{#if picker.locationReason}
+				<p id={locationReasonId} class="text-muted-foreground text-xs">{picker.locationReason}</p>
+			{/if}
+			<p data-picker-location-status role="status" class="text-sm">
+				{#if picker.geo.status === "locating"}{m.place_picker_locating()}{:else if picker.geo.status === "message"}{picker
+						.geo.text}{/if}
+			</p>
+		</div>
+	{/if}
 
 	<ResultList {picker} id={listboxId} label={m.place_picker_results()} {multiple} />
 
@@ -199,6 +234,7 @@
 				{picker}
 				{directory}
 				entryType={purpose.entryType}
+				{offer}
 				{activeOnly}
 				{multiple}
 				id={browseId}
@@ -216,7 +252,12 @@
 			<Button variant="outline" onclick={oncancel}>{m.place_picker_cancel()}</Button>
 			<Button
 				disabled={picker.picks.length === 0}
-				onclick={() => ondone($state.snapshot(picker.picks))}>{m.place_picker_done()}</Button
+				aria-disabled={keepMax !== null ? "true" : undefined}
+				aria-describedby={keepMax !== null ? keepId : undefined}
+				class="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+				onclick={() => {
+					if (keepMax === null) ondone($state.snapshot(picker.picks));
+				}}>{m.place_picker_done()}</Button
 			>
 		</div>
 	{/if}

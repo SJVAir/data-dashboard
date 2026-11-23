@@ -5,7 +5,6 @@
 import { getMetadata, getResolvers } from "$lib/data";
 import type { ChosenPlace } from "$lib/data/schema";
 import { m } from "$lib/paraglide/messages.js";
-import { DEFAULT_LAYER } from "$lib/widgets/defaults";
 import type { PlaceViewer } from "$lib/widgets/shared/viewer";
 import { directoryFor } from "./host";
 
@@ -25,12 +24,6 @@ export async function placeName(place: ChosenPlace, signal: AbortSignal): Promis
 		case "location": {
 			const found = await resolvers.locations.resolve(place.source, place.code, signal);
 			return found?.name ?? null;
-		}
-		case "monitor": {
-			// The bar is about PM2.5, as a new widget is.
-			const entryType = DEFAULT_LAYER.entryType as string;
-			const monitors = await directory().monitors(entryType, { activeOnly: false }, signal);
-			return monitors.find((o) => o.id === place.id)?.name ?? null;
 		}
 		default:
 			return null;

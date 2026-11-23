@@ -1,5 +1,5 @@
-import { mapScaleLevels } from "../metadata";
-import type { CatalogEntry, DailyFigure, EntryTypeMeta, Level, MetadataSource } from "../metadata";
+import { figureFromScale, mapScaleLevels } from "../metadata";
+import type { CatalogEntry, EntryTypeMeta, Level, MetadataSource } from "../metadata";
 import { FORECASTS_META } from "./forecasts-fixtures";
 
 const ALL = ["raw", "hour", "day", "month", "quarter", "season", "year"] as const;
@@ -65,8 +65,23 @@ const FIXTURE_PROCESSORS: Record<string, string | null> = {
 	bam1022: null
 };
 
-const FIXTURE_DAILY_FIGURES: Record<string, DailyFigure> = {
-	o3: { field: "max_1h", label: "Highest 1-hour average" }
+/**
+ * The figure keys of each fixture scale, as a local `monitors/meta/` serves them (sjvair.com #342,
+ * 2026-11-18); an entry type that isn't listed has no scale (weather's).
+ */
+const FIXTURE_FIGURE_SCALES: Record<string, Parameters<typeof figureFromScale>[0]> = {
+	pm25: {
+		daily_statistic: "mean_24h",
+		daily_statistic_label: "24-hour average",
+		period_statistic: "daily_statistic_mean",
+		period_statistic_label: "Average of 24-hour averages"
+	},
+	o3: {
+		daily_statistic: "max_1h",
+		daily_statistic_label: "Highest 1-hour average",
+		period_statistic: "daily_statistic_mean",
+		period_statistic_label: "Average of daily highest 1-hour averages"
+	}
 };
 
 /** An in-memory `MetadataSource`; any method can be replaced through `overrides`. */
@@ -96,15 +111,58 @@ export function fixtureMetadata(overrides: Partial<MetadataSource> = {}): Metada
 					: monitorType === "bam1022"
 						? { windowMinutes: 60, expectedIntervalMinutes: 60 }
 						: null,
-		dailyFigure: async (entryType) => FIXTURE_DAILY_FIGURES[entryType] ?? null,
+		figure: async (entryType, resolution) =>
+			figureFromScale(FIXTURE_FIGURE_SCALES[entryType], resolution),
+		mapPollutants: async () => ["o3", "pm25"],
+		serverScale: async () => null,
+		monitorTypeInterval: async (type) => (type === "purpleair" ? "2 min" : null),
+		guidelinePollutants: async () => [],
 		schoolGuidelines: async () => null,
 		scaleSource: async () => null,
 		monitorType: async (id) => FIXTURE_MONITORS.find((m) => m.id === id)?.type ?? null,
-		monitors: async () => FIXTURE_MONITORS.map((m) => ({ ...m, county: "Fresno", active: true })),
+		monitors: async () =>
+			FIXTURE_MONITORS.map((m) => ({ ...m, county: "Fresno", active: true, inside: false })),
 		monitorTypes: async () => [
-			{ type: "purpleair", label: "PurpleAir", entryTypes: ["pm25", "pm100"] },
-			{ type: "bam1022", label: "BAM 1022", entryTypes: ["pm25"] }
+			{
+				type: "purpleair",
+				label: "PurpleAir",
+				entryTypes: ["pm25", "pm100"],
+				group: "low-cost",
+				published: ["pm25", "pm100"]
+			},
+			{
+				type: "bam1022",
+				label: "BAM 1022",
+				entryTypes: ["pm25"],
+				group: "reference",
+				published: ["pm25"]
+			}
 		],
+		monitorGroups: async () => [
+			{ key: "reference", label: "Reference-grade", order: 0 },
+			{ key: "low-cost", label: "Low-cost sensors", order: 1 }
+		],
+		entryTypeHelp: async (entryType) =>
+			entryType === "pm25" ? "Fine particles from smoke, dust, and vehicle exhaust." : null,
+		locationTypeLabel: async (type) => (type === "child_care" ? "Child care" : null),
+		locationGroups: async () => [
+			{
+				key: "school",
+				label: "Schools",
+				order: 0,
+				types: [
+					{ type: "public_school", label: "Public school", source: "cde-public" },
+					{ type: "private_school", label: "Private school", source: "cde-private" }
+				]
+			},
+			{
+				key: "child_care",
+				label: "Child care",
+				order: 1,
+				types: [{ type: "child_care", label: "Child care", source: "cdss-ccl" }]
+			}
+		],
+		locationSources: async () => ["cde-public", "cde-private", "cdss-ccl"],
 		...overrides
 	};
 }

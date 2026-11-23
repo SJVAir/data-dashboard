@@ -1,6 +1,8 @@
+import type { Level } from "$lib/data/dataset-rules";
 import type { DateRangeSpec } from "$lib/data/schema";
 import { calendarSpanDays, resolveRange } from "$lib/format/range";
 import { m } from "$lib/paraglide/messages.js";
+import { stopCount } from "$lib/widgets/map/days";
 import type { WidgetType } from "$lib/widgets/registry";
 
 export type PresetGroup = "last" | "to-date" | "specific" | "custom";
@@ -96,15 +98,22 @@ export function presetIdFor(spec: DateRangeSpec): string {
 	}
 }
 
-/** Whether the type's span limits rule the range out, measured in Pacific calendar days. */
+/**
+ * Whether the type's span limits rule the range out: `minDays`/`maxDays` in Pacific calendar days,
+ * `maxStops` in stops at `resolution` (default Daily) on the range widened to whole periods.
+ */
 export function blockedBySpan(
 	spec: DateRangeSpec,
 	span: WidgetType["span"],
-	now: Date
+	now: Date,
+	resolution: Level = "day"
 ): "too-short" | "too-long" | null {
 	if (!span) return null;
 	const days = calendarSpanDays(spec, resolveRange(spec, now));
 	if (span.minDays !== undefined && days < span.minDays) return "too-short";
 	if (span.maxDays !== undefined && days > span.maxDays) return "too-long";
+	if (span.maxStops !== undefined && stopCount(spec, resolution, now) > span.maxStops) {
+		return "too-long";
+	}
 	return null;
 }

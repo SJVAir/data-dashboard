@@ -1,7 +1,5 @@
-import type { CatalogEntry } from "$lib/data/metadata";
 import type { Layer, WidgetDataConfig } from "$lib/data/schema";
-import { placesLayer } from "$lib/widgets/shared/input";
-import { fromLayer, toLayerPlaces, type Picks } from "./selection";
+import { fromWhere, toWhere, type Picks } from "./selection";
 import { sameRef, type PointPlace } from "./types";
 
 /** A point's region couldn't be looked up (none, or the lookup failed), so nothing is saved. */
@@ -20,12 +18,21 @@ function same(a: Picks, b: Picks): boolean {
 	return a.length === b.length && a.every((ref, i) => sameRef(ref, b[i]));
 }
 
+/** `layers` with no searched monitors or ticked types; `layers` itself when none has any. */
+function withoutMonitors(layers: Layer[]): Layer[] {
+	if (!layers.some((l) => l.monitors || l.monitorTypes)) return layers;
+	return layers.map((l) => {
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropped from the copy
+		const { monitors, monitorTypes, ...rest } = l;
+		return rest;
+	});
+}
+
 /**
  * The widget's new data for `picks`, or null when unchanged. Points become their region when the
  * dashboard has a live link (`regionOf` finds it; none, or a failed lookup, rejects with
- * `RegionLookupFailed`, and an abort rejects with the abort). The layer changed is the widget's
- * places layer (`placesLayer`, read with `catalog` when given): its pollutant, else its first
- * number layer, else a Forecast strip's one layer.
+ * `RegionLookupFailed`, and an abort rejects with the abort). Only the widget's Where changes
+ * (with `onePlace`, its monitors also go); data with no layers (a Note) has no Where to change.
  */
 export async function pickedData(
 	data: WidgetDataConfig,
@@ -33,14 +40,17 @@ export async function pickedData(
 	opts: {
 		liveLink: boolean;
 		regionOf: (point: PointPlace) => Promise<{ type: string; code: string } | null>;
-		catalog?: CatalogEntry[];
+		/**
+		 * A single-place widget (`placeLimit` 1): it holds one place or one monitor, so a picked
+		 * place replaces its monitor.
+		 */
+		onePlace?: boolean;
 	}
 ): Promise<{
 	data: WidgetDataConfig;
 	savedAsRegion: { type: string; code: string } | null;
 } | null> {
-	const layer = placesLayer(data, opts.catalog);
-	if (!layer || picks.length === 0) return null;
+	if (data.layers.length === 0 || picks.length === 0) return null;
 	let next = picks;
 	let savedAsRegion: { type: string; code: string } | null = null;
 	const only = picks.length === 1 ? picks[0] : null;
@@ -56,12 +66,34 @@ export async function pickedData(
 		savedAsRegion = { type: region.type, code: region.code };
 		next = [{ kind: "region", ...savedAsRegion }];
 	}
-	if (same(fromLayer(layer), next)) return null;
+	if (same(fromWhere(data), next)) return null;
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropped from the copy
-	const { place, selection, ...rest } = layer;
-	const changed: Layer = { ...rest, ...toLayerPlaces(next) };
-	return {
-		data: { ...data, layers: data.layers.map((l) => (l === layer ? changed : l)) },
-		savedAsRegion
-	};
+	const { place, selection, ...rest } = data;
+	const layers = opts.onePlace ? withoutMonitors(data.layers) : data.layers;
+	return { data: { ...rest, layers, ...toWhere(next) }, savedAsRegion };
+}
+
+/**
+ * The widget's new data with its first searched monitor in `gone` (no longer listed) replaced by
+ * `id` (the "no longer available" card's Choose another), or null when no saved monitor is gone. A
+ * single-place widget (`onePlace`) then holds just that monitor and no Where (spec decision 11);
+ * otherwise the pick takes the gone monitor's place in the list (never doubled).
+ */
+export function replacedMonitor(
+	data: WidgetDataConfig,
+	gone: readonly string[],
+	id: string,
+	onePlace: boolean
+): WidgetDataConfig | null {
+	const goneSet = new Set(gone);
+	const at = data.layers.findIndex((l) => l.monitors?.some((m) => goneSet.has(m)));
+	if (at < 0) return null;
+	const monitors = data.layers[at].monitors!;
+	const replaced = monitors.find((m) => goneSet.has(m))!;
+	const next = onePlace ? [id] : [...new Set(monitors.map((m) => (m === replaced ? id : m)))];
+	const layers = data.layers.map((l, i) => (i === at ? { ...l, monitors: next } : l));
+	if (!onePlace) return { ...data, layers };
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropped from the copy
+	const { place, selection, ...rest } = data;
+	return { ...rest, layers };
 }

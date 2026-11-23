@@ -1,10 +1,10 @@
 import { untrack } from "svelte";
 import { getMetadata } from "$lib/data";
-import type { DailyFigure, Level } from "$lib/data/metadata";
+import type { Figure, Level } from "$lib/data/metadata";
 import type { QueryState } from "$lib/data/types";
 import type { WidgetInstance } from "$lib/documents/schema";
 import { CALENDAR_DEFAULT_RANGES, calendarInput } from "$lib/calendars/input";
-import { dayStates, type DayState } from "$lib/calendars/day-state";
+import { dayStates, type DayState } from "$lib/data/day-state";
 import type { Selectable } from "$lib/calendars/selection";
 import { figureName } from "$lib/calendars/figure";
 import { addDays, todayPacific } from "$lib/format";
@@ -12,12 +12,12 @@ import { resolveRange } from "$lib/format/range";
 import { resolveThreshold } from "$lib/thresholds/levels";
 import { DEFAULT_RANGE } from "../../defaults";
 import { DataWidget } from "../../shared/data-widget.svelte";
-import { mainLayer } from "../../shared/input";
+import { hasPlaces, mainLayer } from "../../shared/input";
 
 export { figureName };
 
 /** The figure lookup for one entry type, once it has settled (`null`: none, or it failed). */
-type FigureLookup = { entryType: string; figure: DailyFigure | null; failed?: boolean };
+type FigureLookup = { entryType: string; figure: Figure | null; failed?: boolean };
 
 /**
  * A calendar widget's state: its daily query (asking for the figure the metadata names), the
@@ -31,7 +31,7 @@ export class CalendarData {
 	/** The clock "today" is read from: ticks each minute and on each data refresh. */
 	#now = $state(Date.now());
 
-	readonly figure: DailyFigure | null;
+	readonly figure: Figure | null;
 	/** The figure lookup failed (as opposed to the server not naming one). */
 	readonly figureFailed: boolean;
 	readonly today: string;
@@ -49,17 +49,17 @@ export class CalendarData {
 
 	constructor(widget: () => WidgetInstance) {
 		const metadata = getMetadata();
-		this.#w = new DataWidget(() => widget(), 1, {
-			input: (data, catalog) => {
+		this.#w = new DataWidget(() => widget(), {
+			input: ({ data }, catalog) => {
 				const layer = mainLayer(data, catalog);
 				const input = calendarInput(data, catalog, widget().type);
 				const lookup = this.#lookup;
 				// The query waits for the figure, so it runs once with the right key.
 				if (!input || !layer?.entryType || lookup?.entryType !== layer.entryType) {
-					return { layer, input: null, hidden: 0 };
+					return { layer, input: null, overlays: [] };
 				}
-				const full = lookup.figure ? { ...input, dailyFigure: lookup.figure.field } : input;
-				return { layer, input: full, hidden: 0 };
+				const full = lookup.figure ? { ...input, figure: lookup.figure.field } : input;
+				return { layer, input: full, overlays: [] };
 			}
 		});
 		const w = this.#w;
@@ -70,7 +70,7 @@ export class CalendarData {
 			void this.#lookupRun;
 			if (!id) return;
 			const abort = new AbortController();
-			metadata.dailyFigure(id, abort.signal).then(
+			metadata.figure(id, "day", abort.signal).then(
 				(figure) => {
 					if (!abort.signal.aborted) this.#lookup = { entryType: id, figure };
 				},
@@ -120,7 +120,7 @@ export class CalendarData {
 
 		this.shown = $derived.by(() => {
 			const s = w.shown;
-			const placed = !!w.picked.layer?.place || !!w.picked.layer?.selection;
+			const placed = !!w.picked.layer && hasPlaces(widget().data);
 			if (s.status === "idle" && placed && entryType && !settled) return { status: "loading" };
 			return s;
 		});

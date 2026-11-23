@@ -6,34 +6,36 @@
 	import { csvPending, saveWidgetCsv } from "$lib/data/csv";
 	import { useApp } from "$lib/store/app.svelte";
 	import LevelSwatch from "$lib/components/data/LevelSwatch.svelte";
-	import { periodLabel, seriesLabel, type Aggregate } from "$lib/charts/period-label";
+	import { seriesLabel, type Aggregate } from "$lib/charts/period-label";
+	import { notEnoughData } from "$lib/data/figure-values";
 	import { layerKind } from "$lib/data/layer-kind";
 	import { unavailableMessage } from "$lib/data/messages";
 	import { levelFor } from "$lib/data/metadata";
-	import type { Resolution } from "$lib/data/schema";
 	import type { PlaceInfo, QueryData } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
-	import { formatHourRange, formatNumber, formatPeriod, formatValue } from "$lib/format";
+	import { formatHourRange, formatPeriod, formatValue } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import { DataWidget } from "../shared/data-widget.svelte";
 	import WidgetState from "../shared/WidgetState.svelte";
+	import { idleText, offersChoosePlace } from "../shared/idle-text";
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
-	import { dataTableType } from "./index";
 	import { sourceLabel } from "../shared/source-label";
 	import { placeLabel } from "../title";
-	import { byDay, overlayColumns, sortRows, wideRows, type OverlayColumn } from "./rows";
+	import { misfitNotes, noWhereNotes } from "../shared/misfit-notes";
+	import { overlayColumns, sortRows, wideRows, type OverlayColumn } from "./rows";
 
 	let { widget }: { widget: WidgetInstance } = $props();
 
 	const app = useApp();
-	const MAX_PLACES = dataTableType.accepts?.maxPlaces ?? 10;
+	/** Whether notes can point at Edit data: the dashboard isn't read-only. */
+	const editable = $derived(!!app.current.session && !app.current.session.readOnly);
 	/**
 	 * "Wide enough" for the extra columns: the widget body is as wide as six grid columns. The grid
 	 * exposes no column width to widgets, so this is six of twelve columns of a 1280 px page (about
 	 * 100 px a column with 16 px gaps), rounded down.
 	 */
 	const WIDE_PX = 600;
-	const w = new DataWidget(() => widget, MAX_PLACES);
+	const w = new DataWidget(() => widget);
 
 	let width = $state(0);
 	const wide = $derived(width >= WIDE_PX);
@@ -62,7 +64,7 @@
 
 	/** The caption's period word: "Daily average", "Daily total", or the entry type's label. */
 	function caption(data: QueryData): string {
-		const resolution = seriesLabel(data.resolution, aggregate, entryLabel);
+		const resolution = seriesLabel(data.resolution, aggregate, entryLabel, w.figureLabel(data));
 		return data.fromRaw ? m.table_caption_raw({ resolution }) : m.table_caption({ resolution });
 	}
 
@@ -119,33 +121,28 @@
 	}
 
 	/**
-	 * What a whole-period cell is: "Monthly total" for a summed layer, "Monthly average" for a mean
-	 * (never a total), nothing for a layer whose values don't combine over time. The same words as
-	 * the Chart's strip tags.
-	 */
-	function wholeLabel(resolution: Resolution, aggregate: Aggregate): string {
-		return periodLabel(resolution, aggregate) ?? "";
-	}
-
-	/**
 	 * Why an overlay has no columns, so the Table never drops one the Chart shows or explains:
-	 * it failed, or the main's periods are longer than its days.
+	 * it failed, it doesn't offer the table's resolution (`misfitNotes`), or the main has no Where
+	 * (`noWhereNotes`).
 	 */
-	function overlayNotes(data: QueryData): string[] {
-		return w.overlays.flatMap((o) => {
+	function overlayNotes(): string[] {
+		const failed = w.overlays.flatMap((o) => {
 			const layer = o.meta?.entryType.label;
 			if (!layer) return [];
 			const s = o.state;
-			const level = layerKind(o.layer, w.catalog) !== "number";
+			const number = layerKind(o.layer, w.catalog) === "number";
 			// Worded as the Chart words it: a number layer says why it's unavailable.
-			if (s.status === "unavailable" && !level) return [unavailableMessage(s.reason)];
+			if (s.status === "unavailable" && number) return [unavailableMessage(s.reason)];
 			if (s.status === "error" || s.status === "unavailable") {
 				return [m.chart_overlay_failed({ layer })];
 			}
-			return s.status === "ready" && level && !byDay(data)
-				? [m.table_overlay_by_day({ layer })]
-				: [];
+			return [];
 		});
+		return [
+			...misfitNotes(w.overlays, w.picked.effective, editable),
+			...noWhereNotes(w.overlays, w.picked.input),
+			...failed
+		];
 	}
 
 	/** Extra columns apply to one place only, and worst hour only when the points carry it. */
@@ -159,25 +156,24 @@
 </script>
 
 <div class="flex h-full flex-col" bind:clientWidth={width}>
-	{#if w.picked.hidden > 0}
-		<p class="bg-muted text-muted-foreground mb-2 rounded-(--radius-control) px-2 py-1 text-sm">
-			{m.table_hidden_places({ count: formatNumber(w.picked.hidden), countValue: w.picked.hidden })}
-		</p>
-	{/if}
 	<div class="min-h-0 flex-1">
 		<WidgetState
 			state={w.shown}
 			{widget}
 			retired={w.retired}
+			pollutant={w.meta?.entryType.label}
 			onretry={w.retry}
-			onchoose={() => openPlacePicker({ widgetId: widget.id })}
+			onchoose={offersChoosePlace(w.picked.empty)
+				? () => openPlacePicker({ widgetId: widget.id })
+				: undefined}
 			emptyText={pesticideMain ? m.data_none_pesticides() : undefined}
+			idleText={idleText(w.picked.empty)}
 		>
 			{#snippet children(data)}
 				{@const rows = sortRows(wideRows(data, overlays), sort.column, sort.dir)}
 				{@const columns = overlayColumns(data, overlays)}
 				{@const extra = extras(data)}
-				{@const notes = overlayNotes(data)}
+				{@const notes = overlayNotes()}
 				<div class="flex h-full flex-col">
 					<div class="mb-1 flex items-center justify-between gap-2">
 						<p class="text-muted-foreground text-sm">
@@ -244,7 +240,9 @@
 										{#each row.cells as cell, i (i)}
 											{@const level = cell ? levelFor(levelList, cell.mean) : undefined}
 											<td class="border-border border-b px-2 py-1 tabular-nums">
-												{#if cell}
+												{#if cell && notEnoughData(cell)}
+													<span class="text-muted-foreground">{m.data_not_enough()}</span>
+												{:else if cell}
 													<span>{num(cell.mean)}</span>
 													{#if level}
 														<LevelSwatch
@@ -286,11 +284,6 @@
 													/>
 												{:else if cell}
 													<span class="tabular-nums">{formatValue(cell.mean, o.precision)}</span>
-													{#if columns[i].whole}
-														<span class="text-muted-foreground">
-															{wholeLabel(columns[i].whole!, o.aggregate)}
-														</span>
-													{/if}
 												{/if}
 											</td>
 										{/each}

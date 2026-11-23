@@ -1,9 +1,12 @@
 import type { DatasetAdapter } from "$lib/data/adapters/registry";
+import { MAP_LEVELS, isLevel, type Level } from "$lib/data/dataset-rules";
 import { drawsAsBands } from "$lib/data/adapters/bands";
 import type { CatalogEntry, EntryTypeMeta } from "$lib/data/metadata";
 import type { WidgetDataConfig } from "$lib/data/schema";
 import type { Target } from "$lib/data/types";
-import { fromLayer } from "$lib/places/selection";
+import { fromWhere } from "$lib/places/selection";
+import { MAP_TYPE } from "$lib/widgets/map/options";
+import { widgetEffective, widgetMonitors, widgetPlaceKind } from "$lib/widgets/shared/input";
 import type { WidgetType } from "$lib/widgets/registry";
 import { blockedBySpan } from "./date-presets";
 
@@ -59,7 +62,23 @@ export function offeredDatasets(
 }
 
 /** Why a widget type can't show a data config (the first that applies). */
-export type TypeBlock = "dataset" | "places" | "span" | "pollutants" | "pollutant";
+export type TypeBlock = "dataset" | "places" | "span" | "pollutants" | "pollutant" | "resolution";
+
+/**
+ * The chosen data resolution `type` can't show (`resolutionBlock` → "resolution"), or `null`. The
+ * Map with a range shows daily, monthly or yearly data (Automatic keeps to those, and Now has no
+ * resolution); a type pinned to a level (a calendar's day) shows only that one. Automatic is never
+ * blocked: a pinned type fetches at its pin. A stored value outside `LEVELS` (a quarter or season,
+ * from untrusted input) blocks no type: Save is blocked with its own reason instead.
+ */
+export function resolutionBlock(type: WidgetType, data: WidgetDataConfig): Level | null {
+	const chosen = data.resolution;
+	if (!isLevel(chosen)) return null;
+	if (type.type === MAP_TYPE) {
+		return data.dateRange && !MAP_LEVELS.includes(chosen) ? chosen : null;
+	}
+	return type.resolution && type.resolution !== chosen ? chosen : null;
+}
 
 /** Why `type` can't show `data` as it stands, or `null` when it can. */
 export function typeBlock(
@@ -71,11 +90,26 @@ export function typeBlock(
 	const accepts = type.accepts ?? {};
 	const accepted = accepts.datasets ?? [];
 	if (data.layers.some((l) => !accepted.includes(l.dataset))) return "dataset";
-	if (accepts.maxPlaces !== undefined) {
-		const places = Math.max(0, ...data.layers.map((l) => fromLayer(l).length));
-		if (places > accepts.maxPlaces) return "places";
+	// Only a type with a cap (the one-place types, and the Map) blocks on places. A single-place
+	// type takes one place or one monitor: its searched monitors count too (ticked types don't:
+	// they're left out on the way, `toNowDraft`).
+	const searched = accepts.maxPlaces === 1 ? widgetMonitors(data).monitors.length : 0;
+	if (accepts.maxPlaces !== undefined && fromWhere(data).length + searched > accepts.maxPlaces) {
+		return "places";
 	}
-	if (data.dateRange && blockedBySpan(data.dateRange, type.span, now)) return "span";
+	if (data.dateRange) {
+		// A span that counts stops (the Map's) counts them at the dataset's resolution.
+		const level = type.span?.maxStops
+			? widgetEffective(
+					{ type: type.type, data },
+					catalog,
+					widgetPlaceKind(data),
+					data.dateRange,
+					now
+				).resolution
+			: undefined;
+		if (blockedBySpan(data.dateRange, type.span, now, level)) return "span";
+	}
 	if (accepts.maxPollutantLayers !== undefined) {
 		const kindOf = (dataset: string, id: string | undefined) =>
 			catalog.find((c) => c.id === dataset)?.entryTypes.find((e) => e.id === id)?.kind;
@@ -90,5 +124,6 @@ export function typeBlock(
 				?.entryTypes.find((e) => e.id === data.layers[0].entryType)?.kind === "pollutant";
 		if (!one) return "pollutant";
 	}
+	if (resolutionBlock(type, data)) return "resolution";
 	return null;
 }

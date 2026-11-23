@@ -17,7 +17,6 @@
 		entryTypes,
 		layers,
 		blocked,
-		canRemove,
 		onadd,
 		onremove,
 		onfilters
@@ -28,7 +27,6 @@
 		layers: { index: number; layer: Layer }[];
 		/** Why no layer can be added (the overlay limit), if none can. */
 		blocked: string | undefined;
-		canRemove: (index: number) => boolean;
 		onadd: (entryType: string) => void;
 		onremove: (index: number) => void;
 		onfilters: (index: number, filters: Filters) => void;
@@ -72,7 +70,6 @@
 			{#each layers as { index, layer } (index)}
 				{@const label = labelOf(layer)}
 				{@const summary = summaryOf(layer) ?? ""}
-				{@const removable = canRemove(index)}
 				<li class="border-card-border flex flex-col gap-1 rounded-(--radius-control) border p-2">
 					<div class="flex items-start gap-2">
 						<span class="flex min-w-0 flex-1 flex-col text-sm">
@@ -87,18 +84,11 @@
 							aria-label={m.get_data_pesticide_remove({
 								layer: summary ? m.label_join({ first: label, second: summary }) : label
 							})}
-							disabled={!removable}
-							aria-describedby={removable ? undefined : `${uid}-${index}-keep`}
 							onclick={() => onremove(index)}
 						>
 							<XIcon class="size-4" aria-hidden="true" />
 						</button>
 					</div>
-					{#if !removable}
-						<span id="{uid}-{index}-keep" class="text-muted-foreground text-xs">
-							{m.get_data_keep_one()}
-						</span>
-					{/if}
 					<Collapsible.Root>
 						<Collapsible.Trigger
 							class="hover:bg-secondary flex min-h-8 items-center gap-1 rounded-(--radius-control) px-1 text-sm font-medium [&[data-state=open]>svg]:rotate-180"

@@ -10,13 +10,14 @@ import type { AdapterContext, RegionResolver } from "$lib/data/adapters/registry
 import type { MetadataSource } from "$lib/data/metadata";
 import { createQueryClient, type QueryClient } from "$lib/data/query/client";
 import { fixtureMetadata } from "$lib/data/testing/fixtures";
-import type { Layer } from "$lib/data/schema";
+import type { Layer, WidgetDataConfig } from "$lib/data/schema";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp, type AppContext } from "$lib/store/app.svelte";
 import { DocumentSession } from "$lib/store/document-session.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
+import { MAP_TYPE } from "$lib/widgets/map";
 import { fakeAdapter } from "$lib/widgets/shared/test-harness/fake-data";
 import { animationsSettled } from "../../test/animations";
 import { readRecent, RECENT_KEY } from "./recent";
@@ -50,10 +51,20 @@ const META = {
 	types: {
 		county: { type: "county", label: "County", count: 8, parents: [], browsable: false },
 		city: { type: "city", label: "City", count: 50, parents: [], browsable: false },
-		zipcode: { type: "zipcode", label: "ZIP code", count: 300, parents: [], browsable: false }
+		zipcode: { type: "zipcode", label: "ZIP code", count: 300, parents: [], browsable: false },
+		mtrs: { type: "mtrs", label: "Section", count: 5000, parents: [], browsable: false }
 	},
 	location_types: {
-		public_school: { type: "public_school", label: "Public school", source: "cde-public" }
+		public_school: {
+			type: "public_school",
+			label: "Public school",
+			source: "cde-public",
+			group: "school"
+		}
+	},
+	location_groups: {
+		school: { key: "school", label: "Schools", order: 0 },
+		child_care: { key: "child_care", label: "Child care", order: 1 }
 	}
 };
 
@@ -61,7 +72,8 @@ const META = {
 const NAMES: Record<string, string> = {
 	"county:06019": "Fresno County",
 	"city:0627000": "City of Fresno",
-	"zipcode:93721": "ZIP 93721"
+	"zipcode:93721": "ZIP 93721",
+	"mtrs:M12S01E01": "Section M12S01E01"
 };
 
 let placeRegion: ReturnType<
@@ -89,9 +101,10 @@ beforeEach(async () => {
 			{
 				...base,
 				async target(layer, ctx) {
-					if (layer.place?.kind === "monitor" && layer.place.id === "gone") {
-						return { unavailable: "monitor-unlisted" };
+					if (layer.place?.kind === "region" && layer.place.code === "gone") {
+						return { unavailable: "region-unresolved" };
 					}
+					if (layer.monitors?.includes("m-gone")) return { unavailable: "monitor-unlisted" };
 					return base.target(layer, ctx);
 				}
 			}
@@ -108,7 +121,12 @@ afterEach(() => {
 	toast.dismiss();
 });
 
-function widget(layer: Partial<Layer>, type = "chart"): WidgetInstance {
+/** A PM2.5 widget (the layer's fields) at a Where (`place` or `selection`, split out). */
+function widget(
+	at: Partial<Layer> & Pick<WidgetDataConfig, "place" | "selection">,
+	type = "chart"
+): WidgetInstance {
+	const { place, selection, ...layer } = at;
 	return {
 		id: "w1",
 		type,
@@ -116,6 +134,8 @@ function widget(layer: Partial<Layer>, type = "chart"): WidgetInstance {
 		rect: { x: 0, y: 0, w: 6, h: 8 },
 		data: {
 			dateRange: { kind: "trailing", amount: 30, unit: "day" },
+			...(place ? { place } : {}),
+			...(selection ? { selection } : {}),
 			layers: [{ dataset: "air-quality", entryType: "pm25", ...layer }]
 		}
 	};
@@ -143,7 +163,8 @@ async function show(w: WidgetInstance, recent: unknown[] = []) {
 
 const dialog = () => page.getByRole("dialog", { name: /Choose (a place|places)/ });
 const trigger = () => page.getByRole("button", { name: "Actions for Readings" });
-const layerOf = (session: DocumentSession) => session.doc.body.widgets[0].data.layers[0];
+/** The widget's data, which holds its Where. */
+const layerOf = (session: DocumentSession) => session.doc.body.widgets[0].data;
 
 async function openFromMenu() {
 	await trigger().click();
@@ -208,19 +229,38 @@ test("the idle state's Choose a place opens the picker", async () => {
 });
 
 test("the no-longer-available card's Choose another opens the picker without the gone place", async () => {
-	const { session } = await show(widget({ place: { kind: "monitor", id: "gone" } }), [
-		{ kind: "region", type: "city", code: "0627000" }
-	]);
+	const { session } = await show(
+		widget({ place: { kind: "region", type: "county", code: "gone" } }),
+		[{ kind: "region", type: "city", code: "0627000" }]
+	);
 	await page.getByRole("button", { name: m.widget_state_choose_another() }).click();
 	await expect.element(dialog()).toBeVisible();
 	await expect.element(page.getByRole("combobox", { name: m.place_picker_label() })).toBeVisible();
-	// The gone monitor isn't a chip, so it neither blocks regions nor stays beside the new pick.
+	// The gone region isn't a chip, so it doesn't stay beside the new pick.
 	await expect
 		.element(page.getByRole("list", { name: m.place_picker_chosen() }))
 		.not.toBeInTheDocument();
 	await page.getByRole("option", { name: /City of Fresno/ }).click();
 	await page.getByRole("button", { name: m.place_picker_done() }).click();
 	expect(layerOf(session).place).toEqual({ kind: "region", type: "city", code: "0627000" });
+});
+
+test("a gone searched monitor's Choose another opens the monitor search; the pick replaces it", async () => {
+	const { session } = await show(widget({ place: COUNTY, monitors: ["m-pa", "m-gone"] }));
+	await page.getByRole("button", { name: m.widget_state_choose_another() }).click();
+	const search = page.getByRole("dialog", { name: m.get_data_monitors_dialog_title_single() });
+	await expect.element(search).toBeVisible();
+	await animationsSettled(search.element());
+	const box = page.getByRole("combobox");
+	await expect.element(box).toHaveAttribute("placeholder", m.place_picker_placeholder_monitors());
+	await userEvent.fill(box, "ba");
+	await page.getByRole("option", { name: /BAM/ }).click();
+	await expect.element(search).not.toBeInTheDocument();
+	// In the gone monitor's place; the Where stays (a Chart's monitors count wherever they are).
+	expect(layerOf(session).layers[0].monitors).toEqual(["m-pa", "m-bam"]);
+	expect(layerOf(session).place).toEqual(COUNTY);
+	session.undo();
+	expect(layerOf(session).layers[0].monitors).toEqual(["m-pa", "m-gone"]);
 });
 
 test("a place whose lookup fails stays picked (it may still exist)", async () => {
@@ -250,9 +290,10 @@ test("a point stays picked when the picker opens", async () => {
 		.toBeVisible();
 });
 
-// These start empty (with one place picked, "your location" would replace it).
+// These start empty (with one place picked, "your location" would replace it), on a month
+// calendar: a Chart's or Table's Where holds areas only, never "your location".
 test("Use my location without a live link saves the point, not as a recent place", async () => {
-	const { app, platform, session } = await show(widget({}));
+	const { app, platform, session } = await show(widget({}, "calendar-month"));
 	platform.geolocation.script({ ok: true, lat: 36.75, lon: -119.79 });
 	await openFromMenu();
 	await page.getByRole("button", { name: m.place_picker_use_location() }).click();
@@ -263,7 +304,7 @@ test("Use my location without a live link saves the point, not as a recent place
 });
 
 test("on a live-shared dashboard, Use my location saves the region and says so (checked at Done)", async () => {
-	const { app, platform, session } = await show(widget({}));
+	const { app, platform, session } = await show(widget({}, "calendar-month"));
 	platform.geolocation.script({ ok: true, lat: 36.75, lon: -119.79 });
 	await openFromMenu();
 	// The link is turned on after the dialog opened: Done still sees it.
@@ -293,8 +334,55 @@ test("on a live-shared dashboard, a now tile's location is looked up as the tile
 	expect(placeRegion.mock.calls[0][0]).toEqual({
 		layer: expect.objectContaining({ place: { kind: "point", lat: 36.75, lon: -119.79 } }),
 		dateRange: { kind: "trailing", amount: 6, unit: "hour" },
-		pin: "hour"
+		resolution: "hour"
 	});
+});
+
+test("a Map's point on a live link saves its region", async () => {
+	const { app, platform, session } = await show(widget({}, MAP_TYPE));
+	platform.geolocation.script({ ok: true, lat: 36.75, lon: -119.79 });
+	await openFromMenu();
+	shareByLink(app, session);
+	await page.getByRole("button", { name: m.place_picker_use_location() }).click();
+	await expect.element(dialog()).not.toBeInTheDocument();
+	expect(placeRegion.mock.calls[0][0]).toEqual({
+		layer: expect.objectContaining({ place: { kind: "point", lat: 36.75, lon: -119.79 } }),
+		dateRange: { kind: "trailing", amount: 6, unit: "hour" },
+		resolution: "hour"
+	});
+	expect(layerOf(session).place).toEqual({ kind: "region", type: "zipcode", code: "93721" });
+});
+
+test("saves a point picked for a multi-pollutant Map on a live link as its region", async () => {
+	const map = widget({}, MAP_TYPE);
+	map.data.layers.push(
+		{ dataset: "air-quality", entryType: "o3" },
+		{ dataset: "hms-smoke" },
+		{ dataset: "hms-fire" }
+	);
+	const { app, platform, session } = await show(map);
+	platform.geolocation.script({ ok: true, lat: 36.75, lon: -119.79 });
+	await openFromMenu();
+	shareByLink(app, session);
+	await page.getByRole("button", { name: m.place_picker_use_location() }).click();
+	await expect.element(dialog()).not.toBeInTheDocument();
+	expect(placeRegion).toHaveBeenCalledTimes(1);
+	expect(placeRegion.mock.calls[0][0]).toEqual({
+		layer: expect.objectContaining({
+			entryType: "pm25",
+			place: { kind: "point", lat: 36.75, lon: -119.79 }
+		}),
+		dateRange: { kind: "trailing", amount: 6, unit: "hour" },
+		resolution: "hour"
+	});
+	const { layers, place } = session.doc.body.widgets[0].data;
+	expect(place).toEqual({ kind: "region", type: "zipcode", code: "93721" });
+	expect(layers.map((l) => l.entryType ?? l.dataset)).toEqual([
+		"pm25",
+		"o3",
+		"hms-smoke",
+		"hms-fire"
+	]);
 });
 
 test("a calendar's location is looked up one row per day, with no sub-range or worst hour", async () => {
@@ -310,20 +398,20 @@ test("a calendar's location is looked up one row per day, with no sub-range or w
 	expect(input).toEqual({
 		layer: expect.objectContaining({ place: { kind: "point", lat: 36.75, lon: -119.79 } }),
 		dateRange: { kind: "trailing", amount: 30, unit: "day" },
-		pin: "day"
+		resolution: "day"
 	});
 	expect(input).not.toHaveProperty("timeSubRange");
 	expect(input).not.toHaveProperty("worstHour");
 });
 
 /** A Forecast strip: one forecasts layer, with no entry type. */
-function strip(place?: Layer["place"]): WidgetInstance {
+function strip(place?: WidgetDataConfig["place"]): WidgetInstance {
 	return {
 		id: "w1",
 		type: "forecast-strip",
 		title: "Readings",
 		rect: { x: 0, y: 0, w: 3, h: 4 },
-		data: { layers: [{ dataset: "forecasts", ...(place ? { place } : {}) }] }
+		data: { ...(place ? { place } : {}), layers: [{ dataset: "forecasts" }] }
 	};
 }
 
@@ -337,11 +425,11 @@ test("a Forecast strip (a layer with no entry type) changes place from the tile"
 	await page.getByRole("option", { name: /City of Fresno/ }).click();
 	await expect.element(dialog()).not.toBeInTheDocument();
 	expect(layerOf(session)).toEqual({
-		dataset: "forecasts",
+		layers: [{ dataset: "forecasts" }],
 		place: { kind: "region", type: "city", code: "0627000" }
 	});
 	session.undo();
-	expect(layerOf(session)).toEqual({ dataset: "forecasts", place: COUNTY });
+	expect(layerOf(session)).toEqual({ layers: [{ dataset: "forecasts" }], place: COUNTY });
 });
 
 test("on a live-shared dashboard, a Forecast strip's location is saved as its region", async () => {
@@ -352,7 +440,7 @@ test("on a live-shared dashboard, a Forecast strip's location is saved as its re
 	await page.getByRole("button", { name: m.place_picker_use_location() }).click();
 	await expect.element(dialog()).not.toBeInTheDocument();
 	expect(layerOf(session)).toEqual({
-		dataset: "forecasts",
+		layers: [{ dataset: "forecasts" }],
 		place: { kind: "region", type: "zipcode", code: "93721" }
 	});
 	expect(placeRegion.mock.calls[0][0]).toMatchObject({
@@ -374,14 +462,14 @@ test("a Forecast strip's location is looked up as the PM2.5 hourly input a now t
 			place: { kind: "point", lat: 36.75, lon: -119.79 }
 		},
 		dateRange: { kind: "trailing", amount: 6, unit: "hour" },
-		pin: "hour"
+		resolution: "hour"
 	});
 });
 
 test("no saved-as notice when an edit meanwhile already set that region", async () => {
 	announce("Start");
 	await expect.poll(() => announcer.text).toBe("Start");
-	const { app, platform, session } = await show(widget({}));
+	const { app, platform, session } = await show(widget({}, "calendar-month"));
 	platform.geolocation.script({ ok: true, lat: 36.75, lon: -119.79 });
 	shareByLink(app, session);
 	let finish: (region: Region) => void = () => {};
@@ -396,7 +484,7 @@ test("no saved-as notice when an edit meanwhile already set that region", async 
 		op: "setWidgetData",
 		target: { widgetId: "w1" },
 		from: data,
-		to: { ...data, layers: [{ ...data.layers[0], place: zip }] }
+		to: { ...data, place: zip, layers: [{ ...data.layers[0] }] }
 	});
 	finish(zip);
 	await expect.element(dialog()).not.toBeInTheDocument();
@@ -440,7 +528,7 @@ test("a load failure is announced in the status there while loading, and Retry l
 });
 
 test("on a live-shared dashboard, a failed lookup applies nothing and offers Retry", async () => {
-	const { app, platform, session } = await show(widget({}));
+	const { app, platform, session } = await show(widget({}, "calendar-month"));
 	platform.geolocation.script({ ok: true, lat: 36.75, lon: -119.79 });
 	shareByLink(app, session);
 	placeRegion.mockResolvedValueOnce(null);
@@ -458,7 +546,7 @@ test("closing the dialog during a lookup leaves no edit, toast or announcement a
 	// The announcer outlives each test's render: start from a message of this test's own.
 	announce("Start");
 	await expect.poll(() => announcer.text).toBe("Start");
-	const { app, platform, session } = await show(widget({}));
+	const { app, platform, session } = await show(widget({}, "calendar-month"));
 	platform.geolocation.script({ ok: true, lat: 36.75, lon: -119.79 });
 	shareByLink(app, session);
 	let finish: (region: Region) => void = () => {};
@@ -473,7 +561,9 @@ test("closing the dialog during a lookup leaves no edit, toast or announcement a
 	await openFromMenu();
 	await page.getByRole("button", { name: m.place_picker_use_location() }).click();
 	await expect.element(page.getByText(m.place_picker_dialog_looking_up())).toBeVisible();
-	await page.getByRole("button", { name: m.place_picker_cancel() }).click();
+	// A single-place picker has no Cancel button: Escape in the empty search box closes it.
+	(page.getByRole("combobox", { name: m.place_picker_label() }).element() as HTMLElement).focus();
+	await userEvent.keyboard("{Escape}");
 	await expect.element(dialog()).not.toBeInTheDocument();
 	expect(seen?.aborted).toBe(true);
 	finish({ type: "zipcode", code: "93721" });
@@ -493,8 +583,8 @@ test("Recent shows current names and leaves out a place that no longer resolves"
 	await openFromMenu();
 	const recent = page.getByRole("group", { name: m.place_picker_recent() });
 	await expect.element(recent.getByRole("option", { name: /City of Fresno/ })).toBeVisible();
-	await expect.element(recent.getByRole("option", { name: /Purple Air/ })).toBeVisible();
-	expect(recent.getByRole("option").elements()).toHaveLength(2);
+	// A recent monitor isn't offered: Change place picks a Where, never a monitor.
+	expect(recent.getByRole("option").elements()).toHaveLength(1);
 });
 
 test("the dialog fills the screen on a phone", async () => {
@@ -516,4 +606,53 @@ test("a minimized widget's taskbar menu has Change place too", async () => {
 	await page.getByTestId("taskbar-w1").click({ button: "right" });
 	await page.getByRole("menuitem", { name: m.widget_change_place() }).click();
 	await expect.element(page.getByRole("combobox", { name: m.place_picker_label() })).toBeVisible();
+});
+
+for (const type of ["chart", "data-table"]) {
+	test(`Change place on a ${type} offers areas only: no schools or "my location"`, async () => {
+		await show(widget({ place: COUNTY }, type));
+		await openFromMenu();
+		await expect
+			.element(page.getByRole("combobox", { name: m.place_picker_label() }))
+			.toHaveAttribute("placeholder", m.place_picker_placeholder_areas());
+		await expect
+			.element(page.getByRole("button", { name: m.place_picker_use_location() }))
+			.not.toBeInTheDocument();
+	});
+}
+
+test("Change place on a one-place tile offers the full Where", async () => {
+	await show(widget({ place: COUNTY }, "current-conditions"));
+	await openFromMenu();
+	await expect
+		.element(page.getByRole("button", { name: m.place_picker_use_location() }))
+		.toBeVisible();
+	await expect
+		.element(page.getByRole("combobox", { name: m.place_picker_label() }))
+		.toHaveAttribute("placeholder", m.place_picker_placeholder());
+});
+
+test("Change place on a Chart of searched monitors offers no monitors and keeps them", async () => {
+	const { session } = await show(widget({ place: COUNTY, monitors: ["m-pa", "m-bam"] }));
+	await openFromMenu();
+	// The monitors are on the layer, never Where chips.
+	await expect
+		.element(page.getByRole("button", { name: m.place_picker_remove({ name: "Purple Air" }) }))
+		.not.toBeInTheDocument();
+	await page.getByRole("combobox", { name: m.place_picker_label() }).fill("Purple");
+	await expect.element(page.getByRole("option", { name: /Purple Air/ })).not.toBeInTheDocument();
+	expect(placeRegion).not.toHaveBeenCalled();
+	await page.getByRole("button", { name: m.place_picker_cancel() }).click();
+	expect(session.doc.body.widgets[0].data.layers[0].monitors).toEqual(["m-pa", "m-bam"]);
+});
+
+test("Change place on a Chart made from a section opens with the section as a chip", async () => {
+	await show(widget({ place: { kind: "region", type: "mtrs", code: "M12S01E01" } }));
+	await openFromMenu();
+	await expect
+		.element(
+			page.getByRole("button", { name: m.place_picker_remove({ name: "Section M12S01E01" }) })
+		)
+		.toBeVisible();
+	expect(placeRegion).not.toHaveBeenCalled();
 });

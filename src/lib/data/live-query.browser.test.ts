@@ -26,8 +26,9 @@ describe("LiveQuery in the browser", () => {
 		const regions: RegionResolver = { resolve: async () => "unsupported" };
 		const client = createQueryClient({ adapters: [adapter], metadata: fixtureMetadata(), regions });
 		const input: QueryInput = {
-			layer: { dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "m-pa" } },
-			dateRange: { kind: "trailing", amount: 7, unit: "day" }
+			layer: { dataset: "air-quality", entryType: "pm25", monitors: ["m-pa"] },
+			dateRange: { kind: "trailing", amount: 7, unit: "day" },
+			resolution: "hour"
 		};
 		const q = new LiveQuery(client, input);
 		await expect.poll(() => q.state.status).toBe("ready");

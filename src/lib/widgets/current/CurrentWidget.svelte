@@ -1,129 +1,87 @@
 <script lang="ts">
 	import { getContext } from "svelte";
-	import ArrowDown from "@lucide/svelte/icons/arrow-down";
-	import ArrowUp from "@lucide/svelte/icons/arrow-up";
-	import Minus from "@lucide/svelte/icons/minus";
-	import Toggletip from "$lib/components/Toggletip.svelte";
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
-	import type { Trend } from "$lib/data/now/current";
-	import type { QueryState } from "$lib/data/types";
+	import { scrollFocusable } from "$lib/components/shared/scroll-focusable";
 	import type { WidgetInstance } from "$lib/documents/schema";
-	import { formatValue } from "$lib/format";
+	import { formatList } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
-	import { CurrentConditions } from "../shared/current.svelte";
-	import LevelChip from "../shared/LevelChip.svelte";
-	import MarkFrame from "../shared/MarkFrame.svelte";
-	import { ReadingClock } from "../shared/reading-clock.svelte";
-	import { averageLabel, emptyText, updatedText } from "../shared/reading-text";
+	import { markKey } from "$lib/thresholds/marks.svelte";
+	import { hasPlaces } from "../shared/input";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 	import WidgetState from "../shared/WidgetState.svelte";
 	import { placeLabel } from "../title";
 	import { setGeneratedTitle } from "../titles.svelte";
+	import CurrentRow, { type RowReport } from "./CurrentRow.svelte";
+	import { currentPollutants, onePollutant } from "./pollutants";
 
 	let { widget }: { widget: WidgetInstance } = $props();
 
+	const uid = $props.id();
 	const viewer = getContext<PlaceViewer | undefined>(PLACE_VIEWER_KEY) ?? "owner";
-	const current = new CurrentConditions(() => widget);
 
-	const meta = $derived(current.meta);
+	const pollutants = $derived(currentPollutants(widget.data));
+	const rows = $derived(pollutants.map((e) => ({ entryType: e, widget: onePollutant(widget, e) })));
+	const several = $derived(pollutants.length > 1);
 
-	const reading = $derived(current.reading);
-	const clock = new ReadingClock(() => reading);
-	const ok = $derived(clock.ok);
-	const stale = $derived(clock.stale);
-	const minutes = $derived(clock.minutes);
+	/** Each row's name and place, by entry type (for the title). */
+	let reports = $state<Record<string, RowReport | undefined>>({});
 
-	/** Held as loading until the catalog has the entry type (units, precision, label). */
-	const shown = $derived<QueryState>(
-		current.shown.status === "ready" && !meta ? { status: "loading" } : current.shown
-	);
-	const retired = $derived.by(() => {
-		if (!meta) return undefined;
-		const r = meta.entryType.retired ?? meta.dataset.retired;
-		if (!r) return undefined;
-		return {
-			name: meta.entryType.retired ? meta.entryType.label : meta.dataset.label,
-			since: r.since
-		};
-	});
-
-	$effect(() => {
-		const place = reading?.place;
-		if (current.state !== "ready" || !place || !meta) return;
-		setGeneratedTitle(
-			widget.id,
-			m.label_join({ first: meta.entryType.label, second: placeLabel(place, viewer) })
-		);
-	});
-
-	function trendText(t: Trend): string {
-		if (t === "rising") return m.current_trend_rising();
-		if (t === "falling") return m.current_trend_falling();
-		return m.current_trend_steady();
+	function report(entryType: string, r: RowReport | undefined): void {
+		if (r) reports[entryType] = r;
+		else delete reports[entryType];
 	}
+
+	/** The generated title, once every row's pollutant is named and a row has read its place. */
+	$effect(() => {
+		const known = pollutants.map((e) => reports[e]);
+		if (known.length === 0 || known.some((r) => !r)) return;
+		const place = known.find((r) => r?.place)?.place;
+		if (!place) return;
+		const labels = known.map((r) => r!.label);
+		const first = labels.length === 1 ? labels[0] : formatList(labels);
+		setGeneratedTitle(widget.id, m.label_join({ first, second: placeLabel(place, viewer) }));
+	});
 </script>
 
-{#snippet message(text: string)}
+{#snippet nothing()}{/snippet}
+
+{#if pollutants.length === 0}
 	<p class="text-muted-foreground flex h-full items-center justify-center text-center text-sm">
-		{text}
+		{m.current_choose_pollutant()}
 	</p>
-{/snippet}
-
-{#snippet body()}
-	{#if ok && !stale && meta}
-		<div class="flex h-full flex-col justify-center gap-2">
-			<div class="flex flex-wrap items-baseline gap-x-2 px-2">
-				<span class="text-3xl leading-none font-semibold tabular-nums">
-					{formatValue(ok.value, meta.entryType.precision)}
-				</span>
-				<span class="text-muted-foreground text-sm">{meta.entryType.units}</span>
-			</div>
-			<div class="flex flex-wrap items-center gap-2 px-2">
-				{#if ok.level}<LevelChip level={ok.level} />{/if}
-				{#if ok.trend}
-					<span class="text-muted-foreground inline-flex items-center gap-1 text-sm">
-						{#if ok.trend === "rising"}
-							<ArrowUp class="size-4" aria-hidden="true" />
-						{:else if ok.trend === "falling"}
-							<ArrowDown class="size-4" aria-hidden="true" />
-						{:else}
-							<Minus class="size-4" aria-hidden="true" />
-						{/if}
-						{trendText(ok.trend)}
-					</span>
-				{/if}
-			</div>
-			{#if ok.level?.guidance}
-				<p data-guidance class="px-2 text-sm">{ok.level.guidance}</p>
-			{/if}
-			<p class="text-muted-foreground flex items-center gap-1 px-2 text-xs">
-				<span>
-					{updatedText(averageLabel(ok), minutes)}
-				</span>
-				<Toggletip
-					label={ok.source === "alert-latest"
-						? m.current_about_this_reading()
-						: m.current_about_this_average()}
-					text={ok.source === "alert-latest"
-						? m.current_latest_reading_help()
-						: m.current_average_help()}
-				/>
-			</p>
-		</div>
-	{:else}
-		{@render message(stale ? m.current_no_recent_data() : emptyText(reading, m.current_no_data()))}
-	{/if}
-{/snippet}
-
-<MarkFrame {widget} {reading} levels={current.levels} now={clock.now}>
+{:else if !hasPlaces(widget.data)}
 	<WidgetState
-		state={shown}
+		state={{ status: "idle" }}
 		{widget}
-		{retired}
-		onretry={current.retry}
+		onretry={() => {}}
 		onchoose={() => openPlacePicker({ widgetId: widget.id })}
-		emptyText={m.current_no_data()}
-		ownsEmpty
-		children={body}
+		idleText={m.widget_state_idle_place_or_monitor()}
+		children={nothing}
 	/>
-</MarkFrame>
+{:else}
+	<!-- Several rows can overflow with nothing focusable in them: while it overflows, the column
+	takes focus to scroll. -->
+	<div
+		class="flex h-full flex-col overflow-y-auto"
+		{@attach several && scrollFocusable}
+		role={several ? "group" : undefined}
+		aria-label={several ? m.current_rows_label() : undefined}
+	>
+		{#each rows as row (row.entryType)}
+			<div
+				data-pollutant={row.entryType}
+				role={several ? "group" : undefined}
+				aria-labelledby={several ? `${uid}-${row.entryType}` : undefined}
+				class={several ? "border-border min-h-36 flex-1 shrink-0 not-first:border-t" : "h-full"}
+			>
+				<CurrentRow
+					widget={row.widget}
+					markKey={markKey(widget.id, row.entryType)}
+					named={several}
+					headingId={`${uid}-${row.entryType}`}
+					onreport={(r) => report(row.entryType, r)}
+				/>
+			</div>
+		{/each}
+	</div>
+{/if}

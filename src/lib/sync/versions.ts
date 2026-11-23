@@ -22,7 +22,7 @@ export async function serverVersions(
 export function serverVersion(
 	ctx: SyncContext,
 	docId: string,
-	snapshotId: number
+	snapshotId: string
 ): Promise<RemoteSnapshot> {
 	return remoteCall(() => ctx.remote.getSnapshot(docId, snapshotId), "sync-versions");
 }

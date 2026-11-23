@@ -1,21 +1,24 @@
 import type { Change } from "$lib/changes/types";
 import { calendarInput } from "$lib/calendars/input";
 import { isCalendarType } from "$lib/calendars/types";
-import type { Layer } from "$lib/data/schema";
+import type { CatalogEntry } from "$lib/data/metadata";
+import type { WidgetDataConfig } from "$lib/data/schema";
 import type { QueryInput } from "$lib/data/types";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
 import { getWidgetType } from "$lib/widgets/registry";
-import { chartInput, nowInput, placesLayer, placesQueryLayer } from "$lib/widgets/shared/input";
-import { barHasPoint, hasPoints, pointLayers } from "./point-layers";
+import { offersNow } from "$lib/widgets/time";
+import { DEFAULT_LAYER } from "$lib/widgets/defaults";
+import { mainLayer, nowInput, widgetInputs, widgetPlaceKind } from "$lib/widgets/shared/input";
+import { barHasPoint, hasPoints, pointWidgets } from "./point-layers";
 
 export { hasPoints };
 
 /**
- * Location privacy when sharing: an exact location (a `point` place in any widget layer) leaves
- * the owner's browser as the region its widget shows now, unless the owner chooses otherwise. The
- * Change place bar's point goes with them: it becomes the region of a layer holding the same
- * point, or is dropped when none does.
+ * Location privacy when sharing: an exact location (a `point` in any widget's Where) leaves the
+ * owner's browser as the region its widget shows now, unless the owner chooses otherwise. The
+ * Change place bar's point goes with them: it becomes the region of a widget at the same point,
+ * or is dropped when none is.
  * `$lib/data` is reached with a dynamic import, and only for a dashboard that has a point.
  */
 
@@ -23,18 +26,17 @@ export { hasPoints };
 const LOOKUP_TIMEOUT_MS = 20_000;
 
 /**
- * A point layer's region, or `null` when it has none (the place is cleared). `point` is the
- * point it was looked up for (in memory only): a swap applies only while the layer still holds it.
+ * A point widget's region, or `null` when it has none (the place is cleared). `point` is the
+ * point it was looked up for (in memory only): a swap applies only while the widget is still at it.
  */
 export type PointSwap = {
 	widgetId: string;
-	layerIndex: number;
 	point: { lat: number; lon: number };
 	region: { type: string; code: string } | null;
 };
 
 /** Whether `place` is the point `swap` was looked up for. */
-function samePoint(place: Layer["place"], swap: PointSwap): boolean {
+function samePoint(place: WidgetDataConfig["place"], swap: PointSwap): boolean {
 	return place?.kind === "point" && place.lat === swap.point.lat && place.lon === swap.point.lon;
 }
 
@@ -59,53 +61,56 @@ function bounded(signal?: AbortSignal): { signal: AbortSignal; done(): void } {
 }
 
 /**
- * Whether `swaps` covers every point `doc` holds now (same widget, layer, and point): false when
- * one was added, re-picked, or moved since the lookup, so the lookup has to run again. The bar's
- * point needs no lookup of its own (it takes its layer's region, or is dropped).
+ * Whether `swaps` covers every point `doc` holds now (same widget and point): false when one was
+ * added or re-picked since the lookup, so the lookup has to run again. The bar's point needs no
+ * lookup of its own (it takes its widget's region, or is dropped).
  */
 export function pointsCovered(doc: Dashboard, swaps: PointSwap[]): boolean {
-	return pointLayers(doc).every(({ widget, layer, layerIndex }) =>
-		swaps.some(
-			(s) => s.widgetId === widget.id && s.layerIndex === layerIndex && samePoint(layer.place, s)
-		)
+	return pointWidgets(doc).every(({ widget, point }) =>
+		swaps.some((s) => s.widgetId === widget.id && samePoint(point, s))
 	);
 }
 
 /**
- * The query a point layer's region is looked up with: the widget's own, for this layer alone (a
- * point is a single place). A Forecast strip's layer (no entry type) is looked up as a PM2.5 one at
- * the same place, as the place picker does; a "now" widget over the trailing hours its tile reads,
- * so the region matches what it shows. Null when the layer isn't the widget's places layer.
+ * The query a point widget's region is looked up with: the widget's own, for its main layer alone
+ * (a point is a single place). A widget with no main layer (a Forecast strip's forecasts layer has
+ * no entry type) is looked up as a PM2.5 one at the same place, as the place picker does; a "now"
+ * widget over the trailing hours its tile reads, so the region matches what it shows. The
+ * resolution comes from the dataset rules (with `catalog`) for that layer alone, not the widget's
+ * whole dataset, so a widget whose other layers move its resolution may read another level.
  */
-function lookupInput(widget: WidgetInstance, layer: Layer): QueryInput | null {
+function lookupInput(
+	widget: WidgetInstance,
+	catalog: CatalogEntry[] | undefined
+): QueryInput | null {
+	const layer = mainLayer(widget.data, undefined) ?? DEFAULT_LAYER;
 	const data = { ...widget.data, layers: [layer] };
-	const places = placesLayer(data, undefined);
-	if (!places) return null;
-	const query = placesQueryLayer(places);
-	if (isCalendarType(widget.type))
-		return calendarInput({ ...data, layers: [query] }, undefined, widget.type);
-	if (getWidgetType(widget.type)?.time === "now") return nowInput(query);
-	return chartInput({ ...data, layers: [query] }, undefined, 1).input;
+	if (isCalendarType(widget.type)) return calendarInput(data, undefined, widget.type);
+	// A Map is looked up as it frames its places now, whether or not it has a range.
+	const type = getWidgetType(widget.type);
+	if (type && offersNow(type)) return nowInput(data, layer);
+	return widgetInputs({ type: widget.type, data }, catalog, widgetPlaceKind(data)).main;
 }
 
 /**
- * Each point layer's region (via `placeRegion`: the widget's own query, so the region it shows
- * now); rejects when a lookup fails, `signal` aborts, or 20 seconds pass. A point layer that
- * isn't its widget's places layer shows nothing, so it has no region.
+ * Each point widget's region (via `placeRegion`: the widget's own query, so the region it shows
+ * now); rejects when a lookup fails, `signal` aborts, or 20 seconds pass.
  */
 export async function pointSwaps(doc: Dashboard, signal?: AbortSignal): Promise<PointSwap[]> {
-	const found = pointLayers(doc);
+	const found = pointWidgets(doc);
 	if (found.length === 0) return [];
-	const { placeRegion } = await import("$lib/data");
+	const { getMetadata, placeRegion } = await import("$lib/data");
+	const { untilAborted } = await import("$lib/data/metadata");
 	const timed = bounded(signal);
 	try {
 		timed.signal.throwIfAborted();
+		const listed = await untilAborted(getMetadata().catalog(), timed.signal);
+		const catalog = listed === "unavailable" ? undefined : listed;
 		return await Promise.all(
-			found.map(async ({ widget, layer, layerIndex }): Promise<PointSwap> => {
-				const input = lookupInput(widget, layer);
+			found.map(async ({ widget, point }): Promise<PointSwap> => {
+				const input = lookupInput(widget, catalog);
 				const region = input ? await placeRegion(input, timed.signal) : null;
-				const { lat, lon } = layer.place as Extract<Layer["place"], { kind: "point" }>;
-				return { widgetId: widget.id, layerIndex, point: { lat, lon }, region };
+				return { widgetId: widget.id, point: { lat: point.lat, lon: point.lon }, region };
 			})
 		);
 	} finally {
@@ -114,14 +119,14 @@ export async function pointSwaps(doc: Dashboard, signal?: AbortSignal): Promise<
 }
 
 /**
- * The bar's place once `swaps` are applied: the region of a swapped layer holding its point (so
+ * The bar's place once `swaps` are applied: the region of a swapped widget at its point (so
  * the bar still matches its widgets), else none. `applied` are the swaps that applied.
  */
 function swappedBar(
 	bar: Dashboard["body"]["placeBar"],
 	applied: PointSwap[]
 ): Dashboard["body"]["placeBar"] {
-	// Read defensively, as `pointLayers` (a read-only document is unvalidated).
+	// Read defensively, as `pointWidgets` (a read-only document is unvalidated).
 	if (bar?.place?.kind !== "point") return bar;
 	const region = applied.find((s) => s.region && samePoint(bar.place, s))?.region;
 	return region ? { place: { kind: "region", ...region } } : undefined;
@@ -129,35 +134,23 @@ function swappedBar(
 
 /**
  * A copy of `doc` with each point replaced by its region, or the place cleared when `region` is
- * null; the bar's point becomes the same region as a layer holding it, or is dropped.
+ * null; the bar's point becomes the same region as a widget at it, or is dropped.
  */
 export function withSwaps(doc: Dashboard, swaps: PointSwap[]): Dashboard {
 	if (swaps.length === 0 && !barHasPoint(doc)) return doc;
 	const applied: PointSwap[] = [];
-	const byWidget = new Map<string, Map<number, PointSwap>>();
-	for (const swap of swaps) {
-		const layers = byWidget.get(swap.widgetId) ?? new Map<number, PointSwap>();
-		layers.set(swap.layerIndex, swap);
-		byWidget.set(swap.widgetId, layers);
-	}
+	const byWidget = new Map(swaps.map((s) => [s.widgetId, s]));
 	const widgets = doc.body.widgets.map((widget) => {
-		const regions = widget && byWidget.get(widget.id);
-		if (!regions) return widget;
+		const swap = widget && byWidget.get(widget.id);
+		// Only a widget still at the point looked up (it may have changed since).
+		if (!swap || !samePoint(widget.data.place, swap)) return widget;
+		applied.push(swap);
+		const { region } = swap;
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropped from the copy
+		const { place, ...rest } = widget.data;
 		return {
 			...widget,
-			data: {
-				...widget.data,
-				layers: widget.data.layers.map((layer, i) => {
-					// Only a layer still holding the point looked up (it may have changed since).
-					const swap = regions.get(i);
-					if (!swap || !samePoint(layer.place, swap)) return layer;
-					applied.push(swap);
-					const { region } = swap;
-					// eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropped from the copy
-					const { place, ...rest } = layer;
-					return region ? { ...rest, place: { kind: "region" as const, ...region } } : rest;
-				})
-			}
+			data: region ? { ...rest, place: { kind: "region" as const, ...region } } : rest
 		};
 	});
 	const { placeBar, ...body } = doc.body;

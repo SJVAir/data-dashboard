@@ -1,5 +1,5 @@
 import type { Level } from "$lib/data/metadata";
-import { ratedForCount, thresholdCount, type DayState } from "./day-state";
+import { ratedForCount, thresholdCount, type DayState } from "$lib/data/day-state";
 
 export type SelectionSummary = {
 	start: string;

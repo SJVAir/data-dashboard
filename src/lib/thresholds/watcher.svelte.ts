@@ -21,7 +21,7 @@ export type CrossingText = { title: string; pollutant: string; place: string };
 export class ThresholdWatch {
 	/** The polite announcement of the latest crossing. */
 	announcement = $state("");
-	/** The latest reading time handled for each widget (this tab only). Not state. */
+	/** The latest reading time handled for each watch (`markKey`; this tab only). Not state. */
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity
 	readonly #lastAt = new Map<string, number>();
 
@@ -30,12 +30,15 @@ export class ThresholdWatch {
 			platform: Platform;
 			space: () => SpaceId;
 			docId: () => string;
-			/** The ids of the widgets still watched (the told map is pruned to them). */
+			/** The keys (`markKey`) still watched; the told map is pruned to them. */
 			watching: () => string[];
 		}
 	) {}
 
-	/** Shows or clears `id`'s mark for its current reading (see `markLevel`), keeping its pulse count. */
+	/**
+	 * Shows or clears the mark under `id` (a `markKey`) for its current reading (see `markLevel`),
+	 * keeping its pulse count.
+	 */
 	mark(
 		id: string,
 		reading: CurrentReading | undefined,
@@ -53,10 +56,10 @@ export class ThresholdWatch {
 	}
 
 	/**
-	 * Drops what this browser was told about `ids`: widgets no longer watched (removed, or their
-	 * threshold turned Off), or watching another place or pollutant, so watching starts again
-	 * from their next reading. The lock is asked for at once, so a reading handled after this
-	 * call is decided after the drop.
+	 * Drops what this browser was told about `ids` (`markKey`s): watches that ended (the widget
+	 * removed, or its alert level turned Off), or now of another place, pollutant or alert level,
+	 * so watching starts again from their next reading. The lock is asked for at once, so a
+	 * reading handled after this call is decided after the drop.
 	 */
 	async forget(ids: string[]): Promise<void> {
 		for (const id of ids) this.#lastAt.delete(id);
@@ -76,10 +79,10 @@ export class ThresholdWatch {
 	}
 
 	/**
-	 * Handles a reading of `id` newer than any handled before here: decides under the lock
-	 * whether it fires, stores "last told", and if it fires (and `still()` says the widget is
-	 * still watched) toasts, announces, pulses the mark and notifies when the dashboard's switch
-	 * is on and permission is granted.
+	 * Handles a reading for the watch `id` (a `markKey`) newer than any handled before here:
+	 * decides under the lock whether it fires, stores "last told" under `id`, and if it fires (and
+	 * `still()` says it is still watched) toasts, announces, pulses the mark under `id` and
+	 * notifies (tagged with `id`) when the dashboard's switch is on and permission is granted.
 	 */
 	async process(
 		id: string,

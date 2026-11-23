@@ -58,7 +58,25 @@ const shared: Pair[] = [
 	["--chart-2", "--card", 3],
 	["--chart-3", "--card", 3],
 	["--chart-4", "--card", 3],
-	["--chart-5", "--card", 3]
+	["--chart-5", "--card", 3],
+	// The Map toolbar's icons, on its background (map-sdk's toolbar draws on --background), on
+	// the menu surface, and on a hovered row (--accent).
+	...[
+		"monitors",
+		"layers",
+		"basemap",
+		"theme",
+		"settings",
+		"clusters",
+		"fire",
+		"notices",
+		"use"
+	].flatMap((icon): Pair[] =>
+		["--background", "--popover", "--accent"].map((bg): Pair => [`--map-icon-${icon}`, bg, 3])
+	),
+	// The section card's month bars, on the card (map-sdk's cards draw on --popover).
+	["--map-use-bar", "--card", 3],
+	["--map-use-bar", "--popover", 3]
 ];
 
 describe("dark tokens", () => {
@@ -73,7 +91,10 @@ describe("dark tokens", () => {
 		["--ring", "--card", 3],
 		["--ring", "--background", 3],
 		["--ring", "--popover", 3],
-		["--ring", "--accent", 3]
+		["--ring", "--accent", 3],
+		// The slider thumb's ring crosses its track. The radio button (WhichPlaceDialog) takes the same
+		// ring on --popover and --background, covered above.
+		["--ring", "--muted", 3]
 	];
 
 	for (const [fg, bg, min] of pairs) {
@@ -105,7 +126,10 @@ describe("light tokens", () => {
 		["--ring-edge", "--background", 3],
 		// Menu items draw the ring inset, against the menu and the item's accent fill.
 		["--ring-edge", "--popover", 3],
-		["--ring-edge", "--accent", 3]
+		["--ring-edge", "--accent", 3],
+		// The slider thumb's ring crosses its track. The radio button (WhichPlaceDialog) takes the same
+		// ring on --popover and --background, covered above.
+		["--ring-edge", "--muted", 3]
 	];
 
 	for (const [fg, bg, min] of pairs) {

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
 import type { AdapterRequest, DatasetAdapter } from "$lib/data/adapters/registry";
-import type { DailyFigure, MetadataSource } from "$lib/data/metadata";
+import type { Figure, MetadataSource } from "$lib/data/metadata";
 import { createQueryClient, type QueryClient } from "$lib/data/query/client";
 import { fixtureMetadata } from "$lib/data/testing/fixtures";
 import type { QueryData } from "$lib/data/types";
@@ -39,7 +39,7 @@ vi.mock("$lib/data", () => ({
 
 /** Noon Pacific on Mon, Nov 9 2026: "today". */
 const NOW = new Date("2026-11-09T20:00:00Z");
-const FIGURE: DailyFigure = { field: "mean_24h", label: "24-hour average" };
+const FIGURE: Figure = { field: "mean_24h", label: "24-hour average" };
 /** "Last 12 months" ending today. */
 const FIRST = "2025-11-10";
 const TODAY = "2026-11-09";
@@ -67,8 +67,8 @@ function adapter(): DatasetAdapter {
 	return {
 		id: "air-quality",
 		async target(layer) {
-			return layer.place?.kind === "monitor"
-				? { kind: "monitors", ids: [layer.place.id] }
+			return layer.monitors?.length
+				? { kind: "monitors", ids: [...layer.monitors] }
 				: { unavailable: "place-unsupported" };
 		},
 		offered: (base) => base,
@@ -84,7 +84,7 @@ function adapter(): DatasetAdapter {
 					max: v ?? 0,
 					count: 24,
 					partial: d === TODAY,
-					...(req.dailyFigure ? { figure: v } : {}),
+					...(req.figure ? { figure: v } : {}),
 					final: d !== TODAY
 				}));
 			return {
@@ -108,7 +108,7 @@ beforeEach(async () => {
 	days = figures();
 	fake.metadata = fixtureMetadata({
 		levels: async (entryType) => (entryType === "pm25" ? PM25_LEVELS : []),
-		dailyFigure: async (entryType) => (entryType === "pm25" ? FIGURE : null)
+		figure: async (entryType) => (entryType === "pm25" ? FIGURE : null)
 	});
 	fake.client = createQueryClient({
 		adapters: [adapter()],
@@ -133,7 +133,7 @@ function calendar(id = "cal", extra: Partial<WidgetInstance> = {}): WidgetInstan
 		rect: { x: 0, y: 0, w: 12, h: 4 },
 		data: {
 			dateRange: { kind: "trailing", amount: 12, unit: "month" },
-			layers: [{ dataset: "air-quality", entryType: "pm25", place: { kind: "monitor", id: "a" } }]
+			layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["a"] }]
 		},
 		...extra
 	};

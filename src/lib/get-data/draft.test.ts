@@ -1,8 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const catalog = vi.hoisted(() => ({
+	load: async (): Promise<unknown> => [
+		{ id: "air-quality", monitorTypes: ["airnow", "purpleair"], entryTypes: [] }
+	]
+}));
+vi.mock("$lib/data", () => ({ getMetadata: () => ({ catalog: () => catalog.load() }) }));
 import type { Platform } from "$lib/platform/types";
 import { registerWidgetType } from "$lib/widgets/registry";
 import { chartType } from "$lib/widgets/chart";
 import { dataTableType } from "$lib/widgets/table";
+import { mapType } from "$lib/widgets/map";
 import { DRAFT_KEY, defaultDraft, flushDraft, loadDraft, saveDraft } from "./draft.svelte";
 
 const SPACE = "anonymous" as const;
@@ -24,19 +32,35 @@ function fakePlatform(initial?: unknown) {
 beforeEach(() => {
 	registerWidgetType(chartType);
 	registerWidgetType(dataTableType);
+	registerWidgetType(mapType);
 });
 afterEach(() => vi.useRealTimers());
 
 describe("the Get data draft", () => {
+	it("a ?type=map link over a Chart's draft is a new Map: every monitor type ticked", async () => {
+		const { platform } = fakePlatform();
+		const draft = await loadDraft(platform, SPACE, "map");
+		expect(draft.type).toBe("map");
+		expect(draft.data.layers[0].monitorTypes).toEqual(["airnow", "purpleair"]);
+		// The default draft itself isn't touched.
+		expect(defaultDraft().data.layers[0]).not.toHaveProperty("monitorTypes");
+	});
+
+	it("ticks none when the catalog can't be loaded", async () => {
+		catalog.load = async () => "unavailable";
+		const draft = await loadDraft(fakePlatform().platform, SPACE, "map");
+		expect(draft.data.layers[0]).not.toHaveProperty("monitorTypes");
+	});
+
 	it("no stored draft → Fresno County PM2.5 last 30 days", async () => {
 		const { platform } = fakePlatform();
 		const draft = await loadDraft(platform, SPACE);
 		expect(draft.type).toBe("chart");
+		expect(draft.data.place).toEqual({ kind: "region", type: "county", code: "06019" });
 		expect(draft.data.layers).toEqual([
 			{
 				dataset: "air-quality",
-				entryType: "pm25",
-				place: { kind: "region", type: "county", code: "06019" }
+				entryType: "pm25"
 			}
 		]);
 		expect(draft.data.dateRange).toEqual({ kind: "trailing", amount: 30, unit: "day" });
@@ -48,7 +72,7 @@ describe("the Get data draft", () => {
 			{ type: "chart", data: { layers: Array.from({ length: 50 }, () => layer) } },
 			{
 				type: "chart",
-				data: { layers: [{ dataset: "air-quality", place: { kind: "point", lat: 999, lon: 0 } }] }
+				data: { place: { kind: "point", lat: 999, lon: 0 }, layers: [{ dataset: "air-quality" }] }
 			},
 			{ type: "no-such-type", data: { layers: [layer] } },
 			"nonsense"

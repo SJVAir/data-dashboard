@@ -8,7 +8,7 @@ import { RemoteRefusal, RemoteUnavailable, type SnapshotReason } from "$lib/sync
 /** An earlier version of the open dashboard: the kept original, or one of the account's snapshots. */
 export type EarlierVersion =
 	| { source: "local"; at: string; alsoInAccount: boolean }
-	| { source: "server"; at: string; id: number; reason: SnapshotReason };
+	| { source: "server"; at: string; id: string; reason: SnapshotReason };
 
 /**
  * How the account's list went: `ok`, `offline` (couldn't reach it), `gone` (the dashboard isn't

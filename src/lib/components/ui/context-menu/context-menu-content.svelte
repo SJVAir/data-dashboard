@@ -4,10 +4,12 @@
 	import type { WithoutChildrenOrChild } from "$lib/utils.js";
 	import ContextMenuPortal from "./context-menu-portal.svelte";
 	import type { ComponentProps } from "svelte";
+	import { menuOpenAutoFocus } from "$lib/components/menu/open-auto-focus";
 
 	let {
 		ref = $bindable(null),
 		portalProps,
+		onOpenAutoFocus,
 		class: className,
 		...restProps
 	}: ContextMenuPrimitive.ContentProps & {
@@ -18,6 +20,7 @@
 <ContextMenuPortal {...portalProps}>
 	<ContextMenuPrimitive.Content
 		bind:ref
+		onOpenAutoFocus={(e) => menuOpenAutoFocus(e, () => ref, onOpenAutoFocus)}
 		data-slot="context-menu-content"
 		class={cn(
 			"data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 border-card-border shadow-card bg-popover text-popover-foreground duration-fast ease-standard z-50 max-h-(--bits-context-menu-content-available-height) min-w-36 origin-(--bits-context-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-lg border p-1",

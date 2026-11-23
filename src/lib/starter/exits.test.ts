@@ -16,9 +16,10 @@ import { toast } from "svelte-sonner";
 import type { SyncWorker } from "$lib/sync/worker.svelte";
 import { LAST_OPENED_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
-import { DEFAULT_LAYER } from "$lib/widgets/defaults";
+import { DEFAULT_PLACE } from "$lib/widgets/defaults";
 import { writeSelection } from "$lib/widgets/calendars/shared/write-selection";
-import { STARTER_PLACE_KEY, saveStarterPlace } from "./place.svelte";
+import { placeRegion } from "$lib/data";
+import { STARTER_AREA_KEY, STARTER_PLACE_KEY, saveStarterPlace } from "./place.svelte";
 import { STARTER_ID } from "./starter";
 
 // Sharing's navigation and dialogs aren't used here (and the router needs a page).
@@ -48,22 +49,27 @@ async function stored(platform: ReturnType<typeof createMemoryPlatform>, id: str
 	return (await platform.documents.get("anonymous", id)) as Dashboard;
 }
 
-function expectFromStarter(doc: Dashboard, place: ChosenPlace) {
+/**
+ * `doc` is the starter at `place`; its Chart (areas only, decision 2) at `area` when `place` is a
+ * school or point (Fresno County when no region was looked up).
+ */
+function expectFromStarter(doc: Dashboard, place: ChosenPlace, area: ChosenPlace = DEFAULT_PLACE) {
 	expect(DashboardSchema.safeParse(doc).success).toBe(true);
 	expect(doc.copiedFrom).toBe(STARTER_ID);
 	expect(doc.body.placeBar).toEqual({ place });
 	expect(JSON.stringify(doc)).not.toContain("default-place");
-	const shown = doc.body.widgets.flatMap((w) => w.data.layers.flatMap((l) => l.place ?? []));
+	const shown = doc.body.widgets.filter((w) => w.data.place);
 	expect(shown.length).toBeGreaterThanOrEqual(5);
-	for (const p of shown) expect(p).toEqual(place);
+	const forAreas = place.kind === "region" ? place : area;
+	for (const w of shown) expect(w.data.place).toEqual(w.type === "chart" ? forAreas : place);
 }
 
 describe("the starter's place in the app", () => {
 	it("unset: Fresno County", async () => {
 		const { app } = await setup();
-		expect(app.starterPlace).toEqual(DEFAULT_LAYER.place);
+		expect(app.starterPlace).toEqual(DEFAULT_PLACE);
 		const starter = (await app.sessions.get(STARTER_ID))!;
-		expect(starter.doc.body.placeBar).toEqual({ place: DEFAULT_LAYER.place });
+		expect(starter.doc.body.placeBar).toEqual({ place: DEFAULT_PLACE });
 	});
 
 	it("the starter session shows the saved place", async () => {
@@ -78,9 +84,9 @@ describe("the starter's place in the app", () => {
 		const { platform, app } = await setup(SCHOOL);
 		await platform.preferences.set("anonymous", STARTER_PLACE_KEY, null);
 		await app.resetAfterClear();
-		expect(app.starterPlace).toEqual(DEFAULT_LAYER.place);
+		expect(app.starterPlace).toEqual(DEFAULT_PLACE);
 		const starter = (await app.sessions.get(STARTER_ID))!;
-		expect(starter.doc.body.placeBar).toEqual({ place: DEFAULT_LAYER.place });
+		expect(starter.doc.body.placeBar).toEqual({ place: DEFAULT_PLACE });
 	});
 });
 
@@ -113,12 +119,10 @@ describe("every exit from the starter holds the chosen place", () => {
 
 	it("Get data's Add to dashboard on the starter", async () => {
 		const { platform, app } = await setup(SCHOOL);
+		// A one-place tile at the school (a Chart's Where would hold an area).
 		const { dashboardId } = await addFromDraft(app, STARTER_ID, {
-			type: "chart",
-			data: {
-				dateRange: { kind: "trailing", amount: 30, unit: "day" },
-				layers: [{ dataset: "air-quality", entryType: "pm25", place: SCHOOL }]
-			}
+			type: "current-conditions",
+			data: { place: SCHOOL, layers: [{ dataset: "air-quality", entryType: "pm25" }] }
 		});
 		const copy = (await app.sessions.get(dashboardId))!;
 		await copy.flush();
@@ -267,8 +271,6 @@ describe("sharing the starter copies it first", () => {
 
 describe("Change place on the starter", () => {
 	const rename = { op: "setField", target: { path: "name" }, from: null, to: "Mine" } as const;
-	const places = (doc: Dashboard) =>
-		doc.body.widgets.flatMap((w) => w.data.layers.flatMap((l) => l.place ?? []));
 
 	it("changes every widget at once: no copy, no undo, the place saved", async () => {
 		const { platform, app } = await setup();
@@ -280,7 +282,12 @@ describe("Change place on the starter", () => {
 		const shown = app.current.session!;
 		expect(shown).not.toBe(starter);
 		expect(shown.doc.body.placeBar).toEqual({ place: SCHOOL });
-		for (const p of places(shown.doc)) expect(p).toEqual(SCHOOL);
+		// The Chart takes the school's region (looked up as it reads it); the rest the school.
+		for (const w of shown.doc.body.widgets.filter((w) => w.data.place)) {
+			expect(w.data.place).toEqual(w.type === "chart" ? ZIP : SCHOOL);
+		}
+		expect(app.starterArea).toEqual(ZIP);
+		expect(await platform.preferences.get("anonymous", STARTER_AREA_KEY)).toEqual(ZIP);
 		expect(shown.canUndo).toBe(false);
 		expect(await app.sessions.get(STARTER_ID)).toBe(shown);
 		expect(app.index.items).toHaveLength(0);
@@ -291,7 +298,63 @@ describe("Change place on the starter", () => {
 		await vi.waitFor(() => expect(app.current.isStarter).toBe(false));
 		const copy = app.current.session!;
 		await copy.flush();
-		expectFromStarter(await stored(platform, copy.doc.id), SCHOOL);
+		expectFromStarter(await stored(platform, copy.doc.id), SCHOOL, ZIP);
+	});
+
+	it("a school whose region lookup fails keeps the Chart where it was", async () => {
+		const { app } = await setup();
+		await app.changeStarterPlace(ZIP);
+		vi.mocked(placeRegion).mockRejectedValueOnce(new Error("offline"));
+		await app.changeStarterPlace(POINT);
+		const shown = app.current.session ?? (await app.sessions.get(STARTER_ID))!;
+		expect(shown.doc.body.placeBar).toEqual({ place: POINT });
+		for (const w of shown.doc.body.widgets.filter((w) => w.data.place)) {
+			expect(w.data.place).toEqual(w.type === "chart" ? ZIP : POINT);
+		}
+		expect(app.starterArea).toEqual(ZIP);
+	});
+
+	it("an older lookup answering last changes nothing: the newer place and area stay", async () => {
+		const { platform, app } = await setup();
+		const OTHER: ChosenPlace = { kind: "location", source: "schools", code: "456" };
+		const CLOVIS = { type: "zipcode", code: "93612" };
+		let answerSchool!: (r: { type: string; code: string }) => void;
+		vi.mocked(placeRegion)
+			.mockImplementationOnce(() => new Promise((resolve) => (answerSchool = resolve)))
+			.mockResolvedValueOnce(CLOVIS);
+		const first = app.changeStarterPlace(SCHOOL);
+		await vi.waitFor(() => expect(answerSchool).toBeDefined());
+		await app.changeStarterPlace(OTHER);
+		answerSchool({ type: "zipcode", code: "93721" });
+		await first;
+		expect(app.starterPlace).toEqual(OTHER);
+		expect(app.starterArea).toEqual({ kind: "region", ...CLOVIS });
+		expect(await platform.preferences.get("anonymous", STARTER_AREA_KEY)).toEqual({
+			kind: "region",
+			...CLOVIS
+		});
+		expect(await platform.preferences.get("anonymous", STARTER_PLACE_KEY)).toEqual(OTHER);
+	});
+
+	it("a region still saving when a school change starts: the school and its area win", async () => {
+		const { platform, app } = await setup();
+		const KERN: ChosenPlace = { kind: "region", type: "county", code: "06029" };
+		const set = platform.preferences.set.bind(platform.preferences);
+		let saved!: () => void;
+		// The region's area is written at once, but its save answers only once released.
+		vi.spyOn(platform.preferences, "set").mockImplementationOnce(async (...args) => {
+			await set(...args);
+			await new Promise<void>((resolve) => (saved = resolve));
+		});
+		const first = app.changeStarterPlace(KERN);
+		await vi.waitFor(() => expect(saved).toBeDefined());
+		await app.changeStarterPlace(SCHOOL);
+		saved();
+		await first;
+		expect(app.starterPlace).toEqual(SCHOOL);
+		expect(app.starterArea).toEqual(ZIP);
+		expect(await platform.preferences.get("anonymous", STARTER_AREA_KEY)).toEqual(ZIP);
+		expect(await platform.preferences.get("anonymous", STARTER_PLACE_KEY)).toEqual(SCHOOL);
 	});
 
 	it("survives a reload", async () => {
@@ -313,13 +376,16 @@ describe("Change place on the starter", () => {
 		const copy = app.current.session!;
 		expect(copy.doc.name).toBe("Mine");
 		expect(copy.doc.body.placeBar).toEqual({ place: SCHOOL });
-		for (const p of places(copy.doc)) expect(p).toEqual(SCHOOL);
+		// A Chart's Where holds areas only: it keeps its place; every other widget moves.
+		for (const w of copy.doc.body.widgets.filter((w) => w.data.place)) {
+			expect(w.data.place).toEqual(w.type === "chart" ? DEFAULT_PLACE : SCHOOL);
+		}
 		// An ordinary edit on the copy: one undo step, the first edit kept.
 		copy.undo();
 		expect(copy.doc.name).toBe("Mine");
-		expect(copy.doc.body.placeBar).toEqual({ place: DEFAULT_LAYER.place });
+		expect(copy.doc.body.placeBar).toEqual({ place: DEFAULT_PLACE });
 		// Not the starter's place: that is unchanged.
-		expect(app.starterPlace).toEqual(DEFAULT_LAYER.place);
+		expect(app.starterPlace).toEqual(DEFAULT_PLACE);
 		expect(await platform.preferences.get("anonymous", STARTER_PLACE_KEY)).toBeUndefined();
 	});
 
@@ -333,7 +399,7 @@ describe("Change place on the starter", () => {
 		await app.changeStarterPlace(SCHOOL);
 		expect(app.current.session).toBe(copy);
 		expect(copy.doc.body.placeBar).toEqual({ place: SCHOOL });
-		expect(app.starterPlace).toEqual(DEFAULT_LAYER.place);
+		expect(app.starterPlace).toEqual(DEFAULT_PLACE);
 	});
 
 	it("a starter opened just after Clear my data keeps its first copy", async () => {
@@ -341,7 +407,7 @@ describe("Change place on the starter", () => {
 		const clearing = app.resetAfterClear();
 		// Built before the reset has finished (the index is still refreshing).
 		const starter = (await app.sessions.get(STARTER_ID))!;
-		expect(starter.doc.body.placeBar).toEqual({ place: DEFAULT_LAYER.place });
+		expect(starter.doc.body.placeBar).toEqual({ place: DEFAULT_PLACE });
 		app.current = { session: starter, isStarter: true };
 		starter.apply(rename);
 		await clearing;
@@ -355,7 +421,7 @@ describe("Change place on the starter to the place it shows", () => {
 		const { platform, app } = await setup();
 		const starter = (await app.sessions.get(STARTER_ID))!;
 		app.current = { session: starter, isStarter: true };
-		await app.changeStarterPlace({ ...DEFAULT_LAYER.place } as ChosenPlace);
+		await app.changeStarterPlace({ ...DEFAULT_PLACE } as ChosenPlace);
 		expect(app.current.session).toBe(starter);
 		expect(await platform.preferences.get("anonymous", STARTER_PLACE_KEY)).toBeUndefined();
 	});

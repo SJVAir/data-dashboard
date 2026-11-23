@@ -5,63 +5,112 @@
 
 <script lang="ts">
 	import { onDestroy, untrack } from "svelte";
+	import type { Attachment } from "svelte/attachments";
 	import { MediaQuery } from "svelte/reactivity";
 	import { Button } from "$lib/components/ui/button";
-	import { adapterOffers, getMetadata } from "$lib/data";
+	import { scrollFocusable } from "$lib/components/shared/scroll-focusable";
+	import { adapterOffers, getMetadata, getResolvers } from "$lib/data";
 	import { csvPending, saveDataCsv } from "$lib/data/csv";
-	import type { CatalogEntry, Level } from "$lib/data/metadata";
-	import {
-		LIMITS,
-		type DateRangeSpec,
-		type Layer,
-		type PesticideFilters,
-		type Resolution
-	} from "$lib/data/schema";
+	import { AIR_QUALITY } from "$lib/data/layer-kind";
+	import type { CatalogEntry, Level, LocationGroup } from "$lib/data/metadata";
+	import { fillableTypes } from "$lib/data/snapshot";
+	import type { ChosenPlace, DateRangeSpec, Layer, PesticideFilters } from "$lib/data/schema";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { PHONE_QUERY } from "$lib/layout/config";
 	import { m } from "$lib/paraglide/messages.js";
-	import { fromLayer, toLayerPlaces, type Picks } from "$lib/places/selection";
+	import { directoryFor } from "$lib/places/host";
+	import { areasOnly } from "$lib/places/replace";
+	import { fromWhere, toWhere, type Picks } from "$lib/places/selection";
+	import type { RegionTypeInfo } from "$lib/places/types";
+	import { report } from "$lib/safety/report";
 	import { useApp } from "$lib/store/app.svelte";
 	import { CHART_TYPE } from "$lib/widgets/chart";
-	import { DEFAULT_RANGE } from "$lib/widgets/defaults";
+	import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
 	import { CURRENT_TYPE } from "$lib/widgets/current";
-	import { dataTypes, getWidgetType, type WidgetType } from "$lib/widgets/registry";
+	import { OUTSIDE_TYPE } from "$lib/widgets/outside";
+	import {
+		currentPollutants,
+		firstPollutantOnly,
+		setCurrentPollutants
+	} from "$lib/widgets/current/pollutants";
+	import { thresholdFor, withThreshold } from "$lib/thresholds/levels";
+	import type { Threshold } from "$lib/thresholds/schema";
+	import { MAP_TYPE } from "$lib/widgets/map";
+	import {
+		HMS_FIRE,
+		HMS_SMOKE,
+		MAP_MAX_STOPS,
+		PESTICIDE_NOTICES,
+		PESTICIDE_USE,
+		mapOptions
+	} from "$lib/widgets/map/options";
+	import { dataTypes, getWidgetType, placeLimit, type WidgetType } from "$lib/widgets/registry";
+	import { offersNow } from "$lib/widgets/time";
 	import { DataWidget } from "$lib/widgets/shared/data-widget.svelte";
 	import {
 		entryMeta,
 		mainLayer,
-		placesEntryType,
-		placesLayer,
-		placesQueryLayer
+		wherePurpose,
+		widgetEffective,
+		widgetMonitors,
+		widgetPlaceKind
 	} from "$lib/widgets/shared/input";
-	import { MAX_OVERLAYS, overlayPlaceFor, sharedSource } from "$lib/widgets/shared/overlays";
+	import {
+		lineRefs,
+		MAX_OVERLAYS,
+		overlayPlaceFor,
+		overlayRefOf,
+		sharedSource
+	} from "$lib/widgets/shared/overlays";
 	import * as layers from "./layers";
 	import { placeLabel } from "$lib/widgets/title";
 	import { generatedTitle } from "$lib/widgets/titles.svelte";
 	import ActionBar from "./ActionBar.svelte";
 	import type { AddTarget } from "./add";
-	import ShowValuesControl from "./ShowValuesControl.svelte";
+	import DataResolutionControl from "./DataResolutionControl.svelte";
+	import MoreOptions from "./MoreOptions.svelte";
 	import { flushDraft, saveDraft, type Draft } from "./draft.svelte";
 	import type { GetDataMode } from "./mode";
 	import {
-		fromNowDraft,
+		fromRangeDraft,
 		isNowShaped,
 		keptThreshold,
 		nowPollutant,
-		nowPollutants,
+		offeredPollutants,
 		selectionFits,
 		switchRange,
-		toNowDraft,
-		type NowConversion,
-		type NowDropped
+		areaToLookUp,
+		withArea,
+		type NowConversion
 	} from "./now";
-	import NowControls from "./NowControls.svelte";
+	import { showAsDraft } from "./show-as";
+	import NowControls, { type NowAlert } from "./NowControls.svelte";
+	import {
+		isMapShaped,
+		mapShowingOnly,
+		setLocationTypes,
+		setMapFill,
+		setMapPesticideFilters,
+		setNotices,
+		setSmokeAndFire,
+		setUse
+	} from "./map";
+	import { pesticideMeta } from "./sources";
 	import { isCalendarType } from "$lib/calendars/types";
 	import ThresholdLineControl from "./ThresholdLineControl.svelte";
-	import { formatDateRange } from "$lib/format";
-	import { offeredDatasets, typeBlock } from "./offer";
+	import { formatDate, formatDateRange, formatList, formatNumber } from "$lib/format";
+	import { offeredDatasets, resolutionBlock, typeBlock } from "./offer";
+	import { datasetBlock, datasetBlockText } from "./dataset-offer";
+	import { LEVEL_BY, LEVEL_LABEL } from "./level-phrases";
 	import Preview, { type PreviewSize } from "./Preview.svelte";
-	import { detailChoices } from "./resolution-offer";
+	import { resolutionChoices } from "./resolution-offer";
+	import { shownRange } from "./shown-range";
+	import {
+		LEVELS,
+		MAP_LEVELS,
+		offeredFrom,
+		type Level as DataLevel
+	} from "$lib/data/dataset-rules";
 	import ShowAs from "./ShowAs.svelte";
 	import WhatSections from "./WhatSections.svelte";
 	import WhenControl from "./WhenControl.svelte";
@@ -73,7 +122,10 @@
 		add,
 		onSave,
 		onCancel,
-		onchange
+		onchange,
+		saves = true,
+		leftOut = 0,
+		startNotes
 	}: {
 		mode: GetDataMode;
 		initial: Draft;
@@ -90,6 +142,15 @@
 		onCancel: () => void;
 		/** The draft after each change (and once at the start). */
 		onchange?: (draft: Draft) => void;
+		/**
+		 * The draft is kept for a reload or a later visit (a new widget's). False opened from a
+		 * Map: this visit's edits are never written to the device's saved draft (D3).
+		 */
+		saves?: boolean;
+		/** Opened from a Map: the marks left out because they're hidden (a note, D4). */
+		leftOut?: number;
+		/** Opened from a Map: what its conversion left out or changed, noted as Show as notes it. */
+		startNotes?: Omit<NowConversion, "draft">;
 	} = $props();
 
 	const app = useApp();
@@ -118,14 +179,148 @@
 	});
 	const known = $derived(Array.isArray(catalog) ? catalog : undefined);
 
+	/**
+	 * The Map's pollutants (the monitors meta's `available_pollutants`), once loaded; `[]` when
+	 * they can't be loaded, the same as a server that lists none.
+	 */
+	let mapPollutants = $state.raw<string[] | undefined>();
+	/**
+	 * The region types a Map can fill (the place directory's that the Map draws), once loaded;
+	 * undefined while loading or when they can't be loaded (a saved fill is kept either way).
+	 */
+	let fillTypes = $state.raw<RegionTypeInfo[] | undefined>();
+	$effect(() => {
+		if (plain.type !== MAP_TYPE || fillTypes) return;
+		const controller = new AbortController();
+		void directoryFor(getMetadata(), getResolvers().regions)
+			.regionTypes(controller.signal)
+			.then((types) => {
+				if (!controller.signal.aborted) fillTypes = fillableTypes(types);
+			})
+			.catch((error: unknown) => {
+				if (!controller.signal.aborted) report(error);
+			});
+		return () => controller.abort();
+	});
+	/**
+	 * The years with pesticide use data (the pesticide meta's, newest first), once loaded;
+	 * `"unavailable"` when they couldn't be loaded (Retry asks again). Either way, or with none
+	 * listed, use can't be switched on.
+	 */
+	let useYears = $state.raw<readonly number[] | "unavailable" | undefined>();
+	let useYearsTry = $state(0);
+	const loadUseYears = (): Promise<readonly number[] | "unavailable"> =>
+		pesticideMeta().then(
+			(meta) => meta.years ?? [],
+			() => "unavailable" as const
+		);
+	/** Keyed on a primitive, so an edit doesn't ask for the years again. */
+	const isMap = $derived(plain.type === MAP_TYPE);
+	$effect(() => {
+		void useYearsTry;
+		if (!isMap || untrack(() => Array.isArray(useYears))) return;
+		let active = true;
+		void loadUseYears().then((y) => {
+			if (active) useYears = y;
+		});
+		return () => {
+			active = false;
+		};
+	});
+	/**
+	 * The pollutants with school guidelines (what "Can we go outside?" offers), once loaded. When
+	 * they can't be loaded they stay unknown (undefined): nothing says none have guidelines, the
+	 * draft keeps its pollutant, and the next type change asks again.
+	 */
+	let guidelinePollutants = $state.raw<string[] | undefined>();
+	/** Asked since the last type change (so a failed load isn't asked again until the next one). */
+	let guidelinesAsked = false;
+	const loadGuidelinePollutants = (): Promise<string[] | undefined> => {
+		guidelinesAsked = true;
+		return getMetadata()
+			.guidelinePollutants()
+			.catch((error: unknown) => {
+				report(error, { operation: "guideline-pollutants" });
+				return undefined;
+			});
+	};
+	const draftType = $derived(plain.type);
+	$effect(() => {
+		if (draftType !== OUTSIDE_TYPE || guidelinePollutants || untrack(() => guidelinesAsked)) {
+			return;
+		}
+		let active = true;
+		void loadGuidelinePollutants().then((p) => {
+			if (active) guidelinePollutants = p;
+		});
+		return () => {
+			active = false;
+		};
+	});
+	/**
+	 * The location groups (the regions meta's, by order), a section each on every type's What, once
+	 * loaded. When they can't be loaded none show, the failure is reported, and the next type change
+	 * asks again (as the guideline pollutants do).
+	 */
+	let locationGroups = $state.raw<LocationGroup[] | undefined>();
+	/** Asked since the last type change (so a failed load isn't asked again until the next one). */
+	let locationGroupsAsked = false;
+	/** Aborts a groups load still running when the view closes (a type change doesn't). */
+	const closing = new AbortController();
+	onDestroy(() => closing.abort());
+	$effect(() => {
+		void draftType;
+		if (locationGroups || untrack(() => locationGroupsAsked)) return;
+		locationGroupsAsked = true;
+		getMetadata()
+			.locationGroups(closing.signal)
+			.then(
+				(groups) => {
+					if (!closing.signal.aborted) locationGroups = groups;
+				},
+				(error: unknown) => {
+					if (!closing.signal.aborted) report(error, { operation: "location-groups" });
+				}
+			);
+	});
+	const loadMapPollutants = async () => {
+		const p = await getMetadata().mapPollutants();
+		return p === "unavailable" ? [] : p;
+	};
+	$effect(() => {
+		if (plain.type !== MAP_TYPE || mapPollutants) return;
+		let active = true;
+		void loadMapPollutants().then((p) => {
+			if (active) mapPollutants = p;
+		});
+		return () => {
+			active = false;
+		};
+	});
+
 	const type = $derived(getWidgetType(plain.type));
-	/** A "now" type: no dates, one layer with one place (see `now.ts`). */
-	const isNow = $derived(type?.time === "now");
+	/**
+	 * A type with a now shape (a now type, or the Map with or without a range): its places on one
+	 * layer, its own What (see `now.ts`, `map.ts`); the Map with a range has a Data resolution.
+	 */
+	const isNow = $derived(!!type && offersNow(type));
+	/** A now type proper: no When (the Map has one, with a Now choice). */
+	const nowOnly = $derived(type?.time === "now");
 	const range = $derived<DateRangeSpec>(plain.data.dateRange ?? DEFAULT_RANGE);
-	// A Forecast strip's one layer has no entry type, so isn't a `mainLayer`; it holds the place.
-	const main = $derived(isNow ? placesLayer(plain.data, known) : mainLayer(plain.data, known));
-	const mainIndex = $derived(main ? plain.data.layers.indexOf(main) : -1);
-	const picks = $derived(main ? fromLayer(main) : []);
+	const main = $derived(mainLayer(plain.data, known));
+	const picks = $derived(fromWhere(plain.data));
+	/** The Chart's lines: its searched monitors, else its Where's places ("Overlay for"). */
+	const lines = $derived(
+		lineRefs({
+			place: plain.data.place,
+			selection: plain.data.selection,
+			monitors: widgetMonitors(plain.data).monitors
+		})
+	);
+	/** Current conditions with no pollutant ticked (C2): Add and Save ask for one. */
+	const noPollutant = $derived(
+		plain.type === CURRENT_TYPE && currentPollutants(plain.data).length === 0
+	);
 	/** Only level layers (smoke, burn status): nothing to chart, so no Add, Save or Download. */
 	const levelOnly = $derived(layers.levelOnly(plain.data, known));
 
@@ -134,33 +329,168 @@
 			? offeredDatasets(known, adapterOffers(), dataTypes()).filter((s) => s.entryTypes.length > 0)
 			: []
 	);
-	// A now type is never blocked: choosing it converts the draft (`toNowDraft`).
-	const showAs = $derived(
-		dataTypes().map((t) => ({
-			type: t,
-			block: known && t.time !== "now" ? typeBlock(t, plain.data, known, now) : null
-		}))
+	// A now type is never blocked: choosing it converts the draft (`toNowDraft`). A Map, in its
+	// shape or not, is checked as what `fromMapDraft` converts it to: its pollutant, at its places;
+	// Current conditions as its first pollutant (`firstPollutantOnly`), which Show as converts.
+	const blockData = $derived(
+		known && plain.type === MAP_TYPE
+			? mapShowingOnly(plain, known).draft.data
+			: firstPollutantOnly(plain).data
 	);
+	const showAs = $derived(
+		dataTypes().map((t) => {
+			if (!known) return { type: t, block: null };
+			// A type that offers now converts the draft to its shape, so it's never blocked, but for
+			// the Map's resolution: it shows daily, monthly or yearly data.
+			const block = offersNow(t)
+				? t.type === MAP_TYPE && resolutionBlock(t, plain.data)
+					? ("resolution" as const)
+					: null
+				: typeBlock(t, blockData, known, now);
+			const level =
+				block === "resolution"
+					? (resolutionBlock(t, offersNow(t) ? plain.data : blockData) ?? undefined)
+					: undefined;
+			return { type: t, block, ...(level ? { level } : {}) };
+		})
+	);
+	/** Where the places are fetched for, as the dataset rules count it. */
+	const placeKind = $derived(widgetPlaceKind(plain.data));
+	/** A Map on Now, or a now type: no range, so no data resolution. */
+	const hasRange = $derived(!nowOnly && (!isMap || !!plain.data.dateRange));
+	/**
+	 * The dataset's resolution (Automatic included, decided from the range as picked), once the
+	 * catalog is known. The When summary and its notes show the range at it.
+	 */
+	const effective = $derived(
+		known && hasRange && type
+			? widgetEffective({ type: plain.type, data: plain.data }, known, placeKind, range, now)
+			: undefined
+	);
+	const resolution = $derived(effective?.resolution ?? plain.data.resolution);
+	/** The dataset's resolution over another range (the Map's span counts stops at it). */
+	const resolutionFor = (spec: DateRangeSpec): DataLevel =>
+		widgetEffective({ type: plain.type, data: plain.data }, known, placeKind, spec, now).resolution;
+	/** Data resolution's choices: none for a pinned type, Now, or a widget with no main entry type. */
 	const choices = $derived.by(() => {
-		if (isNow) return null;
-		const meta = entryMeta(known, main);
-		if (!meta) return null;
-		return detailChoices(
-			meta.dataset.id,
-			meta.entryType,
+		if (!known || !hasRange || (isNow && !isMap)) return null;
+		if (!isMap && !entryMeta(known, main)) return null;
+		return resolutionChoices({
+			data: plain.data,
+			catalog: known,
+			place: placeKind,
 			range,
-			picks.length,
-			type?.resolution,
-			now
-		);
+			// The Map counts stops, not points (its own cap).
+			places: isMap ? 1 : picks.length,
+			// The Map's levels are its own (`MAP_LEVELS`), not its type's pin.
+			pin: isMap ? undefined : (type?.resolution as DataLevel | undefined),
+			now,
+			...(isMap ? { within: MAP_LEVELS } : {})
+		});
 	});
-
-	// A detail level the range or places can no longer serve goes back to Automatic.
-	$effect(() => {
-		const level = main?.resolution;
-		if (!choices || !level || level === "auto") return;
+	/**
+	 * A specific resolution never changes by itself: one that no longer fits (the range grew past
+	 * the point budget, or a dataset isn't reported at it) stays chosen, shown blocked with its
+	 * reason, and Add and Save wait until another is chosen.
+	 */
+	const resolutionBlocked = $derived.by(() => {
+		const level = plain.data.resolution;
+		if (!choices || !level) return false;
 		const choice = choices.find((c) => c.level === level);
-		if (!choice || choice.blocked) untrack(() => setDetail("auto"));
+		return !choice || !!choice.blocked;
+	});
+	/** The stored level is none of the choices (a quarter, or hour on a Map; untrusted input). */
+	const resolutionUnknown = $derived(
+		!!choices && !!plain.data.resolution && !choices.some((c) => c.level === plain.data.resolution)
+	);
+
+	/** A dataset's name, from the catalog. */
+	const datasetLabel = (layer: Layer) =>
+		known?.find((d) => d.id === layer.dataset)?.label ?? layer.dataset;
+
+	/**
+	 * Why a dataset (`candidate`, its layers) can't be chosen, or undefined: on a Map on Now,
+	 * pesticide use (Now has no resolution); with a specific resolution, a dataset that isn't
+	 * reported at it; on Automatic, one that shares no level with those chosen (less `without`, the
+	 * layer it would replace, and any that already don't line up). A pinned type (a calendar) and
+	 * the Map's levels count as Automatic within them. Greyed, never hidden.
+	 */
+	function datasetReason(candidate: Layer[], without?: Layer): string | undefined {
+		if (!known) return undefined;
+		if (isMap && !plain.data.dateRange) {
+			const use = candidate.find((l) => l.dataset === PESTICIDE_USE);
+			const by = use && offeredFrom(use, known, placeKind);
+			return by ? m.get_data_dataset_not_on_now({ by: LEVEL_BY[by]() }) : undefined;
+		}
+		if (!hasRange) return undefined;
+		const misfits = effective?.misfits ?? [];
+		const chosen = plain.data.layers.filter(
+			(l) =>
+				l !== without &&
+				!misfits.includes(l) &&
+				!candidate.some((c) => c.dataset === l.dataset && c.entryType === l.entryType)
+		);
+		const pinned = !isMap && !!type?.resolution;
+		const block = datasetBlock({
+			candidate,
+			chosen,
+			catalog: known,
+			place: placeKind,
+			resolution: pinned ? undefined : (plain.data.resolution as DataLevel | undefined),
+			within: isMap ? MAP_LEVELS : LEVELS
+		});
+		return block ? datasetBlockText(block) : undefined;
+	}
+	/** The Map's place-less datasets' reasons (smoke and fire go together). */
+	const mapBlocks = $derived(
+		isMap
+			? {
+					smoke: datasetReason([{ dataset: HMS_SMOKE }, { dataset: HMS_FIRE }]),
+					notices: datasetReason([{ dataset: PESTICIDE_NOTICES }]),
+					use: datasetReason([{ dataset: PESTICIDE_USE }])
+				}
+			: {}
+	);
+
+	/**
+	 * Why the draft can't be added or saved because its datasets don't line up: only a draft from
+	 * untrusted input (a link, an old draft) can carry one, since the controls never build one.
+	 */
+	const misfitReason = $derived.by(() => {
+		if (!known) return undefined;
+		if (isMap && !plain.data.dateRange) {
+			const use = plain.data.layers.find((l) => l.dataset === PESTICIDE_USE);
+			return use ? m.get_data_not_on_now_blocked({ dataset: datasetLabel(use) }) : undefined;
+		}
+		const misfits = effective?.misfits ?? [];
+		if (misfits.length === 0) return undefined;
+		const names = [...new Set(misfits.map(datasetLabel))];
+		return m.get_data_misfits_blocked({ datasets: formatList(names), countValue: names.length });
+	});
+	/** Automatic moved above the range's level for a dataset: says so, naming both. */
+	const autoNote = $derived.by(() => {
+		if (!choices || !effective?.automatic || !effective.movedBy) return undefined;
+		const level = effective.resolution;
+		return m.get_data_resolution_auto_moved({
+			level: LEVEL_LABEL[level](),
+			dataset: datasetLabel(effective.movedBy),
+			by: LEVEL_BY[level]()
+		});
+	});
+	/** The range resolved wider than picked (whole months or years): the dates it shows. */
+	const widenedNote = $derived.by(() => {
+		if (!effective) return undefined;
+		const level = effective.resolution;
+		if (level !== "month" && level !== "year") return undefined;
+		const shown = shownRange(range, now, level);
+		if (!shown.widened) return undefined;
+		const dates = { start: formatDate(shown.start), end: formatDate(shown.end) };
+		if (level === "month") {
+			return shown.soFar ? m.get_data_range_widened_so_far(dates) : m.get_data_range_widened(dates);
+		}
+		return shown.soFar
+			? m.get_data_range_widened_year_so_far(dates)
+			: m.get_data_range_widened_year(dates);
 	});
 
 	const previewWidget = $derived<WidgetInstance>({
@@ -174,43 +504,50 @@
 	});
 
 	// The same queries the preview runs (the query client shares them): every place's name for
-	// Where, the overlays' series for "Overlay for", and when the data has settled. A now tile
-	// sets its own generated title, so for those this runs under another id (two writers of one
-	// title would undo each other forever), and a Forecast strip's place is named through a PM2.5
-	// layer, as its picker offers places.
+	// Where, the overlays' series for "Overlay for", and when the data has settled. The preview
+	// sets its own generated title, so this always runs under another id (two writers of one title,
+	// with different caps, would undo each other forever), and a Forecast strip's place is named
+	// through a PM2.5 layer, as its picker offers places.
 	const namesWidget = $derived.by<WidgetInstance>(() => {
-		if (!isNow) return previewWidget;
-		const layers = plain.data.layers.map(placesQueryLayer);
+		// A now type's names come from its main layer (a Map's other layers are place-less).
+		const layers = isNow
+			? [main ?? { ...DEFAULT_LAYER }]
+			: plain.data.layers.length > 0
+				? plain.data.layers
+				: [{ ...DEFAULT_LAYER }];
 		return { ...previewWidget, id: `${PREVIEW_ID}-names`, data: { ...plain.data, layers } };
 	});
-	const data = new DataWidget(() => namesWidget, LIMITS.SELECTION_MAX);
+	const data = new DataWidget(() => namesWidget);
 
-	// The last data's names stay up while another range or type loads (a new query starts with
-	// no data); they're dropped once the places change.
-	const picksKey = $derived(JSON.stringify(picks));
-	let lastNames = $state.raw<{ key: string; names: string[] } | null>(null);
-	$effect(() => {
-		const shown = data.shown;
-		if (!("data" in shown) || !shown.data) return;
-		const names = shown.data.places.map((p) => placeLabel(p, "owner"));
-		const key = untrack(() => picksKey);
-		lastNames = { key, names };
+	/** The draft has ticked monitor types: its lines are a monitor set's monitors. */
+	const setLines = $derived(widgetMonitors(plain.data).types.length > 0);
+	/**
+	 * What Where says with no places, instead of "Everywhere": a single-place widget takes one place
+	 * or one monitor, so it asks for one, or says it shows its monitor.
+	 */
+	const whereEmptyText = $derived.by(() => {
+		if (placeLimit(type) !== 1) return undefined;
+		return widgetMonitors(plain.data).monitors.length > 0
+			? m.get_data_where_one_monitor()
+			: m.get_data_where_place_or_monitor();
 	});
-	const names = $derived(lastNames?.key === picksKey ? lastNames.names : null);
-	/** No names are coming: the query failed or can't run. */
-	const namesSettled = $derived(data.shown.status !== "loading");
-
-	/** "Overlay for": a Chart choice, only when the places' overlays differ (different zones). */
+	/**
+	 * "Overlay for": a Chart choice, listing its lines (areas or monitors). With ticked types,
+	 * whenever the set has two or more monitors (its overlay is fetched for the one chosen, spec
+	 * decision 37); otherwise only when the lines' overlays differ (different zones).
+	 */
 	const overlayFor = $derived.by(() => {
-		if (plain.type !== CHART_TYPE || picks.length < 2) return null;
+		if (plain.type !== CHART_TYPE || data.overlays.length === 0) return null;
+		if (!setLines && lines.length < 2) return null;
 		const shown = data.shown;
 		if (shown.status !== "ready") return null;
-		const differ = data.overlays.some(
-			(o) => o.state.status === "ready" && !sharedSource(o.state.data.series)
-		);
-		if (!differ) return null;
 		const places = shown.data.places;
-		const key = overlayPlaceFor(plain.options, places, picks);
+		if (places.length < 2) return null;
+		const differ =
+			setLines ||
+			data.overlays.some((o) => o.state.status === "ready" && !sharedSource(o.state.data.series));
+		if (!differ) return null;
+		const key = overlayPlaceFor(plain.options, places, lines);
 		return {
 			places,
 			index: Math.max(
@@ -235,28 +572,56 @@
 		untrack(() => onchange?.(snapshot));
 	});
 
-	// The draft is kept for a reload or a later visit; Edit data starts from the widget each time.
+	// The draft is kept for a reload or a later visit; Edit data starts from the widget each time,
+	// and a visit from a Map never writes it (`saves`).
+	const keepsDraft = untrack(() => saves) && untrack(() => mode.kind) === "new";
 	$effect(() => {
 		const snapshot = plain;
-		if (mode.kind === "new") untrack(() => saveDraft(app.platform, app.space, snapshot));
+		if (keepsDraft) untrack(() => saveDraft(app.platform, app.space, snapshot));
 	});
 	$effect(() => {
+		if (!keepsDraft) return;
 		const flush = () => flushDraft();
 		window.addEventListener("pagehide", flush);
 		return () => window.removeEventListener("pagehide", flush);
 	});
-	onDestroy(flushDraft);
+	onDestroy(() => {
+		if (keepsDraft) flushDraft();
+	});
+
+	/**
+	 * Keeps `--get-data-top` at the view's distance from the top of the page, so on two columns it
+	 * fills the screen below the top nav and the heading, whatever their height (a notice bar can
+	 * come and go).
+	 */
+	const fillsView: Attachment<HTMLElement> = (node) => {
+		const update = () => {
+			const top = node.getBoundingClientRect().top + window.scrollY;
+			node.style.setProperty("--get-data-top", `${Math.max(0, top)}px`);
+		};
+		const resize = new ResizeObserver(update);
+		resize.observe(document.body);
+		window.addEventListener("resize", update);
+		update();
+		return () => {
+			resize.disconnect();
+			window.removeEventListener("resize", update);
+		};
+	};
 
 	let size = $state<PreviewSize>("large");
 	let width = $state(0);
 	const phone = new MediaQuery(PHONE_QUERY);
 
-	// Edits. The main layer holds the places and the level; overlays follow it (see `layers.ts`).
-	function mainDraftLayer(): Layer | undefined {
-		return mainIndex >= 0 ? draft.data.layers[mainIndex] : undefined;
-	}
+	// Edits. Where is on the draft's data; the main layer decides the level, and overlays follow
+	// it (see `layers.ts`).
 
-	function setRange(spec: DateRangeSpec): void {
+	/** Sets the range, or (`undefined`, for a type with `now`) Now. */
+	function setRange(spec: DateRangeSpec | undefined): void {
+		if (!spec) {
+			delete draft.data.dateRange;
+			return;
+		}
 		draft.data.dateRange = spec;
 		// A calendar's day selection that the new range no longer holds is dropped with it.
 		const sel = draft.data.timeSubRange && $state.snapshot(draft.data.timeSubRange);
@@ -270,17 +635,30 @@
 		}
 	}
 
+	/** Change places' Done: the places the person chose (the hidden-marks note goes with them). */
 	function setPlaces(next: Picks): void {
-		const layer = mainDraftLayer();
-		if (!layer) return;
-		delete layer.place;
-		delete layer.selection;
-		Object.assign(layer, toLayerPlaces(next));
+		// Clear (no places): said once, in the view's polite status region.
+		if (next.length === 0) announcement = m.get_data_places_cleared();
+		leftOutShown = false;
+		delete draft.data.place;
+		delete draft.data.selection;
+		Object.assign(draft.data, toWhere(next));
 		layers.dropStationOnPlaceChange(draft.data);
+		layers.dropMonitorsForPlace(draft.data, placeLimit(getWidgetType(draft.type)));
 	}
 
 	function setPollutant(pick: layers.EntryPick | null): void {
 		layers.setPollutant(draft.data, known, pick);
+	}
+
+	function setMonitorTypes(types: string[]): void {
+		layers.setMonitorTypes(draft.data, known, types);
+	}
+
+	/** The searched monitors; a single-place widget's one monitor replaces its Where (decision 11). */
+	function setMonitors(ids: string[]): void {
+		layers.setMonitors(draft.data, known, ids);
+		layers.dropWhereForMonitor(draft.data, placeLimit(getWidgetType(draft.type)));
 	}
 
 	function toggleLayer(pick: layers.EntryPick, on: boolean): void {
@@ -292,7 +670,7 @@
 	}
 
 	function removeLayer(index: number): void {
-		layers.removeLayer(draft.data, known, index);
+		layers.removeLayer(draft.data, index);
 	}
 
 	function setFilters(index: number, filters: PesticideFilters): void {
@@ -303,11 +681,10 @@
 		layers.setStation(draft.data, station);
 	}
 
-	function setDetail(level: "auto" | Resolution): void {
-		const layer = mainDraftLayer();
-		if (!layer) return;
-		if (level === "auto") delete layer.resolution;
-		else layer.resolution = level;
+	/** Sets the dataset's resolution; Automatic is never stored (it deletes it). */
+	function setDetail(level: "auto" | DataLevel): void {
+		if (level === "auto") delete draft.data.resolution;
+		else draft.data.resolution = level;
 	}
 
 	/** What the last conversion left out or changed, until the next edit of the form. */
@@ -318,17 +695,66 @@
 		const out: string[] = [];
 		if (what.includes("dates")) out.push(m.get_data_dates_left_out());
 		if (what.includes("overlays")) out.push(m.get_data_overlays_left_out());
-		if (what.includes("places")) out.push(m.get_data_extra_places_left_out());
-		if (pollutant) {
-			const label = (dataset: string, entryType: string) =>
-				entryMeta(known, { dataset, entryType })?.entryType.label ?? entryType;
+		const others = dropped.conversion.leftOut ?? [];
+		if (what.includes("pollutants") && others.length > 0) {
+			const names = others.map((p) => entryMeta(known, p)?.entryType.label ?? p.entryType);
 			out.push(
-				m.get_data_pollutant_instead({
-					pollutant: label("air-quality", pollutant.to),
-					previous: label(pollutant.from.dataset, pollutant.from.entryType)
+				m.get_data_pollutants_left_out({
+					pollutants: formatList(names),
+					countValue: names.length
 				})
 			);
 		}
+		const cap = placeLimit(getWidgetType(plain.type));
+		if (what.includes("places")) {
+			out.push(
+				cap > 1
+					? m.get_data_places_over_cap_left_out({ count: formatNumber(cap), countValue: cap })
+					: m.get_data_extra_places_left_out()
+			);
+		}
+		if (what.includes("monitor-types")) out.push(m.get_data_monitor_types_left_out());
+		if (what.includes("area")) out.push(m.get_data_school_point_left_out());
+		if (pollutant) {
+			const label = (dataset: string, entryType: string) =>
+				entryMeta(known, { dataset, entryType })?.entryType.label ?? entryType;
+			const previous = label(pollutant.from.dataset, pollutant.from.entryType);
+			const to = label("air-quality", pollutant.to);
+			out.push(
+				plain.type === MAP_TYPE && mapPollutants?.length
+					? m.get_data_map_pollutant_instead({
+							pollutants: formatList(mapPollutants.map((e) => label("air-quality", e))),
+							pollutant: to,
+							previous
+						})
+					: m.get_data_pollutant_instead({ pollutant: to, previous })
+			);
+		}
+		if (what.includes("range-cut")) {
+			const counted = { count: formatNumber(MAP_MAX_STOPS), countValue: MAP_MAX_STOPS };
+			const cutAt = dropped.conversion.cutAt;
+			out.push(
+				cutAt === "month"
+					? m.get_data_range_cut_left_out_months(counted)
+					: cutAt === "year"
+						? m.get_data_range_cut_left_out_years(counted)
+						: m.get_data_range_cut_left_out(counted)
+			);
+		}
+		if (what.includes("locations")) {
+			// The ticked groups' labels (the regions meta's); none known: a note naming none.
+			const ticked = dropped.conversion.locationTypes ?? [];
+			const names = (locationGroups ?? [])
+				.filter((g) => g.types.some((t) => ticked.includes(t.type)))
+				.map((g) => g.label);
+			out.push(
+				names.length
+					? m.get_data_dropped_locations({ layers: formatList(names) })
+					: m.get_data_dropped_locations_unnamed()
+			);
+		}
+		if (what.includes("marks")) out.push(m.get_data_marks_left_out());
+		if (what.includes("fill")) out.push(m.getdata_note_fill_dropped());
 		if (what.includes("alert")) out.push(m.get_data_level_left_out());
 		const days = dropped.conversion.selection;
 		if (days) {
@@ -340,10 +766,28 @@
 		return out;
 	});
 
+	/** Opened from a Map: the hidden marks' note, until the person changes the places. */
+	let leftOutShown = $state(untrack(() => leftOut) > 0);
+	const allNotes = $derived(
+		leftOutShown
+			? [
+					m.get_data_marks_hidden_left_out({ count: formatNumber(leftOut), countValue: leftOut }),
+					...notes
+				]
+			: notes
+	);
+
 	/** Shows `conversion`'s notes until the draft changes. */
 	function noteConversion(conversion: NowConversion): void {
 		dropped = { after: JSON.stringify($state.snapshot(draft)), conversion };
 	}
+
+	/** Opened from a Map: its conversion's notes, until the next edit. */
+	const start = untrack(() => startNotes);
+	function noteStart(): void {
+		if (start?.dropped.length) noteConversion({ ...start, draft: $state.snapshot(draft) as Draft });
+	}
+	noteStart();
 
 	/** Replaces the whole draft (a conversion between range and now types). */
 	function replaceDraft(next: Draft): void {
@@ -355,43 +799,99 @@
 		else delete draft.thresholds;
 	}
 
-	/** A pollutant's scale (empty when it has none), or `"unavailable"` when it can't be loaded. */
-	async function levelsOf(entryType: string | undefined): Promise<Level[] | "unavailable"> {
-		if (!entryType) return [];
-		try {
-			return await getMetadata().levels(entryType);
-		} catch {
-			return "unavailable";
+	/**
+	 * Each pollutant's scale (empty when it has none), by entry type, once asked for;
+	 * `"unavailable"` when it couldn't be loaded. Shared by the now types' alert levels and the
+	 * Chart's line: each scale loads once, and one that failed loads again on its own (Retry, or the
+	 * next change that asks for it).
+	 */
+	let alertLevels = $state.raw<Record<string, Level[] | "unavailable">>({});
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- bookkeeping, not rendered
+	const levelsLoading = new Map<string, Promise<Level[] | "unavailable">>();
+	/** `entryType`'s scale: the loaded one, else loads it (once at a time); `[]` for none. */
+	function levelsOf(entryType: string | undefined): Promise<Level[] | "unavailable"> {
+		if (!entryType) return Promise.resolve([]);
+		const have = alertLevels[entryType];
+		if (Array.isArray(have)) return Promise.resolve(have);
+		let loading = levelsLoading.get(entryType);
+		if (!loading) {
+			loading = getMetadata()
+				.levels(entryType)
+				.catch(() => "unavailable" as const)
+				.then((levels) => {
+					levelsLoading.delete(entryType);
+					alertLevels = { ...alertLevels, [entryType]: levels };
+					if (Array.isArray(levels)) payDefault(entryType, levels);
+					return levels;
+				});
+			levelsLoading.set(entryType, loading);
 		}
+		return loading;
 	}
 
 	/** Bumped by each type or pollutant change, so a slower earlier one doesn't land after it. */
 	let changeId = 0;
 	/**
-	 * A conversion that should have set the default alert level couldn't load the scale: it's set
-	 * once the scale loads, unless the person chooses one first.
+	 * The pollutants owed a default alert level: a conversion or a newly ticked pollutant whose
+	 * scale couldn't be loaded. Set once the scale loads, unless the person chooses one first.
 	 */
-	let defaultOwed = false;
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- bookkeeping, not rendered
+	const owed = new Set<string>();
 
-	/** The type `snapshot` converts from: none for a range draft already marked as a now type. */
-	function sourceType(snapshot: Draft): WidgetType | undefined {
-		const from = getWidgetType(snapshot.type);
-		return from?.time === "now" && !isNowShaped(snapshot, from) ? undefined : from;
+	/** Whether `d` already has now type `t`'s shape (the Map's own, for the Map). */
+	function shaped(d: Draft, t: WidgetType): boolean {
+		return t.type === MAP_TYPE ? isMapShaped(d, now, known) : isNowShaped(d, t);
 	}
 
 	/** The draft as now type `next`, once its pollutant's scale has loaded. */
 	async function convertToNow(next: WidgetType, catalog: CatalogEntry[]): Promise<void> {
 		const id = ++changeId;
-		const pollutant = nowPollutant($state.snapshot(draft) as Draft, next, catalog);
+		if (next.type === MAP_TYPE) {
+			// The Map offers only the monitor map's pollutants (memoized, so loaded once), and has no
+			// alert level, so no scale to wait for.
+			const allowed = await loadMapPollutants();
+			if (id !== changeId) return;
+			mapPollutants = allowed;
+			const converted = showAsDraft($state.snapshot(draft) as Draft, next, {
+				catalog,
+				allowed,
+				levels: "unavailable",
+				now
+			});
+			owed.clear();
+			replaceDraft(converted.draft);
+			noteConversion(converted);
+			return;
+		}
+		// From a Map, its pollutant is the one that converts.
+		const base = (d: Draft) => (d.type === MAP_TYPE ? mapShowingOnly(d, catalog).draft : d);
+		// "Can we go outside?" offers only the pollutants with school guidelines; while they can't be
+		// loaded, any pollutant (the draft keeps its own).
+		const guidelines = next.type === OUTSIDE_TYPE ? await loadGuidelinePollutants() : undefined;
+		if (id !== changeId) return;
+		if (guidelines) guidelinePollutants = guidelines;
+		const offered =
+			next.type !== OUTSIDE_TYPE
+				? undefined
+				: (guidelines ?? offeredPollutants(catalog).map((e) => e.id));
+		const pollutant = nowPollutant(base($state.snapshot(draft) as Draft), next, catalog, offered);
 		const levels = await levelsOf(pollutant);
 		if (id !== changeId) return;
 		// An edit made while the scale loaded counts: convert the draft as it is now (again, when
 		// that edit changed the pollutant).
 		const fresh = $state.snapshot(draft) as Draft;
-		if (nowPollutant(fresh, next, catalog) !== pollutant) return convertToNow(next, catalog);
-		const converted = toNowDraft(fresh, next, catalog, levels, sourceType(fresh));
-		alertLevels = { entryType: nowEntryType(converted.draft), levels };
-		defaultOwed = !!converted.defaultOwed;
+		if (nowPollutant(base(fresh), next, catalog, offered) !== pollutant) {
+			return convertToNow(next, catalog);
+		}
+		const converted = showAsDraft(fresh, next, {
+			catalog,
+			allowed: offered ?? [],
+			levels,
+			now
+		});
+		owed.clear();
+		const owing = converted.defaultOwed ? nowEntryType(converted.draft) : undefined;
+		if (owing) owed.add(owing);
 		replaceDraft(converted.draft);
 		noteConversion(converted);
 	}
@@ -399,37 +899,57 @@
 	function setType(next: string): void {
 		const to = getWidgetType(next);
 		if (!to) return;
-		if (to.time === "now" && known) {
+		switchType(to);
+	}
+
+	function switchType(to: WidgetType): void {
+		const next = to.type;
+		guidelinesAsked = false;
+		locationGroupsAsked = false;
+		if (offersNow(to) && known) {
 			void convertToNow(to, known);
 			return;
 		}
-		changeId++;
-		defaultOwed = false;
-		if (to.time !== "now" && isNow) {
-			const converted = fromNowDraft(plain, to);
-			replaceDraft(converted.draft);
-			noteConversion(converted);
+		const id = ++changeId;
+		owed.clear();
+		const school = areaToLookUp(plain, next);
+		if (school) {
+			// A Chart or Table holds areas only: the school or point's area first (as the starter
+			// looks it up), else it's left out with a note.
+			void (async () => {
+				const area = await import("$lib/starter/area")
+					.then(({ starterAreaOf }) => starterAreaOf(school))
+					.catch((error: unknown) => {
+						report(error, { operation: "show-as-area" });
+						return null;
+					});
+				if (id === changeId) convertRange(to, area);
+			})();
+			return;
 		}
+		if (!offersNow(to)) convertRange(to, null);
 		// A now type chosen before the catalog is known is converted once it is (below).
 		else {
 			const moved = switchRange($state.snapshot(draft.data), type, to, now);
 			if (moved.dateRange) draft.data.dateRange = moved.dateRange;
 			if (!moved.timeSubRange) delete draft.data.timeSubRange;
 			draft.type = next;
-			const days = moved.left ?? moved.outside;
-			const dropped: NowDropped[] = moved.left ? ["selection"] : moved.outside ? ["outside"] : [];
-			// A line the new type can't hold is left out, with a note.
-			if (!to.thresholds && draft.thresholds) {
-				delete draft.thresholds;
-				dropped.push("alert");
-			}
-			if (dropped.length) {
-				noteConversion({
-					draft: $state.snapshot(draft) as Draft,
-					dropped,
-					...(days ? { selection: days } : {})
-				});
-			}
+		}
+	}
+
+	/** Show as a range type: `area` stands in for a school or point the type can't show. */
+	function convertRange(to: WidgetType, area: ChosenPlace | null): void {
+		if (isNow) {
+			const converted = withArea(
+				showAsDraft(plain, to, { catalog: known ?? [], allowed: [], levels: "unavailable", now }),
+				area
+			);
+			replaceDraft(converted.draft);
+			noteConversion(converted);
+		} else {
+			const converted = withArea(fromRangeDraft(plain, type, to, now), area);
+			replaceDraft(converted.draft);
+			if (converted.dropped.length) noteConversion(converted);
 		}
 	}
 
@@ -438,47 +958,51 @@
 	// known. A saved now widget already has the shape.
 	$effect(() => {
 		const to = type;
-		if (!known || to?.time !== "now") return;
-		if (!untrack(() => isNowShaped(plain, to))) void convertToNow(to, known);
+		if (!known || !to || !offersNow(to)) return;
+		if (!untrack(() => shaped(plain, to))) void convertToNow(to, known);
 	});
 
-	// The alert level: the pollutant's scale ("Can we go outside?" reads PM2.5 whatever's saved).
+	// The alert level: the pollutant's scale (the one on the draft's layer once it's shaped).
 	const nowEntryType = (d: Draft) =>
 		d.type === CURRENT_TYPE
-			? d.data.layers[0]?.entryType
-			: nowPollutant(d, getWidgetType(d.type)!, known ?? []);
-	let alertLevels = $state.raw<{
-		entryType: string | undefined;
-		levels: Level[] | "unavailable";
-	} | null>(null);
-	let alertTry = $state(0);
+			? currentPollutants(d.data)[0]
+			: d.type === OUTSIDE_TYPE
+				? d.data.layers.find((l) => l.dataset === AIR_QUALITY)?.entryType
+				: nowPollutant(d, getWidgetType(d.type)!, known ?? []);
+	const isCurrent = $derived(plain.type === CURRENT_TYPE);
 	// A Chart's threshold line reads its main pollutant's scale the same way (no default).
 	const lineEntryType = $derived.by(() => {
 		if (isNow || !type?.thresholds || !known) return undefined;
 		const meta = entryMeta(known, main);
 		return meta?.entryType.kind === "pollutant" ? main?.entryType : undefined;
 	});
-	const alertEntryType = $derived(
-		isNow && type?.thresholds && known ? nowEntryType(plain) : lineEntryType
-	);
-	$effect(() => {
-		void alertTry;
-		const entryType = alertEntryType;
-		if (!entryType) return;
-		const have = untrack(() => alertLevels);
-		if (have?.entryType === entryType && have.levels !== "unavailable") return;
-		let active = true;
-		void levelsOf(entryType).then((levels) => {
-			if (!active) return;
-			alertLevels = { entryType, levels };
-			if (Array.isArray(levels)) untrack(() => payDefault(levels));
-		});
-		return () => {
-			active = false;
-		};
+	/** The pollutants whose scales the form shows: Current conditions' each, else one. */
+	const alertEntryTypes = $derived.by<string[]>(() => {
+		if (!isNow) return lineEntryType ? [lineEntryType] : [];
+		if (!type?.thresholds || !known) return [];
+		if (isCurrent) return currentPollutants(plain.data);
+		const one = nowEntryType(plain);
+		return one ? [one] : [];
 	});
-	const shownLevels = $derived(
-		alertEntryType && alertLevels?.entryType === alertEntryType ? alertLevels.levels : null
+	// Keyed on a string, so an edit that keeps the pollutants asks for nothing.
+	const alertKey = $derived(alertEntryTypes.join(" "));
+	$effect(() => {
+		const wanted = alertKey ? alertKey.split(" ") : [];
+		untrack(() => wanted.forEach((e) => void levelsOf(e)));
+	});
+	/** The Chart's line's scale; null while loading or without a line. */
+	const shownLevels = $derived(lineEntryType ? (alertLevels[lineEntryType] ?? null) : null);
+	/** The now types' alert levels: Current conditions' one per pollutant, else the one. */
+	const nowAlerts = $derived<NowAlert[]>(
+		isNow
+			? alertEntryTypes.map((entryType) => ({
+					entryType,
+					label:
+						entryMeta(known, { dataset: AIR_QUALITY, entryType })?.entryType.label ?? entryType,
+					levels: alertLevels[entryType] ?? null,
+					threshold: thresholdFor(plain.thresholds, isCurrent ? entryType : undefined)
+				}))
+			: []
 	);
 
 	// A Chart's saved line is dropped once it can't be shown or edited: the type has no
@@ -492,20 +1016,35 @@
 		if (gone) untrack(() => delete draft.thresholds);
 	});
 
-	/** Sets the default alert level a conversion owed, keeping its notes up. */
-	function payDefault(levels: Level[]): void {
-		if (!defaultOwed) return;
-		defaultOwed = false;
-		if (draft.thresholds) return;
+	/** Sets the draft's alert levels (none deletes them). */
+	function putThresholds(next: Threshold[] | undefined): void {
+		if (next) draft.thresholds = next;
+		else delete draft.thresholds;
+	}
+
+	/**
+	 * Sets the default alert level owed to `entryType` (a conversion, or a newly ticked pollutant,
+	 * whose scale couldn't load), keeping the notes up. Current conditions' is tagged with its
+	 * pollutant; another type's has none.
+	 */
+	function payDefault(entryType: string, levels: Level[]): void {
+		if (!owed.delete(entryType)) return;
+		const current = draft.type === CURRENT_TYPE;
+		const shown = current
+			? currentPollutants(draft.data).includes(entryType)
+			: nowEntryType(draft) === entryType;
+		if (!shown) return;
+		const saved = $state.snapshot(draft.thresholds) as Threshold[] | undefined;
+		if (current ? thresholdFor(saved, entryType) : saved?.length) return;
 		const noted = !!dropped && dropped.after === JSON.stringify(plain);
-		const thresholds = keptThreshold(undefined, levels, true);
-		if (!thresholds) return;
-		draft.thresholds = thresholds;
+		const made = keptThreshold(undefined, levels, true, current ? entryType : undefined);
+		if (!made) return;
+		putThresholds(current ? withThreshold(saved, entryType, made[0]) : made);
 		if (noted && dropped) noteConversion(dropped.conversion);
 	}
 
 	/**
-	 * Current conditions' pollutant: the alert level keeps its key if the new scale has it, else
+	 * "Can we go outside?"'s pollutant: the alert level keeps its key if the new scale has it, else
 	 * takes its default. When the scale can't be loaded, the alert level is kept as it is.
 	 */
 	async function setNowPollutant(entryType: string): Promise<void> {
@@ -515,21 +1054,52 @@
 		const layer = draft.data.layers[0];
 		if (!layer) return;
 		layer.entryType = entryType;
-		alertLevels = { entryType, levels };
 		if (levels === "unavailable") return;
-		const thresholds = keptThreshold($state.snapshot(draft.thresholds), levels, false);
-		if (thresholds) draft.thresholds = thresholds;
-		else delete draft.thresholds;
+		putThresholds(keptThreshold($state.snapshot(draft.thresholds), levels, false));
 	}
 
-	function setThreshold(level: string | null): void {
-		defaultOwed = false;
-		if (level) draft.thresholds = [{ level }];
-		else delete draft.thresholds;
+	/**
+	 * Current conditions' ticked pollutants (C2, C3): their layers, in the order given (the offered
+	 * order; the monitor stays on the first); a newly ticked one gets its scale's default alert
+	 * level (owed until the scale loads), an unticked one's goes.
+	 */
+	function setNowPollutants(entryTypes: string[]): void {
+		const before = currentPollutants(draft.data);
+		draft.data = setCurrentPollutants($state.snapshot(draft.data), entryTypes);
+		let thresholds = $state.snapshot(draft.thresholds) as Threshold[] | undefined;
+		for (const e of before) {
+			if (entryTypes.includes(e)) continue;
+			owed.delete(e);
+			thresholds = withThreshold(thresholds, e, undefined);
+		}
+		putThresholds(thresholds);
+		for (const e of entryTypes) {
+			if (before.includes(e)) continue;
+			owed.add(e);
+			const levels = alertLevels[e];
+			// A scale already loaded pays now; else once it loads (`levelsOf`).
+			if (Array.isArray(levels)) payDefault(e, levels);
+			else void levelsOf(e);
+		}
+	}
+
+	/** A now type's alert level for `entryType` (tagged on Current conditions), or Off. */
+	function setThreshold(entryType: string, level: string | null): void {
+		owed.delete(entryType);
+		if (draft.type === CURRENT_TYPE) {
+			const saved = $state.snapshot(draft.thresholds) as Threshold[] | undefined;
+			putThresholds(withThreshold(saved, entryType, level ? { level, entryType } : undefined));
+		} else putThresholds(level ? [{ level }] : undefined);
+	}
+
+	/** A Chart's or calendar's line level, or Off. */
+	function setLineThreshold(level: string | null): void {
+		putThresholds(level ? [{ level }] : undefined);
 	}
 
 	function setOverlayFor(index: number): void {
-		const ref = picks[index];
+		const place = overlayFor?.places[index];
+		const ref = place ? overlayRefOf(place, index, lines) : null;
 		if (ref) draft.options = { ...draft.options, overlayFor: ref };
 	}
 
@@ -539,50 +1109,37 @@
 			plain.data,
 			(name, contents, mime) => app.platform.files.save(name, contents, mime),
 			"owner",
-			plain.type
+			plain.type,
+			plain.options
 		);
 	}
 </script>
 
-<div class="flex min-h-full flex-col" bind:clientWidth={width}>
+<!-- On two columns the view fills the screen below what's above it (the top nav, the heading):
+     the left column scrolls on its own and Show as, the preview and the action bar stay in view
+     (spec decision 18). On a phone the columns stack and the page scrolls. -->
+<div
+	class="flex min-h-full flex-col md:h-[calc(100dvh-var(--get-data-top,0px))] md:min-h-0"
+	bind:clientWidth={width}
+	{@attach fillsView}
+>
 	<div
-		class="grid flex-1 gap-(--grid-gap) p-(--grid-gap) md:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]"
+		class="grid flex-1 gap-(--grid-gap) p-(--grid-gap) md:min-h-0 md:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)] md:grid-rows-[minmax(0,1fr)]"
 	>
-		<div class="flex min-w-0 flex-col gap-4">
-			{#if notes.length > 0}
+		<div
+			class="focus-visible:ring-ring flex min-w-0 flex-col gap-4 rounded-sm focus-visible:ring-2 focus-visible:outline-none md:relative md:-m-1 md:min-h-0 md:overflow-y-auto md:overscroll-contain md:p-1"
+			role="group"
+			aria-label={m.get_data_choices_label()}
+			data-testid="get-data-choices"
+			{@attach scrollFocusable}
+		>
+			{#if allNotes.length > 0}
 				<div role="status" class="flex flex-col gap-1">
-					{#each notes as note (note)}
+					{#each allNotes as note (note)}
 						<p class="text-muted-foreground text-sm">{note}</p>
 					{/each}
 				</div>
 			{/if}
-
-			{#if !isNow}
-				<section class="flex flex-col gap-2" aria-labelledby="{uid}-when">
-					<h2 id="{uid}-when" class="text-primary text-sm font-semibold">{m.get_data_when()}</h2>
-					{#if type}
-						<WhenControl {type} value={range} {now} onchange={setRange} />
-					{/if}
-				</section>
-			{/if}
-
-			<section class="flex flex-col gap-2" aria-labelledby="{uid}-where">
-				<h2 id="{uid}-where" class="text-primary text-sm font-semibold">{m.get_data_where()}</h2>
-				{#if main?.entryType || (isNow && main)}
-					<WhereControl
-						{picks}
-						{names}
-						{namesSettled}
-						max={type?.accepts?.maxPlaces ?? 1}
-						purpose={{
-							dataset: main.dataset,
-							// A Forecast strip's place is any place PM2.5 is offered for.
-							entryType: placesEntryType(main)
-						}}
-						onchange={setPlaces}
-					/>
-				{/if}
-			</section>
 
 			{#snippet catalogState()}
 				{#if catalog === undefined}
@@ -597,77 +1154,145 @@
 				{/if}
 			{/snippet}
 
-			{#if isNow}
-				{#if !known}
+			<section class="flex flex-col gap-2" aria-labelledby="{uid}-what">
+				<h2 id="{uid}-what" class="text-primary text-sm font-semibold">{m.get_data_what()}</h2>
+				{#if !known || !type}
 					{@render catalogState()}
-				{:else if plain.type === CURRENT_TYPE || type?.thresholds}
-					<section class="flex flex-col gap-3" aria-labelledby="{uid}-what">
-						<h2 id="{uid}-what" class="text-primary text-sm font-semibold">
-							{m.get_data_what()}
-						</h2>
+				{:else}
+					<WhatSections
+						{type}
+						types={dataTypes()}
+						{sections}
+						data={plain.data}
+						catalog={known}
+						places={picks.length}
+						limit={placeLimit(type)}
+						maxOverlays={MAX_OVERLAYS}
+						onpollutant={setPollutant}
+						onnowpollutant={(e) => void setNowPollutant(e)}
+						onnowpollutants={setNowPollutants}
+						onmonitortypes={setMonitorTypes}
+						onmonitors={setMonitors}
+						ontoggle={toggleLayer}
+						onaddpesticide={addPesticideLayer}
+						onremove={removeLayer}
+						onfilters={setFilters}
+						onstation={setStation}
+						blocked={datasetReason}
+						guidelines={guidelinePollutants && known
+							? offeredPollutants(known, guidelinePollutants)
+							: undefined}
+						map={{
+							pollutants: offeredPollutants(known, mapPollutants ?? []),
+							onsmoke: (on) => setSmokeAndFire(draft.data, on),
+							onnotices: (on) => setNotices(draft.data, on),
+							onfilters: (filters) => setMapPesticideFilters(draft.data, filters),
+							years: useYears,
+							onuse: (on) => setUse(draft, on),
+							onretryyears: () => {
+								useYears = undefined;
+								useYearsTry++;
+							},
+							fill: mapOptions(plain).fill,
+							fillTypes,
+							onfill: (type) => setMapFill(draft, type),
+							locationGroups,
+							onlocations: (types) => setLocationTypes(draft, types, locationGroups),
+							blocks: mapBlocks
+						}}
+					/>
+					{#if isNow && type.thresholds}
+						<!-- A now type's alert levels, one per pollutant (chosen in Air quality). -->
 						<NowControls
-							pollutants={plain.type === CURRENT_TYPE ? nowPollutants(known) : null}
-							entryType={main?.entryType}
-							levels={type?.thresholds ? shownLevels : null}
-							thresholds={plain.thresholds}
-							onpollutant={(e) => void setNowPollutant(e)}
+							alerts={nowAlerts}
 							onthreshold={setThreshold}
-							onretry={() => alertTry++}
-						/>
-					</section>
-				{/if}
-			{:else}
-				<section class="flex flex-col gap-2" aria-labelledby="{uid}-what">
-					<h2 id="{uid}-what" class="text-primary text-sm font-semibold">{m.get_data_what()}</h2>
-					{#if !known}
-						{@render catalogState()}
-					{:else}
-						<WhatSections
-							{sections}
-							data={plain.data}
-							catalog={known}
-							places={picks.length}
-							maxOverlays={MAX_OVERLAYS}
-							onpollutant={setPollutant}
-							ontoggle={toggleLayer}
-							onaddpesticide={addPesticideLayer}
-							onremove={removeLayer}
-							onfilters={setFilters}
-							onstation={setStation}
+							onretry={(e) => void levelsOf(e)}
 						/>
 					{/if}
+				{/if}
+			</section>
+
+			{#if !nowOnly}
+				<section class="flex flex-col gap-2" aria-labelledby="{uid}-when">
+					<h2 id="{uid}-when" class="text-primary text-sm font-semibold">{m.get_data_when()}</h2>
+					{#if type}
+						<!-- A type with `now` (the Map) passes no range for Now. -->
+						<WhenControl
+							{type}
+							value={type.now ? plain.data.dateRange : range}
+							{now}
+							{resolution}
+							{resolutionFor}
+							onchange={setRange}
+						/>
+					{/if}
+					<!-- Always mounted, so a new note is announced. -->
+					<p
+						role="status"
+						class={["text-muted-foreground text-xs", !widenedNote && "sr-only"]}
+						data-testid="range-widened-note"
+					>
+						{widenedNote ?? ""}
+					</p>
 				</section>
 			{/if}
 
+			<section class="flex flex-col gap-2" aria-labelledby="{uid}-where">
+				<h2 id="{uid}-where" class="text-primary text-sm font-semibold">{m.get_data_where()}</h2>
+				<WhereControl
+					{picks}
+					max={placeLimit(type)}
+					offer={areasOnly(plain.type) ? "areas" : "where"}
+					purpose={wherePurpose(plain.data, known)}
+					emptyText={whereEmptyText}
+					clearable={placeLimit(type) !== 1}
+					onchange={setPlaces}
+				/>
+			</section>
+
 			{#if choices}
-				<section>
-					<ShowValuesControl {choices} value={main?.resolution ?? "auto"} onchange={setDetail}>
-						{#if shownLevels}
-							<ThresholdLineControl
-								levels={shownLevels}
-								thresholds={plain.thresholds}
-								onthreshold={setThreshold}
-								onretry={() => alertTry++}
-								marks={isCalendarType(plain.type)}
-							/>
-						{/if}
-					</ShowValuesControl>
-				</section>
-			{:else if !isNow && type?.thresholds && shownLevels}
-				<!-- A type with a pinned resolution (a calendar) has no Show values: the control stands alone. -->
-				<section>
-					<ThresholdLineControl
-						levels={shownLevels}
-						thresholds={plain.thresholds}
-						onthreshold={setThreshold}
-						onretry={() => alertTry++}
-						marks={isCalendarType(plain.type)}
-					/>
-				</section>
+				<DataResolutionControl
+					{choices}
+					value={(plain.data.resolution as DataLevel | undefined) ?? "auto"}
+					{datasetLabel}
+					note={autoNote}
+					onchange={setDetail}
+				/>
+			{/if}
+
+			{#if !isNow && type?.thresholds && shownLevels}
+				{#if type.resolution}
+					<!-- A type with a pinned resolution (a calendar): its level control stands alone. -->
+					<section>
+						<ThresholdLineControl
+							levels={shownLevels}
+							thresholds={plain.thresholds}
+							onthreshold={setLineThreshold}
+							onretry={() => void levelsOf(lineEntryType)}
+							marks={isCalendarType(plain.type)}
+						/>
+					</section>
+				{:else}
+					<MoreOptions>
+						<ThresholdLineControl
+							levels={shownLevels}
+							thresholds={plain.thresholds}
+							onthreshold={setLineThreshold}
+							onretry={() => void levelsOf(lineEntryType)}
+							marks={isCalendarType(plain.type)}
+						/>
+					</MoreOptions>
+				{/if}
 			{/if}
 		</div>
 
-		<div class="flex min-w-0 flex-col gap-2">
+		<div
+			class="focus-visible:ring-ring flex min-w-0 flex-col gap-2 rounded-sm focus-visible:ring-2 focus-visible:outline-none md:relative md:-m-1 md:min-h-0 md:overflow-y-auto md:overscroll-contain md:p-1"
+			role="group"
+			aria-label={m.get_data_preview_column_label()}
+			data-testid="get-data-preview-column"
+			{@attach scrollFocusable}
+		>
 			<ShowAs types={showAs} value={plain.type} onchange={setType} />
 			{#if overlayFor}
 				<label class="flex flex-wrap items-center gap-2 text-sm">
@@ -683,21 +1308,36 @@
 					</select>
 				</label>
 			{/if}
-			<Preview
-				widget={previewWidget}
-				{title}
-				{size}
-				gridWidth={width}
-				phone={phone.current}
-				onsize={(s) => (size = s)}
-			/>
+			{#if noPollutant}
+				<!-- Current conditions with nothing ticked (C2): nothing to preview yet. -->
+				<!-- Not a status: the action bar's blocked reason says it once. -->
+				<p class="text-muted-foreground text-sm">{m.get_data_choose_pollutant()}</p>
+			{:else}
+				<Preview
+					widget={previewWidget}
+					{title}
+					{size}
+					gridWidth={width}
+					phone={phone.current}
+					onsize={(s) => (size = s)}
+				/>
+			{/if}
 		</div>
 	</div>
 
 	<p role="status" class="sr-only" data-testid="get-data-announcement">{announcement}</p>
 
 	<ActionBar
-		blocked={levelOnly ? m.get_data_level_only() : undefined}
+		blocked={levelOnly
+			? m.get_data_level_only()
+			: noPollutant
+				? m.get_data_choose_pollutant()
+				: (misfitReason ??
+					(resolutionUnknown
+						? m.get_data_resolution_unknown_blocked()
+						: resolutionBlocked
+							? m.get_data_resolution_blocked()
+							: undefined))}
 		downloading={csvPending("get-data")}
 		ondownload={type?.downloadable ? download : undefined}
 		oncancel={onCancel}

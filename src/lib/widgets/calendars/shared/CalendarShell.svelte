@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { thresholdCount, type DayState } from "$lib/calendars/day-state";
+	import { thresholdCount, type DayState } from "$lib/data/day-state";
 	import { selectionSummary } from "$lib/calendars/summary";
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 	import type { WidgetInstance } from "$lib/documents/schema";
@@ -14,6 +14,7 @@
 		monthStarts
 	} from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
+	import { useApp } from "$lib/store/app.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import LevelChip from "../../shared/LevelChip.svelte";
 	import WidgetState from "../../shared/WidgetState.svelte";
@@ -71,6 +72,10 @@
 		);
 	});
 
+	const app = useApp();
+	/** Whether a note can point at the Data Portal: the dashboard isn't read-only. */
+	const editable = $derived(!!app.current.session && !app.current.session.readOnly);
+
 	const notes = $derived.by(() => {
 		const out: { text: string; retry?: boolean }[] = [];
 		if (!data.levelsLoaded) return out;
@@ -78,7 +83,9 @@
 		else if (data.figureFailed)
 			out.push({ text: m.calendar_day_rating_unavailable(), retry: true });
 		else if (data.figure === null) out.push({ text: m.calendar_day_rating_unknown() });
-		if (data.thresholdMissing) out.push({ text: m.calendar_level_missing() });
+		if (data.thresholdMissing) {
+			out.push({ text: editable ? m.calendar_level_missing() : m.calendar_level_missing_view() });
+		}
 		return out;
 	});
 
@@ -164,8 +171,10 @@
 			state={data.shown}
 			{widget}
 			retired={data.retired}
+			pollutant={data.meta?.entryType.label}
 			onretry={data.retry}
 			onchoose={() => openPlacePicker({ widgetId: widget.id })}
+			idleText={m.widget_state_idle_place_or_monitor()}
 			ownsEmpty
 		>
 			<div class="flex h-full flex-col gap-1">

@@ -21,12 +21,20 @@ const doc: Dashboard = {
 				title: null,
 				rect: { x: 0, y: 0, w: 3, h: 4 },
 				data: {
+					place: { kind: "default-place" },
 					layers: [
-						{ dataset: "air-quality", entryType: "pm25", place: { kind: "default-place" } },
-						{ dataset: "air-quality", entryType: "pm25", place: CLOVIS },
+						{ dataset: "air-quality", entryType: "pm25" },
+						{ dataset: "air-quality", entryType: "pm25" },
 						{ dataset: "forecasts", entryType: "burn-status" }
 					]
 				}
+			},
+			{
+				id: "c",
+				type: "chart",
+				title: null,
+				rect: { x: 0, y: 4, w: 3, h: 4 },
+				data: { place: CLOVIS, layers: [{ dataset: "air-quality", entryType: "pm25" }] }
 			},
 			{
 				id: "b",
@@ -43,12 +51,9 @@ const doc: Dashboard = {
 describe("resolveDefaultPlace", () => {
 	it("replaces every default-place and leaves other places alone", () => {
 		const resolved = resolveDefaultPlace(doc, SCHOOL);
-		expect(resolved.body.widgets[0].data.layers.map((l) => l.place)).toEqual([
-			SCHOOL,
-			CLOVIS,
-			undefined
-		]);
-		expect(resolved.body.widgets[1]).toEqual(doc.body.widgets[1]);
+		expect(resolved.body.widgets.map((w) => w.data.place)).toEqual([SCHOOL, CLOVIS, undefined]);
+		expect(resolved.body.widgets[0].data.layers).toEqual(doc.body.widgets[0].data.layers);
+		expect(resolved.body.widgets[2]).toEqual(doc.body.widgets[2]);
 	});
 
 	it("returns a new object and leaves its input as it was", () => {
@@ -56,8 +61,8 @@ describe("resolveDefaultPlace", () => {
 		const resolved = resolveDefaultPlace(doc, SCHOOL);
 		expect(resolved).not.toBe(doc);
 		expect(doc).toEqual(before);
-		// The place is copied, so editing one layer's place doesn't change another's.
-		const place = resolved.body.widgets[0].data.layers[0].place;
+		// The place is copied, so editing one widget's place doesn't change another's.
+		const place = resolved.body.widgets[0].data.place;
 		expect(place).not.toBe(SCHOOL);
 	});
 });

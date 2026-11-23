@@ -3,8 +3,7 @@ import { todayPacific } from "$lib/format";
 import type { AdapterContext } from "../adapters/registry";
 import { isNotFound, layerTarget, placeCandidates } from "../adapters/targets";
 import type { Level } from "../metadata";
-import type { Layer } from "../schema";
-import type { Target, UnavailableReason } from "../types";
+import type { QueryLayer, Target, UnavailableReason } from "../types";
 import type { NowSource } from "./client";
 import { targetKey } from "./forecast-days";
 
@@ -28,7 +27,7 @@ function heatTarget(target: Target): Target | null {
  * uses its ZIP; a place without one is `{ unavailable: "place-unsupported" }`.
  */
 export async function heatSource(
-	layer: Layer,
+	layer: QueryLayer,
 	ctx: AdapterContext,
 	now: () => Date,
 	signal?: AbortSignal

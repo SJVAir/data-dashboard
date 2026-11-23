@@ -11,6 +11,13 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 ## Platform & infrastructure
 
+- **sdk-js has no pull-request CI.** _Deferred 2026-11-15 (the user; noticed on sdk-js #63,
+  session sdk-js-c0)._ Its only workflow, `.github/workflows/publish.yml`, runs on `v*` tags and
+  `workflow_dispatch`, so PRs into `release/5.0.0` show no checks (#62 and #63 had none). Each
+  session runs the tests, `deno fmt --check`, lint, check and `deno publish --dry-run` locally on
+  the last commit before asking for a merge. The fix is a small PR workflow running the same
+  steps. **Revisit before** `@sjvair/sdk` 5.0.0 final, or sooner if a merge breaks something a
+  local run would have caught.
 - **Initial bundle: the hand-kept `BARRELED` list and further trims.** _Deferred 2026-11-04
   (step 4 spec 1, Task 15)._ The build keeps the app chunk's modules in one file
   (`appGroup()` in `vite.config.ts`), found by walking the static imports from `src/main.ts`.
@@ -203,6 +210,18 @@ string`) now get the union return type. The mobile app passes a string token, so
   **Related:** the CSRF fix for session-authenticated API writes is decided for
   Release 1 (in django-resticus; see `ARCHITECTURE.md` → "CSRF protection"). CORS
   tightening can ride along with it.
+- **Document writes get Django's CSRF check by accident, token clients included.** _Noted
+  2026-11-20 (sjvair.com #344, finding 5 of [#341](https://github.com/SJVAir/sjvair.com/issues/341),
+  session `sjvair-com-a7`; checked by the coordinator)._ resticus #25 (the session CSRF fix) is
+  still open upstream, but the document endpoints are protected anyway: `NoStoreMixin.dispatch`
+  (`camp/api/v2/documents/endpoints.py`) overrides resticus's `csrf_exempt` `dispatch` without
+  the decorator, so Django's `CsrfViewMiddleware` checks every unsafe documents request. Two
+  effects: the protection depends on that mixin, not on resticus; and a `Token`-header client with
+  no CSRF token (a standalone or Tauri build, see `ARCHITECTURE.md` → "Authentication") would be
+  refused on document writes. Release 1 (session cookie on `/workspace/`) is unaffected. #344
+  makes `test_csrf.py` always run, so a change to the mixin fails CI. **Revisit when** resticus
+  #25 merges (decide whether the mixin keeps the middleware check or goes back to `csrf_exempt`),
+  or when a token-mode build saves documents.
 - **Pinning django-resticus in sjvair.com.** _Deferred 2026-09-28 by the user, who is
   discussing it with resticus's developer._ sjvair.com installs
   `git+https://github.com/dmpayton/django-resticus@develop` unpinned, so any commit to
@@ -347,10 +366,19 @@ string`) now get the union return type. The mobile app passes a string token, so
 - **CI and dependency loose ends.** _Deferred 2026-10-20 (Foundations spec 1 review)._ None
   affects what ships: Playwright runs with no retries in CI. (Resolved in the design pass: the
   inert `--duration-*` `@theme` aliases became `--transition-duration-*`, so `duration-fast` and
-  `duration-base` work. Resolved in spec 5a: the inlang plugin is a named exception in
+  `duration-base` work. Resolved in spec 7a Task 1: three timing-based browser tests that flaked
+  in CI (keyboard resize animation, keyboard stepping of strip cursors, resize-animation redraw)
+  now wait on state instead of time. Resolved in spec 5a: the inlang plugin is a named exception in
   the license check; sharp's install script is allowed, see the Task 7 commit, because it is
   dev-only through `@sveltejs/enhanced-img` and needs the script to fetch its binary.)
-  **Revisit when** CI first flakes (retries).
+  Two more CI flakes were seen and left: "nothing animates across the phone breakpoint"
+  (`arranging.browser.test.ts`, run 42939425655: a stray animation found) and "on the routed page,
+  fullscreen then Escape goes back" (`shared-page.browser.test.ts`, run 42434218844: expected 50 to
+  be 51). Neither has recurred in the runs since, and a fix without a reproduction would be a
+  guess. **Revisit when** either fails in CI again (then make it wait on state, as the three fixed
+  in 7a Task 1 do), or when Playwright retries are considered. One E2E flake was seen locally
+  (step 5 spec 7a, 2026-11-22): `backup.spec` "restoring twice keeps everything as it is" failed
+  once under machine load and passed 4 of 4 alone; same revisit.
 - **sdk-js: no runtime validation of responses.** _Deferred 2026-10-19 (Alerts fix)._ SDK
   calls return API data without checking it against their Zod schemas, which is how the
   stale `airAlertSchema` went unnoticed when the server dropped `id`/`latest`. Adding
@@ -532,6 +560,9 @@ string`) now get the union return type. The mobile app passes a string token, so
     `WORKSPACE_CSP_REPORT_URI`); run `import_forecast_zones` first or clear the
     `forecast_zone_for:` cache keys after (see "Production deploy step for the place
     endpoints" below).
+  - **MapTiler key** (step 5 spec 1, 2026-11-11): confirm `VITE_MAPTILER_KEY` reaches
+    sjvair.com's Heroku build of the dashboard, and that the key's domain restriction covers
+    `/workspace/`. Without it, every Map widget says the map is unavailable.
   - **Dashboard CSP check, before:** check the built app for zod eval violations on every route
     (see "Check the built app for zod eval violations before go-live" above).
   - **Migrations at deploy:** `hms/0003_smoke_date_index` (sjvair.com #314), a plain `AddIndex` on
@@ -557,7 +588,7 @@ string`) now get the union return type. The mobile app passes a string token, so
        monitor's regions; there's no region-type flag). Region hourly rows are weighted means, so a -999 monitor hour usually
        lands above -900 and the skip doesn't catch it (sjvair-com-64's final review, 2026-11-09). Count the regions first (the
        sum of `monitor.regions` over those monitors; the query comes with the PR).
-    3. `rebuild_summaries --monitor=<id> --monitors-only` per AQLite monitor (its O3 hourly `is_complete` fix).
+    3. `rebuild_summaries --monitor=<id> --monitors-only` per AQLite monitor (its O3 hourly `is_complete` fix), on code that has sjvair.com #344 (see "Review #341 fixes" below).
     4. `fill_daily_peaks`, scoped, `--dry-run` first and then for real: monitor types `airnow`, `aqlite`, `vozbox`,
        `purpleair`, `airgradient`, `aqview` and `bam1022`, then each region type (`mean_24h` makes PM types part of it).
     5. Run the backfill **before announcing** the dashboard: settled daily responses are cached for 24 hours.
@@ -566,6 +597,56 @@ string`) now get the union return type. The mobile app passes a string token, so
        `lib/monitors/mod_test.ts` and `lib/regions/mod_test.ts` (sdk-js #59), so `TEST_REMOTE` runs check production.
        Exact commands come with the merged PR. **Why deferred:** nothing touches production until `develop` deploys.
        **Revisit:** at the deploy.
+  - **Pesticide Map API (sjvair.com #335 and #336, merged into `develop` 2026-11-16, session
+    `sjvair-com-5a`):** nothing to run. No migration, backfill or config. The new cache keys
+    start empty, the notices version creates itself on first read, and section detail starts
+    cold once (its cache key version changed). `@sjvair/sdk` `5.0.0-beta.12` and `5.0.0-beta.13`
+    need them deployed.
+  - **Pesticide explorer links (sjvair.com
+    [#339](https://github.com/SJVAir/sjvair.com/pull/339), merged into `develop` 2026-11-17,
+    5e669a70, session `sjvair-com-b6`):** nothing to run. No migration, command or cache clear.
+    It adds meta `links`/`link_params`, opt-in filters on `sections/<id>/`, and the reworded
+    `shades_valley` note. `pesticides/meta/` is public with `max-age=86400`, so browsers may keep
+    the old meta (without the links) for up to a day after the deploy. `@sjvair/sdk`
+    `5.0.0-beta.14` needs it deployed.
+  - **Period daily statistic and nightly current-period rows (sjvair.com
+    [#342](https://github.com/SJVAir/sjvair.com/pull/342), merged into `develop` 2026-11-18, fd3f0080,
+    session `sjvair-com-93`; exact commands in its "Production at deploy"), in order:**
+    1. **Deploy** with the other summaries migrations: the release phase runs `summaries.0008`
+       and `0009` together (each with a 10 s `lock_timeout`, metadata-only columns), away from
+       :40–:50 and with no `SummaryBackfillJob` running. Rollback: `migrate summaries 0007`.
+    2. **After the Daily peaks steps above** (the AirNow -999 monitor and region rebuilds, the
+       AQLite rebuilds and the scoped `fill_daily_peaks`), run the scoped
+       `fill_period_statistics` for the same monitor types and region types, `--dry-run` first.
+       Later rebuilds, repairs and catch-up rollups fill the field themselves, because every
+       coarse write goes through it.
+    3. **Wait one night:** current-period rows appear on their own at 02:15 / 02:20 Pacific
+       (local deploy-night cost: 35 s for monitors and 62 s for regions on a laptop; production
+       will be slower). Announce after that night, and after the backfill, because settled
+       responses are cached for 24 hours.
+       `@sjvair/sdk` `5.0.0-beta.15` and the dashboard's step 5 spec 6a need this deployed.
+  - **Review #341 fixes, PR A (sjvair.com [#344](https://github.com/SJVAir/sjvair.com/pull/344),
+    session `sjvair-com-a7`; merged into `develop` 2026-11-20, 4c1e3e53):**
+    1. **Deploy:** the release phase runs `documents/0002` (state only; `sqlmigrate` is a no-op).
+    2. **The AQLite rebuilds in the Daily peaks steps (step 3 above) must run on code that has
+       #344**, or AQLite daily-and-longer `is_complete` is written wrong again (finding 1).
+    3. Nothing else: no new commands. A scoped `--async` rebuild now refreshes `max_8h` only for
+       its own monitors or regions (findings 7 and 10).
+  - **Review #341 fixes, PR B (sjvair.com [#345](https://github.com/SJVAir/sjvair.com/pull/345),
+    findings 9, 11, 12; merged into `develop` 2026-11-20, c80c1220):** nothing to run. No migration,
+    command or config.
+  - **Review #341 fixes, PR C (sjvair.com [#346](https://github.com/SJVAir/sjvair.com/pull/346),
+    finding 15, tests only; merged 2026-11-20, e8d94a4d) and PR D ([#347](https://github.com/SJVAir/sjvair.com/pull/347),
+    finding 14, document snapshot ids become sqid strings; merged 2026-11-20, 09bfd5be):** nothing to
+    run. No migration (the sqid is derived from the pk), command or config. PR D changes the
+    snapshot API shape, so the dashboard build deployed with it must have its string snapshot ids
+    (data-dashboard #63).
+  - **Slow-CI fix, bulk `type`, location groups (sjvair.com #348–#350, merged 2026-11-21; #351,
+    merged 2026-11-22, 1af05307):** nothing to run (no migration, command or cache step). **After the deploy,
+    check #351's valley-wide `pesticides/locations/` (no area) is cached:** its cached value is
+    about 1–1.5 MB, and whether the hosted memcached keeps it (1 MB item limit, bmemcached
+    compression) is unverified. A refused set only logs "Could not cache", and every request
+    becomes a ~0.8 s miss. A second GET should show `X-Cache-Status: HIT` (session `sjvair-com-6f`).
   - **Deploy window:** between about 17:15 and 01:00 Pacific (#301 moved the rollups from
     01:00 UTC to 01:00 Pacific; deploying 01:00–17:00 Pacific skips a day). Otherwise run
     `daily_monitor_summaries(day=<yesterday>)` and `daily_region_summaries(day=<yesterday>)`
@@ -705,11 +786,24 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   after the import. **Revisit when** shipping sjvair.com `develop` to production (with the
   "everything ready" deploy above).
 
+- **The dashboard needs sjvair.com #351 deployed first.** _Noted 2026-11-22 (step 5 spec 7c)._
+  The dashboard pins `@sjvair/sdk` `5.0.0-beta.17`, whose `RegionsMeta` throws when
+  `regions/meta/` has no `location_groups` (added by sjvair.com #351, `develop` 1af05307). The
+  location resolver now reads each location type's source from the regions meta, so on a server
+  without #351 school places would stop resolving across the whole app: the place picker, Current
+  conditions, "Can we go outside?" and the Map. Why noted, not handled: nothing is live, and SDK
+  5.0 has no fallbacks for older servers by design. **Revisit at** the production deploy: deploy
+  sjvair.com `develop` (with #351) before, or with, the dashboard build that carries spec 7c.
+
 - **Region meta counts are cached for 1 hour with no invalidation.** _Deferred 2026-11-03
   (step 3 spec 1)._ `regions/meta/` `count` can lag an import by up to an hour. **Revisit if**
   an import flow needs the new counts immediately (then invalidate the key from the import
   commands).
 
+- **sjvair.com `CLAUDE.md`: a doubled "the" in "Bulk monitor type".** _Found 2026-11-21 (session
+  `sjvair-com-07`, after #350 merged)._ Lines 424–425 read "the / the catalog's `monitor_types`", and line
+  425 runs past the wrapping width. A one-word docs fix. **Why deferred:** too small for its own PR (no
+  hotfix urgency). **Revisit with** the next sjvair.com PR that touches `CLAUDE.md`.
 - **sjvair.com: flaky `restamp_cimis` test (found 2026-11-09).** `camp/apps/monitors/cimis/test_restamp.py::test_command_restamps_and_prints_counts`
   failed once in a full run (sjvair-com-64) and passed alone and on a rerun. Suspected cause, not yet confirmed: the test
   calls `call_command('restamp_cimis', '--monitor', monitor.pk, ...)`, and a sqid starting with `-` reads as a flag. A fix
@@ -721,6 +815,29 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   A sqid can start with `-`, which argparse reads as a flag, so the `=` form is safe. **Why deferred:** it predates the
   scale-averaging branch and only affects ids that start with `-`. **Revisit:** the next time those docs are touched, or
   before any production CIMIS re-stamp (the deploy steps here already use the `=` form).
+
+- **MapTiler's cache name is internal.** _Deferred 2026-11-11 (step 5 spec 1, the user)._ "Clear
+  my data" deletes MapTiler's tile cache by its Cache Storage name, `maptiler_sdk`
+  (`src/lib/platform/web/storage.ts`), because `@maptiler/sdk` 4.2 has no public way to clear it.
+  A later `@maptiler/sdk` could rename it, and the delete would then quietly stop working. The
+  dashboard's own `@maptiler/sdk` `~4.2.0` dependency (for `Marker`) must stay in step with
+  map-sdk's. **Revisit whenever** map-sdk moves to a new `@maptiler/sdk`: check the cache name and
+  move the dashboard's dependency with it.
+- **CI's Firefox has no WebGL, so the map E2E skips there.** _Deferred 2026-11-11 (step 5 spec
+  1)._ The Playwright container image's Firefox can't create a WebGL context, so `e2e/map.spec.ts`
+  skips on Firefox, saying why. Chromium and WebKit run it. **Revisit when** the image's Firefox
+  gains WebGL, or a Firefox-only map bug appears.
+- **sjvair.com CI runs take 8–15 minutes instead of 3–4.** _Deferred 2026-11-17 (the user, in
+  sjvair.com [#339](https://github.com/SJVAir/sjvair.com/pull/339)'s session `sjvair-com-b6`)._
+  A temporary `--durations` run blamed two tests from #334 in `camp/api/v2/summaries/tests.py`
+  (`BulkRegionTypeScopeScaleTests`): `test_more_than_1000_regions_by_type_open_days` (383 s) and
+  `test_more_than_1000_regions_by_type` (323 s). Locally both take under a second (requests
+  0.13 s and 0.28 s). The suspected but unconfirmed cause: on CI, tables bloated by rolled-back
+  inserts from earlier tests in the same xdist worker inflate the planner's estimates, so
+  Postgres JIT runs on each query. The likely fix is turning JIT off for the test database,
+  after confirming with one CI run. **Why deferred:** the cause is unconfirmed, confirming it
+  takes CI experiments, and the user kept it out of #339. **Revisit when** a CI run blocks a
+  merge, or the next sjvair.com session has time for its own branch.
 
 ## Documents & saving
 
@@ -861,6 +978,19 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   run": the menu item detaches and the click times out). It is held at 2.19.2 (the popover works
   there). **Revisit when** upgrading `bits-ui` or on the next `shadcn-svelte add`: check that
   test first.
+
+- **bits-ui mounts a top-level menu's focus scope twice (worked around, not reported).**
+  _Noted 2026-11-22 (step 5 spec 7c, Task 1)._ In `bits-ui` 2.19.2 the root context or dropdown
+  menu's `FocusScope` mounts twice as it opens, so two one-frame open focuses are queued. The
+  second mount's `unmount()` also briefly sends focus back to the trigger before its frame
+  (harmless today). On a busy machine the second frame could land after ArrowRight had opened a
+  submenu, focus the parent menu and close the submenu: the CI flake in "the submenu by keyboard:
+  Enter repeats, focus leaves an item that turns disabled". It's worked around in
+  `src/lib/components/menu/open-auto-focus.ts` (the menu content wrappers do the open focus
+  themselves, skipped while focus is already in an open menu); the upstream issue isn't filed.
+  **Revisit when** upgrading `bits-ui`: check whether it still mounts twice, and if not drop the
+  wrapper (the test "a menu's late opening frame doesn't pull focus out of its open submenu"
+  must still pass).
 
 - **Link length in Google Classroom and webmail.** _Deferred 2026-10-25 (Foundations spec 3)._
   The 8,000-character share-link cap (`MAX_LINK_URL`) is provisional: it needs a manual check
@@ -1042,16 +1172,53 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 
 ## Map & selection
 
-- **Comparing mixed kinds of place in one widget.** _Deferred 2026-11-04 (step 4 spec 2)._ A
-  school, a monitor and a county side by side in one Chart: several places are one
-  `SpatialSelection`, which is all monitors or all regions, so the picker greys out the other
-  kind (with a reason) and schools and "your location" are single-place only. Mixing needs a new
-  shape across map-sdk and the data layer. **Revisit if** users ask, or when Release 3 analysis
-  needs it.
-- **Per-monitor pollutant coverage in the place picker.** _Deferred 2026-11-04 (step 4 spec
-  2)._ Monitors are offered by type (`monitors/meta/` `monitors[<type>].entries`), so a site
-  whose type takes a pollutant but that doesn't measure it (an AirNow site without ozone) can be
-  picked and then shows "No data". **Revisit when** the server exposes per-monitor entry types.
+- **Every measurement (raw) for ticked monitor types.** _Deferred 2026-11-21 (step 5 spec 7a, Task
+  5)._ A ticked-type monitor set is fetched through the bulk monitor summaries, which have no raw
+  entries, and fetching raw one by one for dozens of monitors is heavy. So the dataset rules count
+  it as its own place kind, `monitor-types`: like regions for air quality, no raw, and a raw-only
+  air-quality entry type offers nothing. Searched monitors alone still offer raw. **Revisit when**
+  someone asks for raw across ticked types, or the server offers bulk raw entries.
+
+- **Outlined regions read "No data" in a Map's feature list.** _Deferred 2026-11-22 (step 5 spec
+  7a, Task 8)._ A Map with no pollutant and a region fill draws the region type's outlines,
+  uncoloured, with no legend section: a null source scale under `regionsPlugin`'s
+  `noFigure: "outline"`. map-sdk's feature list then reads each region as "<name>, No data" (its
+  no-figure wording), though outlines alone mean no figure was asked for. @sjvair/map-sdk
+  `0.1.0-beta.22` has no outline-only mode without that wording, and the dashboard doesn't change
+  map-sdk. **Revisit when** map-sdk offers an outline-only (no-wording) mode for regions (raised
+  with the coordinator).
+
+- **A point in Where: the Map's schools layer keeps the region it found when the pollutant
+  changes.** _Deferred 2026-11-22 (step 5 spec 7c, Task 4)._ A point's schools and child care load
+  for the region `placeRegion` gives, looked up for the Map's pollutant. The layer is looked up
+  again only when the Where or the layer's presence changes, so a pollutant change keeps the
+  region found before. Why: points rarely change region by pollutant, and refetching sites on
+  every pollutant change costs a lookup for nothing. **Revisit if** a point's schools are reported
+  wrong after a pollutant change.
+
+- **The Map's schools and child care sites are kept for the session.** _Deferred 2026-11-22
+  (step 5 spec 7c)._ Sites are fetched once per session per region, and once valley-wide (a Map
+  with no Where), shared across Maps and kept in memory, with no expiry and no size bound. Why:
+  sites rarely change, the server caches its answers for 24 hours, and the valley-wide list is
+  about 1.5 MB raw (2,782 sites), too much to fetch again per Map. **Revisit if** long-open tabs
+  show stale sites, or memory grows with many regions visited.
+
+- **Comparing mixed kinds of place in one widget.** _Deferred 2026-11-04 (step 4 spec 2);
+  rewritten 2026-11-22 (step 5 spec 7a)._ Monitors and areas now combine: a Chart or Table's areas
+  filter, its monitors (ticked types or searched) are listed. Schools and points stay single and are
+  offered only for the Map and the single-place types, so what is left is a school or point beside
+  other places in one widget. Why: a school or point has no data of its own (it stands for the
+  areas it sits in), so there is nothing to draw beside other lines. **Revisit if** users ask, or
+  when Release 3 analysis needs it.
+- **Per-monitor pollutant coverage in the Monitors search.** _Deferred 2026-11-04 (step 4 spec
+  2); reworded 2026-11-22 (step 5 spec 7a)._ The Monitors search in the Air quality section offers
+  monitors by type (`monitors/meta/` `monitors[<type>].entries`), so a site whose type takes the
+  pollutant but that doesn't measure it (an AirNow site without ozone) can still be picked and then
+  shows "No data". Ticked types behave the same way. With several pollutants ticked on Current
+  conditions (step 5 spec 7b, 2026-11-22), the Monitors search and its rows judge only the first
+  ticked pollutant (`AirQualitySection.svelte` `purpose`/`monitorRows`): a monitor lacking it is
+  greyed out though the card would read it for another pollutant. **Revisit when** the server
+  exposes per-monitor entry types, or a monitor type measures a later pollutant but not the first.
 - **Location type and region filters in the place picker.** _Deferred 2026-11-04 (step 4 spec
   2)._ One search box covers the brief; `searchLocations`' `type` and `region` options stay
   unused. **Revisit if** school searches return too many unrelated rows.
@@ -1104,6 +1271,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   exact test when a shape's label point or whole bbox is inside the view. The bbox pre-check
   already rejects most shapes, and no slowdown has been measured. **Revisit when** moving the map
   with many detailed shapes (all counties, a big plume day) is measurably slow.
+  _Measured 2026-11-16 (map-sdk `0.1.0-beta.17`, session `map-sdk-d9`):_ 2500 sections in view
+  cost 0.70 ms median (1.60 ms max) per move for `features()` plus the in-view test (Chromium,
+  1200×800 map), well under a frame, so this stays deferred.
 
 - **Every county on multi-county place search rows.** _Deferred 2026-11-04 (sjvair.com
   [#308](https://github.com/SJVAir/sjvair.com/pull/308), the user: "option 2 might be the better
@@ -1155,51 +1325,535 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   Q2)._ This comes after feature and region picking. It will be an opt-in `terra-draw`
   plugin in `map-sdk`. **Revisit when** feature and region selection have shipped.
 - **Globe-projection zoom precision.** _Noted 2026-09-16._ Large counties are under-zoomed
-  in the globe projection. **Revisit when** building the Map widget on `map-sdk`.
+  in the globe projection. **Revisit when** building the Map widget on `map-sdk`. _Noted
+  2026-11-11 (step 5 spec 1): the Map widget uses the Mercator projection (no globe, no space
+  backdrop), since a widget is a small flat view, so it doesn't hit this. It still applies to
+  maps on the globe (monitor-map)._
+- **Saving the Map widget's camera.** _Deferred 2026-11-11 (step 5 spec 1)._ Not saved, by
+  design: a map always fits its places when it opens, so a document never holds coordinates the
+  person didn't choose, and a shared map opens on its places. Panning and zooming last only for
+  the moment. **Revisit if** people ask to keep a view they framed by hand.
+- **Pollutants beyond the monitor map's `available_pollutants` on the Map widget.** _Deferred
+  2026-11-11 (step 5 spec 1)._ The map takes only the monitors meta's `available_pollutants`
+  (today PM2.5 and ozone). CO and other ppm-scale pollutants would read wrong, because map-sdk
+  cuts readings to whole numbers ("map-sdk milestone 2 review leftovers"), and the server
+  doesn't list them. **Revisit when** map-sdk shows readings at the metadata's precision (map-sdk
+  change 8 in the spec), or the server lists more pollutants.
+- **Comparing two datasets** (two time windows side by side, each lined up). _Deferred
+  2026-11-11 (step 5 spec 1, as "Year-over-year change on the map"); updated 2026-11-16 (step 5
+  spec 5); reworded 2026-11-18 (step 5 spec 6a, the user's two-dataset idea); kept deferred 2026-11-22._ Under the
+  "Datasets line up" rule a widget holds one dataset: one range at one resolution. Comparing two
+  windows (this year against last, before and after a change) is two datasets, each following
+  the rule, shown together, for example a change map on a diverging scale or two series on one
+  chart. This includes the Pesticides Explorer's compare (its change map between two years).
+  Why: it needs its own design (how two datasets are chosen, stored and drawn), and spec 6a
+  only set the rule. Step 5 spec 6b didn't take it up. After 6b (2026-11-20), the user chose to look at it again after spec 7. When spec 7 was done (7c, #66), the user kept it deferred (2026-11-22). **Revisit when** an agency or researcher asks for trends, or at Release 2 planning.
+- **An hourly or finer Map.** _Deferred 2026-11-18 (step 5 spec 6a)._ The Map steps by day,
+  month or year (`MAP_LEVELS`). Why: an hour's figures over the valley need their own snapshot
+  and many more stops (a week is 168), and nobody has asked. **Revisit when** someone asks to
+  step a map by hour.
+- **Smoke, fire and spray notices at Monthly or coarser** (for example days with smoke per
+  month). _Deferred 2026-11-18 (step 5 spec 6a)._ They offer Daily only (`layerOffers` in
+  `src/lib/data/dataset-rules.ts`, through `offeredLevels`), so a Monthly or Yearly Map, Chart or
+  Table doesn't offer them. Why: the server has no monthly form of them, and the
+  dashboard doesn't compute one. **Revisit when** someone asks for them in monthly data.
+- **A trailing range cut at Yearly stops rolling.** _Deferred 2026-11-18 (step 5 spec 6a, Task
+  8)._ When a range too long for the Map (over 366 stops) becomes a Map, it is cut to its last
+  366 stops. At Daily and Monthly a trailing range stays trailing, so it keeps rolling; at
+  Yearly it becomes a fixed custom range (`mapRange` in `src/lib/get-data/map.ts`), because
+  trailing ranges have no `year` unit. Why: it almost never happens (at Yearly the cut needs a
+  range over 366 years), and a `year` unit changes the stored range shape. **Revisit when**
+  trailing ranges gain a `year` unit, or someone reports a Yearly Map that stopped rolling.
+- **A township detail endpoint** (top chemicals per township). _Deferred 2026-11-16 (step 5 spec
+  5)._ The township card shows the period's three figures and the section count, but no top
+  chemicals, since only sections have a detail endpoint (`sections/<id>/`). Why: it needs a new
+  server endpoint and SDK function, and the section card already names a section's chemicals.
+  **Revisit when** someone asks for a township's chemicals.
+- **The section card ranks top chemicals by pounds, not the shown figure.** _Deferred 2026-11-17
+  (step 5 spec 5b, Task 8 review)._ `sections/<id>/` `top_chemicals` carry `lbs` only (also in
+  sdk `5.0.0-beta.14`). **Revisit when** the server gives per-chemical acres and applications.
+- **The Map widget's 25-place cap.** _Deferred 2026-11-11 (step 5 spec 1, the user)._ A map
+  holds at most 25 places (`accepts.maxPlaces`). Picking more than 25 by hand is rare, but every
+  ZIP code in Fresno County (about 60) would go over it. (The document-wide `SELECTION_MAX` was
+  removed in spec 7a, 2026-11-22; Chart and Table have no cap, and the Map's is the only one left.)
+  **Revisit when** drawn shapes (method C) or a "select all in this region" option
+  arrive: raise the cap then.
 - **`land_use` / `mtrs` region browsing ("progressive unlock").** _Deferred 2026-09-17
   (multi-region selector spec)._ These tables have roughly 66k and 28k rows. Browsing them
   only after narrowing to a small parent area needs its own design. **Revisit when**
-  pesticide analyses need parcel-level (MTRS) selection.
+  pesticide analyses need parcel-level selection in the place picker (for example, a Chart of
+  several sections). _Step 5 spec 6b (2026-11-20, the user's option B) dropped itself as the
+  trigger: a pinned section card charts that one section without browsing._
+- **Readable names for MTRS sections.** _Deferred 2026-11-17 (the user, while planning step 5
+  spec 6)._ A section's name is its PLSS code (for example `MDM-T14S-R20E-07`). The Map's section
+  card shows it, and so does the Chart that a pinned section card opens (step 5 spec 6b,
+  2026-11-20; its title is the code). The user accepted the codes for now,
+  since the Pesticides Explorer shows sections the same way. A readable name would come from the
+  server, never be built in the dashboard. **Revisit when** people find the codes confusing (for
+  example in the private preview), or the explorer gets readable section names.
+- **Show a township in a chart.** _Deferred 2026-11-20 (step 5 spec 6b)._ The township card has
+  no "Show in a chart" button, since townships aren't a chartable region type (only a pinned
+  section card has one). Why: charting a township's use needs the server to offer townships as a
+  region type, which is outside the Map spec. **Revisit when** someone asks to chart a
+  township's use.
+- **Show in a chart from a minimized Map.** _Deferred 2026-11-20 (step 5 spec 6b)._ A minimized
+  Map offers no "Show in a chart" or "Show in a table" (the spec had them in its taskbar menu).
+  Why: a minimized Map isn't mounted, so nothing is drawn and no marks are known; the items
+  list only while a mark would be sent. **Revisit when** someone asks, or when the Map's drawn
+  set is computed outside the tile.
+- **"Show in" stays busy while its request never settles.** _Deferred 2026-11-20 (step 5 spec
+  6b)._ One "Show in" runs at a time (a second click is ignored until the first finishes or
+  fails). A request that never answers, neither failing nor succeeding, leaves the items doing
+  nothing until the page reloads. Why: it's close to unreachable. "Show in" waits on the dataset
+  catalog and the Map's pollutant list, which are fetched once and shared, and the Map starts
+  both when it opens, so they have nearly always answered before a mark can be sent; if one is
+  still pending, the Map is waiting on that same request. The Data Portal's code fails rather
+  than hangs when the network drops (the reload notice covers it), and the navigation is local.
+  A failure already frees the items and says so. The data layer has no time limits anywhere, so
+  one just for "Show in" would be a one-off rule. **Revisit when** anyone sees "Show in" do
+  nothing, or the data requests get a shared time limit.
+- **The Data Portal's Back to the previous page doesn't restore its Discard guard if refused.**
+  _Deferred 2026-11-20 (step 5 spec 6b)._ Add, Save and Cancel put the "Discard changes?"
+  guard back when their navigation doesn't happen; Back to the previous history entry
+  (`history.back()` in `GetData.svelte`'s `goBack`) can't, since a history move can't be
+  awaited. Why: nothing can refuse it today; the Data Portal's own guard is the only navigation
+  blocker in the app, and it lets the page's own exits through. **Revisit when** a second
+  `blockNavigation` is added anywhere, or a route gets a `beforeLoad` that can refuse.
 - **`protected` / `custom` / `school_district` region data.** _Deferred 2026-09-17; re-checked
-  2026-09-28 and 2026-10-13._ The `place` region type was **removed** from the server
-  (migrations 0009/0010); name lookup now tries city, then CDP, then urban area. New types
-  exist: `air_district` and `ab617`. `school_district` has an import command
-  (`import_school_districts`), and there is a new **`Location`** model for schools and
-  child care (`import_schools`). Plans rely on **`school_district`** (school region
-  alerts, the picker) and on the **3 `custom` forecast zones** (Tulare, Kern, Sequoia);
-  the other 6 forecast zones, including Fresno, are county regions, so a zone lookup goes
-  through the forecasts data or a metadata zone list, not `type=custom`. **Production checked
-  2026-10-14** (public API): 201 school districts and the schools are loaded, but there
-  are **0 `custom` regions**, so the 3 forecast zones are missing and production has no
-  forecasts for them (tracked as a separate fix in `TODO.md`). Nothing planned uses
-  `protected`. **Revisit when** the step 3 metadata plan and the Release 2 alerts plan
-  start, to confirm the zones were imported.
+  2026-09-28 and 2026-10-13._ The `place` region type was **removed** from the server (migrations
+  0009/0010); name lookup now tries city, then CDP, then urban area. New types exist: `air_district`
+  and `ab617`. `school_district` has an import command (`import_school_districts`), and there is a
+  new **`Location`** model for schools and child care (`import_schools`). Plans rely on
+  **`school_district`** (school region alerts, the picker) and on the **3 `custom` forecast zones**
+  (Tulare, Kern, Sequoia); the other 6 forecast zones, including Fresno, are county regions, so a
+  zone lookup goes through the forecasts data or a metadata zone list, not `type=custom`.
+  **Production checked 2026-10-14** (public API): 201 school districts and the schools are loaded,
+  but there are **0 `custom` regions**, so the 3 forecast zones are missing and production has no
+  forecasts for them (tracked as a separate fix in `TODO.md`). Nothing planned uses `protected`.
+  **Revisit when** the step 3 metadata plan and the Release 2 alerts plan start, to confirm the
+  zones were imported.
+- **sjvair.com: a bulk summary request with two errors reports only the date error.** _Deferred
+  2026-11-15 (sjvair.com #334, sjvair-com-8a)._ A request with neither `region` nor `type` and a
+  bad date span gets only the date error, because `BulkSummaryDateRangeForm.clean` raises instead
+  of calling `add_error` (the monitor bulk form shares it). It's a 400 either way. **Revisit
+  when** the bulk date form is next touched, or if a client needs every error at once.
+- **sjvair.com: old-vintage census tracts still get summaries.** _Deferred 2026-11-15 (the
+  user; found while scoping spec 4's whole-type region summaries, sjvair-com-8a)._ Tracts whose
+  boundary isn't `TRACT_VINTAGE` ('2020', `camp/apps/regions/querysets.py`) are "kept for
+  CalEnviroScreen 4, never shown", but the region summary tasks still compute their rows (locally
+  380 tracts have daily rows, 300 of them current). That's wasted work. The region list
+  (`/regions/?type=tract`, all 1,161 tracts) stays as it is (the user, 2026-11-15), since the old
+  tracts may serve CES4 lookups. Nothing shown uses the old rows: the whole-type scope and
+  `/regions/geojson/` use `current_vintage()`. **Revisit with** the next sjvair.com change to the
+  region summary tasks, or if summary task time becomes a problem.
 - **"All counties" aggregate view.** _Deferred 2026-09-15._ The server doesn't support it,
   and we chose not to approximate it on the client. **Revisit when** the server gains a
   valley-wide region, or a custom region is defined for it.
 
-- **monitor-map 5.0: an expanded legend can run under the zoom and compass buttons at 390 px (found 2026-11-09).**
-  monitor-map-18's legend fix (spec `docs/superpowers/specs/2026-11-09-user-contract-and-legend-design.md`) collapses the
-  legend when a monitor panel opens on narrow screens and caps its height so it never covers Options and Search. If the
-  user expands it again with the panel open, at 390 px wide the card can still reach under the zoom and compass buttons
-  on the right. **Why deferred:** minor, and it only happens after the user expands the legend with a panel open.
-  **Revisit:** if it's reported, or when monitor-map's map controls are next laid out.
 - **monitor-map 5.0: final-review minors from #131 and #132 (2026-11-09, monitor-map-18).**
   (1) No test checks that subscribing sends the current token after a user switch. **Why:** the panel's
   `{#key getApiToken()}` remounts the control, and that remount is tested. **Revisit:** if the subscribe path changes or
-  mobile reports a wrong-account subscription. (2) The README doesn't warn hosts against calling `monitorMapUserChanged()`
-  inside a `$derived` (it writes `$state`). **Why:** mobile calls it from event handlers. **Revisit:** if a host hits
-  Svelte's `state_unsafe_mutation` error. (3) No comment ties the legend wrapper's `top-18` / `md:top-32` offsets to
-  OptionsBar's height. **Why:** cosmetic. **Revisit:** when OptionsBar's height changes. (4) Ruling: two cookie-only users
+  mobile reports a wrong-account subscription. (4) Ruling: two cookie-only users
   (no `api_token`) switching in place don't remount the subscription control. **Revisit:** if mobile ever signs in
   without a token.
+- **monitor-map: the detail panel shows an empty county badge.** _Found 2026-11-15 (mobile #117
+  emulator QA, mobile-09; checked by the coordinator)._ `MonitorDetailPanel.svelte` renders
+  `badge("location-on", monitor.county)` unconditionally, so a monitor whose `county` is `""`
+  (e.g. "NEON D17 SJER", a PurpleAir; 613 of 801 monitors on the local stack) shows an empty
+  grey pill between the device and location badges. Not new in 5.0: 4.3.0's panel has the same
+  line. **Why deferred:** cosmetic and pre-existing (no hotfix urgency before go-live).
+  **Revisit with** the next monitor-map change to the detail panel, or before monitor-map 5.0.0
+  final; whether `county` should be filled server-side is a separate question.
+- **monitor-map: a selected monitor may show no ring while its panel is open.** _Found 2026-11-15
+  (monitor-map comparison rerun, `monitor-map-78`; not investigated)._ In a local 1440 px
+  screenshot taken after selecting a monitor through the keyboard list, the selected marker had
+  no ring with the panel open. Whether that's expected is unchecked. **Why deferred:** an
+  untriaged observation, not a confirmed bug (no hotfix urgency). **Revisit when** selection
+  styling comes up in monitor-map or map-sdk, or at the parity review; check it first.
+- **monitor-map: at 1024 px with a monitor panel open, the search button wraps below the
+  toolbar.** _Found 2026-11-15 (`monitor-map-78`, after #135)._ The toolbar keeps its dropdowns.
+  4.3 at 1024 px wasn't compared, so it may be pre-existing. **Why deferred:** untriaged, cosmetic.
+  **Revisit at** the parity review (compare 4.3 at 1024 px) or the next monitor-map toolbar or
+  search change.
 - **map-sdk: "MapTiler Cloud API key is not set" console warning (found 2026-11-09).** Every map open logs it, because
   map-sdk deliberately puts the key on each request (`maptilerKeyTransform` in `src/lib/view/create-gl-map.ts`) rather
   than on `@maptiler/sdk`'s global `config.apiKey`, so two maps with different keys don't clash. Maps work. **Why
   deferred:** console noise only, and the design is intended. **Revisit:** if a map-sdk feature starts relying on the
   global config, or before map-sdk's first stable release, to silence the warning.
 
+- **map-sdk: Tab order to a click-pinned card.** _Deferred 2026-11-11 (map-sdk part 1, pinned
+  card, final review; [map-sdk #23](https://github.com/SJVAir/map-sdk/pull/23))._ After a mouse
+  click pins the card, Tab reaches the zoom controls and the List button before the card. Nothing
+  announces how to reach it. From the feature list, Tab reaches it next. Why: non-modal and AA as
+  it is. **Revisit on** an accessibility pass of the map or a screen-reader report.
+- **map-sdk: the pinned card covers what's under it.** _Deferred 2026-11-11 (map-sdk part 1,
+  final review)._ The card (z-index 3, taking the pointer) can sit over list rows and controls and
+  takes wheel zoom over itself. Closing it with focus inside can leave `tabindex="-1"` on the map
+  root. Why: that's what a pinned card does, and both are harmless. Part 5's toolbar (`0.1.0-beta.13`)
+  sits above the card (its dropdowns and narrow panel), so the card no longer covers it. **Revisit**
+  on an accessibility pass of the map, or if users report the card in the way.
+- **map-sdk: a fire group pinned below zoom 10 stays pinned past it.** _Deferred 2026-11-11
+  (map-sdk part 1, final review)._ HMS fire draws groups below zoom 10 and hotspots from it. A
+  group's card pinned before zooming in stays after its layer stops drawing, until the next click
+  elsewhere or Esc. **Revisit when** the HMS fire preset is next changed.
+- **map-sdk: `MapContext`'s new members break hand-written fakes.** _Deferred 2026-11-11
+  (map-sdk parts 1–2, final reviews)._ `pinned`, `unpin`, `setCardEnabled`, `togglePick`,
+  `getPickWith`, `notice` and `clearNotice` are required members. A host test that builds a fake
+  `MapContext` by hand gets a type error. Why: expected in a beta. **Revisit if** a host reports
+  it, or before 1.0 (make internal members optional or move them off the public interface).
+- **map-sdk: no warning for `pickWith: "modifier"` without the card.** _Deferred 2026-11-11
+  (map-sdk part 2, final review; [map-sdk #25](https://github.com/SJVAir/map-sdk/pull/25))._ With
+  the card off, a plain click in modifier mode only fires `featureclick`, so nothing visible
+  happens. The README says to use them together. **Revisit if** a host gets caught by it (a dev-only
+  `console.warn` on the first such click).
+- **map-sdk: Shift-click does nothing on `pickWith: "click"` maps.** _Deferred 2026-11-11 (map-sdk
+  part 2)._ MapLibre's box zoom takes every Shift press and suppresses the click. map-sdk turns a
+  Shift release in place into a pick for `"modifier"` plugins only, so other maps (monitor-map)
+  behave as before, and their documented "Shift-click adds" in `"multiple"` mode has never worked
+  there. Cmd/Ctrl-click and a touch tap still add. **Revisit if** a host wants Shift-click in the
+  default mode (extend the box-zoom pick to `"click"` plugins).
+- **map-sdk: no schools store (`createSchoolsStore`).** _Deferred 2026-11-12 (the user, map-sdk
+  part 4)._ The spec's section 4 called for a store in `./stores` on `getPesticideLocations`, with a
+  region mode and a follow-the-view mode. Why: the dashboard loads its own data and passes plain
+  `DataSource`s, and no other host (monitor-map 5.0, mobile) draws schools. The schools preset
+  documents the feature properties a host supplies. **Revisit if** monitor-map, mobile, or another
+  host wants schools without its own data layer. Checked against `@sjvair/map-sdk`
+  `0.1.0-beta.22` in spec 7c; still true: 7c builds the schools data on the dashboard side
+  (`src/lib/widgets/map/data/`), so this item stays for other hosts.
+- **map-sdk: a focus point under a school, edge cases.** _Deferred 2026-11-12 (map-sdk part 4,
+  reviews)._ The focus row is left out only while the school's badge is drawn at exactly the focus
+  point's coordinates: a camera on a world copy (longitude past ±180), focus coordinates that lost
+  digits (a URL, `toFixed`), or a basemap/theme switch (until the map settles) bring the row back.
+  The view summary may still count the place twice right after a bubble splits, until the next
+  move. Why: the dashboard takes the focus point from the school feature itself, at SJV zooms.
+  Checked against `@sjvair/map-sdk` `0.1.0-beta.22` in spec 7c; still true: the dashboard's
+  focus school takes the site's own coordinates (equal on three local sites), and a visual check
+  showed one badge with the ring. **Revisit if** the place shows twice in practice.
+- **map-sdk: schools' count bubbles, small gaps.** _Deferred 2026-11-12 (map-sdk part 4, final
+  review)._ A type a newer server adds is drawn (no filter) and counted in a bubble's number but has
+  no line in the bubble's tooltip; and `drawnAt` keeps every focus point it was asked about until
+  teardown, re-checking each when the map settles. Why: three known types today, one focus point
+  per tile. Also, a points plugin's `drawnAt` doesn't guard against a point layer missing from the
+  style (unreachable today: teardown runs before every style change). **Revisit when** the server
+  adds a location type, or a host moves the focus point often. Checked against `@sjvair/map-sdk`
+  `0.1.0-beta.22` in spec 7c; still true.
+- **map-sdk: the focus area's wash at the poles and the date line.** _Deferred 2026-11-11 (map-sdk
+  part 3; seen in the globe screenshots)._ The wash's world polygon stops at ±85°, so on the globe
+  the polar caps stay unwashed, and a faint seam shows along the antimeridian when zoomed far out.
+  Why: neither is visible at the SJV zooms the dashboard uses. **Revisit if** a host shows a focus
+  area zoomed out to the whole globe.
+- **map-sdk: focus-area geometry checks are shallow.** _Deferred 2026-11-11 (map-sdk part 3, final
+  review)._ `focusAreaPlugin` checks the geometry type and a Point's coordinates, not each polygon
+  position: bad positions fail in MapLibre's worker, not with a clear error. Its winding test
+  assumes closed rings (GeoJSON requires them), so an unclosed ring could leave the area washed
+  too. Overlapping or nested MultiPolygon parts punch overlapping holes, which may draw oddly.
+  Why: sjvair.com's GeoJSON is valid and its region parts don't overlap. **Revisit if** a host
+  passes hand-made or third-party shapes.
+- **map-sdk: the focus point's list row has no "place" cue.** _Deferred 2026-11-11 (map-sdk part 3,
+  final review)._ Its row and accessible name are the label alone ("Lincoln Elementary"), among the
+  monitors, so a screen-reader user can't tell it isn't a monitor. Why: the user chose the label
+  alone (no reading, no "No level"). **Revisit on** an accessibility pass of the map, or with part 5
+  if the list gets per-layer groups.
+
+- **One figure per place for a whole range ("where was it worst over the period").**
+  _Deferred 2026-11-15 (step 5 spec 4)._ The Map shows one day at a time (the stepper), not a
+  figure for the whole range. Why: a year of daily rows for a whole region type is too much to
+  load, and the right shape is a server-side figure per region per range. **Revisit when**
+  someone asks for it, or the server offers that figure.
+
+- **A Map draws no smoke or fire, and says nothing, without catalog labels.** _Found 2026-11-12
+  (step 5 spec 2)._ If the dataset catalog lacks `hms-smoke` or `hms-fire`, that layer isn't drawn
+  (layer labels come from metadata, the source of truth). The real catalog has both. Since step 5
+  spec 3 the toolbar's Fire & Smoke row uses map-sdk's own message, so only the layer labels need
+  the catalog. **Revisit if** the server's catalog drops either.
+
+- **Collocation sites on the Map.** _Deferred 2026-11-13 (step 5 spec 3, my call)._ The dashboard
+  loads none, so the toolbar leaves `monitorsOptions`' Collocation Sites row out
+  (`collocation: false`). **Revisit if** someone asks for them, or with a later Map data-set spec.
+
+- **Other widgets adopting viewer changes.** _Deferred 2026-11-13 (step 5 spec 3)._ The mechanism
+  is general (`src/lib/widgets/shared/tile-options.svelte.ts`), but no other widget has an
+  in-tile switch for it yet; the calendars' day selection and the Map's marks are the only in-tile
+  edits, and marks stay owner-only. **Revisit with** the next widget that gets an in-tile switch
+  (a chart's series toggle, say).
+
+- **The narrow options panel makes the Map's note banner inert.** _Found 2026-11-13 (step 5 spec
+  3)._ map-sdk inerts its overlays while the options panel covers a narrow map, so the note's
+  Retry button and status drop out of reach until the panel closes. **Revisit with** the next
+  accessibility pass on the map, or if the panel stops inerting the overlays.
+
+- **Step 5 spec 3 review leftovers.** _Deferred 2026-11-13 (step 5 spec 3, per-task and final
+  reviews)._ Small things the reviews let stay:
+  - **Code:** `activeFilters`' unused `offer` parameter; the unique refine and the bare `max(32)`
+    on `hiddenTypes` duplicate `marks`' pattern; `routeOneOutline`'s non-null assertion. **Fix
+    with** the next change to each.
+  - **Test gaps:** no browser test for the "options" reason of the hidden-marks note; the E2E
+    `expectStill` passes on its first sample. **Add with** the next change to each.
+  - **From the final review** (2026-11-13), one line each; **add or fix with** the next change to
+    each:
+    - The test-only `TILE_OPTIONS_PROBE_KEY` lookup in `DashboardGrid`, and its
+      `as TileOptionsContext` cast.
+    - The icon tokens' contrast is checked only against `--background`, not the menu surfaces or
+      the hovered `--accent`.
+    - `MonitorTypeInfo.unflagged` is optional, so a stub that omits it reads as false.
+    - `MapData`'s `unlisted` and `smokeAndFire` derive from the whole input, and `monitorsQuery`
+      and `hmsQuery` are public.
+    - The old unused `eslint-disable` warning in `sonner.svelte`.
+    - The options schema test sits under the wrong `describe`, and `toOptions` builds an untyped
+      `Record`.
+    - The equal/read-only tile-options test has no real read-only session, and `SharedPage`'s doc
+      comment sits above the `token` derived.
+    - The newer/invalid grid test asserts only the frame's absence, and the deep-link source is a
+      nested ternary.
+    - The hidden Monitors group's defaults are still merged, and no test covers `drawn`
+      undefined.
+    - A toolbar change whose next options fail validation is skipped silently.
+    - No test for `drawable` `[]`.
+    - The E2E `waitForTimeout(1500)`, the `fake.signedInAs` reach-in, and the `liveLinkTo` cast.
+
+- **Step 5 spec 4 review leftovers.** _Deferred 2026-11-15 (step 5 spec 4, per-task and final
+  reviews)._ Small things the reviews let stay, each with its revisit trigger:
+  - **`remPx` is read once** (`MapWidget.svelte`): a font-size change mid-visit leaves the 48rem
+    toolbar breakpoint stale until the tile remounts. **Revisit if** someone reports it, or when
+    the toolbar's breakpoint becomes a shared helper.
+  - **Smoke and fire on a day poll only while that day's monitor figures aren't final** (the
+    ruling recorded in `ARCHITECTURE.md`): HMS has no `is_final`, so a late plume for a settled
+    day isn't picked up. **Revisit if** the server gives HMS a final flag, or late plumes are
+    reported.
+  - **Message key prefixes `getdata_` and `get_data_` are mixed** (the catalog already held
+    both, e.g. `getdata_preset_*`). **Revisit with** a catalog-wide key tidy.
+  - **The per-row figure logic is repeated** in `snapshot/regions.ts` and `snapshot/monitors.ts`
+    (two copies of about 10 lines). Spec 5a didn't extract `figureOfRow`: pesticide use is read
+    from `sections/` and `townships/` responses, not from summary rows, so no third copy exists.
+    **Revisit when** a third summary-row snapshot appears.
+  - **City and school district fills load unsimplified whole-type GeoJSON** (measured at most
+    0.79 MB gzip, fetched once per page). **Revisit when** the regions meta gains a per-type
+    `simplify` flag (already deferred), or a type's payload grows past about 1 MB gzip.
+  - **Switching the pollutant on a day stop drops the monitors** for a moment, until the
+    figure-label lookup (memoized metadata) settles. **Revisit if** it shows in testing, or when
+    label lookups move into `MapData` (every layer pollutant's label looked up up front).
+  - **On a past day, a monitor that has left the current monitors list isn't drawn**, and its
+    mark is counted as "outside the places" rather than "no figure for this day": a day's
+    figures are joined to the current list (`toDayFeatures`, `marks.ts`). Rare. Step 5 spec 6b
+    doesn't change it (an undrawn mark isn't sent to a chart). **Revisit when** someone reports
+    it, or when the Map reads a past day's monitors from that day's own list.
+  - **A step can still fold into an unrelated edit** made within the 1 s `StepRun` window
+    (`step-run.ts`): the run closes on time and on a drag's end, not on another kind of change.
+    Rare (a person editing something else within a second of stepping). **Revisit if** someone
+    reports a lost undo boundary, or when another control joins the undo runs.
+  - **`fillRegionType` casts** (`as RegionSummaryBulkType`) where a type predicate on
+    `fillableTypes` would do. Cosmetic; behaviour is covered by tests. **Revisit when** the
+    function is next touched, or `fillableTypes` gains a second caller.
+
+- **Step 5 spec 5a review leftovers.** _Deferred 2026-11-16 (step 5 spec 5a, spray notices;
+  per-task and final reviews, and the final fix wave)._ Small things the reviews let stay. Unless
+  an item says otherwise, **fix or add with** the next change to the code it names (spec 5b
+  touches most of it).
+  - **Limits found while building**, each with its own trigger:
+    - **The notices' 2,000-match cap is unmeasured for early spring.** Production has no notices
+      before late May 2026; its busiest 5-day window since then is 224, so the valley-wide request
+      has about 9x headroom. **Revisit after** the first spring season, or on a 400 "bbox too
+      large".
+    - **The Map E2E clock is pinned to noon Pacific.** Playwright's fake clock makes the app's
+      Pacific "today" follow the machine zone (after 21:30 PT on a New York machine), so the tests
+      fix the time, and the New York run barely exercises the Pacific-date rule. The real clock
+      is correct. **Revisit when** a late-evening Pacific check is needed.
+    - **A server without `scales["spray-notice"]`** makes the legend say "isn't available right
+      now" while the markers would draw (neutral). The server has the scale (#338). **Revisit
+      if** the server drops it.
+    - **Notices with no geometry are dropped without saying so.** **Revisit if** the server sends
+      geometry-less notices in practice (count them in the legend note then).
+    - **If the pesticides meta fails to load, a gone chemical shows Retry**, not filter-gone
+      (`filtersGone` needs the meta's `notice_filters` first); the fetch, which needs the meta
+      too, fails with Retry. **Revisit if** someone reports the wrong message.
+  - **The notice card:**
+    - The "Active" tag isn't live while a card stays open (it changes at most once per window).
+    - When the open notice (or the focused list row) leaves on a refetch and one notice remains,
+      focus goes to the card's root (`tabindex="-1"`, with a focus ring), not a control. Moving
+      it to the card's first link is the alternative; **revisit with** the copy and accessibility
+      check.
+    - A notice card's snippet is cached when it is handed out, before it mounts
+      (`notice-tooltip.ts`), so one handed out but never mounted stays cached until the plugin is
+      removed (bounded by markers × forms). Spec 5b fixed this for the use cards (`use-tooltip.ts`
+      caches from mount); do the same here.
+    - A null `at` in `MapWidget` is treated as Now (`!days.onDay` would say it).
+  - **Data blocks** (`src/lib/widgets/map/data/`):
+    - `DayLayer`'s ahead input is silently capped at `AHEAD` (`MapData` caps it itself).
+    - `MonitorsBlock` re-derives `#entryType`, `#loads`, `#day` and `#aheadKey` and inlines the
+      ahead parsing (share a helper beside `AHEAD`); `monitors-block.svelte.ts` is 385 lines of
+      moved code.
+    - The `source as FillSource | null` cast in `loaded.svelte.ts` (a `DayLayer<T, S>` source
+      type parameter would remove it).
+    - `DayLayer.query` exposes the raw `NowQuery` (document it as read-only).
+    - A day that settles while shown keeps polling until the polling effect next re-runs (at
+      most one extra request).
+    - `MapData` passes `noticesPolls` `Date.now()`, not the now client's clock.
+    - Notice groups follow the server's order (sort them for deterministic markers).
+    - The import cycle `metadata.ts` ↔ `pesticide-meta.ts` (`untilAborted`); it works today.
+      **Revisit if** it bites.
+  - **Get data and the widget:**
+    - Get data's "doesn't apply" lines aren't tied to their filter field for screen readers
+      (`aria-describedby`); the text sits next to the group.
+    - A failed meta load in Get data refetches only on toggle.
+    - Before the pesticides meta loads, the legend's "Filtered by" can briefly name a skipped
+      filter (self-correcting).
+  - **Test gaps:**
+    - No E2E opens a notice's detail and waits for a poll: the refetch browser tests call the
+      plugin's `tooltip` by hand, as map-sdk's `MapTooltip` does, not the real `MapTooltip`.
+    - No E2E for the Now "No spray notices right now" line (the browser tests cover it).
+    - The `DayLayer` "remakes now source" test doesn't check the old key was released.
+    - No tests for the midnight remake of smoke and fire or the fill on Now, `destroy()` stopping
+      fetches, `setPolling(false)` reaching every block, or `monitorsCurrent` after a place
+      change (each block is wired; the final review checked).
+    - No browser test for the Spray notices section staying hidden with no catalog entry.
+    - Cluster radius and max zoom aren't asserted, and no test runs with Clusters off.
+    - No test opens a list row by Enter or Space (the rows are native buttons).
+    - The MapWidget wiring tests cover only the pinned path (the fake map has no `focusedKey`);
+      E2E covers focus.
+    - The list-form axe run doesn't wait for the meta (E2E's axe run covers the full card).
+    - Fixed 50 ms waits before negative assertions in the notice card tests.
+    - The day-refresh browser test ("a final past day isn't asked for again") is timing-sensitive
+      under machine load (passes alone).
+    - E2E: `featureList()` leaves focus on the List button; `toContain("2026-11-14")` is met by
+      Now's prefetch (the list assertion carries the proof); asserting the only dated request is
+      the prefetch ties the test to prefetch internals; `toListRow` has bounded loops with
+      non-retrying reads; the fixtures' `past` flag is never asserted in the UI (the UI doesn't
+      use it); the Tulare fixture points are approximate real locations (county-level; use
+      clearly fake points); `routeMapNotices`' doc comment runs over 100 columns.
+    - Process: the Get data browser test never ran RED (written after the implementation), and
+      the catalog fixture uses an `as CatalogEntry` cast.
+
+- **Step 5 spec 5b review leftovers.** _Deferred 2026-11-17 (step 5 spec 5b, pesticide use; the
+  task reviews and the review-leftovers sweep)._ Small things the reviews let stay, each with its
+  own trigger.
+  - **Get data's filter set remounts when use turns on** (`MapSections.svelte`). The one filter
+    set shows in the notices section, and moves to the use section once use is on, so it mounts
+    again there: a half-typed chemical search is lost (focus is on the use switch, outside the
+    set). Keeping it mounted means moving it out of both sections (a shared filters section) or
+    moving a DOM node across accordion items, a layout change the sweep doesn't make. **Revisit
+    with** the copy and accessibility check, or if someone reports losing a search.
+  - **The mouse-drag pan path for sections is untested.** Dragging is map-sdk's job; the tests
+    move the camera directly. **Revisit if** a drag bug is reported.
+  - **Mid-zoom across the section zoom, the township id can briefly be a button that `pin`
+    refuses**, because `map.camera` updates only on moveend. It's harmless (the click does
+    nothing) and corrects itself at moveend. **Revisit if** map-sdk exposes the live zoom.
+  - **`expectStill` (E2E) hides the card's box**, so a camera move small enough to keep the card
+    inside its own box goes unseen. **Revisit if** a camera regression gets past it.
+  - **The use block** (Task 5):
+    - `refusedZoom` only grows (a refused bbox raises the section zoom for the rest of the
+      session). **Revisit when** users report extra zoom on small tiles, or when the server
+      publishes its bbox limit in meta.
+    - When the lens's block has too many sections, it reads as a failure. **Revisit if** the
+      server's limit falls below 324 sections (a 3 x 3 block of townships).
+    - Superseded `sections/` requests aren't cancelled, because `getPesticideSections` takes no
+      signal (their results are ignored). **Revisit if** panning piles requests up.
+  - **The use scale's refs and stored scales grow without a limit** (`use-scale.ts`; one per
+    figure, level and query, small), as does `filtersLine`'s cache of the last names per filters
+    key (`filters-line.svelte.ts`; one short string per filter set used). **Revisit if** a long
+    session shows growth.
+  - **`fitCamera` and `syncMapTitle` are init-time functions** (`camera.svelte.ts`,
+    `map-title.svelte.ts`), called once from `MapWidget`'s setup, unlike the split's other
+    helpers, which are classes with `destroy()`. Both work as written. **Revisit when** either
+    needs teardown or a second caller.
+  - **With no fit target, Retry after a use error briefly takes the use plugins off** while the
+    townships load (`MapWidget.svelte`: `useNothingToDraw` turns false on loading, and the
+    latitude may still be unknown). It's brief and corrects itself once the townships arrive.
+    **Revisit if** someone sees the flicker.
+  - **`NoteWidget` and `DataTable` don't use `scrollFocusable` yet.** The cards and the map's
+    legend wrapper (a named group) are Tab stops only while they overflow; `NoteWidget` and
+    `DataTable` are always a Tab stop (`tabindex="0"`), even when nothing overflows. **Revisit
+    with** the copy and accessibility check.
+  - **Hand check for the user: an explorer page through the dev server.** The section card's
+    links open sjvair.com's explorer pages, which sit behind the server's `beta_tools` gate, so
+    opening one through :5173 needs a beta tester's sign-in (unchecked: sjvair.com answers 404
+    without it). The dev proxy's `/static/` assets those pages load were checked (200 with the
+    right types). **Revisit when** the user next signs in as a beta tester on the local stack.
+
 ## Analysis & data
+
+- **Overlays with no Where.** _Deferred 2026-11-22 (step 5 spec 7a, Task 14; the session
+  lead's ruling)._ A Chart's or Table's weather or pesticide-use main draws with no Where (every
+  station, the valley-wide total), but its overlays aren't fetched: the whole layer is for main
+  layers only (`everywhereMain` and `overlayInputsFor` in `src/lib/widgets/shared/overlays.ts`),
+  and the widget says "Add a place to show {layer} beside it." Why: an everywhere main and an
+  everywhere overlay have no meaningful pairing, and overlays pair by index, so the valley's use
+  would sit beside the first station only (or one station's weather beside the valley), which
+  would mislead. **Revisit when** someone asks for overlays with no Where.
+- **A weekly data resolution.** _Deferred 2026-11-18 (step 5 spec 6a)._ Get data offers
+  Every measurement, Hourly, Daily, Monthly and Yearly. Why: the server has no weekly summaries;
+  it would need server work, with weeks starting Sunday in Pacific time, and the dashboard
+  computes no coarse figure itself. **Revisit when** someone asks for weekly figures.
+- **Quarterly and Seasonal data resolutions.** _Deferred 2026-11-18 (the user, step 5 spec 6a)._
+  The server and SDK have quarterly and seasonal summaries, but the dashboard never offered
+  them (`LEVELS` in `src/lib/data/dataset-rules.ts`). Why: seasons cross the year boundary
+  (December to February) and need their own whole-period rules and pickers. **Revisit when**
+  someone asks for seasonal or quarterly figures.
+- **Choosing the plain mean instead of the scale's figure** (for example a researcher's "monthly
+  mean ozone" of all hours). _Deferred 2026-11-18 (the user, step 5 spec 6a)._ Every widget
+  shows each pollutant's scale figure: the daily figure at Daily (ozone's highest 1-hour
+  average), the average of the daily figures at Monthly and Yearly. The CSV's `mean` column keeps
+  the plain mean, but no widget draws it. Why: one place and period should never show two
+  numbers, and the scale's figure is what the levels are defined for. **Revisit when** a
+  researcher or agency asks for the plain mean.
+- **A just-ended month's row without a figure reads as complete for a few hours.** _Deferred
+  2026-11-19 (step 5 spec 6a, final review)._ On the 1st, before the nightly rollup (about 02:15
+  Pacific), the month that just ended is still the server's open row, but `toPoints`
+  (`src/lib/data/adapters/air-quality-fetch.ts`) sets `partial` by time only, and `final` is set
+  only on figure rows. So a row with no figure (weather, for example) reads as complete until the
+  rollup replaces it. Why: a few hours once a month, and the value is the server's own running
+  row. **Revisit when** someone sees a wrong last-month value early on the 1st, or the server
+  marks every row with `is_final`.
+- **"Pesticide Use" reads capitalised mid-sentence.** _Deferred 2026-11-19 (step 5 spec 6a, final
+  review)._ Notes such as "Pesticide Use isn't reported daily" name the dataset by the server
+  catalog's label, which is title case. Why: labels come from the metadata (never rewritten in the
+  dashboard), so a sentence-case label is a server catalog change. **Revisit when** the server
+  catalog's labels are next edited, or with a copy review.
+- **A pinned calendar's lone dataset isn't greyed in What.** _Deferred 2026-11-19 (step 5 spec 6a,
+  final review)._ A calendar (pinned to Daily) with one dataset that doesn't offer Daily isn't
+  greyed in Get data's What section; the type block ("Show as") catches it instead, so it can't
+  be saved. Why: the person is still told, just in another place. **Revisit when** Get data's
+  What section is next reworked, or someone is confused by it.
+- **The Data table's notes aren't `role="status"`.** _Deferred 2026-11-19 (step 5 spec 6a, final
+  review)._ The notes under a Data table (a layer that doesn't line up, a failed overlay) aren't
+  announced when they appear. Why: graded minor; they sit just above the table, so a screen
+  reader reaches them in reading order. **Revisit with** the next accessibility pass on the
+  widgets, or if a screen-reader user misses one.
+- **Chart figure loose ends.** _Deferred 2026-11-19 (step 5 spec 6a, final review, Task 11)._ A
+  figure with no server label falls back to the "Daily average" or "Monthly average" series
+  names, which would misname a peak figure (only if the server leaves out a label); the chart goes
+  briefly blank while a new figure is looked up; and there are no tests for `DataWidget`'s
+  `figurePending` → error → retry, or for `year` through the widget. Why: the server labels every
+  figure today, and the blank is a short loading state. **Revisit when** the server ships a figure
+  without a label, or with the next change to `src/lib/widgets/shared/data-widget.svelte.ts`
+  (add the tests).
+
+- **sjvair.com: profile and speed up the nightly current-periods run.** _Deferred 2026-11-18
+  (the user, session `sjvair-com-93`, sjvair.com #342)._ Profile a scoped nightly run phase by
+  phase (DB reads, t-digest merge, upserts, daily-figure fill), then pick from:
+  - (a) merge the month incrementally (last night's partial row plus yesterday's daily sketch,
+    not up to 31 sketches); the stats stay exact, and only p25/p75 can differ slightly until
+    the final rollup;
+  - (b) split owners across Huey tasks, which helps only with more than one summaries worker;
+  - (c) a compiled t-digest library in place of the pure-Python `tdigest` 0.5.2.2: every
+    rollup gets faster, but new rows' percentiles differ slightly, and the stored-sketch
+    format needs checking;
+  - (d) a numpy centroid merge of our own (the server session prefers (c)).
+    Local laptop timings: deploy night 34.9 s (monitors) and 62.3 s (regions); a near-steady
+    night after the Nov 8–17 catch-up (540 of 568 monitor and 1,122 of 1,216 region owners
+    reporting, month rolls merging up to 17 daily sketches) 49.9 s and 92.9 s. **Why deferred:** the
+    user wants to go through optimizations together later, and #342 doesn't depend on it.
+    **Revisit when** the user starts the optimization pass, or the production nightly run
+    (02:15 / 02:20 Pacific) runs long or overlaps the 02:30 integrity check.
+
+- **sjvair.com: daily rows written by the hourly summarizer, in place of `daily/open/`.**
+  _Deferred 2026-11-18 (the user, session `sjvair-com-93`, branch
+  `feature/period-daily-statistic`)._ That branch writes the current month, quarter, season and
+  year rows nightly (through yesterday), but today's daily figure stays on the request-built
+  `daily/open/`. Writing today's daily rows from the hourly summarizer (:45/:50) would retire
+  that endpoint. It's deferred for three reasons: it removes an endpoint `@sjvair/sdk` uses, it
+  adds work to the timing-sensitive hourly tasks, and it needs a guard so a late hourly run
+  can't overwrite a final daily row. **Revisit after** that branch merges and the nightly
+  task's production cost is known. It's a separate follow-up branch.
 
 - **A server test for the lone empty `?date=` on the HMS lists.** _Deferred 2026-11-04 (step 3
   spec 4 final review, graded minor)._ Since sjvair.com #303, an empty `date` counts as no date
@@ -1261,6 +1915,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   (Facility Emissions Explorer, merged 2026-10-13) moved the API to
   `/api/2.0/emissions/…` and added CEPAM, dairies, wells, and toxics, so anything we build
   uses `emissions`. **Revisit when** an emissions or facility-proximity use case comes up.
+  _Map ideas added 2026-11-11 (step 5 spec 1):_ on the Map widget, facilities sized by their
+  emissions, plus wells, dairies and methane plumes, as on sjvair.com's emissions explorer. Same
+  trigger.
 - **Combined heat + air-quality tier bump** (raise the tier by one when both conditions
   are at tier ≥ 2, reflecting combined heat and ozone effects). _Deferred 2026-09-28._ It
   is a health claim needing expert backing. **Revisit when** the user or a health advisor
@@ -1274,15 +1931,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   per-monitor-type switch). PM10 is still raw: the client fetches it span-capped and chunked and
   downsamples it in a worker. **Revisit when** raw PM10 fetches get slow or large. It's now a
   one-line switch per monitor type (or the model flag, if regions should get it too).
-- **To-date summary rows for the current month, quarter, season and year.** _Deferred
-  2026-11-05 (the user, on sjvair.com #313)._ The scheduled rollups write those rows only once a
-  period has ended. `rebuild_summaries` used to also write the current period's rows, which then
-  froze at the rebuild time (and existed only for rebuilt stations), so #313 makes it roll only
-  finished periods, like `repair_summaries`. A proper to-date value needs a small scheduled task
-  that re-rolls the current periods from day rows after each daily rollup, plus decisions on
-  settling, what `is_complete` means mid-period, and region rows. Until then the dashboard
-  computes "so far this month/year" from daily rows. **Revisit when** a widget wants a to-date
-  value or computing it from daily rows gets slow.
 - **Region-level weather summaries.** _Deferred 2026-11-05 (Get data layers, the user)._ CIMIS
   stations get monitor summaries only; there are never region rows for weather. Region
   weighting is built on air-sensor grades and health checks, so weather would need its own
@@ -1426,7 +2074,11 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   whole-layer (every monitor) query, the backfill that fills recent periods drops a monitor that
   appears only in the backfill response, and a place with no data in the window costs a backfill
   request on every poll. Why: whole-layer queries feed only the map (not built yet). **Revisit
-  when** the map widget uses whole-layer queries (Release 1 step 5).
+  when** the map widget uses whole-layer queries (Release 1 step 5). _Noted 2026-11-11 (step 5
+  spec 1): the Map widget uses map-sdk's live monitors store, not whole-layer queries, so this
+  doesn't bite yet._ _Noted 2026-11-15 (step 5 spec 4): the Map's ranged data uses the snapshot
+  query (one bulk request per day), not whole-layer range queries, so it still doesn't bite.
+  **Revisit when** a whole-layer series is needed._
 
 - **Summary period starts in standard time are stamped an hour early on production.**
   _Deferred 2026-11-04 (summary cache and place lookup; finding 2 of sjvair.com
@@ -1463,15 +2115,28 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 
 ## Map plugins
 
+- **The regions meta doesn't say which types the server simplifies.** _Deferred 2026-11-15
+  (step 5 spec 4, Task 12)._ `regions/geojson/?simplify=1` is accepted only for county,
+  zipcode and tract (sjvair.com answers 400 for any other type), and no `regions/meta/` field
+  says so, so the dashboard holds that list (`SIMPLIFIED_TYPES` in
+  `src/lib/widgets/map/regions.ts`). It also stops the outline lookup asking for simplified
+  city or school district shapes, which the server refuses. **Why deferred:** a server
+  metadata field is a sjvair.com change, and the list changes only with the server's.
+  **Revisit with** the next sjvair.com regions meta change: add a per-type `simplify` flag
+  and read it here.
+
 - **Map plugins for the remaining server datasets.** _Deferred 2026-09-24 (docs review);
   updated 2026-11-03 (map-sdk milestone 1 spec)._ map-sdk milestone 1 covers monitors, region
   fill, HMS smoke and fire, **CalHeatScore ZIPs, and forecast zones** (the user moved the last
   two in). Collocation, EV, and wind are milestone 2 (below); "weather" in monitor-map is only
-  the detail panel's temperature lookup, not a map layer. Deferred: pesticide use and
-  SprayDays notices, CalEnviroScreen tracts, CEIDARS facilities, TEMPO rasters. Most can run
+  the detail panel's temperature lookup, not a map layer. Deferred: CalEnviroScreen tracts,
+  CEIDARS facilities, TEMPO rasters (pesticide use and SprayDays notices were too). **SprayDays
+  notices are done** (the dashboard's Map, step 5 spec 5a, 2026-11-16, on `pointsPlugin` with
+  count markers), and **pesticide use is done** (spec 5b, 2026-11-17, on `shapesPlugin` and
+  `shapesLens`). Most can run
   on map-sdk's general points and shapes plugins plus their metadata scale with little or no
   preset code; rasters need the raster plugin (below). **Revisit when** a widget or analysis
-  needs one on a map (pesticide notices likely first, alongside the alerts work).
+  needs one on a map.
 - **map-sdk: monitor readings round in the list but are cut off in the tooltip.** _Deferred
   2026-11-08 (map-sdk parity defaults, [#15](https://github.com/SJVAir/map-sdk/pull/15); the
   user chose to fix fire only)._ The monitor tooltip cuts its reading to a whole number, as
@@ -1489,7 +2154,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   not spec 5. To settle when designed: a smooth heatmap fills in between monitors, so it shows
   values where nothing was measured; the day it shows; and which daily figure (spec 5's
   per-scale daily figure, `scale.daily_statistic`). **Revisit when** the Map widget is designed
-  (step 4 → step 5/6), or map-sdk takes on a new layer type.
+  (step 4 → step 5/6), or map-sdk takes on a new layer type. _Updated 2026-11-15 (step 5 spec
+  4): day-by-day monitors and region fills are built (the stepper, and a fill by region type). A
+  smooth interpolated surface stays deferred, because it shows values where nothing was
+  measured. **Revisit if** someone asks for it._
 - **Wind layer license.** _Found 2026-11-03 (map-sdk milestone 1 spec)._ `@maptiler/weather`
   is proprietary ("All rights reserved", only for use with an active MapTiler account), so
   map-sdk can't depend on it under the license policy. monitor-map 4.x uses it today. Options:
@@ -1594,9 +2262,144 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   (`destroy_effect_children` keeps `next`; `Batch#traverse` climbs past the root). Why deferred:
   filing on Svelte's GitHub is public and needs the user's yes. Revisit: when the user says to
   file it, or when a Svelte release fixes it. map-sdk's microtask setup stays either way.
+- **map-sdk: a middle, icons-only toolbar layout.** _Deferred 2026-11-11 (map-sdk's options
+  toolbar spec, `docs/superpowers/specs/2026-11-11-options-toolbar-and-widget-needs-design.md` →
+  "Deferrals"; recorded here 2026-11-12)._ The shared toolbar has two layouts, wide (joined
+  dropdown buttons) and narrow (one options button and a panel), chosen by the map's width. A
+  third layout between them, showing only the group icons, is left out. Why: two layouts are
+  simpler to get right. Part 5's screenshots (2026-11-13) showed all five groups fitting on an
+  ~800px map, just over 48rem, with no wrapping. **Revisit when** a tile width shows the wide
+  layout cramped or wrapping badly (long host labels, or more groups).
+- **map-sdk: toolbar edge cases left for later.** _Deferred 2026-11-13 (map-sdk part 5 reviews,
+  [map-sdk #29](https://github.com/SJVAir/map-sdk/pull/29))._ A dropdown's height cap and side
+  are measured only when it opens (a resize while open leaves them stale); a tile with less than
+  about 12px below a trigger shows an empty dropdown; changing a group's `cluster` remounts it and
+  loses focus; pieces mounted while the narrow panel is open aren't made inert; a Reset can write
+  pollutant `"none"` when a host has no pollutants and no None row. Why: each is rare and
+  harmless. **Revisit if** a host hits one, or on an accessibility pass of the map.
+- **map-sdk: `basemap.resolve` and ids without a version.** _Deferred 2026-11-13 (map-sdk part 5
+  checkpoint review)._ A saved id is matched to its basemap by the id without `-v<n>`; an id with no
+  version at all goes to the default basemap rather than its own. MapTiler's ids all carry a
+  version today. **Revisit if** MapTiler adds unversioned style ids.
+- **map-sdk: no faint tint inside the focus area.** _Deferred 2026-11-11 (the same spec →
+  "Deferrals"; recorded here 2026-11-12)._ sjvair.com's pesticides explorer tints the inside of
+  its focus shape; map-sdk's focus area (part 3, `0.1.0-beta.11`) draws only the line, casing and
+  the fade outside. Why: a tint would sit over the data, and the line and fade suffice. **Revisit
+  if** the user wants the explorers' exact look.
+- **The BAM 1022's map label stays "BAM 1022", not "SJVAir".** _Held 2026-11-12 (the user, in
+  the sjvair.com monitor-meta groups session `sjvair-com-8d`)._ The user first meant to rename the
+  `bam1022` type to "SJVAir" on the server. That label is the model's `verbose_name`, which also
+  names the type in the admin's choices (the user wants those to stay "BAM 1022", since SJVAir may
+  run other reference monitors) and is every BAM's `device` fallback in the monitor API. Why held:
+  those side effects. **Fix when wanted:** a separate public label read only by
+  `/api/2.0/monitors/meta/`, leaving `verbose_name` alone. **Revisit when** SJVAir branding for
+  BAMs is wanted on the map or the dashboard. monitor-map 5.0 goes live showing "BAM 1022" in its
+  Monitors menu where 4.3 shows "SJVAir" (the user, 2026-11-13, in monitor-map's shared-toolbar
+  spec): a known difference from 4.3 for the parity review.
+- **`@sjvair/monitor-map` `5.0.0-beta.3` (with map-sdk `0.1.0-beta.15`, #135).** _Deferred
+  2026-11-15 (the user: "beta.3 later")._ `release/5.0.0` beaecf8 has the beta.15 re-pin, the phone
+  search width and the brand-blue `--primary`, but npm `next` stays `5.0.0-beta.2`. Why: nothing
+  needs it yet; mobile stays on beta.2. **Revisit when** the next phone test, a mobile re-pin, or
+  the parity review needs a published build.
+- **map-sdk: arriving townships go clear for 3–6 frames on a block's first visit.** _Deferred
+  2026-11-20 (the user; found by the scripted lens check on `@sjvair/map-sdk` `0.1.0-beta.22`)._ On
+  the first visit to a block (5 of 30 moves per run, 32–77 ms), map-sdk first draws the sections
+  it already holds for the new block. Those include a few edge sections of the arriving
+  townships, and one drawn section hides its whole township, so the interior shows clear until
+  the full block arrives (the dashboard's 50 ms `LENS_WAIT` plus the fetch). Real data does this
+  too: sjvair.com selects sections by bounding-box overlap (`bboverlaps`), which includes boxes
+  that only touch. Fix in map-sdk: hide a township only once its whole block has loaded. Short
+  and not urgent. **Revisit with** the next `@sjvair/map-sdk` beta that step 6 needs (spec 7 stayed
+  on `0.1.0-beta.22`);
+  check it with `.superpowers/lens-check/` in map-sdk.
+- **map-sdk: a township the lens leaves goes clear for 1 frame.** _Deferred 2026-11-20 (the user;
+  found by the same check)._ New in `0.1.0-beta.21`/`beta.22` from map-sdk #38: a leaving
+  township's sections are gone from the drawn tiles, but it shows again only at `sourcedata` or
+  `idle`, a frame later (8–14 of 30 moves per run; `0.1.0-beta.19` didn't do this). Fix in
+  map-sdk: show it again on the same frame its sections go. **Revisit with** the next
+  `@sjvair/map-sdk` beta that step 6 needs, with the entry above.
+- **The Monthly and Yearly legend line takes its units from the catalog.** _Deferred 2026-11-20
+  (step 5 spec 6b, Task 11 review)._ map-sdk's own "(units)" line reads the monitors meta's scale
+  units, while the Monthly or Yearly figure line that replaces it ("µg/m³ · Average of 24-hour
+  averages") reads the dataset catalog's `entry_types[].units`. Two server sources that match
+  today. Why: reading the scale's units needs a change in `MapWidget.svelte` beyond the pin.
+  **Revisit when** the two sources ever differ, or `MapWidget` next reads the scale's units.
+- **map-sdk's demo page doesn't show the newer opt-in features.** _Deferred 2026-11-15 (the user,
+  in map-sdk `0.1.0-beta.15`'s session `map-sdk-42`, [#32](https://github.com/SJVAir/map-sdk/pull/32))._
+  Missing from the demo: regions with no figure drawn as outlines, plus the legend's "No data"
+  row; `monitorsPlugin`'s `detail` and `figureLabel`, including the cluster line; the chevron on
+  checkbox rows with children; and the narrow toolbar's search slot. Also missing since `0.1.0-beta.16`
+  ([#33](https://github.com/SJVAir/map-sdk/pull/33)): "No data" in the list row, accessible name,
+  tooltip and ViewSummary for no-figure outlines, the unfilled list swatch, and the Legend's
+  no-figure swatch on `--swatch-outline-*`. The trigger below fired with beta.16 and wasn't raised
+  then (the prompt didn't carry it); the user set the new trigger on 2026-11-15. Why: the user wants the demo
+  updated, but not in that PR. The demo isn't shipped, so the package is unaffected. `0.1.0-beta.22` (map-sdk #39) shows its own new options in the demo, and the older ones listed stay missing. **Revisit when** the user asks, or before map-sdk's 1.0 release.
+- **map-sdk: one frame of tint at a tile edge when the lens recentres.** _Deferred 2026-11-17 (the
+  user, map-sdk `0.1.0-beta.21`, session `map-sdk-f0`)._ From beta.21 the lens hides its townships
+  once the sections' source has loaded, so it no longer flashes them clear. But MapLibre swaps a
+  GeoJSON source's tiles one at a time. When the view spans several tiles that finish in different
+  frames, the sections in an early tile can draw one frame before the townships under them hide,
+  and the townships show through as a tint, never clear. Seen in 1 of 3 small-grid runs and 0 of 30
+  recentres on a dashboard-like grid. **Why deferred:** rare, one frame, and only a tint. Fixing it
+  needs per-tile hiding or double-buffered section sources. **Revisit when** someone notices a tint
+  at a tile edge on recentre.
 
 ## Widgets
 
+- **A new widget's pollutant from the monitors meta's `default_pollutant`.** _Deferred 2026-11-22
+  (spec 7c brainstorm, the user's call)._ A new widget, the starter dashboard, a Map added from the
+  Add menu, the Forecast strip's monitor search and the Where pickers use PM2.5 from
+  `DEFAULT_LAYER` (`src/lib/widgets/defaults.ts`), though `monitors/meta/` sends
+  `default_pollutant` and the SDK exposes it. Why: people pick the pollutant in the Data Portal,
+  and PM2.5 is the one most will want (the user: "Users will edit things as they need, and PM2.5
+  will probably be the most common one they want"). **Revisit when** people often switch away
+  from PM2.5, or a deployment needs another default. The readers are synchronous; the brainstorm's
+  lean then was a `defaultPollutant()` metadata method read where widgets are created.
+
+- **"Can we go outside?" with several pollutants: combining their guidelines.** _Deferred
+  2026-11-22 (spec 7b plan, the user's choice)._ The widget holds one pollutant, chosen from those
+  whose monitors meta has `school_guidelines` (PM2.5 alone today). Giving one answer from two
+  pollutants' guidelines needs a rule nobody has decided (the strictest one, say). **Why
+  deferred:** only PM2.5 has guidelines, so it can't be built against real data or tried. **Revisit
+  when** the server adds guidelines for a second pollutant: decide the combining rule with the
+  user, then let the widget hold several, as Current conditions does.
+
+- **Share opens its dialog only after the link is built.** _Noted 2026-11-11 (the WebKit share
+  test fix, #54); left as it is by the user._ With no exact points, `shareDashboard`
+  (`src/lib/sharing/actions.ts`) awaits `copyOf` (building and compressing the link) before
+  `openShare`, so nothing shows until it's done. Measured locally after drawing: about 25–50 ms
+  at 50 widgets, about 0.3 s at 1,000 on WebKit (roughly 5× slower on CI). The points path
+  already opens at once and fills in later. **Revisit when** someone reports Share feeling slow on
+  a large dashboard: open the dialog first and build the link inside it, as the points path does.
+
+- **sjvair.com: chemical re-imports don't retire cached notice days.** _Deferred 2026-11-16
+  (sjvair.com [#335](https://github.com/SJVAir/sjvair.com/pull/335), session `sjvair-com-5a`)._
+  `import_prop65`, `import_carbtac` and `import_comptox` don't bump the notices cache version, so
+  `notices/active/?date=` answers for settled days can show `category`/IARC matches and
+  `is_of_concern` up to 24 h stale after a reclassification. Why: rare and bounded at 24 h, and the
+  fix (bump the notices version from those imports) touches import commands outside #335's spec.
+  **Revisit if** a reclassification is visibly wrong on the dashboard's notices, or the next time
+  those import commands change.
+- **`@sjvair/sdk`'s pesticide map functions don't take CDPR codes.** _Deferred 2026-11-16 (the
+  user, sdk-js session `sdk-js-99`, for `5.0.0-beta.12`/`13`)._ `getActivePesticideNotices`,
+  `getPesticideSections` and `getPesticideTownships` expose only the sqid filters (`chemical_id`,
+  `product_id`, `commodity_id`) and `aerial_ground`, not the server's CDPR-code `chemical`,
+  `product`, `commodity` or SprayDays-wording `method`. Why: nothing calls them (the dashboard uses
+  `pesticides/place/`'s sqids). Adding them later isn't a breaking change. **Revisit when** an app
+  needs to filter by CDPR codes (for example, porting the Pesticides explorer onto the SDK).
+- **`@sjvair/sdk` doesn't wrap `pesticides/notices/archive/`.** _Deferred 2026-11-16 (the
+  user, sdk-js session `sdk-js-99`, for `5.0.0-beta.12`)._ Nothing calls it: the Map shows a
+  past day's notices through `notices/active/?date=`. The archive takes the same parameters, plus
+  year and month. **Revisit when** an app needs past notices by year or month (a notices history
+  view or a past-notice list), not by day.
+- **The Pesticides explorer doesn't read the new pesticide meta or class breaks.** _Deferred
+  2026-11-16 (sjvair.com pesticide Map work, session `sjvair-com-5a`; the user's rule for that
+  work: the Pesticides and Facility Emissions explorers must not change behaviour, only get more
+  efficient)._ The explorer keeps its own templates and on-screen ranking. It doesn't read
+  `pesticides/meta/` `notes`, `badges` or `ramp`, or the valley-wide `classes` the dashboard's Map
+  uses, so the two can shade the same section differently. **Revisit when** someone decides the
+  explorer should match the dashboard's valley-wide shading, or when the explorer's copy is next
+  reworked.
 - **Pesticide widgets and `pesticides/meta/`.** _Deferred 2026-11-03 (step 3 second batch,
   agreed with the user)._ No step 4 widget shows pesticide data, and widgets need more than
   metadata: the numbers the Pesticides Explorer shows (year-over-year change, month × year
@@ -1688,6 +2491,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   one without a bar doesn't gain one (only the starter and its copies have the bar), so such a
   copy is changed widget by widget afterwards. A dashboard-wide place belongs with "Linking
   widgets" above. **Revisit with** "Linking widgets".
+- **Which widgets "Change place" moves isn't shown anywhere.** _Deferred 2026-11-11 (step 5
+  spec 1; the user raised it as a dashboard-wide issue)._ A widget with one place follows the
+  bar; a widget with several keeps its own, and nothing tells the person which did what. It
+  applies to every widget, not just the Map. Ideas: a toast after the change ("Moved 5 widgets
+  to Tulare County. 1 kept its own places.", with Undo), or a "Dashboard place" tag on widgets
+  that follow the bar. Why deferred: it's a dashboard-wide design question, outside the Map
+  widget. **Revisit at** the first usability testing or the step 6 starter review, whichever
+  comes first.
 - **"Duplicate for another place…" in the dashboards list always shows.** _Deferred 2026-11-10
   (step 4 spec 6, Task 8)._ The list's rows don't have their documents loaded when the menu is
   built, so the item can't tell whether the dashboard has a place to replace; when it has none, a
@@ -1774,6 +2585,50 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     e2e; the starter chart layer's days aren't asserted; no browser test for
     `DashboardPicker`'s `afterMenuClose` fix (the e2e that found it covers it). **Add with** the
     next change to each.
+- **Step 5 spec 1 review leftovers.** _Deferred 2026-11-11 (step 5 spec 1, per-task and final
+  reviews)._ Small things the reviews let stay; the first ones a person could meet:
+  - **Some places fit silently, with no note.** A selection with retired or missing monitors, or
+    with some regions missing, fits to what it finds. A single unlisted monitor does get a note.
+    **Revisit if** someone is confused by a map that shows fewer places than they picked.
+  - **No Get data test for a failed map pollutant list.** Get data treats `"unavailable"` like an
+    empty list, the same as before. **Revisit with** the next change to Get data's Map path.
+  - **The no-key "Map unavailable" isn't a `WidgetState` card,** and it hides an idle map's
+    "Choose a place". Only a build without a MapTiler key shows it. **Revisit with** the next
+    change to the widget's states.
+  - **The legend toggle has no `aria-controls`,** and the feature list is tabbable under the
+    loading skeleton. **Revisit with** the next accessibility pass on the map.
+  - **eslint is a runtime dependency** through `@maptiler/sdk`'s `eslint-plugin-compat`. The
+    license check passes and nothing is bundled. **Revisit when** raised upstream with MapTiler.
+  - **Code and type gaps:** `isNowShaped` doesn't check a Map draft's pollutant (the widget
+    guards it); the Pollutant group is empty while the list loads; `now.ts` has a long doc
+    comment and an `eslint-disable`; `messages.ts` casts params to `never`; the `RegionType`
+    cast; maps don't share a region fetch in flight; the two-frame fit wait
+    isn't cancelled on unmount. **Fix with** the next change to each file.
+  - **Test gaps:** no test that `addWidget` passes the doc (the registry tests register types
+    globally); the abort-rethrow branch of `mapPollutants` has no test; `start.test.ts` builds
+    docs with `as unknown as` casts; the browser test's absent-note check; the messages coverage
+    loop checks only `count`; no test that a failed region fetch isn't cached; `points.test.ts`
+    indexes `widgets[1]`; the loop test doesn't assert the title, and it uses
+    `setTimeout(500)`. **Add with** the next change to each.
+  - **E2E gaps:** the "fullscreen keeps the map" identity check is weak; the fixme tests use
+    `waitForTimeout`; stubbed MapTiler 404s are ignored; `reuseExistingServer` may reuse a
+    preview built with the real key; the WebGL probe falls back to webgl1. **Add with** the next
+    change to `e2e/map.spec.ts`.
+- **Step 5 spec 2 review leftovers.** _Deferred 2026-11-12 (step 5 spec 2, per-task and final
+  reviews)._ Small things the reviews let stay:
+  - **Monitor-place tiles each fetch the whole Valley's current list** under their own key and
+    filter client-side (`data/monitors.ts`); keying by entry type would share one request.
+    **Revisit when** a dashboard has several monitor-place maps, or in a performance pass.
+  - **Test gaps kept:** the starter hand-off test uses a hand-built session (the real starter
+    holds no Map widget, and adding one is itself the first edit that hands off, so the test
+    can't start from a starter holding a Map until a starter preset has one). **Add with** the
+    next change to it.
+  - **Small behaviours kept:** `serverScale` falls back to the monitors meta for unknown datasets
+    (guard on air-quality); `mapMetadata.entryType` reads the catalog only (no scale fallback);
+    `monitorsUnavailable` is written inside a now-client fetch; the HMS cache key's date is fixed
+    when resolved (harmless: the fetch asks for the server's today); the raw "air-quality" id is
+    the fallback section label without a catalog; the e2e point test has a 3 s hard sleep
+    (MapTiler's metrics timer). **Fix with** the next change to each.
 - **Additional widget types.** _Deferred 2026-09-23 (IDEA.md Q8)._ Brainstormed but not in
   the first-release widget set (see `ARCHITECTURE.md` → "Widget catalog"). **Revisit
   when** the first-release widgets ship, or a specific audience asks for one. The list:
@@ -1816,7 +2671,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   compass bearing is circular (a line jumps between 359 and 0). **Revisit if** the server
   summarizes it (a prevailing direction), or someone asks for a wind rose.
 - **"Every measurement" for weather.** _Deferred 2026-11-07 (step 4 spec 3b)._ Weather offers
-  no raw level: "Show values" lists Hourly and coarser, and the raw CIMIS readings (with their
+  no raw level: "Data resolution" lists Hourly and coarser, and the raw CIMIS readings (with their
   dew point and soil temperature `*_f`/`*_c` fields) aren't offered. CIMIS readings are hourly,
   so Hourly shows the same values, and raw rows carry no `value`. A small narrowing of the spec
   ("read the °F field when Every measurement is chosen"). **Revisit if** someone asks for the
@@ -1828,9 +2683,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   2026-11-07 (step 4 spec 3b)._ Server-side deferrals (the coordinator records them). The
   dashboard side (a school uses its ZIP, then city, then county) **revisits when** the server
   adds a location place.
-- **A note on when pesticide data is released.** _Deferred 2026-11-07 (step 4 spec 3b)._ A
-  neutral note in the dataset's catalog description (server text), offered and not taken.
-  **Revisit if** people ask why recent months are empty.
 - **Choosing a weather station per place or per layer.** _Deferred 2026-11-07 (step 4 spec
   3b)._ One station per Weather section, and the choice shows only for one place (rain from two
   stations, or a station for each of several places, can't be asked for). **Revisit if**
@@ -1851,6 +2703,35 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   (the contribution calendar, `calendar-contribution`) was shown. Not investigated yet: the
   exact symptom and the cause are unknown. **Revisit when** the user picks it up (they said "we
   will revisit this later"): reproduce with that range on a year calendar in Get data first.
+- **Step 5 spec 7a review leftovers.** _Deferred 2026-11-22 (step 5 spec 7a, final review)._
+  Minor; none affects what ships. **Fix with** the next change to the code around each:
+  - E2E documents are hand-written types (`DocWidget`, `SharedDocument`): derive them from the
+    documents schema.
+  - The arranging test's `frame.animate` patch is never restored.
+  - Test-only `as Layer` casts (`input.test` selection and filters, `heat.test`).
+  - `replace.test` has no assertion that a widget with no Where is left alone.
+  - The toolbar's Pollutant group code path is dead: remove it with the next toolbar change.
+  - `snapshot/monitors.ts` `scopeRequests` makes a second valley-wide request for searched ids.
+  - The `air-quality.test` "series only for ticked types" test relies on the server's filtering.
+  - "Also change N" counts before the pick.
+  - The map-widget test's `setTimeout(100)` negative check.
+  - The Map title reads label-only briefly while the area name loads.
+  - `NamedKind` is declared after its use.
+  - `pickedData` drops a monitor with no note.
+  - `toNowDraft`'s air-quality-overlay monitors path is untested.
+  - `MonitorsControl` skips `addRecent` on an unchanged selection.
+  - The widget-state test's reset is incomplete.
+  - `fromRangeDraft` rebuilds the draft from four fields.
+  - The pre-catalog now-type "alert" note path is unverified.
+  - `show-as.test` depends on its `ranged` list.
+  - `toMapDraft`'s `noPollutant` checks the first air-quality layer only.
+  - ChartWidget's `drawn` comment wrap.
+  - An unreachable `throw` in the weather adapter's `fetchEveryStation`.
+  - `map.spec`'s `types.all()` could read a partial list.
+  - `get-data.spec`'s columnheader count is brittle.
+- **`getMonitors` has no type option.** _Deferred 2026-11-22 (step 5 spec 7a, final review)._ The
+  Map on Now filters monitor types in the dashboard (decision 35), after loading every monitor.
+  **Revisit when** the SDK adds a `type` option to `getMonitors`: filter on the server then.
 - **Get data review leftovers.** _Deferred 2026-11-05 (step 4 spec 3, final review)._ Small
   things the review let stay, each rare or harmless today:
   - **A forecasts 404 gives an empty series, not "unavailable"** (Task 5 ruling): `fetch` can't
@@ -1997,9 +2878,8 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     risk), the year calendar's `pt-5.5` label offset, the `$derived.by` comment in
     `calendar-data.svelte.ts` stating a cause as fact, the `hidden: 0` that wants a comment, the
     `export *` at the bottom of `format/index.ts`, `final` copying `is_final` without a boolean
-    check (the SDK types it), `dailyFigure` in the query key at non-day resolutions (a harmless
-    extra key), and open-day loaders built for non-figure requests (cheap closures). **Revisit
-    with** the next change to each file.
+    check (the SDK types it), and open-day loaders built for non-figure requests (cheap closures).
+    **Revisit with** the next change to each file.
   - **Test gaps:** `daysInclusive` across spring-forward and with start after end, an all-null
     column, six-row months; `ratedForCount`'s positive cases, pending and today days in a summary
     fixture, the `unrated` doc comment, duplicate same-date points (the later wins); a selection
@@ -2009,10 +2889,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     drags, including a release outside the grid; Escape's `stopPropagation`; the Get data keyboard
     Show-as test (loose), its weather case using census, and the span reason; the adapter's bulk
     all-places path, figure at non-day resolutions, with `worstHour`, and the client carrying
-    `dailyFigure`; an open-days call failing the whole query (deliberate: no partial data), a
-    monitor with no published processor, the bulk memo across units, and a yesterday-only open
-    row; the e2e's hard-coded ZIP 93721 and its empty bulk-monitor open route. **Add with** the next
-    change to each.
+    `figure` (was `dailyFigure`); an open-days call failing the whole query (deliberate: no partial
+    data), a monitor with no published processor, the bulk memo across units, and a yesterday-only
+    open row; the e2e's hard-coded ZIP 93721 and its empty bulk-monitor open route. **Add with** the
+    next change to each.
 
 - **Hiding activities on the "Can we go outside?" card.** _Deferred 2026-11-08 (step 4 spec 4,
   brainstorm)._ The card shows all four school activities compactly (layout B); a way to hide
@@ -2027,8 +2907,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     calls are unguarded. **Revisit with** the next now client change.
   - **A failed watcher chunk load retries only on the next dashboard or watched-set change.**
     **Revisit if** seen on flaky connections.
-  - **A fell-back default alert level cannot be confirmed in the form** (a stored bad key
-    persists until the person picks a level). **Revisit with** the next thresholds form change.
   - **The Forecast strip's Where list is filtered to PM2.5 monitors** (coverage unconfirmed), and
     a names-only Data widget runs a 30-day query. **Revisit** when coverage is checked, or if
     seen.
@@ -2061,6 +2939,12 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 - **Toasts or notifications from Chart threshold lines.** _(step 4 spec 4, 2026-11-08)_ Charts only display the line,
   to avoid noise from widgets people are not watching. **Revisit if** people ask to be told
   from a Chart.
+- **A minimized untitled card's notifications use the type's name.** _Deferred 2026-11-22 (step 5
+  spec 7b)._ Generated titles live only in memory and are set by the mounted component
+  (`widgets/titles.svelte.ts`), so a minimized untitled card is never mounted and its notification
+  title stays the type label (e.g. "Current conditions") until the card is shown; the body still
+  names the pollutant and place. Pre-dates 7b. **Revisit if** someone reports it: work out the
+  generated title in a shared helper the watcher can call.
 - **A client-side daily "still bad" reminder.** _(step 4 spec 4, 2026-11-08)_ The server's 10 AM reminder is for
   texts; the dashboard tells you once per rise. **Revisit if** people keep a dashboard open all
   day and ask for one.
@@ -2180,6 +3064,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   Alerts and Subscriptions screens render `{monitor.county} County`, so a monitor with no
   county reads "County". Pre-existing, not caused by the Alerts fix. **Revisit with** the
   next change to those screens. Needs a mobile plan and an app release.
+- **Mobile tab bar doesn't highlight Monitor Map while a monitor is open.** _Noted
+  2026-11-15 (mobile #117 emulator QA)._ `src/app/layout/TabBar.svelte` marks the tab
+  active with `isActive("/monitor-map/")`, an exact match, so on
+  `/monitor-map/monitor/:id` neither tab is highlighted. Pre-existing in mobile's own
+  code, not caused by the monitor-map `5.0.0-beta.2` re-pin, and kept out of that
+  chore. **Revisit with** the next change to mobile's tab bar or routing, or before
+  mobile 5.0.0's go-live release if the user wants it fixed then. Needs a mobile plan and
+  an app release.
 
 ## Accounts
 
@@ -2265,8 +3157,26 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   caching; a formatting fallback
   for `hmn` (thin CLDR/`Intl` data); i18n in monitor-map and mobile (`map-sdk` is translation-ready via its `messages`
   provider but ships English defaults). Health guidance
-  and alert text need human translation or review, not machine-only. **Revisit when**
-  translators or funding for translation are available.
+  and alert text need human translation or review, not machine-only. **Includes the monitor
+  meta's new strings** (the user, 2026-11-12, sjvair.com #332 follow-up): the two
+  `monitor_groups` labels and the 8 pollutant descriptions are `gettext_lazy`, so
+  `makemessages` picks them up, but they aren't translated now: the catalogs have no
+  translations yet, and translating only these would mix languages in the meta. **Revisit when**
+  translators or funding for translation are available (the es/hmn/tl translation work).
+- **Right-to-left map labels.** _Deferred 2026-11-11 (step 5 spec 1, the user: "we will deal
+  with RTL if we end up needing it")._
+  - **Meanwhile:** a map tile with right-to-left labels makes MapTiler try to load its text
+    plugin from `cdn.maptiler.com`. The CSP blocks that, so those labels draw unshaped and the
+    browser sends a CSP report. `check:build` allowlists the host as "library default, blocked
+    on purpose".
+  - **Plan if needed:** serve `@mapbox/mapbox-gl-rtl-text` (BSD-2-Clause) ourselves as a static
+    file, through a map-sdk option for the plugin's address. Never allow the CDN.
+  - **Revisit when** the dashboard adds a right-to-left UI language (Arabic, Hebrew, Persian,
+    Urdu, Punjabi in Shahmukhi), or right-to-left map labels are wanted.
+- **The map's relative times use map-sdk's English default.** _Deferred 2026-11-11 (step 5 spec
+  1)._ The map's `format` provider wraps the dashboard's `format` module, except relative time
+  ("5 minutes ago"), which stays map-sdk's en-US `Intl.RelativeTimeFormat`, because `$lib/format`
+  has no relative-time helper. **Revisit when** `$lib/format` gains one, or with translation.
 
 ## UI & UX
 
@@ -2434,6 +3344,59 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   checks (sizes after layout, an animation), not wrong behaviour. **Revisit when** one fails in
   CI, or when touching the test: wait on the settled state (a poll on the final size, or the
   animation's end) instead of a fixed moment.
+- **Two arranging tests flake in CI under full-suite load.** _Noted 2026-11-22 (step 5 spec 7c,
+  Task 1)._ On `step-5-spec-7c-flake`, whose `ci.yml` ran `npm test` three times per run, each
+  failed in one pass and passed in the others:
+  - `src/lib/components/dashboard/arranging.browser.test.ts`, "a pointer resize animates the
+    frame's size as it snaps" ("expected +0 to be 1": likely the animation was over before the poll
+    saw it), in runs 45097726529 (before the menu fix), 45099109524 and 45099115463.
+  - The same file, "autoscroll asks for animation frames only while the pointer is in the edge
+    zone" ("expected 0 to be greater than 0": no frame was asked for in its 150 ms in the edge
+    zone), in run 45099112411.
+
+  Not fixed in spec 7c: neither involves menus or 7c's code; they're timing checks, likely
+  starved by the load. **Revisit when** either fails in CI again, or when touching that test: start the size
+  animation paused or long enough to be seen (as the keyboard-resize entry above suggests), and
+  wait on the autoscroll's first frame rather than counting frames in a fixed 150 ms.
+
+- **WebKit E2E runs at 1x, so it doesn't cover drawing at 2x.** _Noted 2026-11-22 (step 5,
+  WebKit E2E fix)._ The WebKit project now sets `deviceScaleFactor: 1` (`playwright.config.ts`),
+  like the Chrome and Firefox devices. Playwright's "Desktop Safari" device draws at 2x, and in
+  CI's software rendering on shared CPUs a 2x frame took 0.5-2.5 s (a probe logged the gaps while
+  timers ran on time), so anything waiting on frames ran out of time: a dialog's close animation
+  (`safety.spec.ts` "Delete now moves focus…", "Clear my data with two tabs…"), Playwright's
+  "stable" check (`recovery.spec.ts` "restore an earlier version…"), the map (`map.spec.ts` "the
+  view summary follows a refresh…", the township card's "Show square miles…") and the Share
+  dialog (`place-picker.spec.ts`). These were the "WebKit E2E tests flake on CI" failures (6 of 9
+  manual runs failed WebKit before the fix). Reproduced locally in the Playwright image capped to
+  2 CPUs: 11 of 27 failed at 2x, 27 of 27 passed at 1x in half the time, and the full WebKit
+  suite passed at 1x. Why deferred: the tests check the app's behaviour, not 2x drawing, and real
+  Safari draws with the GPU. **Revisit if** a bug shows only on a 2x screen, or CI gets GPU
+  rendering or more CPU (then try 2x again).
+- **"A Chart and a Data table: data, readout, CSV, duplicate, reload" flaked once in Firefox CI.**
+  _Noted 2026-11-22 (step 5, WebKit E2E fix)._ In run 45116032796 on `step-5` (one of three
+  baseline runs), `e2e/widgets.spec.ts` failed in Firefox: the Data Portal's heading was still
+  visible 5 s after the save that should close it. It passed in the other two runs and in every
+  Chromium run. Why deferred: a single failure outside the WebKit task, with nothing yet to go on.
+  **Revisit when** it fails again: keep a trace on failure for the Firefox job and look at what
+  holds the Data Portal open.
+- **"A resize animation redraws once, after it ends" flaked in CI.** _Noted 2026-11-12 (step 5
+  spec 2, PR #56)._ `src/lib/charts/time-chart.browser.test.ts` failed once with "expected 640 to
+  be less than 640" (the frame's width read before the 640 → 400 px animation's first frame had
+  moved it) and passed on rerun. Neither the test nor the chart changed in spec 2. The user
+  decided 2026-11-12 to leave it here rather than fix it before merging #56. The fix: pause the
+  animation at its midpoint (`animation.pause()`, set `currentTime`) instead of a fixed 120 ms
+  wait, check the frame shrank and the canvas didn't redraw, then let it finish. **Revisit
+  when** it fails again, or with the next change to the charts (a small PR into `main`, as #55).
+- **"Keyboard stepping moves the strips' cursors with the main one" flaked in CI.** _Noted
+  2026-11-14 (step 5 spec 3, PR #57)._ `src/lib/charts/time-chart.browser.test.ts` failed once in
+  #57's first CI run (run 43532224724, Chromium) with "expected 0 to be greater than 0" ("Matcher
+  did not succeed in time"), passed 22/22 run alone locally, and passed on rerun. The branch
+  changed nothing under `src/lib/charts`. A full local `npm run test` under load on 2026-11-13 also
+  failed once in this file, probably the same test (not confirmed). It's a timing check like the
+  resize one above: the poll gave up before the strips' cursors had moved. **Revisit when** it
+  fails again, or with the next change to the charts: wait on the cursors' settled position
+  rather than a fixed poll window.
 - **The WebKit E2E job is slow on CI.** _Noted 2026-11-10 (the `step-4` → `main` PR, #50)._ The
   `e2e-full (webkit)` job takes 10–13 minutes on GitHub's runner, against about 4 for Chromium
   and 6 for Firefox, and about 2 minutes for the same suite locally in the same Playwright image
@@ -2480,7 +3443,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   every frame of it. Placeholders don't redraw, so nothing does today. **Charts are done**
   (step 4 spec 1, Task 11: the shared `TimeChart` waits for the frame's animations to finish
   before it redraws). **Revisit when** map widgets land: throttle their redraw the same way, or
-  switch to scale with counter-scaled content.
+  switch to scale with counter-scaled content. _Noted 2026-11-11 (step 5 spec 1): the Map waits
+  for `ancestorAnimationsSettled` before it refits, but MapLibre's own `ResizeObserver` still
+  re-renders on every frame of the 200 ms animation. Accepted for now. **Revisit if** jank shows
+  on low-end devices._
 - **A selected widget taller than a phone's screen.** _Deferred 2026-11-03 (design pass, Task 20
   review)._ During a touch selection the widget's body is `touch-action: none`, so the page
   can't be scrolled by touching the widget, and Done (centered in the body) may be off-screen.
@@ -2834,3 +3800,22 @@ Dropped 2026-11-09 by the user (step 4 spec 5 brainstorm, "drop it, just do the 
   calendars; spec 6's starter drops the heatmap's slot. Starter analysis #2 (Release 3) is not
   affected. The mockup is kept in
   `docs/superpowers/mockups/2026-11-09-step-4-spec-5-heatmap-coloring.html`.
+
+Dropped 2026-11-16 by the user (step 5 spec 5 design):
+
+- **The Pesticides Explorer's Tweaks on the Map** (ramp, number of bins, basemap). The metadata
+  decides ramps and bins, and the Map's Settings already holds the basemap.
+
+Dropped 2026-11-17 by the user (step 5 spec 5b final review):
+
+- **Splitting `MapWidget.svelte` again** (deferred 2026-11-17, step 5 spec 5b leftovers). It grew
+  back to about 1,020 lines with the use wiring after Task 1's split; the user said that size is
+  fine as it is (about 1,030 after the final review's fixes).
+
+Dropped 2026-11-21 by the user (step 5 spec 7 brainstorm):
+
+- **More than one pollutant on one Map** (deferred 2026-11-12, step 5 spec 2; lowered from 6 to 4 on
+  2026-11-16). The user: "a person picks one pollutant (one or none, never two at once)". Why: the
+  Data Portal's one What gives every widget type the same radios with None, so a Map holds one
+  pollutant or none and `MAP_POLLUTANTS_MAX` and the several-pollutant handling were removed in
+  spec 7a.

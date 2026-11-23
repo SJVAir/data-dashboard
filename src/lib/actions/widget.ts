@@ -47,11 +47,11 @@ import {
 	type PhoneSpan
 } from "$lib/layout/steps";
 import { copyPlacement, minimizeChange, restoreChange } from "$lib/layout/windowing";
-import { getWidgetType } from "$lib/widgets/registry";
+import { getWidgetType, placeLimit } from "$lib/widgets/registry";
 import { generatedTitle } from "$lib/widgets/titles.svelte";
 import type { PlaceViewer } from "$lib/widgets/shared/viewer";
 import { navigate } from "../../router";
-import type { MenuItem, MenuProvider } from "./types";
+import type { MenuContext, MenuItem, MenuProvider } from "./types";
 
 /**
  * A widget's generated title: the one its component worked out once loaded, else its type's
@@ -402,12 +402,12 @@ export function downloadItems(
 }
 
 /**
- * "Change place" for an editable widget whose type has `accepts.maxPlaces`; none otherwise. The
+ * "Change place" for an editable widget whose type takes places (`placeLimit`); none otherwise. The
  * picker opens once the menu has closed, from what opened the menu (focus returns there).
  */
 export function placeItems(app: AppContext, widget: () => WidgetInstance | null): MenuItem[] {
 	const current = widget();
-	if (!current || !getWidgetType(current.type)?.accepts?.maxPlaces) return [];
+	if (!current || placeLimit(getWidgetType(current.type)) < 1) return [];
 	if (!find(app, current.id)) return [];
 	const widgetId = current.id;
 	return [
@@ -519,4 +519,15 @@ export function taskbarActions(
 		fullscreenItem(widgetId, fullscreen),
 		...common(ctx).filter((item) => !NOT_IN_TASKBAR.has(item.id))
 	];
+}
+
+/** The widget type's own items that opted in for viewers (a read-only frame lists only these). */
+export function viewerTypeItems(
+	app: AppContext,
+	widget: () => WidgetInstance | null,
+	ctx: MenuContext
+): MenuItem[] {
+	const current = widget();
+	const type = current ? getWidgetType(current.type) : undefined;
+	return (type?.menu(ctx, { app, widget }) ?? []).filter((i) => i.forViewers);
 }

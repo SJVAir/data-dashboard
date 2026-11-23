@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { getContext, type Snippet } from "svelte";
 	import { removeWidget } from "$lib/actions/widget";
+	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import type { WidgetDataConfig } from "$lib/data/schema";
 	import type { QueryData, QueryState } from "$lib/data/types";
@@ -21,7 +22,9 @@
 		onretry,
 		onchoose,
 		emptyText,
+		idleText,
 		ownsEmpty = false,
+		pollutant,
 		children
 	}: {
 		state: QueryState;
@@ -32,13 +35,18 @@
 		/**
 		 * Opens the place picker; "Choose a place" (idle) and "Choose another" (for a place) show
 		 * only when this is given and editing. "Choose another" for a retired dataset or entry type
-		 * opens Edit data instead.
+		 * opens Edit data instead, and for a searched monitor no longer listed, the monitor search
+		 * (its pick replaces that monitor).
 		 */
 		onchoose?: () => void;
+		/** What the idle state says instead of "Choose a place to show data." */
+		idleText?: string;
 		/** What an empty range says instead of the general "No data for this range." */
 		emptyText?: string;
 		/** The children say what an empty range means (they keep other content), so it isn't replaced. */
 		ownsEmpty?: boolean;
+		/** The widget's pollutant, from the catalog: named when none of its monitors measure it. */
+		pollutant?: string;
 		children: Snippet<[QueryData]>;
 	} = $props();
 
@@ -59,10 +67,17 @@
 		"unknown-dataset": () => m.widget_state_unavailable_unknown_dataset(),
 		"unknown-entry-type": () => m.widget_state_unavailable_unknown_entry_type(),
 		"no-adapter": () => m.widget_state_unavailable_no_adapter(),
-		"no-resolution": () => m.widget_state_unavailable_no_resolution(),
+		"no-resolution": () =>
+			editable
+				? m.widget_state_unavailable_no_resolution()
+				: m.widget_state_unavailable_no_resolution_view(),
 		"place-unsupported": () => m.widget_state_unavailable_place_unsupported(),
 		"point-outside": () => m.widget_state_unavailable_point_outside(),
-		"whole-layer-raw": () => m.widget_state_unavailable_whole_layer_raw()
+		"whole-layer-raw": () => m.widget_state_unavailable_whole_layer_raw(),
+		"none-measure": () =>
+			pollutant
+				? m.widget_state_unavailable_none_measure({ pollutant })
+				: m.widget_state_unavailable_none_measure_unnamed()
 	};
 
 	/** A retirement's `since` (a date or a date-time) as a Pacific date. */
@@ -171,13 +186,13 @@
 {#if state.status === "idle"}
 	{#if editable && onchoose}
 		<div class="flex h-full flex-col items-center justify-center gap-2 text-center">
-			<p class="text-muted-foreground text-sm">{m.widget_state_idle()}</p>
+			<p class="text-muted-foreground text-sm">{idleText ?? m.widget_state_idle()}</p>
 			<Button size="sm" variant="outline" onclick={onchoose}>
 				{m.widget_state_choose_place()}
 			</Button>
 		</div>
 	{:else}
-		{@render message(m.widget_state_idle())}
+		{@render message(idleText ?? m.widget_state_idle())}
 	{/if}
 {:else if state.status === "unavailable"}
 	{#if GONE.has(state.reason)}
@@ -198,7 +213,14 @@
 							</Button>
 						{/if}
 					{:else if onchoose}
-						<Button size="sm" variant="outline" onclick={onchoose}>
+						<!-- A gone searched monitor: the monitor search, whose pick replaces it. -->
+						<Button
+							size="sm"
+							variant="outline"
+							onclick={state.reason === "monitor-unlisted"
+								? () => openPlacePicker({ widgetId: widget.id, monitor: true })
+								: onchoose}
+						>
 							{m.widget_state_choose_another()}
 						</Button>
 					{/if}

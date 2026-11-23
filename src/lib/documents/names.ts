@@ -4,7 +4,10 @@ import type { Dashboard } from "./schema";
 export type DashboardSummary = Pick<
 	Dashboard,
 	"id" | "name" | "copiedFrom" | "createdAt" | "updatedAt" | "deletedAt"
->;
+> & {
+	/** A newer version saved this document: it lists, but can't be edited here. */
+	readOnly?: true;
+};
 
 /** Display names for dashboards; `null` names get generated names, numbered when they repeat. */
 export function displayNames(

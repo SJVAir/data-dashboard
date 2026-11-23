@@ -30,13 +30,13 @@ const local: EarlierVersion = {
 const daily: EarlierVersion = {
 	source: "server",
 	at: "2026-11-01T09:30:00.000Z",
-	id: 5,
+	id: "k3Xa9",
 	reason: "daily"
 };
 const conflict: EarlierVersion = {
 	source: "server",
 	at: "2026-11-02T01:00:00.000Z",
-	id: 6,
+	id: "0712",
 	reason: "conflict"
 };
 

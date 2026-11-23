@@ -2,13 +2,13 @@
 	import { untrack } from "svelte";
 	import type { Level } from "$lib/data/metadata";
 	import type { QueryData } from "$lib/data/types";
-	import { formatList, formatPeriod } from "$lib/format";
+	import { formatList } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
 	import { overlayLevelAt, type ChartOverlay } from "./day-bands";
 	import LevelKey from "./LevelKey.svelte";
 	import OverlayKey from "./OverlayKey.svelte";
 	import Readout from "./Readout.svelte";
-	import { periodLabel, seriesLabel, type Aggregate } from "./period-label";
+	import { seriesLabel, type Aggregate } from "./period-label";
 	import SeriesKey from "./SeriesKey.svelte";
 	import LevelSwatch from "$lib/components/data/LevelSwatch.svelte";
 	import { alignSeries, type XRange } from "./series";
@@ -23,7 +23,7 @@
 	} from "./time-chart";
 
 	/**
-	 * The shared time chart: level bands, a line with dots per place (at most five), each day's
+	 * The shared time chart: level bands, a line with dots per place, each day's
 	 * worst hour as a stick (single place), the level key and series key, and a readout that
 	 * follows the pointer or the arrow keys. Overlays draw as day bands behind the line, each with
 	 * its legend row and its level in the readout; `notes` say why an overlay isn't drawn. Number
@@ -46,6 +46,7 @@
 		mainChart = "line",
 		aggregate = "mean",
 		entryLabel = "",
+		figureLabel = null,
 		threshold = null,
 		source
 	}: {
@@ -69,6 +70,8 @@
 		aggregate?: Aggregate;
 		/** The main layer's label: its legend entry when its values never roll up. */
 		entryLabel?: string;
+		/** The main's figure's name ("24-hour average"), when its values are that figure. */
+		figureLabel?: string | null;
 		/** A level's line across the main plot (display only), named in the key under the chart. */
 		threshold?: ThresholdLine | null;
 		/** A legend entry with its place's source (station or filters) added, when it has one. */
@@ -87,7 +90,7 @@
 	 * chart again (a strip swapping with a message keeps the count but moves the plots).
 	 */
 	const stripShape = $derived(
-		strips.map((s, i) => (plotIndex[i] < 0 ? "-" : `${s.chart}:${s.wholePeriod}`)).join(",")
+		strips.map((s, i) => (plotIndex[i] < 0 ? "-" : `${s.chart}`)).join(",")
 	);
 	let areaHeight = $state(0);
 	const layout = $derived(stripLayout(areaHeight, strips.length));
@@ -99,15 +102,6 @@
 
 	function axisLabel(strip: ChartStrip): string {
 		return strip.unit ? m.chart_strip_axis({ label: strip.label, unit: strip.unit }) : strip.label;
-	}
-
-	/**
-	 * The tag a coarser strip carries: "Monthly total" for a summed layer, "Monthly average" for an
-	 * averaged one, none for a layer whose values never roll up (or a period with no tag).
-	 */
-	function wholeTag(strip: ChartStrip): string | null {
-		if (!strip.wholePeriod) return null;
-		return periodLabel(strip.resolution, strip.aggregate);
 	}
 
 	// By value, so an equal range passed as a new object doesn't redraw the chart.
@@ -123,7 +117,7 @@
 		aligned.places.map((p, i) => {
 			const name =
 				aligned.places.length === 1
-					? seriesLabel(data.resolution, aggregate, entryLabel)
+					? seriesLabel(data.resolution, aggregate, entryLabel, figureLabel)
 					: names[i];
 			return source ? source(name, p) : name;
 		})
@@ -324,7 +318,6 @@
 			<div class="relative min-h-0 flex-1 overflow-hidden" bind:this={plot}></div>
 			{#each strips as strip, i (i)}
 				{@const k = plotIndex[i]}
-				{@const tag = wholeTag(strip)}
 				<div
 					data-strip={strip.chart}
 					data-bars={k === -1 ? undefined : (stripBars[k] ?? 0)}
@@ -333,9 +326,6 @@
 				>
 					<p class="text-muted-foreground flex items-center gap-2 text-xs leading-4">
 						<span class="truncate">{axisLabel(strip)}</span>
-						{#if tag}
-							<span class="bg-muted shrink-0 rounded-(--radius-control) px-1">{tag}</span>
-						{/if}
 					</p>
 					{#if k === -1}
 						<p class="text-muted-foreground flex min-h-0 flex-1 items-center text-xs">
@@ -373,18 +363,11 @@
 							level: overlayLevelAt(o, aligned.xs[active!]) ?? null
 						}))}
 						strips={plotted.map((s) => {
-							const point = stripPointAt(s, aligned.xs[active!]);
 							return {
 								layer: s.label,
 								unit: s.unit,
 								precision: s.precision,
-								point,
-								whole:
-									s.wholePeriod && s.aggregate === "sum" && point
-										? m.chart_whole_period({
-												period: formatPeriod(new Date(point.t), s.resolution)
-											})
-										: null
+								point: stripPointAt(s, aligned.xs[active!])
 							};
 						})}
 					/>

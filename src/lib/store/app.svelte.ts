@@ -14,7 +14,9 @@ import { barChange } from "$lib/places/replace";
 import { sameRef } from "$lib/places/types";
 import {
 	defaultStarterPlace,
+	readStarterArea,
 	readStarterPlace,
+	saveStarterArea,
 	saveStarterPlace,
 	type ChosenPlace
 } from "$lib/starter/place.svelte";
@@ -28,6 +30,7 @@ import { currentType } from "$lib/widgets/current";
 import { forecastType } from "$lib/widgets/forecast";
 import { outsideType } from "$lib/widgets/outside";
 import { dataTableType } from "$lib/widgets/table";
+import { mapType } from "$lib/widgets/map";
 import { noteType } from "$lib/widgets/notes";
 import { placeholderType } from "$lib/widgets/placeholder";
 import { AccountState, type Notify } from "./account.svelte";
@@ -62,6 +65,11 @@ export type AppContext = {
 	 * "Clear my data" (Fresno County when unset).
 	 */
 	starterPlace: ChosenPlace;
+	/**
+	 * The region the starter's Chart shows when its place is a school or point (a Chart's Where
+	 * holds areas only); `null` when none was looked up (`starterAreaFor` then decides).
+	 */
+	starterArea: ChosenPlace | null;
 	/**
 	 * The starter's "Change place": saves `place` as the space's chosen place and shows a fresh
 	 * starter there (every widget at once; no copy, no undo). A starter whose first edit already
@@ -135,6 +143,9 @@ class App implements AppContext {
 	resetCount = $state(0);
 	// Raw: places are cloned into documents, and a deep proxy can't be.
 	starterPlace = $state.raw<ChosenPlace>(defaultStarterPlace());
+	starterArea = $state.raw<ChosenPlace | null>(null);
+	/** Counts starter place changes: a lookup answered after a newer change (or a reset) is stale. */
+	#starterChange = 0;
 	readonly index: DashboardIndex;
 	readonly protection: StorageProtection;
 	readonly account: AccountState;
@@ -361,15 +372,69 @@ class App implements AppContext {
 		// Cleared with the rest, so unset. Set before anything awaits: a starter built from here on
 		// has this place and this reset's count.
 		this.starterPlace = defaultStarterPlace();
+		this.starterArea = null;
+		this.#starterChange++;
 		this.resetCount++;
 		await this.index.refresh();
 	}
 
+	/** Whether the starter's first edit started (or finished) its hand-off to a copy. */
+	#handedOff(): boolean {
+		const starter = this.#live.get(STARTER_ID) ?? null;
+		return starter ? starter.edited : !this.current.isStarter && !!this.current.session;
+	}
+
+	/**
+	 * The starter's area for `place` (a school or point): its region, looked up as the Chart reads
+	 * it, saved for later visits. A failed lookup keeps the area it had (the Chart keeps its place).
+	 * Resolves `false` when a newer change superseded it (`#superseded`): nothing was written.
+	 */
+	async #lookUpStarterArea(place: ChosenPlace): Promise<boolean> {
+		const change = ++this.#starterChange;
+		const shown = this.starterPlace;
+		if (place.kind === "region") {
+			// An area is its own: kept, so a later school whose lookup fails keeps the Chart here.
+			this.starterArea = place;
+			await saveStarterArea(this.platform, this.space, place).catch((error: unknown) =>
+				report(error, { operation: "starter-area" })
+			);
+			// A newer change started while it saved: that one wins.
+			return !this.#superseded(change, shown);
+		}
+		if (place.kind !== "location" && place.kind !== "point") return true;
+		try {
+			const { starterAreaOf } = await import("$lib/starter/area");
+			const area = await starterAreaOf(place);
+			if (this.#superseded(change, shown)) return false;
+			// Handed off meanwhile: the copy's bar changes instead, and the starter keeps its area.
+			if (!area || this.#handedOff()) return true;
+			this.starterArea = area;
+			await saveStarterArea(this.platform, this.space, area);
+		} catch (error) {
+			if (this.#superseded(change, shown)) return false;
+			report(error, { operation: "starter-area" });
+		}
+		return true;
+	}
+
+	/**
+	 * Whether a lookup that started at `change`, with `shown` the starter's place, answered too
+	 * late: a newer place change or a reset started since, or the starter's place changed.
+	 */
+	#superseded(change: number, shown: ChosenPlace): boolean {
+		return change !== this.#starterChange || !sameRef(shown, this.starterPlace);
+	}
+
 	async changeStarterPlace(place: ChosenPlace): Promise<void> {
+		// The place it shows already: nothing to change (unless a copy shows another).
+		if (!this.#handedOff() && sameRef(place, this.starterPlace)) return;
+		// A school or point: the Chart's region first, so the fresh starter is built with it. A
+		// newer change made while it was looked up wins: this one changes nothing.
+		if (!this.#handedOff() && !(await this.#lookUpStarterArea(place))) return;
 		const starter = this.#live.get(STARTER_ID) ?? null;
 		// The starter's first edit started (or finished: it's gone from here) its hand-off: the
 		// copy is what's shown, and its bar changes.
-		const handedOff = starter ? starter.edited : !this.current.isStarter && !!this.current.session;
+		const handedOff = this.#handedOff();
 		if (handedOff) {
 			// A hand-off that failed keeps its edits queued on the starter: nothing to change then.
 			const copy = starter ? await starter.handoff : this.current.session;
@@ -419,6 +484,7 @@ class App implements AppContext {
 			debounceMs,
 			now,
 			place: this.starterPlace,
+			area: this.starterArea,
 			...this.#guards,
 			onCopied: (copy) => {
 				// A hand-off that finished after the data was cleared mustn't come back.
@@ -461,6 +527,7 @@ export async function initApp(platform: Platform, options: AppOptions = {}): Pro
 	registerWidgetType(forecastType);
 	registerWidgetType(outsideType);
 	registerWidgetType(dataTableType);
+	registerWidgetType(mapType);
 	registerWidgetType(noteType);
 	// The space is whoever is signed in, known once the identity has started.
 	platform.identity.start();
@@ -490,6 +557,7 @@ export async function initApp(platform: Platform, options: AppOptions = {}): Pro
 	await housekeeping(() => purgeExpired(platform, space, now));
 	// Before the first starter session is built.
 	app.starterPlace = await readStarterPlace(platform, space);
+	app.starterArea = await readStarterArea(platform, space);
 	await app.index.refresh();
 	await app.protection.refresh();
 	app.listen();

@@ -1,0 +1,115 @@
+{
+	"data": [
+		{
+			"id": "4Mb0j33kTnS0qzeE4iDGWw",
+			"name": "Fresno - Drummond Street",
+			"type": "airnow",
+			"device": "BAM 1022",
+			"grade": "fem",
+			"is_active": true,
+			"is_sjvair": false,
+			"position": {
+				"type": "Point",
+				"coordinates": [-119.7414, 36.7056]
+			},
+			"last_active_limit": 10800,
+			"location": "outside",
+			"county": "Fresno",
+			"data_source": {
+				"name": "AirNow.gov",
+				"url": "https://www.airnow.gov/"
+			},
+			"data_providers": [
+				{
+					"name": "AirNow Partners",
+					"url": "https://www.airnow.gov/partners/"
+				},
+				{
+					"name": "San Joaquin Valley Unified APCD"
+				}
+			],
+			"latest": {
+				"sensor": "",
+				"timestamp": "2026-11-11T10:00:00-08:00",
+				"stage": "raw",
+				"processor": "",
+				"entry_type": "o3",
+				"value": "41"
+			}
+		},
+		{
+			"id": "6qEHS0fITHOQYHLN4c9GKA",
+			"name": "Porterville-NFS",
+			"type": "airnow",
+			"device": "BAM 1022",
+			"grade": "fem",
+			"is_active": true,
+			"is_sjvair": false,
+			"position": {
+				"type": "Point",
+				"coordinates": [-119.055, 36.0319]
+			},
+			"last_active_limit": 10800,
+			"location": "outside",
+			"county": "Tulare",
+			"data_source": {
+				"name": "AirNow.gov",
+				"url": "https://www.airnow.gov/"
+			},
+			"data_providers": [
+				{
+					"name": "AirNow Partners",
+					"url": "https://www.airnow.gov/partners/"
+				},
+				{
+					"name": "San Joaquin Valley Unified APCD"
+				}
+			],
+			"latest": {
+				"sensor": "",
+				"timestamp": "2026-11-11T10:00:00-08:00",
+				"stage": "raw",
+				"processor": "",
+				"entry_type": "o3",
+				"value": "58"
+			}
+		},
+		{
+			"id": "bK9rQe2mTqWv7xYz1aB3cD",
+			"name": "Bakersfield - California Avenue",
+			"type": "airnow",
+			"device": "BAM 1022",
+			"grade": "fem",
+			"is_active": true,
+			"is_sjvair": false,
+			"position": {
+				"type": "Point",
+				"coordinates": [-119.0628, 35.3566]
+			},
+			"last_active_limit": 10800,
+			"location": "outside",
+			"county": "Kern",
+			"data_source": {
+				"name": "AirNow.gov",
+				"url": "https://www.airnow.gov/"
+			},
+			"data_providers": [
+				{
+					"name": "AirNow Partners",
+					"url": "https://www.airnow.gov/partners/"
+				},
+				{
+					"name": "San Joaquin Valley Unified APCD"
+				}
+			],
+			"latest": {
+				"sensor": "",
+				"timestamp": "2026-11-11T10:00:00-08:00",
+				"stage": "raw",
+				"processor": "",
+				"entry_type": "o3",
+				"value": "131"
+			}
+		}
+	]
+}

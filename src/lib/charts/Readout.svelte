@@ -1,6 +1,7 @@
 <script lang="ts">
 	import LevelSwatch from "$lib/components/data/LevelSwatch.svelte";
 	import { levelFor, type Level } from "$lib/data/metadata";
+	import { notEnoughData } from "$lib/data/figure-values";
 	import type { SeriesPoint } from "$lib/data/types";
 	import type { Resolution } from "$lib/data/schema";
 	import { formatHourRange, formatPeriod, formatValue } from "$lib/format";
@@ -27,16 +28,12 @@
 		precision?: number | null;
 		/** Each overlay's level on this day, if it has one. */
 		overlays?: { layer: string; level: Level | null }[];
-		/**
-		 * Each strip's value for this period; `whole` marks a coarser summed strip's total for its
-		 * whole period (a month only partly in the range still shows the whole month's total).
-		 */
+		/** Each strip's value for this period. */
 		strips?: {
 			layer: string;
 			unit: string;
 			precision: number | null;
 			point: SeriesPoint | null;
-			whole: string | null;
 		}[];
 	} = $props();
 
@@ -50,18 +47,14 @@
 <p class="font-semibold">{formatPeriod(new Date(t), resolution)}</p>
 {#each entries as { name, point }, i (i)}
 	{@const level = point ? levelFor(levels, point.mean) : undefined}
+	<!-- A figure the server had too little data for: the period is there, its value isn't. -->
+	{@const shown = !point
+		? m.chart_no_data()
+		: notEnoughData(point)
+			? m.data_not_enough()
+			: value(point.mean)}
 	<div class="tabular-nums">
-		<p>
-			{#if point}
-				{name === null
-					? value(point.mean)
-					: m.chart_place_value({ place: name, value: value(point.mean) })}
-			{:else}
-				{name === null
-					? m.chart_no_data()
-					: m.chart_place_value({ place: name, value: m.chart_no_data() })}
-			{/if}
-		</p>
+		<p>{name === null ? shown : m.chart_place_value({ place: name, value: shown })}</p>
 		{#if level}
 			<LevelSwatch color={level.color ?? "transparent"} label={level.label} />
 		{/if}
@@ -94,9 +87,6 @@
 				value: strip.point ? stripValue(strip.point.mean, strip) : m.chart_no_data()
 			})}
 		</p>
-		{#if strip.whole}
-			<p class="text-muted-foreground">{strip.whole}</p>
-		{/if}
 		{#if strip.point?.partial}
 			<p class="text-muted-foreground">{m.chart_partial()}</p>
 		{/if}

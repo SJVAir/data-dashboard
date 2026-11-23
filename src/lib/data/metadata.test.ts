@@ -6,7 +6,9 @@ vi.mock("@sjvair/sdk", () => ({
 	getMonitorsList: vi.fn(),
 	getHMSMeta: vi.fn(),
 	getForecastsMeta: vi.fn(),
-	getCalHeatScoreMeta: vi.fn()
+	getCalHeatScoreMeta: vi.fn(),
+	getPesticidesMeta: vi.fn(),
+	getRegionsMeta: vi.fn()
 }));
 
 import {
@@ -15,7 +17,9 @@ import {
 	getForecastsMeta,
 	getHMSMeta,
 	getMonitorsList,
-	getMonitorsMeta
+	getMonitorsMeta,
+	getPesticidesMeta,
+	getRegionsMeta
 } from "@sjvair/sdk";
 import {
 	createWebMetadata,
@@ -24,6 +28,7 @@ import {
 	type CatalogEntry,
 	type Level
 } from "./metadata";
+import { resetPesticideMeta } from "./pesticide-meta";
 import { fixtureMetadata } from "./testing/fixtures";
 import {
 	SDK_DATASET_CATALOG,
@@ -54,12 +59,18 @@ function lvl(
 }
 
 const META = {
+	monitor_groups: {
+		reference: { key: "reference", label: "Reference-grade", order: 0 },
+		"low-cost": { key: "low-cost", label: "Low-cost sensors", order: 1 }
+	},
 	monitors: {
 		purpleair: {
 			label: "PurpleAir",
+			group: "low-cost",
 			expected_interval: "2 min",
 			entries: {
 				pm25: {
+					published: true,
 					default_calibration: "PM25_EPA_Calibration",
 					alerts: {
 						window: "60 min",
@@ -73,9 +84,11 @@ const META = {
 		},
 		bam1022: {
 			label: "BAM 1022",
+			group: null,
 			expected_interval: "1 hour",
 			entries: {
 				pm25: {
+					published: true,
 					default_calibration: "",
 					alerts: {
 						window: "60 min",
@@ -86,6 +99,7 @@ const META = {
 					}
 				},
 				o3: {
+					published: false,
 					default_calibration: "",
 					alerts: {
 						window: "1h",
@@ -95,12 +109,13 @@ const META = {
 						expected_interval: "30 min"
 					}
 				},
-				pm10: { default_calibration: "", alerts: null }
+				pm10: { published: false, default_calibration: "", alerts: null }
 			}
 		}
 	},
 	entries: {
 		pm25: {
+			description: "Fine particles from smoke, dust, and vehicle exhaust.",
 			scale: {
 				levels: [
 					lvl("moderate", "Moderate", "#ffff00", 1, 9, 35.4),
@@ -109,7 +124,7 @@ const META = {
 				]
 			}
 		},
-		humidity: { scale: null }
+		humidity: { description: null, scale: null }
 	}
 };
 
@@ -120,9 +135,17 @@ const LIST = [
 		type: "purpleair",
 		device: "PA-II",
 		county: "Fresno",
+		location: "outside",
 		is_active: true
 	},
-	{ id: "m-bam", name: "BAM One", type: "bam1022", county: "", is_active: false }
+	{
+		id: "m-bam",
+		name: "BAM One",
+		type: "bam1022",
+		county: "",
+		location: "inside",
+		is_active: false
+	}
 ];
 
 beforeEach(() => {
@@ -149,6 +172,7 @@ describe("createWebMetadata().catalog", () => {
 			source: "SJVAir sensors, AirNow, AQview, AQLite",
 			geographies: ["monitor", "region"],
 			metaUrl: "/api/2.0/monitors/meta/",
+			monitorTypes: ["airgradient", "airnow", "aqlite", "aqview", "bam1022", "purpleair", "vozbox"],
 			entryTypes: [
 				{
 					id: "humidity",
@@ -218,6 +242,7 @@ describe("createWebMetadata().catalog", () => {
 					geographies: ["monitor", "watershed"],
 					meta_url: "",
 					places_url: "",
+					monitor_types: null,
 					entry_types: [
 						{
 							id: "pm25-old",
@@ -433,14 +458,177 @@ describe("createWebMetadata", () => {
 		expect(await md.monitorType("m-pa")).toBe("purpleair");
 		expect(await md.monitorType("unknown")).toBeNull();
 		expect(await md.monitors()).toEqual([
-			{ id: "m-pa", name: "PA One", type: "purpleair", county: "Fresno", active: true },
-			{ id: "m-bam", name: "BAM One", type: "bam1022", county: "", active: false }
+			{
+				id: "m-pa",
+				name: "PA One",
+				type: "purpleair",
+				county: "Fresno",
+				active: true,
+				inside: false
+			},
+			{
+				id: "m-bam",
+				name: "BAM One",
+				type: "bam1022",
+				county: "",
+				active: false,
+				inside: true
+			}
 		]);
 		expect(await md.monitorTypes()).toEqual([
-			{ type: "purpleair", label: "PurpleAir", entryTypes: ["pm25"] },
-			{ type: "bam1022", label: "BAM 1022", entryTypes: ["pm25", "o3", "pm10"] }
+			{
+				type: "purpleair",
+				label: "PurpleAir",
+				entryTypes: ["pm25"],
+				group: "low-cost",
+				published: ["pm25"],
+				unflagged: []
+			},
+			{
+				type: "bam1022",
+				label: "BAM 1022",
+				entryTypes: ["pm25", "o3", "pm10"],
+				group: null,
+				published: ["pm25"],
+				unflagged: []
+			}
 		]);
 		expect(getMonitorsList).toHaveBeenCalledTimes(1);
+	});
+
+	it("reads monitor groups, entry help and location type labels", async () => {
+		vi.mocked(getRegionsMeta).mockResolvedValue({
+			location_groups: { child_care: { key: "child_care", label: "Child care", order: 0 } },
+			location_types: {
+				child_care: {
+					type: "child_care",
+					label: "Child care",
+					source: "cdss-ccl",
+					group: "child_care"
+				}
+			}
+		} as never);
+		const md = createWebMetadata();
+		expect(await md.monitorGroups()).toEqual([
+			{ key: "reference", label: "Reference-grade", order: 0 },
+			{ key: "low-cost", label: "Low-cost sensors", order: 1 }
+		]);
+		expect(await md.entryTypeHelp("pm25")).toBe(
+			"Fine particles from smoke, dust, and vehicle exhaust."
+		);
+		expect(await md.entryTypeHelp("humidity")).toBeNull();
+		expect(await md.locationTypeLabel("child_care")).toBe("Child care");
+		expect(await md.locationTypeLabel("nope")).toBeNull();
+	});
+
+	it("reads location groups and sources from the regions meta", async () => {
+		vi.mocked(getRegionsMeta).mockResolvedValue({
+			location_groups: {
+				child_care: { key: "child_care", label: "Child care", order: 1 },
+				school: { key: "school", label: "Schools", order: 0 }
+			},
+			location_types: {
+				public_school: {
+					type: "public_school",
+					label: "Public school",
+					source: "cde-public",
+					group: "school"
+				},
+				private_school: {
+					type: "private_school",
+					label: "Private school",
+					source: "cde-private",
+					group: "school"
+				},
+				child_care: {
+					type: "child_care",
+					label: "Child care",
+					source: "cdss-ccl",
+					group: "child_care"
+				},
+				museum: { type: "museum", label: "Museum", source: "osm", group: "museum" }
+			}
+		} as never);
+		const md = createWebMetadata();
+		const pub = { type: "public_school", label: "Public school", source: "cde-public" };
+		const priv = { type: "private_school", label: "Private school", source: "cde-private" };
+		expect(await md.locationGroups()).toEqual([
+			{ key: "school", label: "Schools", order: 0, types: [pub, priv] },
+			{
+				key: "child_care",
+				label: "Child care",
+				order: 1,
+				types: [{ type: "child_care", label: "Child care", source: "cdss-ccl" }]
+			},
+			{
+				key: "museum",
+				label: "Museum",
+				order: 2,
+				types: [{ type: "museum", label: "Museum", source: "osm" }]
+			}
+		]);
+		expect(await md.locationSources()).toEqual(["cde-public", "cde-private", "cdss-ccl", "osm"]);
+	});
+
+	it("makes a type whose group the meta doesn't define a group of its own", async () => {
+		vi.mocked(getRegionsMeta).mockResolvedValue({
+			location_groups: {},
+			location_types: {
+				a: { type: "a", label: "A", source: "sa", group: "a" },
+				b: { type: "b", label: "B", source: "sb", group: "missing" }
+			}
+		} as never);
+		expect(await createWebMetadata().locationGroups()).toEqual([
+			{ key: "a", label: "A", order: 0, types: [{ type: "a", label: "A", source: "sa" }] },
+			{ key: "b", label: "B", order: 1, types: [{ type: "b", label: "B", source: "sb" }] }
+		]);
+	});
+
+	it("locationGroups is [] when the meta lists no location types", async () => {
+		vi.mocked(getRegionsMeta).mockResolvedValue({
+			location_groups: { school: { key: "school", label: "Schools", order: 0 } },
+			location_types: {}
+		} as never);
+		expect(await createWebMetadata().locationGroups()).toEqual([]);
+	});
+
+	it("monitorGroups is [] for none and null when the field is absent", async () => {
+		vi.mocked(getMonitorsMeta).mockResolvedValue({
+			monitor_groups: {},
+			monitors: {},
+			entries: {}
+		} as never);
+		expect(await createWebMetadata().monitorGroups()).toEqual([]);
+		vi.mocked(getMonitorsMeta).mockResolvedValue({ monitors: {}, entries: {} } as never);
+		expect(await createWebMetadata().monitorGroups()).toBeNull();
+	});
+
+	it("flags entries without a published flag as unflagged", async () => {
+		vi.mocked(getMonitorsMeta).mockResolvedValue({
+			monitors: { old: { label: "Old", entries: { pm25: {}, o3: { published: false } } } },
+			entries: {}
+		} as never);
+		const [type] = await createWebMetadata().monitorTypes();
+		expect(type.published).toEqual([]);
+		expect(type.unflagged).toEqual(["pm25"]);
+	});
+
+	it("mapPollutants returns available_pollutants", async () => {
+		vi.mocked(getMonitorsMeta).mockResolvedValue({
+			...META,
+			available_pollutants: ["o3", "pm25"]
+		} as never);
+		expect(await createWebMetadata().mapPollutants()).toEqual(["o3", "pm25"]);
+	});
+
+	it("mapPollutants is [] when the meta lists none", async () => {
+		vi.mocked(getMonitorsMeta).mockResolvedValue({ ...META, available_pollutants: [] } as never);
+		expect(await createWebMetadata().mapPollutants()).toEqual([]);
+	});
+
+	it('mapPollutants is "unavailable" when the meta fails', async () => {
+		vi.mocked(getMonitorsMeta).mockRejectedValue(new Error("boom"));
+		expect(await createWebMetadata().mapPollutants()).toBe("unavailable");
 	});
 
 	it("does not cache a failed fetch", async () => {
@@ -476,41 +664,96 @@ describe("createWebMetadata", () => {
 	});
 });
 
-describe("dailyFigure", () => {
-	it("the memory source names the figure for an entry type that has one", async () => {
+describe("figure", () => {
+	it("the memory source names each resolution's figure from its fixture scales", async () => {
 		const md = fixtureMetadata();
-		expect(await md.dailyFigure("o3")).toEqual({
+		expect(await md.figure("o3", "day")).toEqual({
 			field: "max_1h",
 			label: "Highest 1-hour average"
 		});
-		expect(await md.dailyFigure("pm25")).toBeNull();
+		expect(await md.figure("pm25", "month")).toEqual({
+			field: "daily_statistic_mean",
+			label: "Average of 24-hour averages"
+		});
+		expect(await md.figure("pm25", "hour")).toBeNull();
+		expect(await md.figure("temperature", "day")).toBeNull();
 	});
 
-	it("the web source reads the scale's daily_statistic and its label", async () => {
-		const scale = (daily_statistic: string | null, daily_statistic_label: string | null) => ({
-			levels: [],
-			averaging_hours: null,
-			daily_statistic,
-			daily_statistic_label
-		});
+	// The scale keys as a local `monitors/meta/` serves them (sjvair.com #342, 2026-11-18).
+	const scale = (
+		daily_statistic: string | null,
+		daily_statistic_label: string | null,
+		period_statistic: string | null,
+		period_statistic_label: string | null
+	) => ({
+		levels: [],
+		averaging_hours: null,
+		daily_statistic,
+		daily_statistic_label,
+		period_statistic,
+		period_statistic_label
+	});
+
+	beforeEach(() => {
 		vi.mocked(getMonitorsMeta).mockResolvedValue({
 			...META,
 			entries: {
-				o3: { scale: scale("max_1h", "Highest 1-hour average") },
-				pm25: { scale: scale(null, null) },
-				co: { scale: scale("max_8h", null) },
+				o3: {
+					scale: scale(
+						"max_1h",
+						"Highest 1-hour average",
+						"daily_statistic_mean",
+						"Average of daily highest 1-hour averages"
+					)
+				},
+				pm25: {
+					scale: scale(
+						"mean_24h",
+						"24-hour average",
+						"daily_statistic_mean",
+						"Average of 24-hour averages"
+					)
+				},
+				co: { scale: scale("max_8h", null, "daily_statistic_mean", null) },
+				nox: { scale: scale(null, null, null, null) },
 				humidity: { scale: null }
 			}
 		} as never);
+	});
+
+	it("at day, the web source reads the scale's daily_statistic and its label", async () => {
 		const md = createWebMetadata();
-		expect(await md.dailyFigure("o3")).toEqual({
+		expect(await md.figure("o3", "day")).toEqual({
 			field: "max_1h",
 			label: "Highest 1-hour average"
 		});
-		expect(await md.dailyFigure("pm25")).toBeNull();
-		expect(await md.dailyFigure("co")).toEqual({ field: "max_8h", label: null });
-		expect(await md.dailyFigure("humidity")).toBeNull();
-		expect(await md.dailyFigure("nope")).toBeNull();
+		expect(await md.figure("co", "day")).toEqual({ field: "max_8h", label: null });
+	});
+
+	it("at month and year, it reads the scale's period_statistic and its label", async () => {
+		const md = createWebMetadata();
+		for (const level of ["month", "year"] as const) {
+			expect(await md.figure("pm25", level)).toEqual({
+				field: "daily_statistic_mean",
+				label: "Average of 24-hour averages"
+			});
+			expect(await md.figure("o3", level)).toEqual({
+				field: "daily_statistic_mean",
+				label: "Average of daily highest 1-hour averages"
+			});
+			expect(await md.figure("co", level)).toEqual({ field: "daily_statistic_mean", label: null });
+		}
+	});
+
+	it("is null (the plain mean) at raw and hour, and with no scale field", async () => {
+		const md = createWebMetadata();
+		expect(await md.figure("pm25", "raw")).toBeNull();
+		expect(await md.figure("pm25", "hour")).toBeNull();
+		for (const level of ["day", "month", "year"] as const) {
+			expect(await md.figure("nox", level)).toBeNull();
+			expect(await md.figure("humidity", level)).toBeNull();
+			expect(await md.figure("nope", level)).toBeNull();
+		}
 	});
 });
 
@@ -597,6 +840,18 @@ describe("now-widget metadata", () => {
 		expect(await md.schoolGuidelines("nope")).toBeNull();
 	});
 
+	it("guidelinePollutants lists the entries with school guidelines, in the meta's order", async () => {
+		vi.mocked(getMonitorsMeta).mockResolvedValue({
+			monitors: {},
+			entries: {
+				o3: { school_guidelines: null },
+				pm25: { school_guidelines: { source: null, activities: [] } },
+				pm10: {}
+			}
+		} as never);
+		expect(await createWebMetadata().guidelinePollutants()).toEqual(["pm25"]);
+	});
+
 	it("datasetLevels reads calheatscore scales", async () => {
 		const keys = ["low", "moderate", "high", "very-high", "severe"];
 		vi.mocked(getCalHeatScoreMeta).mockResolvedValue({
@@ -626,5 +881,50 @@ describe("now-widget metadata", () => {
 		expect(await md.scaleSource("forecasts", "burn-status")).toEqual(source);
 		expect(await md.scaleSource("forecasts", "aqi-forecast")).toBeNull();
 		expect(await md.scaleSource("forecasts", "nope")).toBeNull();
+	});
+});
+
+describe("serverScale and monitorTypeInterval", () => {
+	it("routes the raw scale like datasetLevels, with hms-fire on the HMS meta", async () => {
+		const smoke = { levels: [lvl("light", "Light", "#ccc", 0, null, 10)] };
+		const fire = { levels: [lvl("fire", "Fire", "#f00", 0, null, null)] };
+		vi.mocked(getHMSMeta).mockResolvedValue({
+			scales: { "smoke-density": smoke, "fire-radiative-power": fire }
+		} as never);
+		const md = createWebMetadata();
+		expect(await md.serverScale("air-quality", "pm25")).toBe(META.entries.pm25.scale);
+		expect(await md.serverScale("air-quality", "humidity")).toBeNull();
+		expect(await md.serverScale("hms-smoke", "smoke-density")).toBe(smoke);
+		expect(await md.serverScale("hms-fire", "fire-radiative-power")).toBe(fire);
+		expect(await md.serverScale("hms-fire", "nope")).toBeNull();
+		expect(getHMSMeta).toHaveBeenCalledTimes(1);
+	});
+
+	it("the spray-notice scale comes from the pesticides meta, shared with its other readers", async () => {
+		resetPesticideMeta();
+		const notice = {
+			id: "spray-notice",
+			label: "Spray Notices",
+			kind: "category",
+			levels: [{ ...lvl("notice", "Spray notice", "#e64980", 0, null, null), value: "notice" }]
+		};
+		vi.mocked(getPesticidesMeta).mockResolvedValue({ scales: { "spray-notice": notice } } as never);
+		const md = createWebMetadata();
+		expect(await md.serverScale("pesticide-notices", "spray-notice")).toBe(notice);
+		expect(await md.serverScale("pesticide-notices", "nope")).toBeNull();
+		// Its levels too, by the same routing; `levels` stays the monitors meta's.
+		const levels = await md.datasetLevels("pesticide-notices", "spray-notice");
+		expect(levels.map((l) => [l.key, l.label, l.color, l.value])).toEqual([
+			["notice", "Spray notice", "#e64980", "notice"]
+		]);
+		expect(await md.levels("spray-notice")).toEqual([]);
+		expect(getPesticidesMeta).toHaveBeenCalledTimes(1);
+		resetPesticideMeta();
+	});
+
+	it("reads a monitor type's reporting interval", async () => {
+		const md = createWebMetadata();
+		expect(await md.monitorTypeInterval("purpleair")).toBe("2 min");
+		expect(await md.monitorTypeInterval("nope")).toBeNull();
 	});
 });

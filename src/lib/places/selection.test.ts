@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { PlaceRef } from "$lib/data/schema";
-import { blockReason, fromLayer, toggle, toLayerPlaces, type PickerMode } from "./selection";
+import { blockReason, fromWhere, toggle, toWhere, type PickerMode } from "./selection";
+import type { PickRef } from "./types";
 
 const single: PickerMode = { kind: "single" };
 const multi = (max = 3): PickerMode => ({ kind: "multiple", max });
 
 const fresno: PlaceRef = { kind: "region", type: "county", code: "06019" };
 const kern: PlaceRef = { kind: "region", type: "county", code: "06107" };
-const mon1: PlaceRef = { kind: "monitor", id: "m1" };
-const mon2: PlaceRef = { kind: "monitor", id: "m2" };
+// Monitors are picked only by the Monitors search, never as a Where.
+const mon1: PickRef = { kind: "monitor", id: "m1" };
+const mon2: PickRef = { kind: "monitor", id: "m2" };
 const school: PlaceRef = { kind: "location", source: "schools", code: "s1" };
 const point: PlaceRef = { kind: "point", lat: 36.7, lon: -119.8 };
 
@@ -84,35 +86,38 @@ describe("toggle", () => {
 	});
 });
 
-describe("toLayerPlaces", () => {
-	it("maps picks to layer fields", () => {
-		expect(toLayerPlaces([])).toEqual({});
-		expect(toLayerPlaces([fresno])).toEqual({ place: fresno });
-		expect(toLayerPlaces([fresno, kern])).toEqual({
+describe("toWhere", () => {
+	it("maps picks to a Where", () => {
+		expect(toWhere([])).toEqual({});
+		expect(toWhere([fresno])).toEqual({ place: fresno });
+		expect(toWhere([fresno, kern])).toEqual({
 			selection: { kind: "regions", ids: ["county:06019", "county:06107"] }
 		});
-		expect(toLayerPlaces([mon1, mon2])).toEqual({
-			selection: { kind: "monitors", ids: ["m1", "m2"] }
+	});
+	it("leaves monitor picks out: monitors are never a Where", () => {
+		expect(toWhere([mon1, mon2])).toEqual({});
+		expect(toWhere([mon1, fresno, kern])).toEqual({
+			selection: { kind: "regions", ids: ["county:06019", "county:06107"] }
 		});
 	});
 });
 
-describe("fromLayer", () => {
+describe("fromWhere", () => {
 	it("round-trips", () => {
-		for (const picks of [[], [school], [fresno, kern], [mon1, mon2]]) {
-			expect(fromLayer(toLayerPlaces(picks))).toEqual(picks);
+		for (const picks of [[], [school], [fresno, kern]]) {
+			expect(fromWhere(toWhere(picks))).toEqual(picks);
 		}
 	});
 	it("drops invalid region ids and default-place", () => {
 		expect(
-			fromLayer({ selection: { kind: "regions", ids: ["county:06019", "bad", ":x", "y:"] } })
+			fromWhere({ selection: { kind: "regions", ids: ["county:06019", "bad", ":x", "y:"] } })
 		).toEqual([fresno]);
-		expect(fromLayer({ place: { kind: "default-place" } })).toEqual([]);
+		expect(fromWhere({ place: { kind: "default-place" } })).toEqual([]);
 	});
 	it("loads a selection larger than the cap", () => {
-		const ids = ["a", "b", "c", "d", "e", "f"];
-		expect(fromLayer({ selection: { kind: "monitors", ids } })).toHaveLength(6);
-		expect(blockReason(fromLayer({ selection: { kind: "monitors", ids } }), mon1, multi(5))).toBe(
+		const ids = ["a", "b", "c", "d", "e", "f"].map((code) => `county:${code}`);
+		expect(fromWhere({ selection: { kind: "regions", ids } })).toHaveLength(6);
+		expect(blockReason(fromWhere({ selection: { kind: "regions", ids } }), kern, multi(5))).toBe(
 			"at-cap"
 		);
 	});

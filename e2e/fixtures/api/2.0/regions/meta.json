@@ -182,17 +182,32 @@
 			"public_school": {
 				"type": "public_school",
 				"label": "Public school",
-				"source": "cde-public"
+				"source": "cde-public",
+				"group": "school"
 			},
 			"private_school": {
 				"type": "private_school",
 				"label": "Private school",
-				"source": "cde-private"
+				"source": "cde-private",
+				"group": "school"
 			},
 			"child_care": {
 				"type": "child_care",
 				"label": "Child care",
-				"source": "cdss-ccl"
+				"source": "cdss-ccl",
+				"group": "child_care"
+			}
+		},
+		"location_groups": {
+			"school": {
+				"key": "school",
+				"label": "Schools",
+				"order": 0
+			},
+			"child_care": {
+				"key": "child_care",
+				"label": "Child care",
+				"order": 1
 			}
 		},
 		"buffers": [

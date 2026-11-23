@@ -1,0 +1,17 @@
+{
+	"data": [
+		{
+			"sensor": "",
+			"timestamp": "2026-11-11T10:00:00-08:00",
+			"stage": "clean",
+			"processor": "PM25_FEM_Cleaner",
+			"entry_type": "pm25",
+			"value": "8.4"
+		}
+	],
+	"page": 1,
+	"pages": 1,
+	"count": 1,
+	"has_next_page": false,
+	"has_previous_page": false
+}

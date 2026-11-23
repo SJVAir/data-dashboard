@@ -21,17 +21,22 @@ import {
 } from "$lib/components/dialogs/lazy.svelte";
 import { afterMenuClose } from "$lib/components/menu/menu-state.svelte";
 import type { ChosenPlace } from "$lib/data/schema";
-import { barVisible, mainPlaces } from "$lib/places/replace";
+import { placesToReplace } from "$lib/places/replace";
 import { listEarlierVersions, restoreEarlierVersion } from "$lib/safety/restore-version";
 import type { Change } from "$lib/changes/types";
-import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
+import type { WidgetInstance } from "$lib/documents/schema";
 import { loadLazy } from "$lib/safety/lazy";
 import { m } from "$lib/paraglide/messages.js";
 import { STARTER_ID, type HomeTarget } from "$lib/starter/starter";
 import { currentDashboardName, homeTarget, type AppContext } from "$lib/store/app.svelte";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
 import { placeNewWidget } from "$lib/layout/items";
-import { addableWidgetTypes, dataTypes, getWidgetType } from "$lib/widgets/registry";
+import {
+	addWidgetEntries,
+	getWidgetType,
+	type Addable,
+	type WidgetType
+} from "$lib/widgets/registry";
 import { navigate } from "../../router";
 import type { MenuContext, MenuProvider } from "./types";
 
@@ -106,15 +111,43 @@ export function startGetData(app: AppContext, type: string): void {
 }
 
 /**
- * Adds a widget of `type` below everything else on the current dashboard: at the type's default
- * size, with its `addable` data (one undo step).
+ * The types whose add waits on its lookup (the Map's monitor types): another Add of that type is
+ * ignored meanwhile; any other type adds as usual.
  */
-export function addWidget(app: AppContext, type: string): void {
+const pendingAdds = new Set<string>();
+
+/**
+ * Adds a widget of `type` below everything else on the current dashboard: at the type's default
+ * size, with its `addable` data (one undo step). When the data needs a lookup first (the Map's
+ * monitor types, a bounded wait: `mapStartDataWithTypes`), the widget is added once it's done,
+ * only if the same dashboard is still current, and the returned promise settles then; a second
+ * Add of the same type while one waits does nothing.
+ */
+export function addWidget(app: AppContext, type: string): void | Promise<void> {
 	const session = editable(app);
 	const widgetType = getWidgetType(type);
-	if (!session || !widgetType) return;
+	if (!session || !widgetType || pendingAdds.has(type)) return;
+	const added = widgetType.addable?.(session.doc) ?? { data: { layers: [] } };
+	if (!(added instanceof Promise)) {
+		placeAdded(app, widgetType, type, added);
+		return;
+	}
+	const docId = session.doc.id;
+	pendingAdds.add(type);
+	return added
+		.then((a) => {
+			if (editable(app)?.doc.id === docId) placeAdded(app, widgetType, type, a);
+		})
+		.finally(() => {
+			pendingAdds.delete(type);
+		});
+}
+
+/** Adds the widget `addWidget` made, on the dashboard that's current now. */
+function placeAdded(app: AppContext, widgetType: WidgetType, type: string, added: Addable): void {
+	const session = editable(app);
+	if (!session) return;
 	const widgets = session.doc.body.widgets;
-	const added = widgetType.addable?.() ?? { data: { layers: [] } };
 	const widget: WidgetInstance = {
 		id: crypto.randomUUID(),
 		type,
@@ -168,20 +201,14 @@ async function duplicateDashboard(app: AppContext, id?: string): Promise<void> {
 	// The index copies the stored document, so store this tab's edits first.
 	if (!target.isStarter) await target.session.flush();
 	const copyId = target.isStarter
-		? await app.index.duplicate(STARTER_ID, { from: app.starterPlace, to: app.starterPlace })
+		? await app.index.duplicate(STARTER_ID, {
+				from: app.starterPlace,
+				to: app.starterPlace,
+				area: app.starterArea
+			})
 		: await app.index.duplicate(target.session.doc.id);
 	await openDashboard(copyId);
 	await nameOpenedCopy(app, copyId);
-}
-
-/**
- * The places "Duplicate for another place" could replace: the bar's when it shows (that's what
- * the dashboard is about), else the main place, all of a tie (in reading order); empty when no
- * widget shows a single place.
- */
-export function placesToReplace(doc: Dashboard): ChosenPlace[] {
-	const bar = doc.body.placeBar;
-	return bar && barVisible(doc) ? [bar.place] : mainPlaces(doc);
 }
 
 /**
@@ -217,7 +244,11 @@ async function copyWithPlace(
 	// The index copies the stored document, so store this tab's edits first.
 	if (!isStarter) await session.flush();
 	// The starter is built at its chosen place, the bar's place `from`.
-	const copyId = await app.index.duplicate(isStarter ? STARTER_ID : session.doc.id, { from, to });
+	const copyId = await app.index.duplicate(isStarter ? STARTER_ID : session.doc.id, {
+		from,
+		to,
+		...(isStarter ? { area: app.starterArea } : {})
+	});
 	await openDashboard(copyId);
 	await nameOpenedCopy(app, copyId);
 }
@@ -364,11 +395,11 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 			session !== null &&
 			!session.readOnly &&
 			(session.hasOriginal || app.sync?.states[session.doc.id]?.onServer === true);
-		// Data types open Get data; the others are added directly.
-		const entries = [
-			...dataTypes().map((t) => ({ type: t, run: () => startGetData(app, t.type) })),
-			...addableWidgetTypes().map((t) => ({ type: t, run: () => addWidget(app, t.type) }))
-		];
+		// Data types open Get data unless they're also addable; the others are added directly.
+		const entries = addWidgetEntries().map(({ type: t, direct }) => ({
+			type: t,
+			run: () => (direct ? addWidget(app, t.type) : startGetData(app, t.type))
+		}));
 		return [
 			{
 				id: "add-widget",
@@ -398,7 +429,9 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 				icon: LayoutTemplate,
 				group: "create",
 				run: () =>
-					void app.index.createFromStarter(app.starterPlace).then((id) => openDashboard(id))
+					void app.index
+						.createFromStarter(app.starterPlace, app.starterArea)
+						.then((id) => openDashboard(id))
 			},
 			{
 				id: "import",

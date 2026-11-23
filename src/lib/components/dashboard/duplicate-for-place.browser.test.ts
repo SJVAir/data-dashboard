@@ -8,7 +8,8 @@ import { placePicker, whichPlace } from "$lib/components/dialogs/lazy.svelte";
 import type { AdapterContext, RegionResolver } from "$lib/data/adapters/registry";
 import type { MetadataSource } from "$lib/data/metadata";
 import { fixtureMetadata } from "$lib/data/testing/fixtures";
-import type { ChosenPlace, Layer } from "$lib/data/schema";
+import type { ChosenPlace, Layer, WidgetDataConfig } from "$lib/data/schema";
+import { fromWhere, toWhere } from "$lib/places/selection";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
 import { createMemoryPlatform, type MemoryPlatform } from "$lib/platform/memory";
@@ -45,7 +46,11 @@ const META = {
 		city: { type: "city", label: "City", count: 50, parents: [], browsable: false },
 		zipcode: { type: "zipcode", label: "ZIP code", count: 300, parents: [], browsable: false }
 	},
-	location_types: {}
+	location_types: {},
+	location_groups: {
+		school: { key: "school", label: "Schools", order: 0 },
+		child_care: { key: "child_care", label: "Child care", order: 1 }
+	}
 };
 
 const NAMES: Record<string, string> = {
@@ -103,16 +108,21 @@ async function showStarter(platform?: MemoryPlatform) {
 	return { app, starter, ...rest };
 }
 
-function chart(id: string, layers: Layer[], y: number): WidgetInstance {
+function chart(id: string, where: Where, y: number): WidgetInstance {
 	return {
 		id,
 		type: "chart",
 		title: `Chart ${id}`,
 		rect: { x: 0, y, w: 6, h: 4 },
-		data: { dateRange: { kind: "trailing", amount: 30, unit: "day" }, layers }
+		data: { dateRange: { kind: "trailing", amount: 30, unit: "day" }, ...where, layers: [PM25] }
 	};
 }
-const pm25 = (place: ChosenPlace): Layer => ({ dataset: "air-quality", entryType: "pm25", place });
+type Where = Pick<WidgetDataConfig, "place" | "selection">;
+const PM25: Layer = { dataset: "air-quality", entryType: "pm25" };
+/** One place. */
+const at = (place: ChosenPlace): Where => ({ place });
+/** Several places (never rewritten by Change place). */
+const several = (...places: ChosenPlace[]): Where => toWhere(places);
 
 /** A stored dashboard holding `widgets` (a starter copy with its bar at `bar`), current. */
 async function showCopy(widgets: WidgetInstance[], bar: ChosenPlace | null = COUNTY) {
@@ -137,8 +147,7 @@ const more = () => page.getByRole("button", { name: "Dashboard actions" });
 const picker = () => page.getByRole("dialog", { name: m.place_picker_dialog_title() });
 const which = () => page.getByRole("dialog", { name: m.which_place_replace_title() });
 const renameDialog = () => page.getByRole("dialog", { name: m.rename_dashboard_title() });
-const placesOf = (doc: Dashboard) =>
-	doc.body.widgets.map((w) => w.data.layers.map((l) => l.place ?? null));
+const placesOf = (doc: Dashboard) => doc.body.widgets.map((w) => fromWhere(w.data));
 
 async function start() {
 	await more().click();
@@ -166,11 +175,11 @@ async function copies(platform: MemoryPlatform, except: string[]): Promise<Dashb
 }
 
 test("with a visible bar, the copy has the bar's place replaced and its bar shows the new one; the rename step follows", async () => {
-	const mixed = chart("c", [pm25(COUNTY), pm25(CITY)], 8);
+	const mixed = chart("c", several(COUNTY, CITY), 8);
 	const { platform, session } = await showCopy([
-		chart("a", [pm25(COUNTY)], 0),
-		chart("b", [pm25(CITY)], 4),
-		chart("d", [pm25(CITY)], 12),
+		chart("a", at(COUNTY), 0),
+		chart("b", at(CITY), 4),
+		chart("d", at(CITY), 12),
 		mixed
 	]);
 	const before = structuredClone(session.doc);
@@ -189,7 +198,7 @@ test("with a visible bar, the copy has the bar's place replaced and its bar show
 
 test("a tie asks which place first, with a labeled radio group; the copy gains no bar", async () => {
 	const { platform, session } = await showCopy(
-		[chart("a", [pm25(COUNTY)], 0), chart("b", [pm25(CITY)], 4)],
+		[chart("a", at(COUNTY), 0), chart("b", at(CITY), 4)],
 		null
 	);
 	await start();
@@ -211,7 +220,7 @@ test("a tie asks which place first, with a labeled radio group; the copy gains n
 
 test("Escape on the question makes no copy and returns focus to the dashboard's menu button", async () => {
 	const { platform, session } = await showCopy(
-		[chart("a", [pm25(COUNTY)], 0), chart("b", [pm25(CITY)], 4)],
+		[chart("a", at(COUNTY), 0), chart("b", at(CITY), 4)],
 		null
 	);
 	await start();
@@ -225,7 +234,7 @@ test("Escape on the question makes no copy and returns focus to the dashboard's 
 });
 
 test("closing the picker makes no copy", async () => {
-	const { platform, session } = await showCopy([chart("a", [pm25(COUNTY)], 0)], null);
+	const { platform, session } = await showCopy([chart("a", at(COUNTY), 0)], null);
 	await start();
 	await expect.element(page.getByRole("combobox", { name: m.place_picker_label() })).toBeVisible();
 	await animationsSettled(picker().element());
@@ -251,7 +260,7 @@ test("the starter duplicates with its chosen place replaced; the starter stays",
 });
 
 test("hidden when nothing shows a single place", async () => {
-	await showCopy([chart("c", [pm25(COUNTY), pm25(CITY)], 0)], null);
+	await showCopy([chart("c", several(COUNTY, CITY), 0)], null);
 	await more().click();
 	await expect.element(page.getByRole("menuitem", { name: /^Duplicate dashboard/ })).toBeVisible();
 	await expect

@@ -51,7 +51,8 @@ export type SharedChanges =
 export type SnapshotReason = "schema" | "daily" | "conflict";
 
 export type RemoteSnapshotMeta = {
-	id: number;
+	/** Opaque (a sqid, which can be all digits): never parse, compare, or sort by it. */
+	id: string;
 	version: number;
 	schemaVersion: number;
 	reason: SnapshotReason;
@@ -59,7 +60,8 @@ export type RemoteSnapshotMeta = {
 };
 
 export type RemoteSnapshot = {
-	id: number;
+	/** Opaque, as in `RemoteSnapshotMeta`. */
+	id: string;
 	version: number;
 	schemaVersion: number;
 	name: string | null;
@@ -138,7 +140,7 @@ export interface RemoteDocuments {
 	keepSnapshot(id: string, input: SnapshotInput): Promise<void>;
 	/** The document's snapshots, newest first, without bodies. */
 	listSnapshots(id: string): Promise<RemoteSnapshotMeta[]>;
-	getSnapshot(id: string, snapshotId: number): Promise<RemoteSnapshot>;
+	getSnapshot(id: string, snapshotId: string): Promise<RemoteSnapshot>;
 	/** Purges a trashed document; `not_deleted` when it isn't in the trash. */
 	deletePermanently(id: string): Promise<void>;
 	/** Turns the share link on; the token (the same one while it stays shared). */

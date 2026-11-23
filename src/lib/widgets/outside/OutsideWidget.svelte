@@ -8,11 +8,12 @@
 	import { getNowClient } from "$lib/data/now";
 	import { heatSource, type HeatToday } from "$lib/data/now/heat";
 	import { NowQuery } from "$lib/data/now/now-query.svelte";
-	import type { Layer } from "$lib/data/schema";
-	import type { QueryState } from "$lib/data/types";
+	import type { QueryLayer, QueryState } from "$lib/data/types";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { m } from "$lib/paraglide/messages.js";
+	import { markKey } from "$lib/thresholds/marks.svelte";
 	import { CurrentConditions } from "../shared/current.svelte";
+	import { hasPlaces, queryLayer } from "../shared/input";
 	import LevelChip from "../shared/LevelChip.svelte";
 	import MarkFrame from "../shared/MarkFrame.svelte";
 	import { ReadingClock } from "../shared/reading-clock.svelte";
@@ -22,29 +23,35 @@
 	import { placeLabel } from "../title";
 	import { setGeneratedTitle } from "../titles.svelte";
 	import ActivityRow from "./ActivityRow.svelte";
-	import { asPm25 } from "./pm25";
 
 	let { widget }: { widget: WidgetInstance } = $props();
 
 	const viewer = getContext<PlaceViewer | undefined>(PLACE_VIEWER_KEY) ?? "owner";
 
-	// The card is always about PM2.5 (the only pollutant with school guidelines), whatever the
-	// saved layer says.
-	const pm25Widget = $derived(asPm25(widget));
-	const current = new CurrentConditions(() => pm25Widget);
+	const current = new CurrentConditions(() => widget);
 	const meta = $derived(current.meta);
 
 	// --- School guidelines ---
 	let guidelines = $state.raw<SchoolGuidelines | null | undefined>();
 	let guidelinesError = $state.raw<unknown>(null);
 	let guidelinesTry = $state(0);
+	/** The pollutant the card is about: its air-quality layer's. */
+	const entryType = $derived(
+		widget.data.layers.find((l) => l.dataset === "air-quality")?.entryType
+	);
 	$effect(() => {
 		void guidelinesTry;
+		const pollutant = entryType;
+		if (!pollutant) {
+			guidelines = null;
+			guidelinesError = null;
+			return;
+		}
 		const abort = new AbortController();
 		guidelines = undefined;
 		guidelinesError = null;
 		getMetadata()
-			.schoolGuidelines("pm25", abort.signal)
+			.schoolGuidelines(pollutant, abort.signal)
 			.then(
 				(g) => (guidelines = g),
 				(error: unknown) => {
@@ -55,9 +62,10 @@
 	});
 
 	// --- Today's heat ---
-	const layer = $derived<Layer | undefined>(
-		pm25Widget.data.layers.find((l) => l.dataset === "air-quality" && (l.place || l.selection))
-	);
+	const layer = $derived.by<QueryLayer | undefined>(() => {
+		const found = widget.data.layers.find((l) => l.dataset === "air-quality");
+		return found && hasPlaces(widget.data) ? queryLayer(widget.data, found) : undefined;
+	});
 	// Equal layers (a re-render of the same widget) don't resolve the source again.
 	const layerKey = $derived(layer ? JSON.stringify(layer) : "");
 
@@ -187,7 +195,14 @@
 				<p
 					class="text-muted-foreground flex flex-1 items-center justify-center px-2 text-center text-sm"
 				>
-					{stale ? m.current_no_recent_data() : emptyText(reading, m.outside_no_pm25())}
+					{stale
+						? m.current_no_recent_data()
+						: emptyText(
+								reading,
+								meta
+									? m.outside_no_pollutant_data({ pollutant: meta.entryType.label })
+									: m.current_no_data()
+							)}
 				</p>
 			{/if}
 		</div>
@@ -230,14 +245,28 @@
 	</div>
 {/snippet}
 
-<MarkFrame {widget} {reading} levels={current.levels} now={clock.now}>
-	<WidgetState
-		state={shown}
+{#if !entryType}
+	<p class="text-muted-foreground flex h-full items-center justify-center px-2 text-center text-sm">
+		{m.outside_no_guideline_pollutants()}
+	</p>
+{:else}
+	<MarkFrame
 		{widget}
-		{retired}
-		onretry={retry}
-		onchoose={() => openPlacePicker({ widgetId: widget.id })}
-		ownsEmpty
-		children={body}
-	/>
-</MarkFrame>
+		markKey={markKey(widget.id)}
+		{reading}
+		levels={current.levels}
+		now={clock.now}
+	>
+		<WidgetState
+			state={shown}
+			{widget}
+			{retired}
+			pollutant={meta?.entryType.label}
+			onretry={retry}
+			onchoose={() => openPlacePicker({ widgetId: widget.id })}
+			idleText={m.widget_state_idle_place_or_monitor()}
+			ownsEmpty
+			children={body}
+		/>
+	</MarkFrame>
+{/if}

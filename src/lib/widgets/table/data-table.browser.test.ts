@@ -19,7 +19,8 @@ import {
 	chartWidget,
 	fakeAdapter,
 	fakeForecastsAdapter,
-	fakeNumberAdapter
+	fakeNumberAdapter,
+	setLayers
 } from "../shared/test-harness/fake-data";
 import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 import { generatedTitle } from "../titles.svelte";
@@ -92,6 +93,20 @@ test("rows start newest first, with the level beside each value", async () => {
 	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 · Monitor m1 · Last 30 days");
 });
 
+test("a table with no Where and no monitors says what to add", async () => {
+	const screen = await show(tableWidget([]));
+	await expect.element(screen.getByText(m.widget_empty_add_where_or_monitors())).toBeVisible();
+	expect(requests).toEqual([]);
+});
+
+test("a table with no layers (None and nothing else) shows its empty state", async () => {
+	const widget = tableWidget(["m1"]);
+	widget.data.layers = [];
+	const screen = await show(widget);
+	await expect.element(screen.getByText(m.widget_empty_add_layers())).toBeVisible();
+	expect(frame.querySelectorAll("tbody tr")).toHaveLength(0);
+});
+
 test("headers sort by keyboard and aria-sort follows", async () => {
 	const screen = await show(tableWidget(["m1", "m2"]));
 	await expect.poll(() => frame.querySelectorAll("tbody tr").length).toBe(3);
@@ -116,16 +131,60 @@ test("narrow shows date, value and level; wide adds worst hour, lowest and highe
 	await expect.element(screen.getByRole("columnheader", { name: /Worst hour/ })).toBeVisible();
 });
 
-test("ten places at most, and the rest are counted", async () => {
-	const ids = Array.from({ length: 12 }, (_, i) => `m${i + 1}`);
-	const screen = await show(tableWidget(ids));
-	await expect.element(screen.getByText("2 more places aren't shown.")).toBeVisible();
-	expect(requests.at(-1)!.target).toEqual({ kind: "monitors", ids: ids.slice(0, 10) });
+test("twelve places: every one is asked for, with no cut", async () => {
+	const ids = Array.from({ length: 12 }, (_, i) => `county:a${i + 1}`);
+	const widget = tableWidget([]);
+	widget.data.layers = [{ dataset: "air-quality", entryType: "pm25" }];
+	widget.data.selection = { kind: "regions", ids };
+	const screen = await show(widget);
+	await expect.poll(() => requests.at(-1)?.target).toEqual({ kind: "regions", keys: ids });
+	expect(screen.getByText(/more places? (aren't|isn't) shown/).query()).toBeNull();
 });
 
-test("the caption names the resolution", async () => {
+test("the caption names the figure at the resolution", async () => {
 	const screen = await show(tableWidget(["m1"]));
-	await expect.element(screen.getByText(m.chart_series_day())).toBeVisible();
+	await expect.element(screen.getByText("24-hour average", { exact: true })).toBeVisible();
+	expect(requests.at(-1)!.figure).toBe("mean_24h");
+});
+
+test("a monthly table shows daily_statistic_mean; a null month reads not enough data", async () => {
+	const base = fakeAdapter(requests);
+	fake.client = createQueryClient({
+		adapters: [
+			{
+				...base,
+				fetch: async (r, c, s) => {
+					const data = await base.fetch(r, c, s);
+					return {
+						...data,
+						series: data.series.map((x) => ({
+							...x,
+							points: x.points.map((p, i) => ({ ...p, figure: i === 1 ? null : 40 + i }))
+						}))
+					};
+				}
+			}
+		],
+		metadata: fake.metadata!,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const widget = tableWidget(["m1"]);
+	widget.data.dateRange = { kind: "custom", start: "2026-01-01", end: "2026-06-30" };
+	widget.data.resolution = "month";
+	const screen = await show(widget);
+	await expect.poll(() => frame.querySelectorAll("tbody tr").length).toBe(3);
+	expect(requests.at(-1)!.figure).toBe("daily_statistic_mean");
+	await expect
+		.element(screen.getByText("Average of 24-hour averages", { exact: true }))
+		.toBeVisible();
+	const cells = [...frame.querySelectorAll("tbody tr")].map(
+		(r) => r.querySelectorAll("td")[0].textContent ?? ""
+	);
+	// Newest first: 42, not enough data, 40; never the plain means (5, 6, 7).
+	expect(cells[0]).toContain("42");
+	expect(cells[1]).toContain(m.data_not_enough());
+	expect(cells[2]).toContain("40");
+	expect(cells.join(" ")).not.toMatch(/\b[567]\b/);
 });
 
 test("has no axe violations narrow or wide", async () => {
@@ -280,7 +339,7 @@ test("an overlay adds a column per place with each day's level label", async () 
 	expect((await axe.run(frame)).violations).toEqual([]);
 });
 
-test("an overlay that fails, or that the periods are too long for, says so under the table", async () => {
+test("an overlay that fails says so under the table; one not offered at the resolution isn't fetched", async () => {
 	fake.metadata = fixtureMetadata({ catalog: async () => [...FIXTURE_CATALOG, FORECASTS_ENTRY] });
 	const forecasts = fakeForecastsAdapter(requests);
 	fake.client = createQueryClient({
@@ -298,7 +357,7 @@ test("an overlay that fails, or that the periods are too long for, says so under
 	});
 	const failing = tableWidget(["m1"]);
 	failing.data.layers.push({ dataset: "forecasts", entryType: "burn-status" });
-	let screen = await show(failing);
+	const screen = await show(failing);
 	await expect.poll(() => frame.querySelectorAll("tbody tr").length).toBe(3);
 	await expect
 		.element(screen.getByText(m.chart_overlay_failed({ layer: "Burn status" })))
@@ -311,13 +370,15 @@ test("an overlay that fails, or that the periods are too long for, says so under
 		regions: { resolve: async () => "unsupported" }
 	});
 	const monthly = tableWidget(["m1"]);
-	monthly.data.layers[0].resolution = "month";
+	monthly.data.resolution = "month";
 	monthly.data.layers.push({ dataset: "forecasts", entryType: "burn-status" });
-	screen = await show(monthly);
-	await expect
-		.element(screen.getByText(m.table_overlay_by_day({ layer: "Burn status" })))
-		.toBeVisible();
+	const before = requests.length;
+	await show(monthly);
+	await expect.poll(() => frame.querySelectorAll("tbody tr").length).toBe(3);
+	// Burn status offers days only: at Monthly it isn't fetched or shown (and says why).
+	expect(requests.slice(before).map((r) => r.entryType)).toEqual(["pm25"]);
 	expect(frame.querySelector("thead")!.textContent).not.toContain("Burn status");
+	await expect.poll(() => frame.textContent).toContain("isn't reported monthly");
 	expect((await axe.run(frame)).violations).toEqual([]);
 });
 
@@ -365,14 +426,13 @@ test("the header names the station and filters", async () => {
 		)
 		.toBeVisible();
 	await expect.poll(() => frame.querySelectorAll("tbody tr").length).toBe(3);
-	// Numbers use the catalog's precision (rain: 2 places, pounds: none), a whole month's total
-	// says so, and a mean would never be called one.
+	// The dataset is monthly (Automatic: pesticide use offers month and year), one row per month
+	// for every layer. Numbers use the catalog's precision (rain: 2 places, pounds: none).
 	const rows = [...frame.querySelectorAll("tbody tr")].map((r) =>
 		[...r.querySelectorAll("td")].slice(1).map((td) => td.textContent?.trim())
 	);
 	expect(rows.map((r) => r[0])).toEqual(["0.40", "0.00", "0.12"]);
-	expect(rows.every((r) => r[1]?.startsWith("1,200"))).toBe(true);
-	expect(rows.every((r) => r[1]?.includes(m.chart_series_month_total()))).toBe(true);
+	expect(rows.map((r) => r[1])).toEqual(["", "340", "1,200"]);
 	expect((await axe.run(frame)).violations).toEqual([]);
 });
 
@@ -393,18 +453,12 @@ test("a pesticide-only table names the filter and says the values are totals", a
 		regions: { resolve: async () => "unsupported" }
 	});
 	const widget = tableWidget(["m1"]);
-	widget.data.layers = [
-		{
-			dataset: "pesticide-use",
-			entryType: "pounds-applied",
-			place: { kind: "monitor", id: "m1" }
-		}
-	];
+	setLayers(widget, [{ dataset: "pesticide-use", entryType: "pounds-applied" }]);
 	const screen = await show(widget);
 	await expect
 		.element(
 			screen.getByRole("columnheader", {
-				name: "Pounds Applied · Chlorpyrifos, Monitor m1 (lbs)"
+				name: "Pounds Applied · Chlorpyrifos, Region county:m1 (lbs)"
 			})
 		)
 		.toBeVisible();
@@ -426,13 +480,7 @@ test("a pesticide-only table with no use says so", async () => {
 		regions: { resolve: async () => "unsupported" }
 	});
 	const widget = tableWidget(["m1"]);
-	widget.data.layers = [
-		{
-			dataset: "pesticide-use",
-			entryType: "pounds-applied",
-			place: { kind: "monitor", id: "m1" }
-		}
-	];
+	setLayers(widget, [{ dataset: "pesticide-use", entryType: "pounds-applied" }]);
 	const screen = await show(widget);
 	await expect.element(screen.getByText(m.data_none_pesticides(), { exact: true })).toBeVisible();
 	expect(screen.getByText(m.widget_state_empty()).query()).toBeNull();

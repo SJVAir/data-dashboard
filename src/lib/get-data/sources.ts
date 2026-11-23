@@ -1,6 +1,6 @@
 import { getMetadata, getResolvers } from "$lib/data";
 import { layerStations, type WeatherStation } from "$lib/data/adapters/weather";
-import type { Layer } from "$lib/data/schema";
+import type { QueryLayer } from "$lib/data/types";
 
 /**
  * What Get data's weather and pesticide controls read from the server, in one module so tests can
@@ -11,7 +11,7 @@ export { filterLabels, filterSummary, FilterGone, pesticideMeta } from "$lib/dat
 
 /** The weather stations a layer's one place can use, in the server's order (see `layerStations`). */
 export function stationsForLayer(
-	layer: Pick<Layer, "dataset" | "place" | "selection">,
+	layer: Pick<QueryLayer, "dataset" | "place" | "selection">,
 	signal: AbortSignal
 ): Promise<WeatherStation[]> {
 	return layerStations(layer, { metadata: getMetadata(), ...getResolvers() }, signal);

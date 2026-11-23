@@ -32,8 +32,11 @@ import { CHUNK_DAYS, calendarUnits, splitChunks, type Unit } from "../chunks";
 import type { Segment } from "../periods";
 import type { SeriesPoint } from "../types";
 
-/** The rows of one place (a monitor id or a region sqid) from one SDK call. */
-export type Fetched = { id: string; points: SeriesPoint[] };
+/**
+ * The points of one place (a monitor id or a region sqid) from one SDK call; `name` is the bulk
+ * monitor response's own name for it, when it has one.
+ */
+export type Fetched = { id: string; points: SeriesPoint[]; name?: string };
 export type FetchTask = () => Promise<Fetched[]>;
 
 /** The summary fields the adapter reads. */
@@ -54,7 +57,7 @@ export type SummaryOptions = {
 	/** A summary field read by name into `figure` (with `is_final` into `final`). */
 	figure?: string;
 };
-type Bulk = { id: string; summaries: SummaryRow[] };
+type Bulk = { id: string; name?: string; summaries: SummaryRow[] };
 /** Open-day rows, fetched at most once per query and shared by the units that reach them. */
 export type OpenDays<T> = () => Promise<T>;
 type Options = { signal: AbortSignal };
@@ -165,11 +168,29 @@ export function monitorOpenDays(
 	);
 }
 
-/** Open days for many places: regions by sqid, otherwise every published monitor. */
+/**
+ * Which monitors a bulk monitor request returns: those inside the regions `region` (sqids; none
+ * for everywhere) of the types `type` (the monitors meta's keys; none for every public type).
+ */
+export type BulkMonitorScope = { region?: string[]; type?: string[] };
+
+/** A bulk monitor scope as the SDK's request fields (empty lists send nothing). */
+function monitorScopeConfig(scope: BulkMonitorScope | undefined): BulkMonitorScope {
+	return {
+		...(scope?.region && scope.region.length > 0 && { region: scope.region }),
+		...(scope?.type && scope.type.length > 0 && { type: scope.type })
+	};
+}
+
+/**
+ * Open days for many places: regions by sqid, otherwise the published monitors `monitors`
+ * scopes (every one without it).
+ */
 export function bulkOpenDays(
 	entryType: string,
 	regionIds: string[] | undefined,
-	signal: AbortSignal
+	signal: AbortSignal,
+	monitors?: BulkMonitorScope
 ): Promise<Bulk[]> {
 	return regionIds
 		? getRegionSummariesBulkDailyOpen({ entryType, region: regionIds }, { signal })
@@ -177,7 +198,8 @@ export function bulkOpenDays(
 				{
 					entryType: entryType as Parameters<
 						typeof getMonitorSummariesBulkDailyOpen
-					>[0]["entryType"]
+					>[0]["entryType"],
+					...monitorScopeConfig(monitors)
 				},
 				{ signal }
 			);
@@ -248,8 +270,8 @@ export function monitorSummaryTasks(
 /**
  * Summaries for many places through a bulk endpoint, one request per whole calendar unit.
  * Monitors come back with each type's published series; `regionIds` (sqids) picks the region
- * endpoint, otherwise every published monitor is returned. `open` merges open days as for one
- * monitor (an owner only in the open rows is added).
+ * endpoint, otherwise the published monitors `monitors` scopes are returned (every one without
+ * it). `open` merges open days as for one monitor (an owner only in the open rows is added).
  */
 export function bulkSummaryTasks(
 	entryType: string,
@@ -258,7 +280,8 @@ export function bulkSummaryTasks(
 	now: Date,
 	signal: AbortSignal,
 	opts?: SummaryOptions,
-	open?: OpenDays<Bulk[]>
+	open?: OpenDays<Bulk[]>,
+	monitors?: BulkMonitorScope
 ): FetchTask[] {
 	const res = seg.resolution as Period;
 	const from = periodStart(seg.start, res);
@@ -280,13 +303,14 @@ export function bulkSummaryTasks(
 		const [stored, openPlaces] = await Promise.all([
 			regionIds
 				? BULK_REGIONS[res]({ ...dates, region: regionIds }, { signal })
-				: BULK_MONITORS[res](dates, { signal }),
+				: BULK_MONITORS[res]({ ...dates, ...monitorScopeConfig(monitors) }, { signal }),
 			withOpen ? open() : []
 		]);
 		const places = withOpen ? mergeBulkOpenDays(stored, openPlaces) : stored;
 		return places.map((p) => ({
 			id: p.id,
-			points: toPoints(p.summaries, res, unit.start, unit.end, now, opts)
+			points: toPoints(p.summaries, res, unit.start, unit.end, now, opts),
+			...(typeof p.name === "string" && { name: p.name })
 		}));
 	});
 }

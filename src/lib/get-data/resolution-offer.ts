@@ -1,15 +1,13 @@
-import { offeredLevels } from "$lib/data/adapters/offered";
-import type { EntryTypeMeta } from "$lib/data/metadata";
-import type { DateRangeSpec, Resolution } from "$lib/data/schema";
+import { LEVELS, layerOffers, type Level, type PlaceKind } from "$lib/data/dataset-rules";
+import type { CatalogEntry } from "$lib/data/metadata";
+import type { DateRangeSpec, Layer, WidgetDataConfig } from "$lib/data/schema";
 import { calendarSpanDays, resolveRange } from "$lib/format/range";
 
-export type DetailChoice = {
-	level: "auto" | Resolution;
-	blocked: "too-many-points" | null;
+export type ResolutionChoice = {
+	level: "auto" | Level;
+	/** Why it can't be chosen: the point budget, or a chosen layer that isn't reported at it. */
+	blocked: "too-many-points" | { notOffered: Layer } | null;
 };
-
-/** The levels "Show values" lists, finest first (when the entry type offers them). */
-const LEVELS = ["raw", "hour", "day", "month", "year"] as const;
 
 /**
  * The most points (places × periods) a preview is asked to draw. No level has a range cap of
@@ -19,7 +17,7 @@ const LEVELS = ["raw", "hour", "day", "month", "year"] as const;
 export const MAX_POINTS = 50_000;
 
 /** Periods per day at each level; raw assumes a reading every two minutes (PurpleAir's rate). */
-const PER_DAY: Record<(typeof LEVELS)[number], number> = {
+const PER_DAY: Record<Level, number> = {
 	raw: 720,
 	hour: 24,
 	day: 1,
@@ -28,27 +26,42 @@ const PER_DAY: Record<(typeof LEVELS)[number], number> = {
 };
 
 /**
- * The "Show values" choices for the main layer over `range` at `places` places: Automatic, then each
- * level the entry type offers that `dataset`'s adapter can fetch (`offeredLevels`: weather has no
- * "Every measurement"), greyed when the point budget rules it out.
- * `null` when the widget type pins its resolution (the control is hidden).
+ * The "Data resolution" choices for `data`'s layers over `range` at `places` places: Automatic,
+ * then every level in `within` (default all), finest first. A level is greyed, never hidden: when
+ * a chosen layer isn't reported at it (`layerOffers`, the first such layer named), else when the
+ * point budget rules it out. `null` when the widget type pins its resolution (the control is
+ * hidden).
  */
-export function detailChoices(
-	dataset: string,
-	entry: Pick<EntryTypeMeta, "resolutions">,
-	range: DateRangeSpec,
-	places: number,
-	pin: Resolution | undefined,
-	now: Date
-): DetailChoice[] | null {
+export function resolutionChoices(args: {
+	data: WidgetDataConfig;
+	catalog: CatalogEntry[];
+	place: PlaceKind;
+	range: DateRangeSpec;
+	places: number;
+	pin: Level | undefined;
+	now: Date;
+	within?: readonly Level[];
+}): ResolutionChoice[] | null {
+	const { data, catalog, place, range, places, pin, now, within = LEVELS } = args;
 	if (pin) return null;
 	const days = calendarSpanDays(range, resolveRange(range, now));
-	const choices: DetailChoice[] = [{ level: "auto", blocked: null }];
-	const offered = offeredLevels(dataset, entry.resolutions);
+	const offers = data.layers.map((layer) => ({
+		layer,
+		levels: layerOffers(layer, catalog, place)
+	}));
+	const choices: ResolutionChoice[] = [{ level: "auto", blocked: null }];
 	for (const level of LEVELS) {
-		if (!offered.includes(level)) continue;
+		if (!within.includes(level)) continue;
+		const misfit = offers.find((o) => !o.levels.includes(level));
 		const points = Math.max(1, places) * days * PER_DAY[level];
-		choices.push({ level, blocked: points > MAX_POINTS ? "too-many-points" : null });
+		choices.push({
+			level,
+			blocked: misfit
+				? { notOffered: misfit.layer }
+				: points > MAX_POINTS
+					? "too-many-points"
+					: null
+		});
 	}
 	return choices;
 }

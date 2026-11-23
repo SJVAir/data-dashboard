@@ -5,7 +5,7 @@ vi.mock("@sjvair/sdk", () => ({ getHeatForPlace: vi.fn() }));
 import { getHeatForPlace } from "@sjvair/sdk";
 import type { AdapterContext } from "../adapters/registry";
 import type { Level } from "../metadata";
-import type { Layer } from "../schema";
+import type { QueryLayer } from "../types";
 import { fixtureMetadata } from "../testing/fixtures";
 import { heatSource, type HeatToday } from "./heat";
 
@@ -63,7 +63,7 @@ function response(zipCount: number, days: Array<{ date: string; score: number; z
 }
 
 async function load(
-	layer: Layer,
+	layer: QueryLayer,
 	now: Date = NOW
 ): Promise<{ heat: HeatToday; key: string } | { unavailable: string }> {
 	const source = await heatSource(layer, ctx, () => now);
@@ -71,19 +71,22 @@ async function load(
 	return { heat: await source.fetch(new AbortController().signal), key: source.key };
 }
 
-const region = (type: string, code: string) =>
-	({ dataset: "air-quality", entryType: "pm25", place: { kind: "region", type, code } }) as Layer;
+const region = (type: string, code: string): QueryLayer => ({
+	dataset: "air-quality",
+	entryType: "pm25",
+	place: { kind: "region", type, code }
+});
 
 beforeEach(() => get.mockReset());
 
 describe("heatSource", () => {
 	it("asks a school's ZIP for today's date and matches the level by value", async () => {
 		get.mockResolvedValue(response(1, [{ date: "2026-11-08", score: 1, zipcode: "93721" }]));
-		const layer = {
+		const layer: QueryLayer = {
 			dataset: "air-quality",
 			entryType: "pm25",
 			place: { kind: "location", source: "school", code: "s1" }
-		} as Layer;
+		};
 		const r = (await load(layer)) as { heat: HeatToday; key: string };
 		expect(get.mock.calls[0][0]).toEqual({ region: { type: "zipcode", external_id: "93721" } });
 		expect(get.mock.calls[0][1]).toEqual({ date: "2026-11-08" });
@@ -94,11 +97,11 @@ describe("heatSource", () => {
 
 	it("asks a monitor by id", async () => {
 		get.mockResolvedValue(response(1, [{ date: "2026-11-08", score: 0, zipcode: "93721" }]));
-		const layer = {
+		const layer: QueryLayer = {
 			dataset: "air-quality",
 			entryType: "pm25",
-			place: { kind: "monitor", id: "m-pa" }
-		} as Layer;
+			monitors: ["m-pa"]
+		};
 		await load(layer);
 		expect(get.mock.calls[0][0]).toEqual({ monitor: "m-pa" });
 	});
@@ -131,11 +134,11 @@ describe("heatSource", () => {
 	});
 
 	it("has no heat for a school without a ZIP", async () => {
-		const layer = {
+		const layer: QueryLayer = {
 			dataset: "air-quality",
 			entryType: "pm25",
 			place: { kind: "location", source: "school", code: "nozip" }
-		} as Layer;
+		};
 		expect(await load(layer)).toEqual({ unavailable: "place-unsupported" });
 	});
 
@@ -146,11 +149,11 @@ describe("heatSource", () => {
 	});
 
 	it("never puts a point's coordinates in the key", async () => {
-		const layer = {
+		const layer: QueryLayer = {
 			dataset: "air-quality",
 			entryType: "pm25",
 			place: { kind: "point", lat: 36.7, lon: -119.8 }
-		} as Layer;
+		};
 		get.mockResolvedValue(response(1, []));
 		const r = (await load(layer)) as { key: string };
 		expect(r.key).toContain("zipcode:93721");

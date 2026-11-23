@@ -15,7 +15,9 @@ import { chartType } from "$lib/widgets/chart";
 import { contributionCalendarType } from "$lib/widgets/calendars/contribution";
 import { monthCalendarType } from "$lib/widgets/calendars/month";
 import { dataTableType } from "$lib/widgets/table";
-import { offeredDatasets, typeBlock } from "./offer";
+import { mapType } from "$lib/widgets/map";
+import { currentType } from "$lib/widgets/current";
+import { offeredDatasets, resolutionBlock, typeBlock } from "./offer";
 
 const NOW = new Date("2026-11-05T20:00:00Z");
 
@@ -65,9 +67,10 @@ function type(extra: Partial<WidgetType> = {}): WidgetType {
 	};
 }
 
-const monitors = (n: number) => ({
-	kind: "monitors" as const,
-	ids: Array.from({ length: n }, (_, i) => `m${i}`)
+/** A selection of `n` areas (counties). */
+const areas = (n: number) => ({
+	kind: "regions" as const,
+	ids: Array.from({ length: n }, (_, i) => `county:m${i}`)
 });
 
 /** Adapters with only an id: none of them offers overlays. */
@@ -183,11 +186,26 @@ describe("typeBlock for the calendars", () => {
 	});
 
 	it("two places block; another dataset blocks", () => {
-		const two = { ...pm25, selection: monitors(2) };
-		expect(typeBlock(monthCalendarType, data([two]), CATALOG, NOW)).toBe("places");
+		const two = { ...data([pm25]), selection: areas(2) };
+		expect(typeBlock(monthCalendarType, two, CATALOG, NOW)).toBe("places");
 		expect(
 			typeBlock(monthCalendarType, data([{ dataset: "census", entryType: "people" }]), CATALOG, NOW)
 		).toBe("dataset");
+	});
+
+	it("the Map's span counts stops at its resolution: 30 months fit at Monthly, not at Daily", () => {
+		const offering = (levels: EntryTypeMeta["resolutions"]): CatalogEntry[] => [
+			dataset("air-quality", [entryType("pm25", { resolutions: levels })])
+		];
+		const map = (resolution?: "day" | "month") => ({
+			layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m"] }],
+			dateRange: { kind: "custom" as const, start: "2024-01-01", end: "2026-06-30" },
+			...(resolution ? { resolution } : {})
+		});
+		// Automatic: a range over a year is Monthly, so 30 stops.
+		expect(typeBlock(mapType, map(), offering(["day", "month"]), NOW)).toBeNull();
+		expect(typeBlock(mapType, map("month"), offering(["day", "month"]), NOW)).toBeNull();
+		expect(typeBlock(mapType, map("day"), offering(["day", "month"]), NOW)).toBe("span");
 	});
 
 	it("a 400-day range blocks the month calendar but not the contribution calendar", () => {
@@ -208,12 +226,55 @@ describe("typeBlock", () => {
 		expect(typeBlock(chartType, data(), CATALOG, NOW)).toBeNull();
 	});
 
-	it("7 places blocks Chart (places), not Data table", () => {
-		const d = data({
-			layers: [{ dataset: "air-quality", entryType: "pm25", selection: monitors(7) }]
-		});
-		expect(typeBlock(chartType, d, CATALOG, NOW)).toBe("places");
+	it("a Chart takes 40 areas", () => {
+		const d = data({ selection: areas(40) });
+		expect(typeBlock(chartType, d, CATALOG, NOW)).toBeNull();
 		expect(typeBlock(dataTableType, d, CATALOG, NOW)).toBeNull();
+	});
+
+	it('Current conditions with two areas is blocked "places"', () => {
+		expect(typeBlock(currentType, data({ selection: areas(2) }), CATALOG, NOW)).toBe("places");
+	});
+
+	it("Current conditions with one searched monitor and no Where isn't blocked", () => {
+		const one = data({ layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }] });
+		expect(typeBlock(currentType, one, CATALOG, NOW)).toBeNull();
+		const ticked = data({
+			layers: [{ dataset: "air-quality", entryType: "pm25", monitorTypes: ["sensor", "bam"] }]
+		});
+		expect(typeBlock(currentType, ticked, CATALOG, NOW)).toBeNull();
+	});
+
+	it('Current conditions with a county and a monitor is blocked "places"', () => {
+		const both = data({
+			place: { kind: "region", type: "county", code: "06019" },
+			layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }]
+		});
+		expect(typeBlock(currentType, both, CATALOG, NOW)).toBe("places");
+		const two = data({
+			layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1", "m2"] }]
+		});
+		expect(typeBlock(currentType, two, CATALOG, NOW)).toBe("places");
+		expect(typeBlock(chartType, both, CATALOG, NOW)).toBeNull();
+	});
+
+	it("places never block Chart or Table", () => {
+		const d = data({
+			selection: areas(7),
+			layers: [{ dataset: "air-quality", entryType: "pm25" }]
+		});
+		expect(typeBlock(chartType, d, CATALOG, NOW)).toBeNull();
+		expect(typeBlock(dataTableType, d, CATALOG, NOW)).toBeNull();
+	});
+
+	it("a 25-place Map's draft isn't blocked for Chart or Table; a one-place type still is", () => {
+		const d = data({
+			selection: areas(25),
+			layers: [{ dataset: "air-quality", entryType: "pm25" }]
+		});
+		expect(typeBlock(chartType, d, CATALOG, NOW)).toBeNull();
+		expect(typeBlock(dataTableType, d, CATALOG, NOW)).toBeNull();
+		expect(typeBlock(currentType, d, CATALOG, NOW)).toBe("places");
 	});
 
 	it("a dataset the type doesn't accept blocks it", () => {
@@ -244,5 +305,42 @@ describe("typeBlock", () => {
 			span: { maxDays: 7 }
 		});
 		expect(typeBlock(short, data(), CATALOG, NOW)).toBe("span");
+	});
+});
+
+describe("resolutionBlock", () => {
+	const data = (extra: Partial<WidgetDataConfig> = {}): WidgetDataConfig => ({
+		dateRange: { kind: "trailing", amount: 30, unit: "day" },
+		layers: [{ dataset: "air-quality", entryType: "pm25" }],
+		...extra
+	});
+
+	it("greys the Map at hourly or every measurement, never on Automatic or Now", () => {
+		expect(resolutionBlock(mapType, data({ resolution: "hour" }))).toBe("hour");
+		expect(resolutionBlock(mapType, data({ resolution: "raw" }))).toBe("raw");
+		expect(resolutionBlock(mapType, data({ resolution: "month" }))).toBeNull();
+		expect(resolutionBlock(mapType, data())).toBeNull();
+		expect(resolutionBlock(mapType, { layers: data().layers, resolution: "hour" })).toBeNull();
+	});
+
+	it("greys a calendar (pinned to day) at another chosen level", () => {
+		expect(resolutionBlock(monthCalendarType, data({ resolution: "month" }))).toBe("month");
+		expect(resolutionBlock(monthCalendarType, data({ resolution: "day" }))).toBeNull();
+		expect(resolutionBlock(monthCalendarType, data())).toBeNull();
+		expect(typeBlock(monthCalendarType, data({ resolution: "month" }), CATALOG, NOW)).toBe(
+			"resolution"
+		);
+	});
+
+	it("greys no type for a stored quarter or season (Save is blocked instead)", () => {
+		for (const resolution of ["quarter", "season"] as const) {
+			expect(resolutionBlock(mapType, data({ resolution }))).toBeNull();
+			expect(resolutionBlock(monthCalendarType, data({ resolution }))).toBeNull();
+		}
+	});
+
+	it("never greys a type with no pin", () => {
+		expect(resolutionBlock(chartType, data({ resolution: "raw" }))).toBeNull();
+		expect(typeBlock(chartType, data({ resolution: "year" }), CATALOG, NOW)).toBeNull();
 	});
 });

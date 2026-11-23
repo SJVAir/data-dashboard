@@ -1,0 +1,215 @@
+import {
+	hmsOptions,
+	monitorsOptions,
+	settingsGroup,
+	type MapContext,
+	type MonitorsOptions,
+	type OptionGroup,
+	type OptionRow,
+	type OptionValues
+} from "@sjvair/map-sdk";
+import { m } from "$lib/paraglide/messages.js";
+import { mapMessages } from "../host/messages";
+import type { MapOptions } from "../options";
+import {
+	basemap,
+	clusters,
+	fire,
+	layers,
+	locations,
+	monitors,
+	notices,
+	regions,
+	settings,
+	theme,
+	use
+} from "./icons.svelte";
+import {
+	groupsShown,
+	LOCATION_PREFIX,
+	NOTICES_KEY,
+	toValues,
+	USE_FIGURE_KEY,
+	USE_KEY,
+	type MapOffer
+} from "./values";
+
+export type MapToolbarInput = {
+	offer: MapOffer;
+	/** The pollutant drawn (the Map's one). */
+	drawn: string | undefined;
+	options: MapOptions;
+	/** A viewer's toolbar: the owner's values are what Reset puts back (never what's shown). */
+	ownerValues?: OptionValues;
+	/**
+	 * A day stop shows: the Inactive row isn't offered (a monitor with a figure that day was
+	 * reporting), so a saved Inactive choice filters nothing there.
+	 */
+	day?: boolean;
+	/** The fill row's label (the region type's plural label), while the tile has a fill. */
+	fillLabel?: string;
+	/** The spray notices row's label (the catalog's), while the tile has the layer. */
+	noticesLabel?: string;
+	/** The pesticide use row's label (the catalog's), while the tile has the layer. */
+	useLabel?: string;
+	/** The catalog's pesticide use figures the map draws: their labels and units. */
+	useFigures?: readonly UseFigureInfo[];
+	/** The use figure drawn (the saved `useFigure`, or the first). */
+	useFigure?: string;
+};
+
+/** A pesticide use figure as the toolbar names it (the catalog's label and units). */
+export type UseFigureInfo = { id: string; label: string; units: string };
+
+/** The id of the toolbar's Pesticide use group. */
+export const USE_GROUP = "pesticide-use";
+
+/** The fill row's value key (option `fillShown`): on by default, so the fill shows. */
+export const FILL_KEY = "regions";
+
+/** Which monitor filter rows the toolbar offers (a row not offered filters nothing). */
+export type MapToolbarRows = { types: boolean; inactive: boolean; inside: boolean };
+
+export type MapToolbarBuild = {
+	groups: OptionGroup[];
+	defaults: OptionValues;
+	values: OptionValues;
+	rows: MapToolbarRows;
+};
+
+const CLUSTER = "options";
+
+/** The checkbox rows a group offers: its own and those under its headings. */
+function checkboxIds(rows: OptionRow[]): string[] {
+	return rows.flatMap((row) =>
+		row.kind === "checkbox" ? [row.id] : row.kind === "group" ? row.children.map((c) => c.id) : []
+	);
+}
+
+/**
+ * The Map tile's toolbar groups, from map-sdk's presets. Make one per map (it holds the monitors
+ * preset, which keeps the metadata's answers); call `build` in a `$derived`.
+ */
+export class MapToolbar {
+	readonly #map: MapContext;
+	readonly #monitors: MonitorsOptions;
+
+	constructor(map: MapContext) {
+		this.#map = map;
+		this.#monitors = monitorsOptions(map);
+	}
+
+	build({
+		offer,
+		drawn,
+		options,
+		ownerValues,
+		day = false,
+		fillLabel,
+		noticesLabel,
+		useLabel,
+		useFigures = [],
+		useFigure
+	}: MapToolbarInput): MapToolbarBuild {
+		const forMonitors = this.#monitors.groups({
+			types: offer.types,
+			pollutants: offer.pollutants,
+			pollutant: drawn ?? null,
+			hasInactive: offer.hasInactive && !day,
+			hasInside: offer.hasInside,
+			collocation: false,
+			icons: { monitors },
+			cluster: CLUSTER
+		});
+		const pollutantGroup = forMonitors.groups.find((g) => g.id === "pollutant");
+		const monitorsGroup = forMonitors.groups.find((g) => g.id === "monitors");
+		const offered = checkboxIds(monitorsGroup?.rows ?? []);
+		const shown = groupsShown(offer, offered.length);
+
+		const hms = offer.smokeAndFire ? hmsOptions(this.#map, { icon: fire }) : undefined;
+		const fill: OptionRow | undefined =
+			offer.fill && fillLabel
+				? { kind: "checkbox", id: FILL_KEY, label: fillLabel, icon: regions }
+				: undefined;
+		const noticesRow: OptionRow | undefined =
+			offer.notices && noticesLabel
+				? { kind: "checkbox", id: NOTICES_KEY, label: noticesLabel, icon: notices }
+				: undefined;
+		// A row per location group, labelled with the regions meta's label.
+		const locationRows: OptionRow[] = offer.locations.map(({ key, label }) => ({
+			kind: "checkbox",
+			id: `${LOCATION_PREFIX}${key}`,
+			label,
+			icon: locations
+		}));
+		const useOffer = offer.use && useLabel ? offer.use : null;
+		const useRow: OptionRow | undefined = useOffer
+			? { kind: "checkbox", id: USE_KEY, label: useLabel!, icon: use }
+			: undefined;
+		const layerRows: OptionRow[] = [];
+		if (hms) layerRows.push(hms.row);
+		if (fill) layerRows.push(fill);
+		if (noticesRow) layerRows.push(noticesRow);
+		layerRows.push(...locationRows);
+		if (useRow) layerRows.push(useRow);
+		const forSettings = settingsGroup(this.#map, {
+			icon: settings,
+			cluster: CLUSTER,
+			clusters: { icon: clusters },
+			basemap: { icons: { basemap, theme } }
+		});
+
+		const groups: OptionGroup[] = [];
+		if (shown.pollutant && pollutantGroup) groups.push(pollutantGroup);
+		if (shown.monitors && monitorsGroup) groups.push(monitorsGroup);
+		if (shown.layers && layerRows.length) {
+			groups.push({
+				id: "layers",
+				label: mapMessages("mapsdk_options_layers"),
+				icon: layers,
+				cluster: CLUSTER,
+				rows: layerRows
+			});
+		}
+		if (useOffer) {
+			const figures = useOffer.figures.flatMap((id) => {
+				const info = useFigures.find((f) => f.id === id);
+				return info ? [{ value: id, label: info.label, unit: info.units }] : [];
+			});
+			groups.push({
+				id: USE_GROUP,
+				label: m.map_use_group(),
+				icon: use,
+				cluster: CLUSTER,
+				rows: [{ kind: "select", id: USE_FIGURE_KEY, label: m.map_use_figure(), choices: figures }]
+			});
+		}
+		groups.push(...forSettings.groups);
+
+		const presets: OptionValues = {
+			...forMonitors.defaults,
+			...forSettings.defaults,
+			...hms?.defaults,
+			...(fill && { [FILL_KEY]: true }),
+			...(noticesRow && { [NOTICES_KEY]: true }),
+			...Object.fromEntries(locationRows.map((row) => [row.id, true])),
+			...(useRow && {
+				[USE_KEY]: true,
+				...(useOffer!.figures[0] !== undefined && { [USE_FIGURE_KEY]: useOffer!.figures[0] })
+			})
+		};
+		const rows: MapToolbarRows = {
+			types: shown.monitors && offered.some((id) => id.startsWith("type:")),
+			inactive: shown.monitors && offered.includes("inactive"),
+			inside: shown.monitors && offered.includes("inside")
+		};
+		// The values are the options over the presets' defaults, as the map draws them: a viewer's
+		// key held as missing shows the default, not the owner's value. Reset puts back `defaults`.
+		return {
+			groups,
+			defaults: ownerValues ?? presets,
+			values: toValues(options, offer, presets, drawn, useOffer ? useFigure : undefined),
+			rows
+		};
+	}
+}

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@source "../node_modules/@sjvair/map-sdk/dist";
 @import "tw-animate-css";
 @import "shadcn-svelte/tailwind.css";
 @import "@fontsource-variable/inter";
@@ -159,6 +160,18 @@
 	--calendar-selected-edge: var(--card);
 	--calendar-future-outline: var(--input);
 	--calendar-stripe: var(--muted-foreground);
+	/* The Map toolbar's icons: monitor-map's tints (dodger blue darkened a step to keep 3:1). */
+	--map-icon-monitors: #4682b4;
+	--map-icon-layers: #708090;
+	--map-icon-basemap: #708090;
+	--map-icon-theme: #708090;
+	--map-icon-settings: #696969;
+	--map-icon-clusters: #1c86ee;
+	--map-icon-fire: #f84400;
+	--map-icon-notices: #8a4a9e;
+	--map-icon-use: #5f7a1f;
+	/* The section card's month bars. */
+	--map-use-bar: #5f7a1f;
 }
 
 /* The two dark blocks must stay identical (a test checks): System dark unless forced light, and forced dark. */
@@ -198,6 +211,16 @@
 		--chart-band-opacity: 0.22;
 		--chart-stick-opacity: 0.45;
 		--chart-bar-opacity: 0.4;
+		--map-icon-monitors: #7eb0dc;
+		--map-icon-layers: #a3b1bf;
+		--map-icon-basemap: #a3b1bf;
+		--map-icon-theme: #a3b1bf;
+		--map-icon-settings: #a9a9a9;
+		--map-icon-clusters: #4aa8ff;
+		--map-icon-fire: #ff7a45;
+		--map-icon-notices: #c99ad9;
+		--map-icon-use: #a9c76a;
+		--map-use-bar: #a9c76a;
 	}
 }
 
@@ -236,6 +259,16 @@
 	--chart-band-opacity: 0.22;
 	--chart-stick-opacity: 0.45;
 	--chart-bar-opacity: 0.4;
+	--map-icon-monitors: #7eb0dc;
+	--map-icon-layers: #a3b1bf;
+	--map-icon-basemap: #a3b1bf;
+	--map-icon-theme: #a3b1bf;
+	--map-icon-settings: #a9a9a9;
+	--map-icon-clusters: #4aa8ff;
+	--map-icon-fire: #ff7a45;
+	--map-icon-notices: #c99ad9;
+	--map-icon-use: #a9c76a;
+	--map-use-bar: #a9c76a;
 }
 
 @media (prefers-reduced-motion: reduce) {

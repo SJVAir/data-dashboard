@@ -7,7 +7,7 @@
 	import { m } from "$lib/paraglide/messages.js";
 	import type { PlaceDirectory } from "./directory";
 	import OptionContent from "./OptionContent.svelte";
-	import type { PickerState } from "./picker-state.svelte";
+	import type { PickerOffer, PickerState } from "./picker-state.svelte";
 	import type { PlaceOption, RegionOption, RegionTypeInfo } from "./types";
 
 	type Parent = { type: string; code: string };
@@ -26,6 +26,7 @@
 		picker,
 		directory,
 		entryType,
+		offer,
 		activeOnly,
 		multiple,
 		id
@@ -33,6 +34,8 @@
 		picker: PickerState;
 		directory: PlaceDirectory;
 		entryType: string;
+		/** Areas (`where`, `areas`) or monitors (`monitors`), as the picker offers. */
+		offer: PickerOffer;
 		activeOnly: boolean;
 		multiple: boolean;
 		id: string;
@@ -338,21 +341,24 @@
 			<p class="text-muted-foreground px-2 text-sm">{m.place_picker_browse_loading()}</p>
 		{:else}
 			<ul aria-label={m.place_picker_browse_types()} class="flex flex-col">
-				{#each types as t (t.type)}
+				{#if offer === "monitors"}
+					<!-- A one-time count would need the whole monitor list, so Monitors shows none. -->
 					{@render typeButton(
-						t.plural,
-						formatNumber(t.count),
-						{ kind: "type", type: t.type, parent: null },
-						`type:${t.type}`
+						m.place_picker_browse_monitors(),
+						null,
+						{ kind: "monitors", parent: null },
+						"monitors"
 					)}
-				{/each}
-				<!-- A one-time count would need the whole monitor list, so Monitors shows none. -->
-				{@render typeButton(
-					m.place_picker_browse_monitors(),
-					null,
-					{ kind: "monitors", parent: null },
-					"monitors"
-				)}
+				{:else}
+					{#each types as t (t.type)}
+						{@render typeButton(
+							t.plural,
+							formatNumber(t.count),
+							{ kind: "type", type: t.type, parent: null },
+							`type:${t.type}`
+						)}
+					{/each}
+				{/if}
 			</ul>
 		{/if}
 	{:else}
@@ -378,12 +384,6 @@
 						`type:${t.type}`
 					)}
 				{/each}
-				{@render typeButton(
-					m.place_picker_browse_monitors(),
-					null,
-					{ kind: "monitors", parent: { type: view.parent.type, code: view.parent.code } },
-					"monitors"
-				)}
 			</ul>
 		{:else}
 			{#if parentType}

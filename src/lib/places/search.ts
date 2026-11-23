@@ -57,9 +57,19 @@ export function matchMonitors(
 	};
 }
 
+/** The groups a search fills; a group not asked for is empty and ready. */
+export type SearchGroupKey = "locations" | "regions" | "monitors";
+const EVERY_GROUP: readonly SearchGroupKey[] = ["locations", "regions", "monitors"];
+const empty = async () => ({ options: [], more: false });
+
 export async function searchPlaces(
 	query: string,
-	ctx: { directory: PlaceDirectory; entryType: string; activeOnly: boolean },
+	ctx: {
+		directory: PlaceDirectory;
+		entryType: string;
+		activeOnly: boolean;
+		groups?: readonly SearchGroupKey[];
+	},
 	signal: AbortSignal
 ): Promise<SearchResult> {
 	if (signal.aborted) throw abortError();
@@ -74,52 +84,59 @@ export async function searchPlaces(
 	}
 
 	const { directory } = ctx;
+	const asked = new Set(ctx.groups ?? EVERY_GROUP);
 	const [locations, regions, monitors] = await Promise.allSettled([
-		(async () => {
-			const [found, types] = await Promise.all([
-				searchLocations({ q, signal }),
-				directory.locationTypes(signal)
-			]);
-			const labels = new Map(types.map((t) => [t.type, t.label]));
-			return {
-				options: found.results
-					.filter((l) => !l.retired && labels.has(l.type))
-					.map((l): LocationOption => ({
-						kind: "location",
-						source: l.source,
-						code: l.external_id,
-						name: l.name,
-						typeLabel: labels.get(l.type)!,
-						city: l.city_name,
-						zip: l.zip,
-						address: l.address
-					})),
-				more: found.more
-			};
-		})(),
-		(async () => {
-			const [rows, labels, nameOf] = await Promise.all([
-				searchRegionPlaces(q, undefined, { signal }),
-				directory.regionTypeLabels(signal),
-				directory.regionNamer(signal)
-			]);
-			return {
-				options: rows
-					.filter((r) => !r.retired && r.external_id !== null && labels.has(r.type))
-					.map((r): RegionOption => ({
-						kind: "region",
-						type: r.type,
-						code: r.external_id as string,
-						name: nameOf(r),
-						typeLabel: labels.get(r.type)!,
-						county: r.county?.name ?? null
-					})),
-				more: false
-			};
-		})(),
-		directory
-			.monitors(ctx.entryType, { activeOnly: ctx.activeOnly }, signal)
-			.then((all) => matchMonitors(all, q))
+		asked.has("locations")
+			? (async () => {
+					const [found, types] = await Promise.all([
+						searchLocations({ q, signal }),
+						directory.locationTypes(signal)
+					]);
+					const labels = new Map(types.map((t) => [t.type, t.label]));
+					return {
+						options: found.results
+							.filter((l) => !l.retired && labels.has(l.type))
+							.map((l): LocationOption => ({
+								kind: "location",
+								source: l.source,
+								code: l.external_id,
+								name: l.name,
+								typeLabel: labels.get(l.type)!,
+								city: l.city_name,
+								zip: l.zip,
+								address: l.address
+							})),
+						more: found.more
+					};
+				})()
+			: empty(),
+		asked.has("regions")
+			? (async () => {
+					const [rows, labels, nameOf] = await Promise.all([
+						searchRegionPlaces(q, undefined, { signal }),
+						directory.regionTypeLabels(signal),
+						directory.regionNamer(signal)
+					]);
+					return {
+						options: rows
+							.filter((r) => !r.retired && r.external_id !== null && labels.has(r.type))
+							.map((r): RegionOption => ({
+								kind: "region",
+								type: r.type,
+								code: r.external_id as string,
+								name: nameOf(r),
+								typeLabel: labels.get(r.type)!,
+								county: r.county?.name ?? null
+							})),
+						more: false
+					};
+				})()
+			: empty(),
+		asked.has("monitors")
+			? directory
+					.monitors(ctx.entryType, { activeOnly: ctx.activeOnly }, signal)
+					.then((all) => matchMonitors(all, q))
+			: empty()
 	]);
 
 	if (signal.aborted) throw abortError();

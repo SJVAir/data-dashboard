@@ -3,12 +3,14 @@
 	import { cn, type WithoutChildrenOrChild } from "$lib/utils.js";
 	import DropdownMenuPortal from "./dropdown-menu-portal.svelte";
 	import type { ComponentProps } from "svelte";
+	import { menuOpenAutoFocus } from "$lib/components/menu/open-auto-focus";
 
 	let {
 		ref = $bindable(null),
 		sideOffset = 4,
 		align = "start",
 		portalProps,
+		onOpenAutoFocus,
 		class: className,
 		...restProps
 	}: DropdownMenuPrimitive.ContentProps & {
@@ -19,6 +21,7 @@
 <DropdownMenuPortal {...portalProps}>
 	<DropdownMenuPrimitive.Content
 		bind:ref
+		onOpenAutoFocus={(e) => menuOpenAutoFocus(e, () => ref, onOpenAutoFocus)}
 		data-slot="dropdown-menu-content"
 		{sideOffset}
 		{align}

@@ -23,15 +23,17 @@ import {
 import { resolveRange } from "$lib/format/range";
 import { createWebMetadata } from "../metadata";
 import { createQueryClient } from "../query/client";
-import type { DateRangeSpec, Layer, PesticideFilters, Resolution } from "../schema";
+import type { DateRangeSpec, PesticideFilters, Resolution } from "../schema";
 import { PESTICIDE_USE_DATASET, SDK_DATASET_CATALOG } from "../testing/dataset-catalog";
 import { fixtureMetadata } from "../testing/fixtures";
-import type { QueryState, Target } from "../types";
+import type { QueryLayer, QueryState, Target } from "../types";
 import {
 	FilterGone,
 	filterLabels,
 	pesticideMeta,
 	resetPesticideCaches,
+	noticeFiltersSkipped,
+	toNoticeParams,
 	toWire,
 	pesticidesAdapter
 } from "./pesticides";
@@ -346,15 +348,51 @@ describe("pesticidesAdapter", () => {
 		await expect(pesticidesAdapter.fetch(request(county), ctx, signal)).rejects.toBe(boom);
 	});
 
-	it("whole-layer and unsupported places are unavailable", async () => {
-		expect(await pesticidesAdapter.target({ dataset: "pesticide-use" } as Layer, ctx)).toEqual({
-			unavailable: "place-unsupported"
-		});
+	it("no Where is the whole layer", async () => {
+		expect(await pesticidesAdapter.target({ dataset: "pesticide-use" } as QueryLayer, ctx)).toEqual(
+			{ kind: "all" }
+		);
+	});
+
+	it("no Where asks for the valley, with the filters", async () => {
+		vi.mocked(getPesticidesForPlace).mockResolvedValue({
+			place: null,
+			months: [month(2023, 12, 900)],
+			years: []
+		} as never);
+		const data = await pesticidesAdapter.fetch(
+			request({ kind: "all" }, { filters: { category: ["carcinogen"] } }),
+			ctx,
+			signal
+		);
+		expect(getPesticidesForPlace).toHaveBeenCalledExactlyOnceWith(
+			null,
+			{ category: ["carcinogen"], year__gte: 2023, year__lte: 2024 },
+			{ signal }
+		);
+		expect(data.places).toEqual([
+			{ place: "valley", name: "Whole valley", filters: ["Carcinogen"] }
+		]);
+		expect(data.series[0].points.map((p) => p.mean)).toEqual([0, 900]);
+	});
+
+	it("a not_found filter on the valley is an error, not an empty series", async () => {
+		vi.mocked(getPesticidesForPlace).mockRejectedValue(
+			badRequest({ chemical: [{ code: "not_found" }] })
+		);
+		vi.mocked(getChemicalDetails).mockResolvedValue({ display_name: "Glyphosate" } as never);
+		await expect(
+			pesticidesAdapter.fetch(
+				request({ kind: "all" }, { filters: { chemical: "c1" } }),
+				ctx,
+				signal
+			)
+		).rejects.toBeInstanceOf(FilterGone);
 	});
 });
 
 describe("target", () => {
-	const layer = (filters?: PesticideFilters): Layer => ({
+	const layer = (filters?: PesticideFilters): QueryLayer => ({
 		dataset: "pesticide-use",
 		entryType: "pounds-applied",
 		place: { kind: "region", type: "county", code: "06019" },
@@ -451,7 +489,7 @@ describe("meta and labels", () => {
 });
 
 describe("through the query client", () => {
-	it("a daily request is served monthly", async () => {
+	it("a monthly request is served monthly; a daily one is no-resolution (no fallback)", async () => {
 		vi.mocked(getPesticidesForPlace).mockResolvedValue(response([month(2023, 11, 5)], []));
 		const client = createQueryClient({
 			adapters: [pesticidesAdapter],
@@ -459,23 +497,81 @@ describe("through the query client", () => {
 			metadata: createWebMetadata(),
 			now: () => NOW
 		});
-		const states: QueryState[] = [];
-		client.subscribe(
-			{
-				layer: {
-					dataset: "pesticide-use",
-					entryType: "pounds-applied",
-					place: { kind: "region", type: "county", code: "06019" }
+		const at = (resolution: "day" | "month") => {
+			const states: QueryState[] = [];
+			client.subscribe(
+				{
+					layer: {
+						dataset: "pesticide-use",
+						entryType: "pounds-applied",
+						place: { kind: "region", type: "county", code: "06019" }
+					},
+					dateRange: { kind: "custom", start: "2023-11-01", end: "2023-11-30" },
+					resolution
 				},
-				dateRange: { kind: "custom", start: "2023-11-01", end: "2023-11-30" },
-				pin: "day"
-			},
-			(s) => states.push(s)
-		);
-		await vi.waitFor(() => expect(states.at(-1)?.status).toBe("ready"));
-		const ready = states.at(-1);
+				(s) => states.push(s)
+			);
+			return states;
+		};
+		const monthly = at("month");
+		await vi.waitFor(() => expect(monthly.at(-1)?.status).toBe("ready"));
+		const ready = monthly.at(-1);
 		if (ready?.status !== "ready") throw new Error("not ready");
 		expect(ready.data.resolution).toBe("month");
 		expect(ready.data.series[0].points.map((p) => p.mean)).toEqual([5]);
+
+		const daily = at("day");
+		await vi.waitFor(() =>
+			expect(daily.at(-1)).toEqual({ status: "unavailable", reason: "no-resolution" })
+		);
+	});
+});
+
+describe("notice filters", () => {
+	const NOTICE_FILTERS = [
+		"chemical_id",
+		"product_id",
+		"category",
+		"iarc_group",
+		"narrow",
+		"aerial_ground"
+	];
+	const ALL: PesticideFilters = {
+		chemical: "c1",
+		commodity: "k1",
+		product: "p1",
+		category: ["carcinogen"],
+		iarcGroup: "1",
+		method: "A",
+		narrow: "concern"
+	};
+
+	it("toNoticeParams renames to the notice params, without commodity", () => {
+		expect(toNoticeParams(ALL, NOTICE_FILTERS)).toEqual({
+			chemical_id: "c1",
+			product_id: "p1",
+			category: ["carcinogen"],
+			iarc_group: "1",
+			aerial_ground: "A",
+			narrow: "concern"
+		});
+	});
+
+	it("toNoticeParams sends only the filters the server lists for notices", () => {
+		expect(toNoticeParams(ALL, ["category", "aerial_ground"])).toEqual({
+			category: ["carcinogen"],
+			aerial_ground: "A"
+		});
+		expect(toNoticeParams({}, NOTICE_FILTERS)).toEqual({});
+	});
+
+	it("noticeFiltersSkipped names the set filters notices can't take", () => {
+		expect(noticeFiltersSkipped(ALL, NOTICE_FILTERS)).toEqual(["commodity"]);
+		expect(noticeFiltersSkipped({ chemical: "c1" }, NOTICE_FILTERS)).toEqual([]);
+		expect(noticeFiltersSkipped({ chemical: "c1", method: "A" }, ["category"])).toEqual([
+			"chemical",
+			"method"
+		]);
+		expect(noticeFiltersSkipped({}, [])).toEqual([]);
 	});
 });

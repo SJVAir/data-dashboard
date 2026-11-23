@@ -1,16 +1,18 @@
 import { z } from "$lib/zod";
-import { PlaceRefSchema, type PlaceRef } from "$lib/data/schema";
+import { MonitorRefSchema, PlaceRefSchema } from "$lib/data/schema";
+import type { PickRef } from "./types";
 import type { Platform, SpaceId } from "$lib/platform/types";
 
 export const RECENT_KEY = "places.recent";
 export const RECENT_MAX = 8;
 
-export type RecentRef = Exclude<PlaceRef, { kind: "point" } | { kind: "default-place" }>;
+/** A recent pick: a region, a school, or (from the Monitors search) a monitor. */
+export type RecentRef = Exclude<PickRef, { kind: "point" } | { kind: "default-place" }>;
 
 const RecentRefSchema = z.discriminatedUnion("kind", [
+	MonitorRefSchema,
 	PlaceRefSchema.options[0],
-	PlaceRefSchema.options[1],
-	PlaceRefSchema.options[2]
+	PlaceRefSchema.options[1]
 ]);
 const RecentSchema = z.array(RecentRefSchema).max(RECENT_MAX);
 
@@ -31,7 +33,7 @@ export async function readRecent(platform: Platform, space: SpaceId): Promise<Re
 }
 
 /** Puts a place first, moving an earlier pick of it up; points and the default place are ignored. */
-export async function addRecent(platform: Platform, space: SpaceId, ref: PlaceRef): Promise<void> {
+export async function addRecent(platform: Platform, space: SpaceId, ref: PickRef): Promise<void> {
 	if (ref.kind === "point" || ref.kind === "default-place") return;
 	const rest = (await readRecent(platform, space)).filter((r) => !same(r, ref));
 	await platform.preferences.set(space, RECENT_KEY, [ref, ...rest].slice(0, RECENT_MAX));

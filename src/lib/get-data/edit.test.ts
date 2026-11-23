@@ -18,6 +18,8 @@ import { draftChanged, editDraft, saveEdit } from "./edit";
 // The live-link rule's region lookup: any point is in ZIP 93721.
 vi.mock("$lib/data", () => ({
 	placeRegion: async () => ({ type: "zipcode", code: "93721" }),
+	// Point lookups read the catalog for the widget's resolution; without one, Automatic's range level.
+	getMetadata: () => ({ catalog: async () => "unavailable" as const }),
 	getResolvers: () => ({
 		regions: { resolve: async () => ({ id: "z1", name: "ZIP 93721" }) }
 	})
@@ -38,7 +40,7 @@ const preSpec: WidgetInstance = {
 	type: "chart",
 	title: "My chart",
 	rect: { x: 10, y: 2, w: 2, h: 4 },
-	data: { layers: [{ dataset: "air-quality", entryType: "pm25", place: FRESNO }] }
+	data: { place: FRESNO, layers: [{ dataset: "air-quality", entryType: "pm25" }] }
 };
 
 const workers: SyncWorker[] = [];
@@ -152,15 +154,23 @@ describe("saveEdit", () => {
 		const current: WidgetInstance = {
 			...preSpec,
 			type: "current-conditions",
-			thresholds: [{ level: "unhealthy_sensitive" }]
+			thresholds: [{ level: "unhealthy_sensitive", entryType: "pm25" }]
 		};
 		const { session } = await withWidget(current);
-		expect(editDraft(current).thresholds).toEqual([{ level: "unhealthy_sensitive" }]);
+		expect(editDraft(current).thresholds).toEqual([
+			{ level: "unhealthy_sensitive", entryType: "pm25" }
+		]);
 		expect(saveEdit(session, "w1", editDraft(current))).toBe(false);
-		const draft: Draft = { ...editDraft(current), thresholds: [{ level: "unhealthy" }] };
+		const draft: Draft = {
+			...editDraft(current),
+			thresholds: [{ level: "unhealthy", entryType: "pm25" }]
+		};
 		expect(draftChanged(editDraft(current), draft)).toBe(true);
 		expect(saveEdit(session, "w1", draft)).toBe(true);
-		expect(shown(session)).toEqual({ ...current, thresholds: [{ level: "unhealthy" }] });
+		expect(shown(session)).toEqual({
+			...current,
+			thresholds: [{ level: "unhealthy", entryType: "pm25" }]
+		});
 		session.undo();
 		expect(shown(session)).toEqual(current);
 		expect(session.canUndo).toBe(false);
@@ -221,11 +231,11 @@ describe("saveEdit", () => {
 
 		const draft: Draft = {
 			...editDraft(preSpec),
-			data: { layers: [{ ...preSpec.data.layers[0], place: POINT }] }
+			data: { place: POINT, layers: [{ ...preSpec.data.layers[0] }] }
 		};
 		expect(saveEdit(session, "w1", draft)).toBe(true);
 
-		const placeIn = (doc: Dashboard) => doc.body.widgets[0].data.layers[0].place;
+		const placeIn = (doc: Dashboard) => doc.body.widgets[0].data.place;
 		await expect.poll(() => placeIn(session.doc)).toEqual(ZIP);
 		const stored = async () => (await platform.documents.get(SPACE, "d1")) as Dashboard;
 		await expect.poll(async () => placeIn(await stored())).toEqual(ZIP);

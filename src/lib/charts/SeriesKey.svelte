@@ -34,7 +34,7 @@
 				width="24"
 				height="10"
 				viewBox="0 0 24 10"
-				style:color="var(--chart-{i + 1})"
+				style:color="var(--chart-{style.token})"
 			>
 				{#if chart === "bar"}
 					{@render bar(style.dash.join(" "))}

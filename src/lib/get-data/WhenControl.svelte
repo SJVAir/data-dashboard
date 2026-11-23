@@ -3,10 +3,14 @@
 	import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
 	import { Select } from "bits-ui";
 	import { Input } from "$lib/components/ui/input";
-	import { DateRangeSpecSchema, type DateRangeSpec } from "$lib/data/schema";
-	import { formatDateRange, todayPacific } from "$lib/format";
+	import { isLevel, type Level } from "$lib/data/dataset-rules";
+	import { DateRangeSpecSchema, type DateRangeSpec, type Resolution } from "$lib/data/schema";
+	import { formatDateRange, formatMonthName, todayPacific } from "$lib/format";
 	import { resolveRange } from "$lib/format/range";
 	import { m } from "$lib/paraglide/messages.js";
+	import { DEFAULT_RANGE } from "$lib/widgets/defaults";
+	import { wholePeriodRange } from "./dataset-offer";
+	import { shownRange } from "./shown-range";
 	import type { WidgetType } from "$lib/widgets/registry";
 	import {
 		blockedBySpan,
@@ -20,20 +24,44 @@
 		type,
 		value,
 		now,
+		resolution,
+		resolutionFor,
 		onchange
 	}: {
-		/** The widget type the range is for: its date methods and span limit the list. */
-		type: Pick<WidgetType, "dateMethods" | "span">;
-		value: DateRangeSpec;
+		/**
+		 * The widget type the range is for: its date methods and span limit the list, and `now`
+		 * adds a "Now" choice ahead of them.
+		 */
+		type: Pick<WidgetType, "dateMethods" | "span" | "now">;
+		/** The range; none is Now (for a type with `now`). */
+		value: DateRangeSpec | undefined;
 		now: Date;
-		onchange: (spec: DateRangeSpec) => void;
+		/**
+		 * The dataset's effective resolution (Automatic included): at Monthly or Yearly the shown
+		 * dates are whole periods.
+		 */
+		resolution?: Resolution;
+		/**
+		 * The dataset's effective resolution over another range (Automatic follows the range): a
+		 * type whose span counts stops (the Map) checks each choice at its own. Missing: `resolution`.
+		 */
+		resolutionFor?: (spec: DateRangeSpec) => Level;
+		/** A range was chosen, or Now (`undefined`). */
+		onchange: (spec: DateRangeSpec | undefined) => void;
 	} = $props();
 
 	const uid = $props.id();
 
+	/** The "Now" choice's id (no preset's). */
+	const NOW_ID = "now";
+	const showsNow = $derived(!!type.now && !value);
+	/** The range the date choices start from: the value, or for Now the default range. */
+	const base = $derived(value ?? DEFAULT_RANGE);
+
 	const presets = $derived(presetsFor(type, now));
 	const selectedId = $derived.by(() => {
-		const id = presetIdFor(value);
+		if (showsNow) return NOW_ID;
+		const id = presetIdFor(base);
 		return presets.some((p) => p.id === id) ? id : "custom";
 	});
 	const selected = $derived(presets.find((p) => p.id === selectedId));
@@ -54,16 +82,17 @@
 		if (preset.spec) return preset.spec;
 		const today = todayPacific(now);
 		if (preset.needs === "range") {
-			const r = resolveRange(value, now);
+			const r = resolveRange(base, now);
 			return { kind: "custom", start: r.firstDate, end: r.lastDate };
 		}
 		const unit = preset.needs as "day" | "week" | "month" | "year";
-		const start = value.kind === "set" && value.unit === unit ? value.start : today;
+		const start = value?.kind === "set" && value.unit === unit ? value.start : today;
 		return { kind: "set", unit, start };
 	}
 
 	function blockText(spec: DateRangeSpec): string | null {
-		const block = blockedBySpan(spec, type.span, now);
+		const level = resolutionFor?.(spec) ?? (isLevel(resolution) ? resolution : undefined);
+		const block = blockedBySpan(spec, type.span, now, level);
 		if (block === "too-short") return m.get_data_span_too_short();
 		if (block === "too-long") return m.get_data_span_too_long();
 		return null;
@@ -77,15 +106,27 @@
 	);
 
 	function choose(id: string): void {
+		if (id === NOW_ID) {
+			inputError = null;
+			onchange(undefined);
+			return;
+		}
 		const preset = presets.find((p) => p.id === id);
 		if (!preset || reasons.get(id)) return;
 		inputError = null;
 		onchange(specFor(preset));
 	}
 
-	const resolved = $derived(resolveRange(value, now));
+	const shown = $derived(shownRange(base, now, resolution));
+	const resolved = $derived(shown.resolved);
+	// Never a future end: a current month or year shows to today, "so far".
 	const rangeText = $derived.by(() => {
-		const range = formatDateRange(resolved.firstDate, resolved.lastDate);
+		const range = formatDateRange(shown.start, shown.end);
+		if (shown.soFar) {
+			return resolved.rolling
+				? m.get_data_range_rolling_so_far({ range })
+				: m.get_data_range_so_far({ range });
+		}
 		return resolved.rolling ? m.get_data_range_rolling({ range }) : range;
 	});
 
@@ -114,11 +155,37 @@
 	// "Custom range" shows its dates even for a rolling length the list doesn't have (a saved
 	// "last 45 days"): seeded from what it resolves to now, the first edit makes it custom.
 	const custom = $derived.by(() => {
-		if (value.kind === "custom") return value;
+		if (value?.kind === "custom") return value;
 		if (selectedId !== "custom") return null;
 		return { kind: "custom" as const, start: resolved.firstDate, end: resolved.lastDate };
 	});
-	const setSpec = $derived(value.kind === "set" ? value : null);
+	const setSpec = $derived(value?.kind === "set" ? value : null);
+	/** At Monthly or Yearly a custom range is picked in whole months or years. */
+	const wholeUnit = $derived(
+		resolution === "month" || resolution === "year" ? resolution : undefined
+	);
+	const MONTHS = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0"));
+
+	/**
+	 * A whole-period edit: one side's month (`MM`) or year (`YYYY`) changed, the other kept; stored
+	 * from the first day of the start period to the last day of the end period.
+	 */
+	function setWhole(side: "start" | "end", part: "month" | "year", raw: string): void {
+		if (!custom || !wholeUnit) return;
+		if (part === "year" && !/^\d{4}$/.test(raw)) {
+			// Said under the inputs (WCAG 3.3.1), never dropped silently; nothing is stored.
+			inputError = m.get_data_custom_year_invalid();
+			return;
+		}
+		const months = { start: custom.start.slice(0, 7), end: custom.end.slice(0, 7) };
+		const [year, month] = months[side].split("-");
+		months[side] = part === "year" ? `${raw}-${month}` : `${year}-${raw}`;
+		apply(
+			wholeUnit === "year"
+				? wholePeriodRange(months.start.slice(0, 4), months.end.slice(0, 4), "year")
+				: wholePeriodRange(months.start, months.end, "month")
+		);
+	}
 
 	const errorId = `${uid}-error`;
 	const labelId = `${uid}-label`;
@@ -126,6 +193,25 @@
 	const triggerId = `${uid}-trigger`;
 	const inputClass = "w-full max-w-56";
 </script>
+
+{#snippet item(id: string, label: string, reason: string | null)}
+	<Select.Item
+		value={id}
+		{label}
+		disabled={!!reason}
+		class="data-highlighted:bg-accent data-highlighted:text-accent-foreground data-disabled:text-muted-foreground flex min-h-6 cursor-default items-start gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none data-disabled:cursor-not-allowed"
+	>
+		{#snippet children({ selected: on })}
+			<span class="flex size-4 shrink-0 items-center">
+				{#if on}<CheckIcon class="size-4" aria-hidden="true" />{/if}
+			</span>
+			<span class="flex flex-col">
+				<span>{label}</span>
+				{#if reason}<span class="text-xs">{reason}</span>{/if}
+			</span>
+		{/snippet}
+	</Select.Item>
+{/snippet}
 
 <div class="flex flex-col gap-2">
 	<Select.Root type="single" value={selectedId} onValueChange={choose}>
@@ -135,7 +221,9 @@
 			aria-labelledby="{labelId} {valueId}"
 			class="border-input bg-card text-foreground flex h-8 w-full max-w-64 items-center justify-between gap-2 rounded-(--radius-control) border px-2.5 text-sm"
 		>
-			<span id={valueId}>{selected?.label() ?? m.getdata_preset_custom()}</span>
+			<span id={valueId}>
+				{showsNow ? m.getdata_when_now() : (selected?.label() ?? m.getdata_preset_custom())}
+			</span>
 			<ChevronDownIcon class="text-muted-foreground size-4" aria-hidden="true" />
 		</Select.Trigger>
 		<Select.Portal>
@@ -144,6 +232,11 @@
 				class="border-card-border shadow-card bg-popover text-popover-foreground z-50 max-h-(--bits-select-content-available-height) min-w-(--bits-select-anchor-width) overflow-y-auto rounded-lg border p-1"
 			>
 				<Select.Viewport>
+					{#if type.now}
+						<Select.Group>
+							{@render item(NOW_ID, m.getdata_when_now(), null)}
+						</Select.Group>
+					{/if}
 					{#each groups as g (g.group)}
 						<Select.Group>
 							{#if g.group !== "custom"}
@@ -152,23 +245,7 @@
 								</Select.GroupHeading>
 							{/if}
 							{#each g.items as preset (preset.id)}
-								{@const reason = reasons.get(preset.id)}
-								<Select.Item
-									value={preset.id}
-									label={preset.label()}
-									disabled={!!reason}
-									class="data-highlighted:bg-accent data-highlighted:text-accent-foreground data-disabled:text-muted-foreground flex min-h-6 cursor-default items-start gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none data-disabled:cursor-not-allowed"
-								>
-									{#snippet children({ selected: on })}
-										<span class="flex size-4 shrink-0 items-center">
-											{#if on}<CheckIcon class="size-4" aria-hidden="true" />{/if}
-										</span>
-										<span class="flex flex-col">
-											<span>{preset.label()}</span>
-											{#if reason}<span class="text-xs">{reason}</span>{/if}
-										</span>
-									{/snippet}
-								</Select.Item>
+								{@render item(preset.id, preset.label(), reasons.get(preset.id) ?? null)}
 							{/each}
 						</Select.Group>
 					{/each}
@@ -218,6 +295,56 @@
 				/>
 			{/if}
 		</label>
+	{:else if custom && wholeUnit}
+		<div class="flex flex-wrap gap-4">
+			{#each ["start", "end"] as const as side (side)}
+				{@const date = side === "start" ? custom.start : custom.end}
+				{@const captionId = `${uid}-${side}-caption`}
+				{#if wholeUnit === "year"}
+					<label class="flex flex-col gap-1 text-sm">
+						<span class="text-muted-foreground text-xs">
+							{side === "start" ? m.get_data_custom_start_year() : m.get_data_custom_end_year()}
+						</span>
+						<Input
+							type="number"
+							inputmode="numeric"
+							class="w-24"
+							value={date.slice(0, 4)}
+							aria-describedby={inputError ? errorId : undefined}
+							onchange={(e) => setWhole(side, "year", e.currentTarget.value)}
+						/>
+					</label>
+				{:else}
+					<div class="flex flex-col gap-1 text-sm" role="group" aria-labelledby={captionId}>
+						<span id={captionId} class="text-muted-foreground text-xs">
+							{side === "start" ? m.get_data_custom_start_month() : m.get_data_custom_end_month()}
+						</span>
+						<div class="flex gap-2">
+							<select
+								aria-label={m.get_data_custom_month()}
+								class="border-input bg-card text-field h-8 min-w-0 rounded-(--radius-control) border px-2 md:text-sm"
+								value={date.slice(5, 7)}
+								aria-describedby={inputError ? errorId : undefined}
+								onchange={(e) => setWhole(side, "month", e.currentTarget.value)}
+							>
+								{#each MONTHS as month (month)}
+									<option value={month}>{formatMonthName(`2000-${month}-15`)}</option>
+								{/each}
+							</select>
+							<Input
+								type="number"
+								inputmode="numeric"
+								aria-label={m.get_data_custom_year()}
+								class="w-24"
+								value={date.slice(0, 4)}
+								aria-describedby={inputError ? errorId : undefined}
+								onchange={(e) => setWhole(side, "year", e.currentTarget.value)}
+							/>
+						</div>
+					</div>
+				{/if}
+			{/each}
+		</div>
 	{:else if custom}
 		<div class="flex flex-wrap gap-2">
 			<label class="flex flex-col gap-1 text-sm">
@@ -248,5 +375,7 @@
 		<p id={errorId} class="text-destructive text-xs">{inputError}</p>
 	{/if}
 
-	<p class="text-muted-foreground text-xs" data-testid="resolved-range">{rangeText}</p>
+	{#if !showsNow}
+		<p class="text-muted-foreground text-xs" data-testid="resolved-range">{rangeText}</p>
+	{/if}
 </div>

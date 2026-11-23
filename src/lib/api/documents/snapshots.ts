@@ -58,13 +58,13 @@ export async function listSnapshots(
  * Gets one snapshot of a document, with its body.
  *
  * @param id The document id.
- * @param snapshotId The snapshot's id.
+ * @param snapshotId The snapshot's id (an opaque string, as listed).
  * @param options Request options.
  * @returns The snapshot
  */
 export async function getSnapshot(
 	id: string,
-	snapshotId: number,
+	snapshotId: string,
 	options?: RequestOptions
 ): Promise<Snapshot> {
 	return await documentsCall(

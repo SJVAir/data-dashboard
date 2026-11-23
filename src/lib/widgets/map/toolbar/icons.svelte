@@ -1,0 +1,72 @@
+<script module lang="ts">
+	import ContrastIcon from "@lucide/svelte/icons/contrast";
+	import FlameIcon from "@lucide/svelte/icons/flame";
+	import Grid2x2Icon from "@lucide/svelte/icons/grid-2x2";
+	import LayersIcon from "@lucide/svelte/icons/layers";
+	import MapIcon from "@lucide/svelte/icons/map";
+	import NetworkIcon from "@lucide/svelte/icons/network";
+	import RadioTowerIcon from "@lucide/svelte/icons/radio-tower";
+	import SchoolIcon from "@lucide/svelte/icons/school";
+	import SettingsIcon from "@lucide/svelte/icons/settings";
+	import SprayCanIcon from "@lucide/svelte/icons/spray-can";
+	import WheatIcon from "@lucide/svelte/icons/wheat";
+
+	/** The Map toolbar's icons: Lucide, in monitor-map's tints (theme tokens, with dark values). */
+	export {
+		monitors,
+		layers,
+		settings,
+		clusters,
+		basemap,
+		theme,
+		fire,
+		regions,
+		notices,
+		locations,
+		use
+	};
+</script>
+
+{#snippet monitors()}
+	<RadioTowerIcon class="size-full text-(--map-icon-monitors)" />
+{/snippet}
+
+{#snippet layers()}
+	<LayersIcon class="size-full text-(--map-icon-layers)" />
+{/snippet}
+
+{#snippet settings()}
+	<SettingsIcon class="size-full text-(--map-icon-settings)" />
+{/snippet}
+
+{#snippet clusters()}
+	<NetworkIcon class="size-full text-(--map-icon-clusters)" />
+{/snippet}
+
+{#snippet basemap()}
+	<MapIcon class="size-full text-(--map-icon-basemap)" />
+{/snippet}
+
+{#snippet theme()}
+	<ContrastIcon class="size-full text-(--map-icon-theme)" />
+{/snippet}
+
+{#snippet fire()}
+	<FlameIcon class="size-full text-(--map-icon-fire)" />
+{/snippet}
+
+{#snippet regions()}
+	<Grid2x2Icon class="size-full text-(--map-icon-layers)" />
+{/snippet}
+
+{#snippet notices()}
+	<SprayCanIcon class="size-full text-(--map-icon-notices)" />
+{/snippet}
+
+{#snippet use()}
+	<WheatIcon class="size-full text-(--map-icon-use)" />
+{/snippet}
+
+{#snippet locations()}
+	<SchoolIcon class="size-full text-(--map-icon-layers)" />
+{/snippet}

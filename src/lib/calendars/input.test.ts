@@ -9,11 +9,11 @@ import {
 
 const data: WidgetDataConfig = {
 	timeSubRange: { start: "2026-01-05", end: "2026-01-12" },
+	place: { kind: "region", type: "city", code: "fresno" },
 	layers: [
 		{
 			dataset: "air-quality",
-			entryType: "pm25",
-			place: { kind: "region", type: "city", code: "fresno" }
+			entryType: "pm25"
 		}
 	]
 };
@@ -21,7 +21,7 @@ const data: WidgetDataConfig = {
 describe("calendarInput", () => {
 	it("pins days, drops the sub-range and never asks for worst hours", () => {
 		const input = calendarInput(data, undefined)!;
-		expect(input.pin).toBe("day");
+		expect(input.resolution).toBe("day");
 		expect(input.timeSubRange).toBeUndefined();
 		expect(input.worstHour).toBeUndefined();
 		expect(input.layer.entryType).toBe("pm25");
@@ -41,7 +41,7 @@ describe("calendarInput", () => {
 	});
 	it("is null without a place", () => {
 		expect(
-			calendarInput({ layers: [{ ...data.layers[0], place: undefined }] }, undefined)
+			calendarInput({ place: undefined, layers: [{ ...data.layers[0] }] }, undefined)
 		).toBeNull();
 	});
 	it("names the two types", () => {

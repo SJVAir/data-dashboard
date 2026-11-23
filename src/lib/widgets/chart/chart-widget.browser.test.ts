@@ -15,16 +15,19 @@ import type { WidgetInstance } from "$lib/documents/schema";
 import { m } from "$lib/paraglide/messages.js";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
+import { DocumentSession } from "$lib/store/document-session.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 import { generatedTitle } from "../titles.svelte";
 import ChartWidget from "./ChartWidget.svelte";
 import {
+	FAKE_SET_SIZE,
 	FORECASTS_ENTRY,
 	chartWidget,
 	fakeAdapter,
 	fakeForecastsAdapter,
-	fakeNumberAdapter
+	fakeNumberAdapter,
+	setLayers
 } from "../shared/test-harness/fake-data";
 import { animationsSettled } from "../../../test/animations";
 
@@ -56,7 +59,10 @@ beforeEach(async () => {
 	document.body.appendChild(frame);
 });
 
-afterEach(() => frame.remove());
+afterEach(() => {
+	vi.useRealTimers();
+	frame.remove();
+});
 
 async function show(widget: WidgetInstance, viewer?: PlaceViewer) {
 	const app = await initApp(createMemoryPlatform(), {
@@ -73,6 +79,22 @@ async function show(widget: WidgetInstance, viewer?: PlaceViewer) {
 	});
 }
 
+test("Automatic is chosen again as a to-date range grows: raw to hourly on its fourth day", async () => {
+	// Tuesday noon Pacific (weeks start Sunday): three days, so every measurement.
+	vi.useFakeTimers({
+		toFake: ["setInterval", "clearInterval", "Date"],
+		now: new Date("2026-10-27T19:00:00Z")
+	});
+	const widget = chartWidget(["m1"]);
+	widget.data.dateRange = { kind: "to-date", unit: "week" };
+	await show(widget);
+	await expect.poll(() => requests.map((r) => r.resolution)).toEqual(["raw"]);
+	// Wednesday noon: four days, so hourly, once the widget's clock ticks.
+	vi.setSystemTime(new Date("2026-10-28T19:00:00Z"));
+	await vi.advanceTimersByTimeAsync(60_000);
+	await expect.poll(() => requests.map((r) => r.resolution)).toEqual(["raw", "hour"]);
+});
+
 test("renders the time chart and sets the generated title", async () => {
 	const widget = chartWidget(["m1"]);
 	const screen = await show(widget);
@@ -83,21 +105,73 @@ test("renders the time chart and sets the generated title", async () => {
 	expect(requests[0].worstHour).toBe(true);
 });
 
-test("seven places draw five series and say two aren't shown", async () => {
-	const ids = ["m1", "m2", "m3", "m4", "m5", "m6", "m7"];
-	const widget = chartWidget(ids);
+/** A Chart of PM2.5 in the counties `codes` (a Where selection). */
+function areasChart(codes: string[]): WidgetInstance {
+	const widget = chartWidget([]);
+	widget.data.layers = [{ dataset: "air-quality", entryType: "pm25" }];
+	widget.data.selection = { kind: "regions", ids: codes.map((c) => `county:${c}`) };
+	return widget;
+}
+
+test("seven areas draw seven series, each named in the key, with no cut", async () => {
+	const codes = ["a1", "a2", "a3", "a4", "a5", "a6", "a7"];
+	const widget = areasChart(codes);
 	const screen = await show(widget);
 	const key = screen.getByRole("list", { name: m.chart_series_key() });
 	await expect.element(key).toBeVisible();
-	expect(key.getByRole("listitem").elements()).toHaveLength(5);
-	await expect.element(screen.getByText("2 more places aren't shown.")).toBeVisible();
-	expect(requests.at(-1)!.target).toEqual({ kind: "monitors", ids: ids.slice(0, 5) });
-	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 · 5 places · Last 30 days");
+	await expect.poll(() => key.getByRole("listitem").elements().length).toBe(7);
+	expect(screen.getByText(/more places? (aren't|isn't) shown/).query()).toBeNull();
+	expect(requests.at(-1)!.target).toEqual({
+		kind: "regions",
+		keys: codes.map((c) => `county:${c}`)
+	});
+	// The sixth line repeats the first color, so it differs by its dash.
+	const samples = key
+		.getByRole("listitem")
+		.elements()
+		.map((li) => li.querySelector("svg")!);
+	expect(samples[5].style.color).toBe(samples[0].style.color);
+	expect(samples[5].dataset.dash).not.toBe(samples[0].dataset.dash);
+	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 · 7 places · Last 30 days");
 });
 
-test("one hidden place is worded singular", async () => {
-	const screen = await show(chartWidget(["m1", "m2", "m3", "m4", "m5", "m6"]));
-	await expect.element(screen.getByText("1 more place isn't shown.")).toBeVisible();
+/** A Chart of PM2.5 in Fresno County with `types` ticked (none: the county's own line). */
+function fresnoChart(types: string[]): WidgetInstance {
+	const widget = chartWidget([]);
+	widget.data.place = { kind: "region", type: "county", code: "06019" };
+	widget.data.layers = [
+		{ dataset: "air-quality", entryType: "pm25", ...(types.length && { monitorTypes: types }) }
+	];
+	return widget;
+}
+
+test("chart: Fresno County with PurpleAir ticked draws one line per PurpleAir in it", async () => {
+	const screen = await show(fresnoChart(["purpleair"]));
+	const key = screen.getByRole("list", { name: m.chart_series_key() });
+	await expect.poll(() => key.getByRole("listitem").elements().length).toBe(FAKE_SET_SIZE);
+	for (let i = 1; i <= FAKE_SET_SIZE; i++) {
+		await expect.element(key.getByText(`Monitor purpleair-${i}`)).toBeVisible();
+	}
+	expect(requests.at(-1)!.target).toEqual({
+		kind: "monitor-set",
+		ids: [],
+		types: ["purpleair"],
+		regionKeys: ["county:06019"]
+	});
+});
+
+test("chart: Fresno County with nothing ticked draws the county's line", async () => {
+	const screen = await show(fresnoChart([]));
+	await expect
+		.element(screen.getByRole("group", { name: "Chart of Region county:06019" }))
+		.toBeVisible();
+	expect(requests.at(-1)!.target).toEqual({ kind: "regions", keys: ["county:06019"] });
+});
+
+test("searched monitors are never cut: all seven are asked for", async () => {
+	const ids = ["m1", "m2", "m3", "m4", "m5", "m6", "m7"];
+	await show(chartWidget(ids));
+	await expect.poll(() => requests.at(-1)?.target).toEqual({ kind: "monitors", ids });
 });
 
 test("a minimized widget's query stops polling", async () => {
@@ -110,12 +184,46 @@ test("a minimized widget's query stops polling", async () => {
 	await expect.poll(() => fake.client!.entries()[0]?.polling).toBe(true);
 });
 
-test("a layer with no place asks for one", async () => {
-	const widget = chartWidget(["m1"]);
-	widget.data.layers[0] = { dataset: "air-quality", entryType: "pm25" };
+test("chart widget: the empty prompt names what to add", async () => {
+	const widget = chartWidget([]);
 	const screen = await show(widget);
-	await expect.element(screen.getByText(m.widget_state_idle())).toBeVisible();
+	await expect.element(screen.getByText(m.widget_empty_add_where_or_monitors())).toBeVisible();
 	expect(requests).toEqual([]);
+});
+
+test("a widget with no layers (None and nothing else) shows its empty state", async () => {
+	const widget = chartWidget(["m1"]);
+	widget.data.layers = [];
+	const screen = await show(widget);
+	await expect.element(screen.getByText(m.widget_empty_add_layers())).toBeVisible();
+	expect(requests).toEqual([]);
+});
+
+test("an editor's no-layers state offers no Choose a place (a place can't fix it)", async () => {
+	const platform = createMemoryPlatform();
+	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	const id = await app.index.createBlank();
+	app.current = {
+		session: (await DocumentSession.open(platform, app.space, id, "t2"))!,
+		isStarter: false
+	};
+	const render_ = (widget: WidgetInstance) =>
+		render(ChartWidget, {
+			target: frame,
+			props: { widget },
+			context: new Map<unknown, unknown>([[APP_CONTEXT_KEY, app]])
+		});
+	const none = chartWidget(["m1"]);
+	none.data.layers = [];
+	const screen = await render_(none);
+	await expect.element(screen.getByText(m.widget_empty_add_layers())).toBeVisible();
+	expect(screen.getByRole("button", { name: m.widget_state_choose_place() }).query()).toBeNull();
+	screen.unmount();
+	// With layers but no place, it still offers one.
+	const placeless = await render_(chartWidget([]));
+	await expect
+		.element(placeless.getByRole("button", { name: m.widget_state_choose_place() }))
+		.toBeVisible();
 });
 
 test("no data shows the empty state, never an unnamed chart", async () => {
@@ -338,6 +446,40 @@ test("places with different overlays follow the saved place", async () => {
 		.toBeVisible();
 });
 
+test("a monitor set's overlay is fetched for its Overlay for monitor alone", async () => {
+	fake.metadata = fixtureMetadata({ catalog: async () => [...FIXTURE_CATALOG, FORECASTS_ENTRY] });
+	fake.client = createQueryClient({
+		adapters: [fakeAdapter(requests), fakeForecastsAdapter(requests)],
+		metadata: fake.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const widget = fresnoChart(["purpleair"]);
+	widget.options = { overlayFor: { kind: "monitor", id: "purpleair-2" } };
+	widget.data.layers.push({ dataset: "forecasts", entryType: "burn-status" });
+	const screen = await show(widget);
+	await expect
+		.element(screen.getByRole("list", { name: "Burn status in Monitor purpleair-2" }))
+		.toBeVisible();
+	// One monitor's overlay, asked for once the set's monitors are known; never one per monitor.
+	const overlays = requests.filter((r) => r.entryType === "burn-status");
+	expect(overlays.map((r) => r.target)).toEqual([{ kind: "monitors", ids: ["purpleair-2"] }]);
+});
+
+test("a monitor set's overlay with no Overlay for is the first monitor's", async () => {
+	fake.metadata = fixtureMetadata({ catalog: async () => [...FIXTURE_CATALOG, FORECASTS_ENTRY] });
+	fake.client = createQueryClient({
+		adapters: [fakeAdapter(requests), fakeForecastsAdapter(requests)],
+		metadata: fake.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const widget = fresnoChart(["purpleair"]);
+	widget.data.layers.push({ dataset: "forecasts", entryType: "burn-status" });
+	const screen = await show(widget);
+	await expect
+		.element(screen.getByRole("list", { name: "Burn status in Monitor purpleair-1" }))
+		.toBeVisible();
+});
+
 /** Weather and pesticide use as the dashboard maps them, both answering for monitors here. */
 const NUMBER_DATASETS = mapDatasetCatalog({
 	datasets: [WEATHER_DATASET, PESTICIDE_USE_DATASET]
@@ -358,7 +500,7 @@ async function showLayers(
 	});
 	const widget = chartWidget(["m1"]);
 	const [first, ...rest] = layers;
-	widget.data.layers = [{ ...first, place: { kind: "monitor", id: "m1" } }, ...rest];
+	setLayers(widget, [first, ...rest]);
 	const screen = await show(widget);
 	return { widget, screen };
 }
@@ -377,8 +519,9 @@ test("an empty pesticide strip says no use reported", async () => {
 	await expect.element(chart).toBeVisible();
 	await expect.poll(() => frame.querySelector("canvas")).not.toBeNull();
 	expect(screen.getByText(m.widget_state_error()).query()).toBeNull();
-	// The strip is pinned to the main's days, so it comes back monthly.
+	// Pesticide use offers month and year only, so Automatic makes the whole dataset monthly.
 	expect(requests.find((r) => r.entryType === "pounds-applied")?.resolution).toBe("month");
+	expect(requests.find((r) => r.entryType === "pm25")?.resolution).toBe("month");
 });
 
 test("a pesticide-only widget with no use says so, not an error", async () => {
@@ -390,7 +533,7 @@ test("a pesticide-only widget with no use says so, not an error", async () => {
 
 test("a pesticide-only widget draws its months as bars", async () => {
 	const { screen } = await showLayers([POUNDS], [pesticides({ values: [1200, 340] })]);
-	const chart = screen.getByRole("group", { name: "Chart of Monitor m1" });
+	const chart = screen.getByRole("group", { name: "Chart of Region county:m1" });
 	await expect.element(chart).toHaveAttribute("data-bars", "2");
 });
 
@@ -417,7 +560,11 @@ test("the legend names the active filters", async () => {
 	await expect
 		.element(screen.getByText("Pounds Applied · Chlorpyrifos · Grapes · Monitor m1"))
 		.toBeVisible();
-	await expect.element(screen.getByText(m.chart_series_month_total())).toBeVisible();
+	// The dataset is monthly (Automatic): the main is its monthly figure, the strip lines up with it.
+	await expect
+		.element(screen.getByText("Average of 24-hour averages", { exact: true }))
+		.toBeVisible();
+	expect(requests.filter((r) => r.resolution !== "month")).toEqual([]);
 });
 
 test("a gone filter shows in its strip and the chart still draws", async () => {
@@ -450,19 +597,156 @@ test("a weather-only chart names the station, and a summed main is a total", asy
 	expect(key.getByText(m.chart_series_day()).query()).toBeNull();
 });
 
-test("an averaged main stays an average, with no source to name", async () => {
+test("an averaged main is named by its figure, with no source to name", async () => {
 	const screen = await show(chartWidget(["m1"]));
 	const key = screen.getByRole("list", { name: m.chart_series_key() });
-	await expect.element(key.getByText(m.chart_series_day(), { exact: true })).toBeVisible();
+	await expect.element(key.getByText("24-hour average", { exact: true })).toBeVisible();
+	expect(key.getByText(m.chart_series_day()).query()).toBeNull();
 });
 
-test("a number overlay isn't fetched while the main layer is unavailable", async () => {
+/** `fakeAdapter`, each point also carrying the figure asked for: 41, null, 43 (+ the place). */
+function figureAdapter(): ReturnType<typeof fakeAdapter> {
+	const base = fakeAdapter(requests);
+	return {
+		...base,
+		async fetch(req, ctx, signal) {
+			const data = await base.fetch(req, ctx, signal);
+			if (!req.figure) return data;
+			return {
+				...data,
+				series: data.series.map((s, n) => ({
+					...s,
+					points: s.points.map((p, i) => ({
+						...p,
+						figure: i === 1 ? null : 41 + i + n,
+						final: true
+					}))
+				}))
+			};
+		}
+	};
+}
+
+async function showFigures(widget: WidgetInstance) {
+	fake.client = createQueryClient({
+		adapters: [figureAdapter()],
+		metadata: fake.metadata!,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const screen = await show(widget);
+	const chart = screen.getByRole("group", { name: "Chart of Monitor m1" });
+	await expect.element(chart).toBeVisible();
+	await expect.poll(() => frame.querySelector("canvas")).not.toBeNull();
+	return { screen, chart };
+}
+
+const readout = () => frame.querySelector("[aria-live='polite']")?.textContent ?? "";
+
+test("a daily ozone chart shows max_1h, named by daily_statistic_label", async () => {
+	const widget = chartWidget(["m1"]);
+	widget.data.layers[0] = { ...widget.data.layers[0], entryType: "o3" };
+	widget.data.resolution = "day";
+	const { screen, chart } = await showFigures(widget);
+	expect(requests.at(-1)!.figure).toBe("max_1h");
+	const key = screen.getByRole("list", { name: m.chart_series_key() });
+	await expect.element(key.getByText("Highest 1-hour average", { exact: true })).toBeVisible();
+	(chart.element() as HTMLElement).focus();
+	await userEvent.keyboard("{Home}");
+	// The figure (41), never the plain mean (5).
+	await expect.poll(readout).toContain("41 µg/m³");
+});
+
+test("a monthly pm25 chart shows daily_statistic_mean; a null month is not enough data", async () => {
+	const widget = chartWidget(["m1"]);
+	widget.data.dateRange = { kind: "custom", start: "2026-01-01", end: "2026-06-30" };
+	widget.data.resolution = "month";
+	const { screen, chart } = await showFigures(widget);
+	expect(requests.at(-1)!.resolution).toBe("month");
+	expect(requests.at(-1)!.figure).toBe("daily_statistic_mean");
+	const key = screen.getByRole("list", { name: m.chart_series_key() });
+	await expect.element(key.getByText("Average of 24-hour averages", { exact: true })).toBeVisible();
+	(chart.element() as HTMLElement).focus();
+	await userEvent.keyboard("{Home}");
+	await expect.poll(readout).toContain("41 µg/m³");
+	await userEvent.keyboard("{ArrowRight}");
+	await expect.poll(readout).toContain(m.data_not_enough());
+});
+
+test("a weather main shows its plain mean, with no figure asked for", async () => {
+	const { screen } = await showLayers(
+		[{ dataset: "weather", entryType: "temperature" }],
+		[fakeNumberAdapter("weather", requests)]
+	);
+	const key = screen.getByRole("list", { name: m.chart_series_key() });
+	await expect.element(key.getByText(m.chart_series_day(), { exact: true })).toBeVisible();
+	expect(requests.length).toBeGreaterThan(0);
+	for (const r of requests) expect(r.figure).toBeUndefined();
+});
+
+test("a stored level outside the levels (a quarter, from a link) says it can't be drawn", async () => {
+	const widget = chartWidget(["m1"]);
+	(widget.data as { resolution?: string }).resolution = "quarter";
+	const screen = await show(widget);
+	await expect
+		.element(screen.getByText(m.widget_state_unavailable_no_resolution_view()))
+		.toBeVisible();
+	expect(requests).toEqual([]);
+});
+
+test("a stored level the main layer doesn't offer says it can't be drawn", async () => {
+	fake.metadata = fixtureMetadata({
+		catalog: async () => [...FIXTURE_CATALOG, FORECASTS_ENTRY, ...NUMBER_DATASETS]
+	});
+	fake.client = createQueryClient({
+		adapters: [fakeAdapter(requests), pesticides({ values: [1200] })],
+		metadata: fake.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const widget = chartWidget(["m1"]);
+	widget.data.resolution = "day";
+	setLayers(widget, [{ ...POUNDS }]);
+	const screen = await show(widget);
+	await expect
+		.element(screen.getByText(m.widget_state_unavailable_no_resolution_view()))
+		.toBeVisible();
+});
+
+test("a daily chart from an untrusted document draws without pesticide use and says why", async () => {
+	fake.metadata = fixtureMetadata({
+		catalog: async () => [...FIXTURE_CATALOG, FORECASTS_ENTRY, ...NUMBER_DATASETS]
+	});
+	fake.client = createQueryClient({
+		adapters: [fakeAdapter(requests), pesticides({ values: [1200] })],
+		metadata: fake.metadata,
+		regions: { resolve: async () => "unsupported" }
+	});
+	const widget = chartWidget(["m1"]);
+	widget.data.resolution = "day";
+	setLayers(widget, [{ ...PM25 }, { ...POUNDS }]);
+	const screen = await show(widget);
+	await expect
+		.element(
+			screen.getByText(
+				m.widget_layer_not_lined_up_view({ dataset: "Pesticide Use", level: "daily" }),
+				{
+					exact: true
+				}
+			)
+		)
+		.toBeVisible();
+	await expect.poll(() => frame.querySelector("canvas")).not.toBeNull();
+	expect(frame.querySelector("[data-strip]")).toBeNull();
+	expect(requests.some((r) => r.entryType === "pounds-applied")).toBe(false);
+});
+
+test("an overlay is fetched alongside the main, at the dataset's resolution", async () => {
 	fake.metadata = fixtureMetadata({
 		catalog: async () => [...FIXTURE_CATALOG, FORECASTS_ENTRY, ...NUMBER_DATASETS]
 	});
 	fake.client = createQueryClient({
 		adapters: [
-			fakeAdapter(requests),
+			// The air-quality fake refuses the county here.
+			{ ...fakeAdapter(requests), target: async () => ({ unavailable: "place-unsupported" }) },
 			// Weather would answer for the county (as a monitor's series, to keep the fake small).
 			{
 				...fakeNumberAdapter("weather", requests),
@@ -472,18 +756,17 @@ test("a number overlay isn't fetched while the main layer is unavailable", async
 		metadata: fake.metadata,
 		regions: { resolve: async () => "unsupported" }
 	});
-	const widget = chartWidget(["m1"]);
-	// The fake air-quality adapter serves monitors only: a county is unavailable.
-	widget.data.layers = [
-		{ ...PM25, place: { kind: "region", type: "county", code: "06019" } },
-		{ ...RAIN }
-	];
+	const widget = chartWidget([]);
+	widget.data.place = { kind: "region", type: "county", code: "06019" };
+	widget.data.layers = [{ ...PM25 }, { ...RAIN }];
 	const screen = await show(widget);
 	await expect
 		.element(screen.getByText(m.widget_state_unavailable_place_unsupported()))
 		.toBeVisible();
-	await new Promise((r) => setTimeout(r, 100));
-	expect(requests.filter((r) => r.entryType === "precipitation")).toEqual([]);
+	// It doesn't wait for the main: both are asked for at the dataset's (daily) resolution.
+	await expect
+		.poll(() => requests.filter((r) => r.entryType === "precipitation").map((r) => r.resolution))
+		.toEqual(["day"]);
 });
 
 test("a saved threshold draws a labeled line and names its level in the key", async () => {
