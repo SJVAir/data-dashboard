@@ -1,14 +1,18 @@
 import { getPesticideLocations, type PesticideLocationFeature } from "@sjvair/sdk";
-import type { SchoolsSource } from "@sjvair/map-sdk/data";
+import type { DataStatus, SchoolsSource } from "@sjvair/map-sdk/data";
 import { getResolvers, placeRegion } from "$lib/data";
 import type { ResolvedRegion } from "$lib/data/adapters/registry";
 import { untilAborted } from "$lib/data/metadata";
+import { unavailableMessage } from "$lib/data/messages";
+import type { NowState } from "$lib/data/now/client";
 import { currentInput } from "$lib/data/now/current";
 import type { WidgetDataConfig } from "$lib/data/schema";
 import type { UnavailableReason } from "$lib/data/types";
 import { locationsLayer } from "$lib/get-data/map";
 import { DEFAULT_LAYER } from "$lib/widgets/defaults";
 import { mainLayer, queryLayer, widgetWhere } from "$lib/widgets/shared/input";
+import { mapMessages } from "../host/messages";
+import { dataStatus } from "./status";
 import type { MapDataEntry } from "./types";
 
 /** The loaded schools and child care sites, every type (the Map filters by the ticked ones). */
@@ -141,3 +145,35 @@ export const locationsEntry: MapDataEntry<LocationsData, never, { locations: Sch
 		};
 	}
 };
+
+/**
+ * The locations' one source, shared by every group's plugin (each filters it by its types): its
+ * getters read the latest load, so a refetch never makes a plugin again. Unavailable (a Where with
+ * no region on the server) says why in the legend; no features until the sites load.
+ */
+export function locationsSourceOf(d: {
+	readonly locationsState: NowState<LocationsData>;
+	readonly locationsUnavailable: UnavailableReason | undefined;
+}): SchoolsSource {
+	let loaded: LocationsData | undefined;
+	let drawn: SchoolsSource["features"] = null;
+	return {
+		get status(): DataStatus {
+			const reason = d.locationsUnavailable;
+			if (!reason) return dataStatus(d.locationsState);
+			// The legend's status row says why (the map's note too).
+			return { state: "unavailable", reason, message: unavailableMessage(reason) };
+		},
+		get features() {
+			const data = d.locationsState.data;
+			if (data === undefined) return null;
+			// The same collection for the same load (never a new one per read).
+			if (data !== loaded) {
+				loaded = data;
+				drawn = locationsEntry.toDataSources(data, { messages: mapMessages, entryType: "" })
+					.locations.features;
+			}
+			return drawn;
+		}
+	};
+}

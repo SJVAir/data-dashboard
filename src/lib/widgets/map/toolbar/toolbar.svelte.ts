@@ -16,6 +16,7 @@ import {
 	clusters,
 	fire,
 	layers,
+	locations,
 	monitors,
 	notices,
 	regions,
@@ -25,6 +26,7 @@ import {
 } from "./icons.svelte";
 import {
 	groupsShown,
+	LOCATION_PREFIX,
 	NOTICES_KEY,
 	toValues,
 	USE_FIGURE_KEY,
@@ -133,6 +135,13 @@ export class MapToolbar {
 			offer.notices && noticesLabel
 				? { kind: "checkbox", id: NOTICES_KEY, label: noticesLabel, icon: notices }
 				: undefined;
+		// A row per location group, labelled with the regions meta's label.
+		const locationRows: OptionRow[] = offer.locations.map(({ key, label }) => ({
+			kind: "checkbox",
+			id: `${LOCATION_PREFIX}${key}`,
+			label,
+			icon: locations
+		}));
 		const useOffer = offer.use && useLabel ? offer.use : null;
 		const useRow: OptionRow | undefined = useOffer
 			? { kind: "checkbox", id: USE_KEY, label: useLabel!, icon: use }
@@ -141,6 +150,7 @@ export class MapToolbar {
 		if (hms) layerRows.push(hms.row);
 		if (fill) layerRows.push(fill);
 		if (noticesRow) layerRows.push(noticesRow);
+		layerRows.push(...locationRows);
 		if (useRow) layerRows.push(useRow);
 		const forSettings = settingsGroup(this.#map, {
 			icon: settings,
@@ -182,6 +192,7 @@ export class MapToolbar {
 			...hms?.defaults,
 			...(fill && { [FILL_KEY]: true }),
 			...(noticesRow && { [NOTICES_KEY]: true }),
+			...Object.fromEntries(locationRows.map((row) => [row.id, true])),
 			...(useRow && {
 				[USE_KEY]: true,
 				...(useOffer!.figures[0] !== undefined && { [USE_FIGURE_KEY]: useOffer!.figures[0] })

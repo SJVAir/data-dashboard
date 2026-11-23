@@ -2,7 +2,8 @@ import { untrack } from "svelte";
 import type {
 	DataSource,
 	FireFeatureProperties,
-	MonitorFeatureProperties
+	MonitorFeatureProperties,
+	SchoolsSource
 } from "@sjvair/map-sdk/data";
 import type { Bounds } from "@sjvair/map-sdk";
 import type { RegionSummaryBulkType } from "@sjvair/sdk";
@@ -22,7 +23,7 @@ import { AHEAD, DayLayer } from "./day-layer.svelte";
 import { filtersKey } from "./filters-key";
 import { fillEntry, fillPolls, fillSourceOf, type FillData, type FillSource } from "./fill";
 import { hmsEntry, hmsPolls, hmsSourceOf, type HmsData } from "./hms";
-import { locationsEntry, type LocationsData } from "./locations";
+import { locationsEntry, locationsSourceOf, type LocationsData } from "./locations";
 import { MonitorsBlock } from "./monitors-block.svelte";
 import {
 	NO_NOTICES,
@@ -189,6 +190,8 @@ export class MapData {
 	readonly fillSource: DataSource;
 	/** The notices' source, one feature per section; no features until they load. */
 	readonly noticesSource: DataSource<NoticeFeatureProperties>;
+	/** The schools and child care sites, every type, for each group's plugin to filter. */
+	readonly locationsSource: SchoolsSource;
 
 	constructor(getInput: () => MapDataInput, deps: { now: NowClient; rating: DayRating }) {
 		this.#getInput = getInput;
@@ -265,6 +268,7 @@ export class MapData {
 		this.hotspotsSource = hmsSourceOf(this, "fireHotspots");
 		this.fillSource = fillSourceOf(this);
 		this.noticesSource = noticesSourceOf(this);
+		this.locationsSource = locationsSourceOf(this);
 
 		this.#stopEffects = $effect.root(() => {
 			$effect(() => {

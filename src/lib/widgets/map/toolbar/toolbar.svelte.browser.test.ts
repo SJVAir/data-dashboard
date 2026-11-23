@@ -57,6 +57,7 @@ const offer = (over: Partial<MapOffer> = {}): MapOffer => ({
 	smokeAndFire: false,
 	fill: false,
 	notices: false,
+	locations: [],
 	use: null,
 	...over
 });
@@ -201,6 +202,37 @@ describe("MapToolbar", () => {
 		expect((rows[2] as { icon?: unknown }).icon).toBeTypeOf("function");
 		expect(defaults.notices).toBe(true);
 		expect(values.notices).toBe(false);
+	});
+
+	it("location groups: a Layers row each, after the notices and before use, on by default", () => {
+		const { groups, defaults, values } = new MapToolbar(stubMap()).build({
+			offer: offer({
+				notices: true,
+				locations: [
+					{ key: "school", label: "Schools" },
+					{ key: "child_care", label: "Child care" }
+				],
+				use: { figures: ["pounds-applied"] }
+			}),
+			drawn: "pm25",
+			options: { hiddenLocationGroups: ["child_care"] },
+			noticesLabel: "Spray Notices",
+			useLabel: "Pesticide Use",
+			useFigures: [{ id: "pounds-applied", label: "Pounds Applied", units: "lbs" }]
+		});
+		const rows = group(groups, "layers").rows;
+		expect(rows.map((r) => r.id)).toEqual([
+			"notices",
+			"location:school",
+			"location:child_care",
+			"use"
+		]);
+		expect(rows[1]).toMatchObject({ kind: "checkbox", label: "Schools" });
+		expect((rows[1] as { icon?: unknown }).icon).toBeTypeOf("function");
+		expect(defaults["location:school"]).toBe(true);
+		expect(defaults["location:child_care"]).toBe(true);
+		expect(values["location:school"]).toBe(true);
+		expect(values["location:child_care"]).toBe(false);
 	});
 
 	it("notices alone show the Layers group; without them, no row and no default", () => {

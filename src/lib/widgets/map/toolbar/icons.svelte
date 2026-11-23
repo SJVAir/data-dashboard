@@ -6,12 +6,25 @@
 	import MapIcon from "@lucide/svelte/icons/map";
 	import NetworkIcon from "@lucide/svelte/icons/network";
 	import RadioTowerIcon from "@lucide/svelte/icons/radio-tower";
+	import SchoolIcon from "@lucide/svelte/icons/school";
 	import SettingsIcon from "@lucide/svelte/icons/settings";
 	import SprayCanIcon from "@lucide/svelte/icons/spray-can";
 	import WheatIcon from "@lucide/svelte/icons/wheat";
 
 	/** The Map toolbar's icons: Lucide, in monitor-map's tints (theme tokens, with dark values). */
-	export { monitors, layers, settings, clusters, basemap, theme, fire, regions, notices, use };
+	export {
+		monitors,
+		layers,
+		settings,
+		clusters,
+		basemap,
+		theme,
+		fire,
+		regions,
+		notices,
+		locations,
+		use
+	};
 </script>
 
 {#snippet monitors()}
@@ -52,4 +65,8 @@
 
 {#snippet use()}
 	<WheatIcon class="size-full text-(--map-icon-use)" />
+{/snippet}
+
+{#snippet locations()}
+	<SchoolIcon class="size-full text-(--map-icon-layers)" />
 {/snippet}
