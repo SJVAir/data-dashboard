@@ -106,7 +106,7 @@ test("Change place on the starter makes no copy and survives a reload", async ({
 
 /** The starter's Map (its region, holding the GL map and its toolbar). */
 function starterMap(page: Page, place = "Fresno County"): Locator {
-	return page.getByRole("region", { name: `PM2.5 map · ${place} map`, exact: true });
+	return page.getByRole("region", { name: `PM2.5 map · ${place}`, exact: true });
 }
 
 test.describe("the starter's Map", () => {

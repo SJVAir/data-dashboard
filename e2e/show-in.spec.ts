@@ -102,7 +102,7 @@ function countyDoc(marks: string[], range: Record<string, unknown> | null = PAST
 /** The map of the widget titled `title` (its region, which holds the GL map and its UI). */
 function mapOf(page: Page, title: string): Locator {
 	const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-	return page.getByRole("region", { name: new RegExp(`^${escaped} map\\b`) });
+	return page.getByRole("region", { name: new RegExp(`^${escaped}( map)?\\b`) });
 }
 
 /** The map's summary line: the monitors in view, counted by level. */

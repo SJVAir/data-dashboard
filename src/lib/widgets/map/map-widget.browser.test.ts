@@ -878,12 +878,19 @@ test("refits when entering fullscreen", async () => {
 	expect(fakeMaps.made).toHaveLength(1);
 });
 
+test("a typed title gets map after it in the map's name; a generated one is the name as it is", async () => {
+	const typed = { ...mapWidget(region("019")), title: "Smog watch" };
+	await show(typed);
+	const map = await madeMap();
+	await expect.poll(() => map.view.label).toBe(m.map_label({ title: "Smog watch" }));
+});
+
 test("title for one place and several", async () => {
 	const one = mapWidget(region("019"));
 	const first = await show(one);
 	await expect.poll(() => generatedTitle(one.id)).toBe("PM2.5 map · Fresno County");
 	const map = await madeMap();
-	await expect.poll(() => map.view.label).toBe(m.map_label({ title: "PM2.5 map · Fresno County" }));
+	await expect.poll(() => map.view.label).toBe("PM2.5 map · Fresno County");
 	await first.unmount();
 
 	const point = mapWidget({ place: { kind: "point", lat: 36.7, lon: -119.8 } });
@@ -940,7 +947,7 @@ test("a Map with no pollutant is titled by what it shows and its area, with no d
 	});
 	await expect.poll(() => generatedTitle(smoke.id)).toBe(title);
 	const map = await madeMap();
-	await expect.poll(() => map.view.label).toBe(m.map_label({ title }));
+	await expect.poll(() => map.view.label).toBe(title);
 	// The area is named by lookup: no PM2.5 (or any) data is asked for to name it.
 	expect(counting.inputs).toEqual([]);
 	await first.unmount();
@@ -967,9 +974,7 @@ test("a Map with no pollutant whose area can't be named is titled by what it sho
 	const map = await madeMap();
 	await expect
 		.poll(() => map.view.label)
-		.toBe(
-			m.map_label({ title: m.widget_map_title_generated({ shows: m.get_data_smoke_and_fire() }) })
-		);
+		.toBe(m.widget_map_title_generated({ shows: m.get_data_smoke_and_fire() }));
 });
 
 test("a Map with no pollutant names a point by its region, for the viewer", async () => {
@@ -1573,12 +1578,7 @@ test("keeps marks when the pollutant changes, and counts the hidden ones", async
 	expect(frame.querySelector("[data-map-marks-hidden]")!.getAttribute("role")).toBe("status");
 	await expect
 		.poll(() => map.view.label)
-		.toBe(
-			m.map_label_marks_hidden({
-				title: "Ozone map · Fresno County",
-				notes: reasonLine("pollutant")
-			})
-		);
+		.toBe(m.sentence_join({ first: "Ozone map · Fresno County", second: reasonLine("pollutant") }));
 	expect(marksOf()).toEqual(["a", "b"]);
 	expect(map.getSelection("monitors")).toEqual({ kind: "monitors", ids: ["a", "b"] });
 	session.undo();
@@ -1607,7 +1607,7 @@ test("gives each reason its own line, in order, in the list note and the map's n
 	});
 	await expect
 		.poll(() => map.view.label)
-		.toBe(m.map_label_marks_hidden({ title: "Ozone map · Fresno County", notes }));
+		.toBe(m.sentence_join({ first: "Ozone map · Fresno County", second: notes }));
 	expect((map.view.featureList as { note?: string }).note).toBe(notes);
 });
 

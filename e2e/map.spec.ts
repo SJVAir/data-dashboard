@@ -86,7 +86,8 @@ const ZOOMED_VIEW = "PM2.5: 1 Good";
 
 /** The map of the widget titled `title` (its region, which holds the GL map and its UI). */
 function mapOf(page: Page, title: string): Locator {
-	return page.getByRole("region", { name: `${title} map`, exact: true });
+	const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	return page.getByRole("region", { name: new RegExp(`^${escaped}( map)?$`) });
 }
 
 /**
@@ -330,7 +331,7 @@ async function enterFullscreen(page: Page, map: Locator): Promise<Locator> {
 	const small = (await map.boundingBox())!;
 	await page.getByRole("button", { name: `Show ${FRESNO_MAP} fullscreen` }).click();
 	const frame = fullscreenFrame(page);
-	await expect(frame.getByRole("region", { name: `${FRESNO_MAP} map` })).toBeVisible();
+	await expect(frame.getByRole("region", { name: FRESNO_MAP, exact: true })).toBeVisible();
 	await expect
 		.poll(async () => (await map.boundingBox())?.width ?? 0)
 		.toBeGreaterThan(small.width * 1.5);
@@ -489,7 +490,7 @@ test("the view summary follows a place change that leaves the view still", async
 	await picker(page).getByRole("button", { name: "Done" }).click();
 	await expect(picker(page)).toBeHidden();
 	await expect(widgetTitles(page)).toHaveText([/^PM2\.5 map · (?!Fresno County)/]);
-	const after = page.getByRole("region", { name: /^PM2\.5 map · .+ map$/ });
+	const after = page.getByRole("region", { name: /^PM2\.5 map · .+$/ });
 	await expect(inView(after)).toHaveText("PM2.5: 1 Good");
 	await expectStill(browser, after, before);
 });
@@ -969,7 +970,7 @@ test.describe("a Map's days", () => {
 		await expect(page.getByRole("status").getByText("No figures for this day")).toBeVisible();
 		// The note is part of the map's name too.
 		const noted = page.getByRole("region", {
-			name: `${FRESNO_MAP} map. No figures for this day`,
+			name: `${FRESNO_MAP}. No figures for this day`,
 			exact: true
 		});
 		await expect(noted).toBeVisible();
@@ -1024,7 +1025,7 @@ test.describe("with ozone and smoke and fire in the metadata", () => {
 		await openSharedDoc(page, wideDoc([{ dataset: "hms-smoke" }, { dataset: "hms-fire" }]));
 		await expect(widgetTitles(page)).toHaveText([FRESNO_MAP]);
 		// Named after its title, which follows its pollutant.
-		const map = page.getByRole("region", { name: / · Fresno County map$/ });
+		const map = page.getByRole("region", { name: / · Fresno County$/ });
 		await expect(inView(map)).toHaveText(FRESNO_VIEW);
 		const toolbar = toolbarOf(map);
 		const fireAndSmoke = toolbar.getByRole("checkbox", { name: "Fire & Smoke", exact: true });
@@ -1590,7 +1591,7 @@ test.describe("a Map's spray notices", () => {
 			noticesDoc({ chemical: "gs65e", commodity: NOTICE_COMMODITY.id, category: ["fumigant"] })
 		);
 		// A day with no monitor figures adds its note to the map's name.
-		const map = page.getByRole("region", { name: /^PM2\.5 map · Fresno County map/ });
+		const map = page.getByRole("region", { name: /^PM2\.5 map · Fresno County/ });
 		await expect(daySlider(page)).toHaveAttribute("aria-valuetext", "Now");
 		let list = await featureList(map);
 		await expect(list.getByRole("option", { name: NOW_SECTION })).toHaveCount(1);
@@ -1806,7 +1807,7 @@ test.describe("a Map's pesticide use", () => {
 	 * month"), so it's found by the start of its name.
 	 */
 	function useMapOf(page: Page): Locator {
-		return page.getByRole("region", { name: /^PM2\.5 map · Fresno County map\b/ });
+		return page.getByRole("region", { name: /^PM2\.5 map · Fresno County\b/ });
 	}
 
 	/** The map, once its townships are drawn (the middle one in its feature list). */
@@ -2248,7 +2249,7 @@ test.describe("schools and child care", () => {
 		page
 	}) => {
 		await openSharedDoc(page, rooseveltDoc);
-		const map = page.getByRole("region", { name: /map$/ }).first();
+		const map = page.getByRole("region", { name: /\bmap\b/ }).first();
 		const list = await featureList(map);
 		// The site's own row (the focus pin gives way to it), named with its type.
 		await expect(list.getByRole("option", { name: /^Roosevelt High\b/ })).toHaveCount(1);
