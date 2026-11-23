@@ -26,6 +26,13 @@ import {
 test.use({ reducedMotion: "reduce" });
 
 const TULARE_TITLES = STARTER_TITLES.map((t) => t.replace("Fresno County", "Tulare County"));
+/** Where the Map's title is in reading order (the fifth widget, under the now row). */
+const MAP_INDEX = 4;
+/**
+ * The titles on a phone before the Map is scrolled near: its code (which works out its generated
+ * title) loads only once its frame nears the screen, so until then it reads its type's label.
+ */
+const PHONE_TITLES = STARTER_TITLES.with(MAP_INDEX, "Map");
 
 function bar(page: Page): Locator {
 	return page.getByRole("region", { name: "This dashboard's place" });
@@ -158,6 +165,9 @@ test.describe("the starter's Map", () => {
 	test("on a phone it is full width", async ({ page }) => {
 		await page.setViewportSize({ width: 390, height: 844 });
 		await page.goto("./");
+		await expect(widgetTitles(page)).toHaveText(PHONE_TITLES);
+		// Below the fold, its code waits until it's scrolled near.
+		await titleBar(page, "Map").scrollIntoViewIfNeeded();
 		await expect(widgetTitles(page)).toHaveText(STARTER_TITLES);
 		const map = starterMap(page);
 		await expect(map).toBeVisible();
@@ -388,12 +398,20 @@ for (const colorScheme of ["light", "dark"] as const) {
 				page
 			}) => {
 				await page.goto("./");
-				await expect(widgetTitles(page)).toHaveText(STARTER_TITLES);
+				// On a phone the Map is below the fold: until it's scrolled near, its code hasn't
+				// loaded and its title is its type's label.
+				const titles = size === "phone" ? PHONE_TITLES : STARTER_TITLES;
+				await expect(widgetTitles(page)).toHaveText(titles);
 				await expect(bar(page)).toBeVisible();
 				await expectNoViolations(page);
 				// The headings are in document order, so this is the reading order.
-				await expect(widgetTitles(page)).toHaveText(STARTER_TITLES);
+				await expect(widgetTitles(page)).toHaveText(titles);
 				if (size === "phone") {
+					// Scrolled near, the Map loads and takes its full title; checked again with it.
+					await titleBar(page, "Map").scrollIntoViewIfNeeded();
+					await expect(widgetTitles(page)).toHaveText(STARTER_TITLES);
+					await expect(starterMap(page)).toBeVisible();
+					await expectNoViolations(page);
 					// The welcome Note grows to fit its text on a phone (WCAG reflow): none of it is
 					// hidden behind a scroll inside the Note.
 					const note = page.getByRole("region", { name: NOTE });

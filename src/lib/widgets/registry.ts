@@ -61,6 +61,12 @@ export type WidgetType = {
 	/** A dynamic `import()` of the type's code; `loadWidget` caches it after the first call. */
 	load: () => Promise<WidgetModule>;
 	/**
+	 * Its code is big (the Map's): a frame loads it only once the frame is within 200 px of the
+	 * screen, focus moves into it, it's fullscreen, or the code has already loaded; until then the
+	 * frame shows its pending state. Other types load as soon as their frame mounts.
+	 */
+	loadWhenNear?: boolean;
+	/**
 	 * A direct add: Add widget adds the type with this data. Data types (those with
 	 * `accepts.datasets`) go through Get data unless they're also `addable`, which adds them
 	 * directly. Gets the dashboard it's added to; returns the new widget's data and, if it has

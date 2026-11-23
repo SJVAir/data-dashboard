@@ -1172,6 +1172,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 
 ## Map & selection
 
+- **An off-screen Map's title reads "Map" until its code loads.** _Deferred 2026-11-23 (step 6
+  spec 1, Task 6)._ A Map's code now loads only once its frame is within 200 px of the screen,
+  takes focus, or is fullscreen. Until then its title bar reads the type label "Map": it still
+  names the widget, and it gets its full title ("PM2.5 · Fresno County") once it loads. Why: the
+  generated title is worked out in the Map's lazy module (`map-title.svelte.ts`), and moving it out
+  would split the title from the module. **Revisit when** people using screen readers report it,
+  or when a Map title change touches `map-title.svelte.ts` anyway.
+
 - **Every measurement (raw) for ticked monitor types.** _Deferred 2026-11-21 (step 5 spec 7a, Task
   5)._ A ticked-type monitor set is fetched through the bulk monitor summaries, which have no raw
   entries, and fetching raw one by one for dozens of monitors is heavy. So the dataset rules count
