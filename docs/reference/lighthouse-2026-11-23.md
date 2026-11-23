@@ -119,12 +119,14 @@ widgets, bytes and LCP element.
   `app.css`, then the app chunk (`app-*.js`, 188 KB gzipped), which downloads from 1.3 to 3.0 s.
   The app chunk then runs its startup tasks of 60–125 ms from 3.0 to 3.9 s. Uncompressed, the app
   chunk is 629 KB and downloads from 1.7 to 6.0 s, which puts FCP at 6.8 s.
-- **The widgets' code all starts at about 3.9 s, and the Map chunk takes most of the bandwidth.**
-  The Map chunk (431 KB) downloads from 3.87 to **10.0 s**. The widgets' smaller files download
-  at the same time and finish late. The chart's chunk (34 KB) finishes at 8.8 s, the calendars'
-  `DayGrid` (9 KB) at 9.3 s, `monitors/meta/` (12 KB) at 9.9 s, and the first daily-summary data
-  request starts at about 10 s. The Note's text (LCP, 5.4 s) arrives while the Map chunk is still
-  downloading. **Uncompressed, the Map chunk (1.58 MB) downloads from 6.9 to 23.1 s.**
+- **The widgets' code all starts at about 3.9 s, and the Map chunk is the largest download.**
+  The Map chunk (431 KB) downloads from 3.87 to **10.0 s**, sharing the bandwidth with the
+  widgets' smaller files. The calendars' `DayGrid` (9 KB) finishes at 9.3 s, `monitors/meta/`
+  (12 KB) at 9.9 s, and the first daily-summary data request starts at about 10 s. The Note's
+  text (LCP, 5.4 s) arrives while the Map chunk is still downloading. **Uncompressed, the Map
+  chunk (1.58 MB) downloads from 6.9 to 23.1 s.** The baseline below shows how much of that
+  lateness is the Map's: without it, the widgets' data still starts late, at about 9.1 s (gzip),
+  so the Map adds about 1 s there.
 - **The longest task is the Map chunk's evaluation**, at 211–238 ms, once it has arrived (10.1 s
   with gzip, 23.1 s uncompressed). It is the largest single part of TBT: about 160–190 ms over the
   50 ms allowance. The rest comes from the app chunk's startup tasks (60–154 ms each) and two of
@@ -150,6 +152,36 @@ widgets, bytes and LCP element.
   - "Render-blocking requests" (`app.css`; an estimated 150 ms to save, or 600 ms uncompressed)
   - "Improve image delivery" (the 14 KB `sjvair-icon` WebP)
   - "Network dependency tree" (informational)
+
+## Baseline: the starter without its Map (step 5's layout)
+
+To show what the Map adds, a build of this branch with the Map widget taken out of
+`starterWidgets()`, and the Chart and month calendar back at y 9. That change was local only and
+never committed. The same method was used (DevTools throttling, gzip and uncompressed), and only
+the first-visit cases were run, three runs each, median.
+
+| Case                              | Score | FCP    | LCP    | TBT    | CLS   | Speed Index | Total bytes | Script bytes | Map chunk |
+| --------------------------------- | ----- | ------ | ------ | ------ | ----- | ----------- | ----------- | ------------ | --------- |
+| First visit, gzip, no Map         | 71    | 3.83 s | 5.33 s | 139 ms | 0.055 | 2.26 s      | 940.1 KB    | 325.7 KB     | none      |
+| First visit, uncompressed, no Map | 63    | 6.76 s | 8.65 s | 118 ms | 0.055 | 3.36 s      | 1,677.9 KB  | 977.3 KB     | none      |
+
+The runs: LCP 5.28, 5.33 and 5.35 s with TBT 110, 139 and 181 ms (gzip); LCP 8.64, 8.74 and
+8.65 s with TBT 107, 170 and 118 ms (uncompressed). Total bytes include the same API fixtures,
+about 510 KB.
+
+What the Map adds, comparing the medians with the first-visit rows above:
+
+- **LCP:** almost nothing with gzip (5.37 s against 5.33 s), and about 0.5 s uncompressed (9.14 s
+  against 8.65 s). Without the Map, LCP still misses 2.5 s: with gzip it is the same 5.3 s.
+- **TBT:** 276 ms against 139 ms with gzip, and 295 ms against 118 ms uncompressed. Without the
+  Map, every run was under 200 ms. With it, every run was over. The Map chunk's evaluation task
+  (211–238 ms) is the difference.
+- **Score:** 67 against 71 (gzip), and 57 against 63 (uncompressed).
+- **Bytes:** about 440 KB more script with gzip (765.1 KB against 325.7 KB), and about 1.6 MB
+  more uncompressed (2,580.3 KB against 977.3 KB).
+- **The other widgets' data:** the first daily-summary request starts at about 9.1 s without the
+  Map and about 10.0 s with it (gzip); uncompressed, at about 12.4 s against 13.8 s. The
+  calendars' `DayGrid` finishes at 8.0 s against 9.3 s (gzip).
 
 ## The local stack run
 
