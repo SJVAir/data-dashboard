@@ -642,7 +642,7 @@ string`) now get the union return type. The mobile app passes a string token, so
     snapshot API shape, so the dashboard build deployed with it must have its string snapshot ids
     (data-dashboard #63).
   - **Slow-CI fix, bulk `type`, location groups (sjvair.com #348–#350, merged 2026-11-21; #351,
-    open 2026-11-22):** nothing to run (no migration, command or cache step). **After the deploy,
+    merged 2026-11-22, 1af05307):** nothing to run (no migration, command or cache step). **After the deploy,
     check #351's valley-wide `pesticides/locations/` (no area) is cached:** its cached value is
     about 1–1.5 MB, and whether the hosted memcached keeps it (1 MB item limit, bmemcached
     compression) is unverified. A refused set only logs "Could not cache", and every request
