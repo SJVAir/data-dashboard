@@ -2338,6 +2338,16 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
 
 ## Widgets
 
+- **A new widget's pollutant from the monitors meta's `default_pollutant`.** _Deferred 2026-11-22
+  (spec 7c brainstorm, the user's call)._ A new widget, the starter dashboard, a Map added from the
+  Add menu, the Forecast strip's monitor search and the Where pickers use PM2.5 from
+  `DEFAULT_LAYER` (`src/lib/widgets/defaults.ts`), though `monitors/meta/` sends
+  `default_pollutant` and the SDK exposes it. Why: people pick the pollutant in the Data Portal,
+  and PM2.5 is the one most will want (the user: "Users will edit things as they need, and PM2.5
+  will probably be the most common one they want"). **Revisit when** people often switch away
+  from PM2.5, or a deployment needs another default. The readers are synchronous; the brainstorm's
+  lean then was a `defaultPollutant()` metadata method read where widgets are created.
+
 - **"Can we go outside?" with several pollutants: combining their guidelines.** _Deferred
   2026-11-22 (spec 7b plan, the user's choice)._ The widget holds one pollutant, chosen from those
   whose monitors meta has `school_guidelines` (PM2.5 alone today). Giving one answer from two
