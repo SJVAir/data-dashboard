@@ -62,7 +62,8 @@ export type WidgetType = {
 	load: () => Promise<WidgetModule>;
 	/**
 	 * Its code is big (the Map's): a frame loads it only once the frame is within 200 px of the
-	 * screen, focus moves into it, it's fullscreen, or the code has already loaded; until then the
+	 * screen, focus moves into it, it's fullscreen, or the type's code had already loaded when the
+	 * frame mounted (a frame already waiting loads once it reports near again); until then the
 	 * frame shows its pending state. Other types load as soon as their frame mounts.
 	 */
 	loadWhenNear?: boolean;

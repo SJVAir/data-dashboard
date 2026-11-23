@@ -124,7 +124,8 @@ test("a fullscreen frame loads its code at once", async () => {
 	await expect.poll(() => near.mock.calls.length).toBe(1);
 });
 
-test("once its code has loaded, a frame mounted off screen shows at once", async () => {
+// A frame mounted after the load; one already waiting loads once its observer reports again.
+test("a frame mounted off screen after its code has loaded shows at once", async () => {
 	const { near } = registerTypes();
 	// One frame near the screen (at the top) loads the code.
 	const first = await renderView(AT_ONCE, NEAR);
