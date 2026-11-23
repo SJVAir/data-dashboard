@@ -50,6 +50,8 @@
 					app.current = { session: latest, isStarter: true };
 					session.discard();
 				}
+				// The starter shown now (the types may have swapped it after the re-read).
+				starter = app.current.isStarter ? app.current.session : starter;
 				// Edits a starter page left mid-hand-off (it went away) are handed off now.
 				void starter?.replayPending();
 			})();

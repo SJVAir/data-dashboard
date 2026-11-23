@@ -605,6 +605,57 @@ describe("the starter's monitor types", () => {
 		expectFromStarter(await stored(platform, copy.doc.id), DEFAULT_PLACE);
 	});
 
+	it("Clear my data while they load: only the starter built after it is swapped", async () => {
+		const answer = holdTypes();
+		const { app } = await setup(SCHOOL);
+		const before = await showStarter(app);
+		await app.resetAfterClear();
+		const after = await showStarter(app);
+		expect(after).not.toBe(before);
+		answer();
+		await vi.waitFor(() => expect(app.current.session).not.toBe(after));
+		const shown = app.current.session!;
+		expect(shown).not.toBe(before);
+		expect(app.current.isStarter).toBe(true);
+		expect(mapTypes(shown.doc)).toEqual(TYPES);
+		expect(shown.doc.body.placeBar).toEqual({ place: DEFAULT_PLACE });
+		expect(app.openSessions()).toEqual([shown]);
+		expect(loadMonitorTypes).toHaveBeenCalledOnce();
+	});
+
+	for (const item of ["duplicate-dashboard", "duplicate-for-another-place"]) {
+		it(`${item}: an edit while the types load is duplicated in the copy, no second copy`, async () => {
+			const answer = holdTypes();
+			const { platform, app } = await setup(ZIP);
+			const starter = await showStarter(app);
+			vi.mocked(openPlacePicker).mockClear();
+			await run(app, item);
+			if (item === "duplicate-for-another-place") {
+				await vi.waitFor(() => expect(openPlacePicker).toHaveBeenCalled());
+				const { pick } = vi.mocked(openPlacePicker).mock.calls[0][0] as {
+					pick: (p: ChosenPlace) => void;
+				};
+				pick(TULARE);
+			}
+			starter.apply(rename);
+			answer();
+			await vi.waitFor(async () =>
+				expect(await platform.documents.list("anonymous")).toHaveLength(2)
+			);
+			const docs = (await platform.documents.list("anonymous")) as Dashboard[];
+			const copy = docs.find((d) => d.copiedFrom === STARTER_ID)!;
+			const duplicate = docs.find((d) => d !== copy)!;
+			expect(copy.name).toBe("Mine");
+			expect(duplicate.copiedFrom).toBe(copy.id);
+			expect(mapTypes(duplicate)).toEqual(TYPES);
+			if (item === "duplicate-for-another-place") {
+				expect(duplicate.body.placeBar).toEqual({ place: TULARE });
+			}
+			await new Promise((resolve) => setTimeout(resolve, 10));
+			expect(await platform.documents.list("anonymous")).toHaveLength(2);
+		});
+	}
+
 	it("loads once per app, kept through Clear my data", async () => {
 		const { app } = await setup();
 		await showStarter(app);

@@ -198,18 +198,16 @@ function renameDashboard(app: AppContext, session: () => DocumentSession | null)
 async function duplicateDashboard(app: AppContext, id?: string): Promise<void> {
 	const target = await resolveTarget(app, id);
 	if (!target || target.session.readOnly) return;
-	// The index copies the stored document, so store this tab's edits first.
-	if (!target.isStarter) await target.session.flush();
-	// The starter's copy has the catalog's monitor types, so they're loaded first.
-	const types = target.isStarter ? await app.starterTypesReady() : [];
-	const copyId = target.isStarter
+	const source = await duplicateSource(app, target);
+	if (!source) return;
+	const copyId = source.isStarter
 		? await app.index.duplicate(STARTER_ID, {
 				from: app.starterPlace,
 				to: app.starterPlace,
 				area: app.starterArea,
-				types
+				types: source.types
 			})
-		: await app.index.duplicate(target.session.doc.id);
+		: await app.index.duplicate(source.id);
 	await openDashboard(copyId);
 	await nameOpenedCopy(app, copyId);
 }
@@ -242,20 +240,43 @@ async function copyWithPlace(
 	from: ChosenPlace,
 	to: ChosenPlace
 ): Promise<void> {
-	const { session, isStarter } = target;
-	if (session.readOnly) return;
-	// The index copies the stored document, so store this tab's edits first.
-	if (!isStarter) await session.flush();
-	// The starter's copy has the catalog's monitor types, so they're loaded first.
-	const types = isStarter ? await app.starterTypesReady() : [];
+	if (target.session.readOnly) return;
+	const source = await duplicateSource(app, target);
+	if (!source) return;
+	const { id, isStarter, types } = source;
 	// The starter is built at its chosen place, the bar's place `from`.
-	const copyId = await app.index.duplicate(isStarter ? STARTER_ID : session.doc.id, {
+	const copyId = await app.index.duplicate(id, {
 		from,
 		to,
 		...(isStarter ? { area: app.starterArea, types } : {})
 	});
 	await openDashboard(copyId);
 	await nameOpenedCopy(app, copyId);
+}
+
+/**
+ * What Duplicate copies, with this tab's edits stored first (the index copies the stored
+ * document). The starter's copy has the catalog's monitor types, so they're waited for; if the
+ * starter's hand-off started meanwhile, its copy is duplicated instead, as any dashboard (the edit
+ * is in it, and no second copy of the built-in one is stored). `null`: nothing to copy (the
+ * hand-off failed).
+ */
+async function duplicateSource(
+	app: AppContext,
+	target: { session: DocumentSession; isStarter: boolean }
+): Promise<{ id: string; isStarter: boolean; types: readonly string[] } | null> {
+	if (!target.isStarter) {
+		await target.session.flush();
+		return { id: target.session.doc.id, isStarter: false, types: [] };
+	}
+	const types = await app.starterTypesReady();
+	// The starter shown now (the types may have replaced the unedited one).
+	const starter = app.current.isStarter ? (app.current.session ?? target.session) : target.session;
+	if (!starter.edited) return { id: STARTER_ID, isStarter: true, types };
+	const copy = await starter.handoff;
+	if (!copy) return null;
+	await copy.flush();
+	return { id: copy.doc.id, isStarter: false, types: [] };
 }
 
 /** Asks what to call a copy that was just opened (Duplicate and "Save mine as a copy"). */
