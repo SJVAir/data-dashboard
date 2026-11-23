@@ -772,11 +772,19 @@ test("on a phone every starter widget spans the grid and the menu button is tapp
 	await page.viewport(390, 844);
 	const { app } = await seed(starterDashboard(FRESNO, null, []).body.widgets);
 	await renderGrid(app);
-	await expect.element(frame("starter-6")).toBeVisible();
+	await expect.element(frame("starter-7")).toBeVisible();
 	const grid = frame("starter-1").element().parentElement!;
 	await expect.poll(() => getComputedStyle(grid).gridTemplateColumns.split(" ")).toHaveLength(1);
 	const gridWidth = grid.getBoundingClientRect().width;
-	const ids = ["starter-1", "starter-2", "starter-3", "starter-4", "starter-5", "starter-6"];
+	const ids = [
+		"starter-1",
+		"starter-2",
+		"starter-3",
+		"starter-4",
+		"starter-5",
+		"starter-6",
+		"starter-7"
+	];
 	for (const id of ids) {
 		expect(frame(id).element().getBoundingClientRect().width).toBeCloseTo(gridWidth, 0);
 	}

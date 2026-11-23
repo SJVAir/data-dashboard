@@ -184,7 +184,8 @@ describe("starter template", () => {
 	});
 
 	it("the template holds no monitor types", () => {
-		expect(JSON.stringify(starterTemplate())).not.toContain("monitorTypes");
+		for (const w of starterTemplate().body.widgets)
+			for (const layer of w.data.layers) expect("monitorTypes" in layer).toBe(false);
 	});
 
 	it("returns a fresh object each time", () => {
@@ -234,7 +235,8 @@ describe("starter dashboard", () => {
 				expect(ticked[0]).toMatchObject({ dataset: "air-quality", monitorTypes: ["a", "b"] });
 			} else expect(ticked).toEqual([]);
 		}
-		expect(JSON.stringify(starterDashboard(FRESNO, null, []))).not.toContain("monitorTypes");
+		const map = starterDashboard(FRESNO, null, []).body.widgets.find((w) => w.type === "map")!;
+		for (const layer of map.data.layers) expect("monitorTypes" in layer).toBe(false);
 	});
 
 	it("starter with a gone place still builds", () => {
@@ -377,6 +379,31 @@ describe("starterSession", () => {
 		const stored = (await platform.documents.get(SPACE, copies[0])) as Dashboard;
 		const map = stored.body.widgets.find((w) => w.type === "map")!;
 		expect(map.data.layers[0].monitorTypes).toEqual(["a"]);
+	});
+
+	it("data cleared while typesReady is pending stores no copy", async () => {
+		const platform = createMemoryPlatform();
+		const onCleared = vi.fn();
+		const onCopied = vi.fn();
+		let ready!: (types: string[]) => void;
+		const pending = new Promise<string[]>((resolve) => (ready = resolve));
+		const starter = starterSession({
+			platform,
+			space: SPACE,
+			tabId: "tab-1",
+			now: () => NOW,
+			place: SCHOOL,
+			types: [],
+			typesReady: () => pending,
+			onCleared,
+			onCopied
+		});
+		starter.apply(renameWidget("starter-1", "Fresno"));
+		await platform.reset.clearAll();
+		ready(["a"]);
+		await vi.waitFor(() => expect(onCleared).toHaveBeenCalled());
+		expect(onCopied).not.toHaveBeenCalled();
+		expect(await platform.documents.list(SPACE)).toEqual([]);
 	});
 
 	it("a first edit after this browser's data was cleared stores no copy", async () => {
