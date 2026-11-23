@@ -2260,6 +2260,32 @@ test.describe("schools and child care", () => {
 		expect(locationRequests.map((p) => p.getAll("region"))).toEqual([["c85na"]]);
 	});
 
+	test("a Map with no Where and Child care ticked loads the valley once and draws every site", async ({
+		page
+	}) => {
+		const valleyDoc = structuredClone(rooseveltDoc);
+		valleyDoc.id = "shared-map-valley";
+		const widget = valleyDoc.body.widgets[0] as { data: Record<string, unknown> };
+		widget.data = {
+			layers: [
+				{ dataset: "air-quality", entryType: "pm25", monitorTypes: EVERY_MONITOR_TYPE },
+				{ dataset: "locations", locationTypes: ["child_care"] }
+			]
+		};
+		await openSharedDoc(page, valleyDoc);
+		const map = page.getByRole("region", { name: /map$/ }).first();
+		await expect(
+			legendOf(map).getByRole("heading", { level: 3, name: "Child care", exact: true })
+		).toBeVisible();
+		const list = await featureList(map);
+		await expect(list.getByRole("option", { name: /^EXAMPLE / })).toHaveCount(3);
+		await expect(list.getByRole("option", { name: /^(Example|Roosevelt) / })).toHaveCount(0);
+		await closeFeatureList(map);
+		// One valley-wide request: no area, no type.
+		expect(locationRequests).toHaveLength(1);
+		expect([...locationRequests[0].keys()]).toEqual([]);
+	});
+
 	test("Show as Chart from a Map with schools notes them left out", async ({ page }) => {
 		await openSharedDoc(page, rooseveltDoc);
 		const [title] = await widgetTitles(page).allTextContents();

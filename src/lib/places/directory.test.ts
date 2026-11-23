@@ -30,7 +30,11 @@ const META = {
 		empty: { type: "empty", label: "Empty", count: 0, parents: [], browsable: true }
 	},
 	location_types: {
-		school: { type: "school", label: "School", source: "cde" }
+		school: { type: "school", label: "School", source: "cde", group: "school" }
+	},
+	location_groups: {
+		school: { key: "school", label: "Schools", order: 0 },
+		child_care: { key: "child_care", label: "Child care", order: 1 }
 	}
 };
 

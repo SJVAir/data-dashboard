@@ -86,7 +86,8 @@ beforeEach(() => {
 	resetLocationsCache();
 	get.mockReset();
 	get.mockImplementation(async (params) => {
-		const region = (params as { region: string }).region;
+		const region = (params as { region?: string } | undefined)?.region;
+		if (region === undefined) return collection("v1", "v2", "v3");
 		if (region === sqid("county", "fresno")) return collection("s1", "s2");
 		if (region === sqid("city", "clovis")) return collection("s2", "s3");
 		return collection("s9");
@@ -240,10 +241,28 @@ describe("locationsEntry", () => {
 		expect(get).not.toHaveBeenCalled();
 	});
 
-	it("no Where isn't wired yet: unavailable, with no call", async () => {
-		// Until the valley-wide call is wired (the pinned SDK takes an area).
-		expect(await sourceOf(withWhere({}))).toEqual({ unavailable: "place-unsupported" });
-		expect(get).not.toHaveBeenCalled();
+	it("no Where is one valley-wide call, with no area and no type", async () => {
+		const loaded = await load(withWhere({}));
+		expect(get).toHaveBeenCalledTimes(1);
+		const params = get.mock.calls[0][0] as unknown as Record<string, unknown> | undefined;
+		expect(params ?? {}).toEqual({});
+		expect(loaded.features.map((f) => f.id)).toEqual(["v1", "v2", "v3"]);
+		expect(((await sourceOf(withWhere({}))) as Src).key).toBe("map-locations:@valley");
+	});
+
+	it("the valley's sites are fetched once and shared, never copied; a failure is fetched again", async () => {
+		const first = await load(withWhere({}));
+		const other: Layer = { dataset: "locations", locationTypes: ["b"] };
+		const second = await load(withWhere({}, [other]));
+		expect(get).toHaveBeenCalledTimes(1);
+		expect(second.features).toBe(first.features);
+
+		resetLocationsCache();
+		get.mockClear();
+		get.mockRejectedValueOnce(new Error("offline"));
+		await expect(load(withWhere({}))).rejects.toThrow("offline");
+		expect((await load(withWhere({}))).features.map((f) => f.id)).toEqual(["v1", "v2", "v3"]);
+		expect(get).toHaveBeenCalledTimes(2);
 	});
 
 	it("loads nothing without the layer, or with no type ticked", async () => {

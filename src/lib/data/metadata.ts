@@ -7,6 +7,7 @@ import {
 	getMonitorsMeta,
 	getRegionsMeta,
 	type DatasetCatalog,
+	type LocationGroup as SdkLocationGroup,
 	type MonitorGroup,
 	type SchoolGuidelines,
 	type Retired
@@ -140,19 +141,6 @@ export type LocationGroup = {
 	label: string;
 	order: number;
 	types: LocationTypeInfo[];
-};
-
-/**
- * The regions meta's location groups, which the pinned SDK's types don't have yet (remove with
- * the SDK beta that adds them). The SDK keeps the raw JSON, so `location_types[t].group` is
- * there; `location_groups` has no getter, and is read from the SDK's held meta when present.
- */
-type RegionsMetaGroups = {
-	location_types: Partial<
-		Record<string, { type: string; label: string; source: string; group?: string | null }>
-	>;
-	location_groups?: Record<string, { key: string; label: string; order: number }>;
-	meta?: { location_groups?: RegionsMetaGroups["location_groups"] };
 };
 
 export interface MetadataSource {
@@ -547,18 +535,17 @@ export function createWebMetadata(): MetadataSource {
 			return (Object.hasOwn(types, type) && types[type]?.label) || null;
 		},
 		async locationGroups(signal) {
-			const raw = (await regionsMeta(signal)) as unknown as RegionsMetaGroups;
-			const defined = raw.location_groups ?? raw.meta?.location_groups ?? {};
+			const meta = await regionsMeta(signal);
+			const defined: Record<string, SdkLocationGroup> = meta.location_groups;
 			const named = new Map<string, LocationGroup>();
 			for (const [id, g] of Object.entries(defined)) {
 				named.set(id, { key: g.key, label: g.label, order: g.order, types: [] });
 			}
+			// A type whose group the meta doesn't define (a newer server's) is a group of its own.
 			const alone: LocationGroup[] = [];
-			for (const t of Object.values(raw.location_types ?? {})) {
-				if (!t) continue;
+			for (const t of Object.values(meta.location_types)) {
 				const info = { type: t.type, label: t.label, source: t.source };
-				const group =
-					t.group != null && Object.hasOwn(defined, t.group) ? named.get(t.group) : null;
+				const group = Object.hasOwn(defined, t.group) ? named.get(t.group) : null;
 				if (group) group.types.push(info);
 				else alone.push({ key: t.type, label: t.label, order: 0, types: [info] });
 			}

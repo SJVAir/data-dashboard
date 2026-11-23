@@ -498,7 +498,15 @@ describe("createWebMetadata", () => {
 
 	it("reads monitor groups, entry help and location type labels", async () => {
 		vi.mocked(getRegionsMeta).mockResolvedValue({
-			location_types: { child_care: { label: "Child care" } }
+			location_groups: { child_care: { key: "child_care", label: "Child care", order: 0 } },
+			location_types: {
+				child_care: {
+					type: "child_care",
+					label: "Child care",
+					source: "cdss-ccl",
+					group: "child_care"
+				}
+			}
 		} as never);
 		const md = createWebMetadata();
 		expect(await md.monitorGroups()).toEqual([
@@ -538,7 +546,7 @@ describe("createWebMetadata", () => {
 					source: "cdss-ccl",
 					group: "child_care"
 				},
-				museum: { type: "museum", label: "Museum", source: "osm" }
+				museum: { type: "museum", label: "Museum", source: "osm", group: "museum" }
 			}
 		} as never);
 		const md = createWebMetadata();
@@ -562,32 +570,11 @@ describe("createWebMetadata", () => {
 		expect(await md.locationSources()).toEqual(["cde-public", "cde-private", "cdss-ccl", "osm"]);
 	});
 
-	it("reads location groups from the SDK's held meta when there is no getter", async () => {
+	it("makes a type whose group the meta doesn't define a group of its own", async () => {
 		vi.mocked(getRegionsMeta).mockResolvedValue({
-			meta: { location_groups: { school: { key: "school", label: "Schools", order: 0 } } },
+			location_groups: {},
 			location_types: {
-				public_school: {
-					type: "public_school",
-					label: "Public school",
-					source: "cde-public",
-					group: "school"
-				}
-			}
-		} as never);
-		expect(await createWebMetadata().locationGroups()).toEqual([
-			{
-				key: "school",
-				label: "Schools",
-				order: 0,
-				types: [{ type: "public_school", label: "Public school", source: "cde-public" }]
-			}
-		]);
-	});
-
-	it("makes every type its own group with no group definitions or an unknown group", async () => {
-		vi.mocked(getRegionsMeta).mockResolvedValue({
-			location_types: {
-				a: { type: "a", label: "A", source: "sa" },
+				a: { type: "a", label: "A", source: "sa", group: "a" },
 				b: { type: "b", label: "B", source: "sb", group: "missing" }
 			}
 		} as never);
@@ -598,7 +585,10 @@ describe("createWebMetadata", () => {
 	});
 
 	it("locationGroups is [] when the meta lists no location types", async () => {
-		vi.mocked(getRegionsMeta).mockResolvedValue({ location_types: {} } as never);
+		vi.mocked(getRegionsMeta).mockResolvedValue({
+			location_groups: { school: { key: "school", label: "Schools", order: 0 } },
+			location_types: {}
+		} as never);
 		expect(await createWebMetadata().locationGroups()).toEqual([]);
 	});
 

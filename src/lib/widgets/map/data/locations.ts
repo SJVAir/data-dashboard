@@ -83,26 +83,31 @@ export async function locationAreas(data: WidgetDataConfig, signal?: AbortSignal
 }
 
 /**
- * Each region's sites, by sqid: fetched once a session and shared by every Map (sites change
- * rarely). A failed fetch is forgotten, so the next load asks again. The shared fetch carries no
- * caller's signal, so one caller's abort rejects only its own load.
+ * Each region's sites, by sqid, and the whole valley's under `VALLEY`: fetched once a session and
+ * shared by every Map (sites change rarely). A failed fetch is forgotten, so the next load asks
+ * again. The shared fetch carries no caller's signal, so one caller's abort rejects only its own
+ * load.
  */
 const areaSites = new Map<string, Promise<PesticideLocationFeature[]>>();
 
-function sitesIn(sqid: string): Promise<PesticideLocationFeature[]> {
-	let request = areaSites.get(sqid);
+/** The key of the valley-wide list (about 2,800 sites), for no Where; never a sqid (no `@`). */
+const VALLEY = "@valley";
+
+function sitesIn(area: string): Promise<PesticideLocationFeature[]> {
+	let request = areaSites.get(area);
 	if (!request) {
-		request = getPesticideLocations({ region: sqid }).then((c) => c.features);
+		const params = area === VALLEY ? {} : { region: area };
+		request = getPesticideLocations(params).then((c) => c.features);
 		const made = request;
 		made.catch(() => {
-			if (areaSites.get(sqid) === made) areaSites.delete(sqid);
+			if (areaSites.get(area) === made) areaSites.delete(area);
 		});
-		areaSites.set(sqid, made);
+		areaSites.set(area, made);
 	}
 	return request;
 }
 
-/** Forgets every area's sites (for tests). */
+/** Forgets every area's sites, and the valley's (for tests). */
 export function resetLocationsCache(): void {
 	areaSites.clear();
 }
@@ -123,16 +128,16 @@ async function sitesInAreas(areas: string[], signal: AbortSignal): Promise<Locat
  * The schools and child care sites in the Map's Where, every type (ticking a type filters what's
  * loaded, never refetches): nothing without the layer or with no type ticked. Sites have no time,
  * so the day showing is ignored and the key holds only the areas' sqids; the Map never polls it.
- * With no Where it is unavailable for now: the pinned SDK needs an area, and the valley-wide load
- * is wired separately.
+ * With no Where it loads the whole valley's sites (one shared list; each Map filters it, never
+ * copies it).
  */
 export const locationsEntry: MapDataEntry<LocationsData, never, { locations: SchoolsSource }> = {
 	id: "locations",
 	async source({ data }, signal) {
 		if (!locationsLayer(data)?.locationTypes?.length) return null;
-		const areas = await locationAreas(data, signal);
-		if (areas === "everywhere") return { unavailable: "place-unsupported" };
-		if (!Array.isArray(areas)) return areas;
+		const found = await locationAreas(data, signal);
+		if (!Array.isArray(found) && found !== "everywhere") return found;
+		const areas = found === "everywhere" ? [VALLEY] : found;
 		return {
 			key: `map-locations:${areas.join(",")}`,
 			cadence: "hour",

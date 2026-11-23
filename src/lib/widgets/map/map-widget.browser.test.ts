@@ -3326,6 +3326,10 @@ const ZIP_META = {
 		}
 	},
 	location_types: {},
+	location_groups: {
+		school: { key: "school", label: "Schools", order: 0 },
+		child_care: { key: "child_care", label: "Child care", order: 1 }
+	},
 	buffers: []
 };
 
