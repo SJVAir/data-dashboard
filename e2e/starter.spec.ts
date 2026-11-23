@@ -7,6 +7,7 @@
  */
 import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
+import { EVERY_MONITOR_TYPE, routeMapMeta } from "./map-data-server";
 import {
 	CHART_TITLE,
 	DASHBOARD_URL,
@@ -94,6 +95,76 @@ test("Change place on the starter makes no copy and survives a reload", async ({
 	await expect(widgetTitles(page)).toHaveText(TULARE_TITLES);
 	await expect(bar(page).getByText("Showing Tulare County")).toBeVisible();
 	await expect(page).toHaveURL(/\/workspace\/$/);
+});
+
+/** The starter's Map (its region, holding the GL map and its toolbar). */
+function starterMap(page: Page, place = "Fresno County"): Locator {
+	return page.getByRole("region", { name: `PM2.5 · ${place} map`, exact: true });
+}
+
+test.describe("the starter's Map", () => {
+	test("shows full width under the now row, with smoke and fire", async ({
+		page,
+		context,
+		browserName
+	}) => {
+		// The metadata with the smoke and fire datasets, so the toolbar has its Layers menu.
+		await routeMapMeta(context);
+		test.skip(browserName === "firefox", "no WebGL for the toolbar in Firefox here");
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await page.goto("./");
+		await expect(widgetTitles(page)).toHaveText(STARTER_TITLES);
+		const map = starterMap(page);
+		await expect(map).toBeVisible();
+		const main = (await page.getByRole("main").boundingBox())!;
+		const frame = (await map.boundingBox())!;
+		// Full width: it spans the grid, whatever the page's padding.
+		expect(frame.width).toBeGreaterThan(main.width * 0.85);
+		// Under the now row: below the Forecast, the last of the three above it.
+		const forecast = (await titleBar(page, STARTER_TITLES[3]).boundingBox())!;
+		expect(frame.y).toBeGreaterThan(forecast.y + forecast.height);
+		const toolbar = map.getByRole("group", { name: "Map options", exact: true });
+		const layers = toolbar.getByRole("button", { name: "Layers", exact: true });
+		await expect(layers).toBeVisible();
+		await layers.click();
+		await expect(
+			toolbar.getByRole("checkbox", { name: "Fire & Smoke", exact: true })
+		).toBeChecked();
+	});
+
+	test("Change place moves the Map", async ({ page }) => {
+		await page.goto("./");
+		await expect(starterMap(page)).toBeVisible();
+		await changeBarPlace(page, "Tulare County");
+		await expect(widgetTitles(page)).toHaveText(TULARE_TITLES);
+		await expect(widgetTitles(page).nth(4)).toHaveText("PM2.5 · Tulare County");
+		await expect(starterMap(page, "Tulare County")).toBeVisible();
+	});
+
+	test("the first edit's copy keeps the Map's monitor types", async ({ page }) => {
+		await page.goto("./");
+		await expect(widgetTitles(page)).toHaveText(STARTER_TITLES);
+		await renameWidget(page, NOTE, "My first widget");
+		await expect(page).toHaveURL(DASHBOARD_URL);
+		await expectSaved(page);
+		const docs = (await storedDashboards(page)) as {
+			body: { widgets: { type: string; data: { layers?: { monitorTypes?: string[] }[] } }[] };
+		}[];
+		expect(docs).toHaveLength(1);
+		const map = docs[0].body.widgets.find((w) => w.type === "map")!;
+		expect(map.data.layers![0].monitorTypes).toEqual(EVERY_MONITOR_TYPE);
+	});
+
+	test("on a phone it is full width", async ({ page }) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		await page.goto("./");
+		await expect(widgetTitles(page)).toHaveText(STARTER_TITLES);
+		const map = starterMap(page);
+		await expect(map).toBeVisible();
+		const frame = (await map.boundingBox())!;
+		expect(frame.width).toBeGreaterThan(390 * 0.85);
+		expect(frame.x + frame.width).toBeLessThanOrEqual(390);
+	});
 });
 
 /** The one stored dashboard: its bar's place, and each data widget's place (its Where). */
@@ -313,7 +384,7 @@ for (const colorScheme of ["light", "dark"] as const) {
 		test.describe(`${colorScheme} mode, ${size}`, () => {
 			test.use({ colorScheme, viewport });
 
-			test("the starter has no violations and reads Note, Current, Outside, Forecast, Chart, Calendar", async ({
+			test("the starter has no violations and reads Note, Current, Outside, Forecast, Map, Chart, Calendar", async ({
 				page
 			}) => {
 				await page.goto("./");

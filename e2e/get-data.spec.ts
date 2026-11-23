@@ -464,8 +464,8 @@ test("Add widget → Current conditions keeps the default alert level through Ed
 	await expect(page).toHaveURL(DASHBOARD_URL);
 	await expect(widgetTitles(page).last()).toHaveText(title);
 
-	// The one just added, after the starter's own Current conditions.
-	await widgetMenuItem(page, title, "Open in Data Portal", 1);
+	// The one just added, after the starter's own Current conditions and Map (same title).
+	await widgetMenuItem(page, title, "Open in Data Portal", 2);
 	await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeFocused();
 	await expect(page.getByRole("radio", { name: "Current conditions" })).toBeChecked();
 	await expect(page.getByRole("combobox", { name: "Alert level" })).toHaveValue(usg);

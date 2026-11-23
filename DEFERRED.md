@@ -2619,10 +2619,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **Monitor-place tiles each fetch the whole Valley's current list** under their own key and
     filter client-side (`data/monitors.ts`); keying by entry type would share one request.
     **Revisit when** a dashboard has several monitor-place maps, or in a performance pass.
-  - **Test gaps kept:** the starter hand-off test uses a hand-built session (the real starter
-    holds no Map widget, and adding one is itself the first edit that hands off, so the test
-    can't start from a starter holding a Map until a starter preset has one). **Add with** the
-    next change to it.
   - **Small behaviours kept:** `serverScale` falls back to the monitors meta for unknown datasets
     (guard on air-quality); `mapMetadata.entryType` reads the catalog only (no scale fallback);
     `monitorsUnavailable` is written inside a now-client fetch; the HMS cache key's date is fixed

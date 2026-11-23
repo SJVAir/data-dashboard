@@ -44,6 +44,7 @@ import { formatNumber, pacificDay, todayPacific } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";
 import { setPlatform } from "$lib/platform";
 import { createMemoryPlatform, type MemoryPlatform } from "$lib/platform/memory";
+import { STARTER_ID } from "$lib/starter/starter";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { DocumentSession } from "$lib/store/document-session.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
@@ -1710,35 +1711,39 @@ test("a widget not in the session's document (a shared view) takes no marks", as
 
 test("hands a mark on the starter off to its copy", async () => {
 	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
-	const widget = mapWidget(region("019"));
-	// The stored dashboard stands in for the starter's copy.
-	const copy = await openSession(widget);
-	const handedOff: unknown[] = [];
-	const starter = new DocumentSession({
-		platform,
-		space: app().space,
-		tabId: "t3",
-		doc: { ...copy.doc, id: "starter" },
-		onBeforeFirstEdit: async (change) => {
-			handedOff.push(change);
-			copy.apply(change!);
-			app().current = { session: copy, isStarter: false };
-			return copy;
-		}
-	});
-	app().current = { session: starter, isStarter: true };
+	// The real starter: its Map widget, in the app's own starter session.
+	platform = createMemoryPlatform();
+	setPlatform(platform);
+	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	shownApp = app;
+	// The catalog's monitor types, which the starter's Map ticks.
+	vi.mocked(getMetadata).mockReturnValue(
+		fixtureMetadata({
+			catalog: async () =>
+				CATALOG.map((d) => (d.id === "air-quality" ? { ...d, monitorTypes: [...EVERY_TYPE] } : d))
+		})
+	);
+	// The monitor types arrive and replace the shown starter, so take the session after them.
+	await app.starterTypesReady();
+	const starter = (await app.sessions.get(STARTER_ID, { remember: false }))!;
+	app.current = { session: starter, isStarter: true };
+	const widget = starter.doc.body.widgets.find((w) => w.type === "map")!;
 	await render(MapWidget, {
 		target: frame,
 		props: { widget },
-		context: new Map<unknown, unknown>([[APP_CONTEXT_KEY, app()]])
+		context: new Map<unknown, unknown>([[APP_CONTEXT_KEY, app]])
 	});
 	const map = await madeMap();
 	await expect.poll(() => drawn(map)).toEqual(["a"]);
 	map.shiftClick("monitors", monitor("a"));
-	await expect.poll(() => handedOff.length).toBe(1);
-	await expect.poll(() => mapOptions(copy.doc.body.widgets[0]).marks).toEqual(["a"]);
-	expect(mapOptions(starter.doc.body.widgets[0]).marks).toBeUndefined();
-	expect(app().current.session).toBe(copy);
+	// The first edit stores a copy of the starter and moves the session to it.
+	await expect.poll(() => app.current.isStarter).toBe(false);
+	const copy = app.current.session!;
+	expect(copy).not.toBe(starter);
+	const copied = copy.doc.body.widgets.find((w) => w.type === "map")!;
+	expect(copied.data.layers[0].monitorTypes).toEqual(EVERY_TYPE);
+	await expect.poll(() => mapOptions(copied).marks).toEqual(["a"]);
+	expect(mapOptions(starter.doc.body.widgets.find((w) => w.type === "map")!).marks).toBeUndefined();
 });
 
 /** Shows `widget` in the grid's editing context (where the Map offers Show in). */
