@@ -3364,7 +3364,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   animation paused or long enough to be seen (as the keyboard-resize entry above suggests), and
   wait on the autoscroll's first frame rather than counting frames in a fixed 150 ms.
 
-- **WebKit E2E runs at 1x, so it doesn't cover drawing at 2x.** _Noted 2026-11-23 (step 5,
+- **WebKit E2E runs at 1x, so it doesn't cover drawing at 2x.** _Noted 2026-11-22 (step 5,
   WebKit E2E fix)._ The WebKit project now sets `deviceScaleFactor: 1` (`playwright.config.ts`),
   like the Chrome and Firefox devices. Playwright's "Desktop Safari" device draws at 2x, and in
   CI's software rendering on shared CPUs a 2x frame took 0.5-2.5 s (a probe logged the gaps while
