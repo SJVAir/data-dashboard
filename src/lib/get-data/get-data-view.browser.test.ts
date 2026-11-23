@@ -2277,6 +2277,39 @@ describe("now widgets", () => {
 			await page.getByRole("radio", { name: "Map" }).click();
 			await expect.element(box("Public school")).toBeVisible();
 		});
+
+		/** A Map draft of monitor m1 with only Child care ticked. */
+		const childCareMap = () => {
+			const draft = monitorsDraft(["m1"], { type: "map" });
+			draft.data.layers.push({ dataset: "locations", locationTypes: ["child_care"] });
+			return draft;
+		};
+
+		test("Show as a Chart names the ticked groups it leaves out, from the meta", async () => {
+			const { current } = await show(childCareMap());
+			await expect.element(box("Child care")).toBeChecked();
+			await page.getByRole("radio", { name: "Chart" }).click();
+			await expect
+				.element(page.getByText(m.get_data_dropped_locations({ layers: "Child care" })))
+				.toBeVisible();
+			// Only the ticked group: the untouched Schools section isn't named.
+			expect(
+				page.getByText(m.get_data_dropped_locations({ layers: "Schools and Child care" })).query()
+			).toBeNull();
+			expect((await current()).data.layers.some((l) => l.dataset === "locations")).toBe(false);
+		});
+
+		test("with the groups unknown, the left-out note names none", async () => {
+			fake.metadata = fixtureMetadata({
+				catalog: async () => CATALOG,
+				locationGroups: async () => {
+					throw new Error("offline");
+				}
+			});
+			await show(childCareMap());
+			await page.getByRole("radio", { name: "Chart" }).click();
+			await expect.element(page.getByText(m.get_data_dropped_locations_unnamed())).toBeVisible();
+		});
 	});
 
 	test("a Map link with 30 places opens cut to 25, and says so", async () => {

@@ -209,7 +209,8 @@ describe("Show as from a Map with schools and child care", () => {
 		expect(c.dropped).toContain("locations");
 		expect(c.dropped).not.toContain("overlays");
 		expect(c.draft.data.layers.some((l) => l.dataset === "locations")).toBe(false);
-		expect(m.get_data_dropped_locations()).toMatch(/left out/);
+		// The ticked types go with the conversion, so its note can name their groups.
+		expect(c.locationTypes).toEqual(["x"]);
 	});
 });
 

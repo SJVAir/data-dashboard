@@ -5150,6 +5150,42 @@ describe("schools and child care on the Map", () => {
 			.toHaveLength(1);
 	});
 
+	test("only Child care ticked: the failed note names only Child care", async () => {
+		vi.mocked(getPesticideLocations).mockRejectedValue(new Error("offline"));
+		const screen = await show(locationsMap(["child_care"]));
+		const map = await madeMap();
+		map.ready = true;
+		await expect
+			.element(screen.getByText(m.map_locations_failed({ layers: "Child care" })))
+			.toBeVisible();
+		expect(screen.getByText(/Schools/).query()).toBeNull();
+	});
+
+	test("only types the meta doesn't list: nothing to draw, said as such", async () => {
+		const screen = await show(
+			noPollutant(region("019"), [{ dataset: "locations", locationTypes: ["museum"] }])
+		);
+		await expect.element(screen.getByText(m.map_empty_add_layers())).toBeVisible();
+	});
+
+	test("a refetch with one group hidden keeps the other's plugin", async () => {
+		vi.mocked(getPesticideLocations)
+			.mockRejectedValueOnce(new Error("offline"))
+			.mockResolvedValue(siteCollection([site("c1", "child_care")]) as never);
+		const widget = locationsMap(["public_school", "child_care"]);
+		widget.options = { hiddenLocationGroups: ["school"] };
+		const screen = await show(widget);
+		const map = await madeMap();
+		map.ready = true;
+		await expect.poll(() => schoolsOf(map, "child_care")).toBeTruthy();
+		expect(schoolsOf(map, "school")).toBeUndefined();
+		const mounted = schoolsOf(map, "child_care");
+		await screen.getByRole("button", { name: m.widget_state_retry() }).click();
+		await expect.poll(() => mounted!.options.source.features?.features).toHaveLength(1);
+		expect(schoolsOf(map, "child_care")).toBe(mounted);
+		expect(schoolsOf(map, "school")).toBeUndefined();
+	});
+
 	test("the groups failing: a note, and Retry reads them again", async () => {
 		const groups = fixtureMetadata().locationGroups;
 		const locationGroups = vi
@@ -5227,6 +5263,23 @@ describe("schools and child care on the Map", () => {
 			feature.geometry.coordinates
 		);
 		expect(getPesticideLocations).toHaveBeenCalledWith({ region: "z93721" });
+	});
+
+	test("a site whose point differs from the resolver's: the pin follows the resolver", async () => {
+		const [lon, lat] = [-119.8123456, 36.7654321];
+		schoolResolvers(lon, lat);
+		vi.mocked(getPesticideLocations).mockResolvedValue(
+			siteCollection([site("s1", "public_school", lon + 0.001, lat - 0.001)]) as never
+		);
+		await show(locationsMap(["public_school"], school));
+		const map = await madeMap();
+		map.ready = true;
+		await expect
+			.poll(() => schoolsOf(map, "school")?.options.source.features?.features)
+			.toHaveLength(1);
+		await expect
+			.poll(() => focusOf(map)?.geometry)
+			.toEqual({ type: "Point", coordinates: [lon, lat] });
 	});
 
 	test("the focus school with its type unticked: the pin as today", async () => {

@@ -152,6 +152,14 @@
 			return types.length ? [{ key: g.key, label: g.label, types }] : [];
 		});
 	});
+	/**
+	 * The tile draws schools or child care: once the groups are known, a group has a ticked type
+	 * (types the meta doesn't list draw nothing); until then, or when they fail (their note and
+	 * Retry show over the map), any ticked type.
+	 */
+	const drawsLocations = $derived(
+		Array.isArray(locationGroups) ? tickedGroups.length > 0 : locationTypes.length > 0
+	);
 	const layer = $derived(mainLayer(widget.data, known));
 	/** A dataset's name from the catalog (smoke and fire's layer labels). */
 	const datasetLabel = (id: string) => known?.find((d) => d.id === id)?.label;
@@ -325,7 +333,7 @@
 		hasPollutant ||
 			hasSmokeAndFire(widget.data) ||
 			hasNotices(widget.data) ||
-			locationTypes.length > 0 ||
+			drawsLocations ||
 			!!useLayer ||
 			!!savedFill
 	);

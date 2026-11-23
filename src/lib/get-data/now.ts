@@ -200,6 +200,8 @@ export type NowConversion = {
 	selection?: TimeSubRange;
 	/** With `"range-cut"` in `dropped`: the level the Map's range was cut at (its stops). */
 	cutAt?: "day" | "month" | "year";
+	/** With `"locations"` in `dropped`: the location types the Map had ticked (its note's names). */
+	locationTypes?: string[];
 };
 
 /**

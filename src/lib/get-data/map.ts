@@ -535,5 +535,10 @@ export function fromMapDraft(
 			...(use.filters ? { filters: copyFilters(use.filters) } : {})
 		});
 	}
-	return { ...converted, dropped: [...new Set([...dropped, ...converted.dropped])] };
+	const locationTypes = locationsLayer(draft.data)?.locationTypes;
+	return {
+		...converted,
+		dropped: [...new Set([...dropped, ...converted.dropped])],
+		...(dropped.includes("locations") && { locationTypes: [...(locationTypes ?? [])] })
+	};
 }

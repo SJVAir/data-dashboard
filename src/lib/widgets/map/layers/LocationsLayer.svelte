@@ -27,7 +27,7 @@
 	} = $props();
 
 	/** The types as a key: a new list with the same types never makes the plugin again. */
-	const typesKey = $derived(types.join(","));
+	const typesKey = $derived(JSON.stringify(types));
 
 	// Under the monitors, over the fill and use. The preset owns the badges, the count bubbles,
 	// the legend, and the card (static on hover; interactive pinned or keyboard-focused). It's
@@ -38,8 +38,8 @@
 		const pluginId = id;
 		const layerLabel = label;
 		// The meta's type ids (map-sdk types the three it knows; another still filters).
-		const allowed = typesKey.split(",") as LocationType[];
-		if (!loads || !typesKey) return;
+		const allowed = JSON.parse(typesKey) as LocationType[];
+		if (!loads || allowed.length === 0) return;
 		const plugin = untrack(() =>
 			schoolsPlugin({ id: pluginId, source, layerLabel, types: allowed })
 		);

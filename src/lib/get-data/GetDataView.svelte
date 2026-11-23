@@ -741,7 +741,18 @@
 						: m.get_data_range_cut_left_out(counted)
 			);
 		}
-		if (what.includes("locations")) out.push(m.get_data_dropped_locations());
+		if (what.includes("locations")) {
+			// The ticked groups' labels (the regions meta's); none known: a note naming none.
+			const ticked = dropped.conversion.locationTypes ?? [];
+			const names = (locationGroups ?? [])
+				.filter((g) => g.types.some((t) => ticked.includes(t.type)))
+				.map((g) => g.label);
+			out.push(
+				names.length
+					? m.get_data_dropped_locations({ layers: formatList(names) })
+					: m.get_data_dropped_locations_unnamed()
+			);
+		}
 		if (what.includes("marks")) out.push(m.get_data_marks_left_out());
 		if (what.includes("fill")) out.push(m.getdata_note_fill_dropped());
 		if (what.includes("alert")) out.push(m.get_data_level_left_out());
