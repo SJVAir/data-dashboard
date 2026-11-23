@@ -228,8 +228,9 @@ Settled at the 7b plan (the user, 2026-11-22; plan
     `types` allow-list (checked in `../map-sdk`'s working copy; confirm against the pinned
     `@sjvair/map-sdk` `0.1.0-beta.22`).
 26. **Where filters them:** one `getPesticideLocations({ region })` per area (`buffer` not used).
-    No Where: the whole valley in one call (the earlier check: 2,747 sites, about 191 KB
-    uncompressed). A school, address or point in Where loads the area its data uses (ZIP code
+    No Where: the whole valley in one call (the server session's measure, 2026-11-22: 2,782
+    sites locally, about 1.5 MB uncompressed and 195 KB gzipped, about 0.8 s uncached; the earlier
+    "191 KB uncompressed" was the gzipped size). A school, address or point in Where loads the area its data uses (ZIP code
     first).
 27. **Not markable, no "Show in a chart / table", each gets its card.** The schools preset is
     already `selectable: false`. Hover cards are static; interactive only pinned or focused.
