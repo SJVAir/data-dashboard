@@ -791,22 +791,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   an import flow needs the new counts immediately (then invalidate the key from the import
   commands).
 
-- **sjvair.com `pesticides/locations/`: an orphan `radius=` or `buffer=` returns the whole
-  valley.** _Deferred 2026-11-22 (session `sjvair-com-6f`, #351 review)._ With no region and no
-  lat/lng, a `radius` or `buffer` alone gets the valley-wide 200 rather than a 400. A blank
-  region counting as missing is the spec'd rule; an orphan radius or buffer is a client bug that
-  gets a misleading 200. **Revisit when** the next PR touches `LocationListBase.parse_area`, or a
-  client reports it.
-- **sjvair.com `pesticides/locations/`: a whitespace-only `bbox` is a 400, a blank one is the
-  valley.** _Deferred 2026-11-22 (session `sjvair-com-6f`, #351 review)._ Unchanged from before
-  #351 for whitespace; only the blank case became the valley. **Revisit with** the item above.
-- **sjvair.com `pesticides/locations/`: each cache hit on the valley list re-encodes ~1.5 MB.**
-  _Deferred 2026-11-22 (session `sjvair-com-6f`, #351 review)._ About 100 ms per hit locally.
-  `cache_encoded = True` plus `cache_key_version` 4 would trim it, but it moves the explorer's
-  bbox responses onto another code path, so it needs its own byte-for-byte explorer check.
-  **Revisit if** the dashboard's Map load feels slow or the endpoint shows up in latency work.
-  (Whether hosted memcached keeps the value at all is a deploy-day check in the production
-  deploy entry.)
 - **sjvair.com `CLAUDE.md`: a doubled "the" in "Bulk monitor type".** _Found 2026-11-21 (session
   `sjvair-com-07`, after #350 merged)._ Lines 424–425 read "the / the catalog's `monitor_types`", and line
   425 runs past the wrapping width. A one-word docs fix. **Why deferred:** too small for its own PR (no
