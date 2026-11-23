@@ -1341,18 +1341,13 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   change 8 in the spec), or the server lists more pollutants.
 - **Comparing two datasets** (two time windows side by side, each lined up). _Deferred
   2026-11-11 (step 5 spec 1, as "Year-over-year change on the map"); updated 2026-11-16 (step 5
-  spec 5); reworded 2026-11-18 (step 5 spec 6a, the user's two-dataset idea)._ Under the
+  spec 5); reworded 2026-11-18 (step 5 spec 6a, the user's two-dataset idea); kept deferred 2026-11-22._ Under the
   "Datasets line up" rule a widget holds one dataset: one range at one resolution. Comparing two
   windows (this year against last, before and after a change) is two datasets, each following
   the rule, shown together, for example a change map on a diverging scale or two series on one
   chart. This includes the Pesticides Explorer's compare (its change map between two years).
   Why: it needs its own design (how two datasets are chosen, stored and drawn), and spec 6a
-  only set the rule. Step 5 spec 6b is built and didn't take it up; raised with the user at the
-  end of 6b (2026-11-20), who chose to look at it again after spec 7. **Revisit when** step 5
-  spec 7 (schools and child care) is done: the spec 7 session raises it with the user at the end
-  of spec 7, as 6b did. Spec 7c, the last part of spec 7, is built (2026-11-22, PR pending) and
-  didn't take it up; its session raises it with the user before 7c merges. Sooner if an agency or
-  researcher asks for trends.
+  only set the rule. Step 5 spec 6b didn't take it up. After 6b (2026-11-20), the user chose to look at it again after spec 7. When spec 7 was done (7c, #66), the user kept it deferred (2026-11-22). **Revisit when** an agency or researcher asks for trends, or at Release 2 planning.
 - **An hourly or finer Map.** _Deferred 2026-11-18 (step 5 spec 6a)._ The Map steps by day,
   month or year (`MAP_LEVELS`). Why: an hour's figures over the valley need their own snapshot
   and many more stops (a week is 168), and nobody has asked. **Revisit when** someone asks to
