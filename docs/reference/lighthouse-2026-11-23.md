@@ -6,9 +6,8 @@ Map widget, whose lazy chunk (map-sdk with MapLibre) is about 431 KB gzipped, or
 uncompressed. The initial bundle is 215.6 KB gzipped.
 
 **After the fix (Task 6)**, a Map off screen no longer loads its code, so the starter's first
-visit on a phone loads no Map chunk. TBT is under 200 ms in three of the four cases (first visit
-with gzip still misses, at 230 ms, all of it in the app chunk), and LCP still misses in all four.
-See "After the fix (Task 6)".
+visit on a phone loads no Map chunk. TBT is under 200 ms in all four cases (115–152 ms; every run
+under 200 ms), and LCP still misses in all four. See "After the fix (Task 6)".
 
 Rerun it with:
 
@@ -216,33 +215,39 @@ The fix the user approved after the results above (decision 20): a Map frame loa
 once the frame is within 200 px of the screen, focus moves into it, or it is fullscreen. On the
 preset's phone screen the starter's Map is below the fold, so a first visit no longer downloads or
 evaluates the Map chunk until the Map is scrolled near. Same method (DevTools throttling), all four
-cases on the fakes, three runs each, median. Build of `step-6-spec-1` with the fix (c731bcc), built the way
-the E2E suite builds.
+cases on the fakes, three runs each, median. Build of `step-6-spec-1` with the fix (c731bcc), built
+the way the E2E suite builds, run at 15:07 PT with no other tests running on the machine.
 
 | Case                          | Score | FCP    | LCP    | TBT    | CLS   | Speed Index | Total bytes | Script bytes | Map chunk |
 | ----------------------------- | ----- | ------ | ------ | ------ | ----- | ----------- | ----------- | ------------ | --------- |
-| First visit, gzip             | 68    | 3.92 s | 5.42 s | 230 ms | 0.055 | 2.29 s      | 940.8 KB    | 325.8 KB     | none      |
-| First visit, uncompressed     | 62    | 6.80 s | 8.69 s | 165 ms | 0.055 | 3.37 s      | 1,679.1 KB  | 977.8 KB     | none      |
-| Saved dashboard, gzip         | 71    | 3.84 s | 5.21 s | 148 ms | 0.056 | 1.86 s      | 941.8 KB    | 325.8 KB     | none      |
-| Saved dashboard, uncompressed | 62    | 6.89 s | 8.67 s | 175 ms | 0.056 | 2.64 s      | 1,680.1 KB  | 977.8 KB     | none      |
+| First visit, gzip             | 70    | 3.88 s | 5.39 s | 152 ms | 0.055 | 2.29 s      | 941.5 KB    | 325.8 KB     | none      |
+| First visit, uncompressed     | 62    | 6.76 s | 8.63 s | 146 ms | 0.055 | 3.35 s      | 1,679.7 KB  | 977.8 KB     | none      |
+| Saved dashboard, gzip         | 72    | 3.81 s | 5.17 s | 116 ms | 0.056 | 1.84 s      | 942.4 KB    | 325.8 KB     | none      |
+| Saved dashboard, uncompressed | 64    | 6.79 s | 8.54 s | 115 ms | 0.056 | 2.62 s      | 1,680.8 KB  | 977.8 KB     | none      |
 
-The runs' TBT: 230, 223 and 287 ms; 144, 177 and 165 ms; 166, 148 and 144 ms; 203, 129 and
-175 ms. LCP varied by under 2% within each case.
+The runs' TBT: 158, 113 and 152 ms; 146, 120 and 171 ms; 116, 179 and 114 ms; 114, 156 and
+115 ms. **Every run of every case was under 200 ms.** LCP varied by under 2% within each case.
 
 - **The Map chunk is gone from the page load** in all four cases. Script bytes are now the no-Map
   baseline's (325.8 KB against 325.7 KB with gzip), and so are total bytes.
-- **TBT:** 276 → 230 ms (first visit, gzip), 295 → 165 ms (uncompressed), 357 → 148 ms (saved,
-  gzip), 273 → 175 ms (saved, uncompressed). Three of the four medians are now under 200 ms. The
-  Map chunk's evaluation task (211–238 ms) no longer appears. **First visit with gzip still misses**
-  (every run over 200 ms). Its long tasks are all in the app chunk: startup tasks of 148–184 ms at
-  about 3.7–3.9 s, and two later tasks of 88–141 ms at about 10.9 and 12.9 s, once widget data has
-  arrived. The no-Map baseline measured 139 ms for this case (110–181 ms) with the same script
-  bytes. None of the Map's code runs here, so the gap isn't the Map's; it wasn't investigated
-  further.
-- **LCP still misses** (5.2–5.4 s with gzip, 8.7 s uncompressed): it is the welcome Note's text,
-  as before, which never waited for the Map. Uncompressed, LCP improved by about 0.45 s (9.14 →
-  8.69 s), the Map's share found by the baseline.
-- **Score:** 67 → 68, 57 → 62, 64 → 71 and 59 → 62.
+- **TBT passes in all four cases:** 276 → 152 ms (first visit, gzip), 295 → 146 ms
+  (uncompressed), 357 → 116 ms (saved, gzip), 273 → 115 ms (saved, uncompressed). The Map chunk's
+  evaluation task (211–238 ms) no longer appears.
+- **Against the no-Map baseline** (first visit, gzip: 139 ms, runs 110–181 ms), the median is
+  13 ms higher and inside the baseline's range. The long tasks are the same ones at the same
+  times, all in the app chunk: startup tasks at about 3.0, 3.7 and 3.8–3.9 s (61–71, 95–131 and
+  119–158 ms here; 60–78, 96–129 and 117–149 ms in the baseline), and two after the data arrives
+  at about 10.9 and 12.8 s (65–66 and 80–81 ms here; 65–89 and 79–95 ms in the baseline). The only
+  task the baseline doesn't have is one of 55 ms at about 5.3 s, in one run of three, which adds
+  about 5 ms of blocking time. The difference is within run-to-run variation.
+- **A run under load reads higher.** An earlier run of the same build at 14:47 PT, while other
+  test suites were running on the machine, measured 230, 165, 148 and 175 ms (first visit with
+  gzip over 200 ms in every run). Its long tasks were the same ones, each longer (startup tasks of
+  148–184 ms), plus the 5.3 s task in all three runs. The numbers above replace it.
+- **LCP still misses** (5.2–5.4 s with gzip, 8.5–8.6 s uncompressed): it is the welcome Note's
+  text, as before, which never waited for the Map. Uncompressed, LCP improved by about 0.5 s (9.14
+  → 8.63 s), the Map's share found by the baseline.
+- **Score:** 67 → 70, 57 → 62, 64 → 72 and 59 → 64.
 - Scrolling the Map near still downloads and evaluates the chunk then (one task of about 200 ms
   under 4× CPU); Lighthouse doesn't scroll, so it isn't in these numbers.
 
