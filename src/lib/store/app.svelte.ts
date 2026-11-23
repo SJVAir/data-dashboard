@@ -485,6 +485,8 @@ class App implements AppContext {
 			now,
 			place: this.starterPlace,
 			area: this.starterArea,
+			types: [],
+			typesReady: async () => [],
 			...this.#guards,
 			onCopied: (copy) => {
 				// A hand-off that finished after the data was cleared mustn't come back.

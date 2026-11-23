@@ -759,7 +759,7 @@ test("the dashboard ⋯ shows on a read-only dashboard", async () => {
 });
 
 test("the starter's narrow widgets render at most 320px wide on a desktop", async () => {
-	const { app } = await seed(starterDashboard(FRESNO).body.widgets);
+	const { app } = await seed(starterDashboard(FRESNO, null, []).body.widgets);
 	await renderGrid(app);
 	await expect.element(frame("starter-3")).toBeVisible();
 	// Current conditions and "Can we go outside?", three columns each.
@@ -770,7 +770,7 @@ test("the starter's narrow widgets render at most 320px wide on a desktop", asyn
 
 test("on a phone every starter widget spans the grid and the menu button is tappable", async () => {
 	await page.viewport(390, 844);
-	const { app } = await seed(starterDashboard(FRESNO).body.widgets);
+	const { app } = await seed(starterDashboard(FRESNO, null, []).body.widgets);
 	await renderGrid(app);
 	await expect.element(frame("starter-6")).toBeVisible();
 	const grid = frame("starter-1").element().parentElement!;

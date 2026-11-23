@@ -93,7 +93,7 @@ describe("the starter's place in the app", () => {
 describe("every exit from the starter holds the chosen place", () => {
 	it("New from starter", async () => {
 		const { platform, app } = await setup(SCHOOL);
-		const id = await app.index.createFromStarter(app.starterPlace);
+		const id = await app.index.createFromStarter(app.starterPlace, app.starterArea, []);
 		expectFromStarter(await stored(platform, id), SCHOOL);
 	});
 

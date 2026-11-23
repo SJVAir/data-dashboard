@@ -204,8 +204,12 @@ export class DashboardIndex {
 	}
 
 	/** "New from starter": the starter at `place` (the space's chosen place). */
-	createFromStarter(place: ChosenPlace, area?: ChosenPlace | null): Promise<string> {
-		return this.#create(copyOfStarter(this.#now(), place, area));
+	createFromStarter(
+		place: ChosenPlace,
+		area: ChosenPlace | null | undefined,
+		types: readonly string[]
+	): Promise<string> {
+		return this.#create(copyOfStarter(this.#now(), place, area, types));
 	}
 
 	/**
@@ -217,13 +221,19 @@ export class DashboardIndex {
 	 */
 	async duplicate(
 		id: string,
-		replace?: { from: ChosenPlace; to: ChosenPlace; area?: ChosenPlace | null }
+		replace?: {
+			from: ChosenPlace;
+			to: ChosenPlace;
+			area?: ChosenPlace | null;
+			/** The monitor types the starter's Map ticks; only used for `STARTER_ID`. */
+			types?: readonly string[];
+		}
 	): Promise<string> {
 		let source: Dashboard;
 		if (id === STARTER_ID) {
 			if (!replace) throw new Error("Duplicating the starter needs its place");
 			// `area`: the starter's Chart's region for a school or point place.
-			source = starterDashboard(replace.from, replace.area);
+			source = starterDashboard(replace.from, replace.area, replace.types ?? []);
 		} else {
 			const loaded = loadDashboard(await this.#platform.documents.get(this.#space, id));
 			if (loaded.status !== "ok") throw new Error(`Dashboard ${id} can't be duplicated`);

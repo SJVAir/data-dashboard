@@ -204,7 +204,8 @@ async function duplicateDashboard(app: AppContext, id?: string): Promise<void> {
 		? await app.index.duplicate(STARTER_ID, {
 				from: app.starterPlace,
 				to: app.starterPlace,
-				area: app.starterArea
+				area: app.starterArea,
+				types: []
 			})
 		: await app.index.duplicate(target.session.doc.id);
 	await openDashboard(copyId);
@@ -430,7 +431,7 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 				group: "create",
 				run: () =>
 					void app.index
-						.createFromStarter(app.starterPlace, app.starterArea)
+						.createFromStarter(app.starterPlace, app.starterArea, [])
 						.then((id) => openDashboard(id))
 			},
 			{

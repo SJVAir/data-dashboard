@@ -41,7 +41,7 @@ describe("DashboardIndex", () => {
 		const index = new DashboardIndex({ platform, space: SPACE, now: clock() });
 		const a = await index.createBlank();
 		const b = await index.createBlank();
-		const mine = await index.createFromStarter(defaultStarterPlace());
+		const mine = await index.createFromStarter(defaultStarterPlace(), null, []);
 
 		expect(index.items.map((d) => d.id).sort()).toEqual([a, b, mine].sort());
 		expect(index.names.get(a)).toBe("Untitled dashboard");
@@ -178,7 +178,7 @@ describe("DashboardIndex", () => {
 		it("moves a starter copy's bar to the new place", async () => {
 			const platform = createMemoryPlatform();
 			const now = clock();
-			const mine = copyOfStarter(now(), FRESNO);
+			const mine = copyOfStarter(now(), FRESNO, null, []);
 			await store(platform, mine, mine.id);
 			const index = new DashboardIndex({ platform, space: SPACE, now });
 			const id = await index.duplicate(mine.id, { from: FRESNO, to: SCHOOL });
