@@ -3364,20 +3364,27 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   animation paused or long enough to be seen (as the keyboard-resize entry above suggests), and
   wait on the autoscroll's first frame rather than counting frames in a fixed 150 ms.
 
-- **WebKit E2E tests flake on CI.** _Noted 2026-11-22 (step 5 spec 7b, PR #65)._ In six manual
-  `ci.yml` runs (three on `step-5`, three on `step-5-spec-7b`), the WebKit job failed four times,
-  on both branches, on one or two tests each time, never the same set; a rerun passed. Neither
-  branch changed these areas: `e2e/recovery.spec.ts` "restore an
-  earlier version from the account", `e2e/safety.spec.ts` "Delete now moves focus to the next
-  row's Restore button", `e2e/place-picker.spec.ts` "the Share dialog asks before a live link
-  carries the point" (its text matched two elements) and `e2e/map.spec.ts` "the view summary
-  follows a refresh while the view stays still" (moved 0.095 against < 0.02). On
-  `step-5-spec-7c` (three manual runs on c47e917, 2026-11-22, step 5 spec 7c), the WebKit job
-  failed all three: run 45107208071 also failed `e2e/map.spec.ts` "a Map's pesticide use › the
-  township card's Show square miles pins the lens from the keyboard, and Escape clears it", and
-  runs 45107202392 and 45107205355 failed on the known recovery and safety tests above. The full
-  three-engine job runs only on manual runs, not on PRs. **Revisit before** relying on the
-  WebKit job as a merge gate, or if one of these fails twice in a row.
+- **WebKit E2E runs at 1x, so it doesn't cover drawing at 2x.** _Noted 2026-11-23 (step 5,
+  WebKit E2E fix)._ The WebKit project now sets `deviceScaleFactor: 1` (`playwright.config.ts`),
+  like the Chrome and Firefox devices. Playwright's "Desktop Safari" device draws at 2x, and in
+  CI's software rendering on shared CPUs a 2x frame took 0.5-2.5 s (a probe logged the gaps while
+  timers ran on time), so anything waiting on frames ran out of time: a dialog's close animation
+  (`safety.spec.ts` "Delete now moves focus…", "Clear my data with two tabs…"), Playwright's
+  "stable" check (`recovery.spec.ts` "restore an earlier version…"), the map (`map.spec.ts` "the
+  view summary follows a refresh…", the township card's "Show square miles…") and the Share
+  dialog (`place-picker.spec.ts`). These were the "WebKit E2E tests flake on CI" failures (6 of 9
+  manual runs failed WebKit before the fix). Reproduced locally in the Playwright image capped to
+  2 CPUs: 11 of 27 failed at 2x, 27 of 27 passed at 1x in half the time, and the full WebKit
+  suite passed at 1x. Why deferred: the tests check the app's behaviour, not 2x drawing, and real
+  Safari draws with the GPU. **Revisit if** a bug shows only on a 2x screen, or CI gets GPU
+  rendering or more CPU (then try 2x again).
+- **"A Chart and a Data table: data, readout, CSV, duplicate, reload" flaked once in Firefox CI.**
+  _Noted 2026-11-23 (step 5, WebKit E2E fix)._ In run 45116032796 on `step-5` (one of three
+  baseline runs), `e2e/widgets.spec.ts` failed in Firefox: the Data Portal's heading was still
+  visible 5 s after the save that should close it. It passed in the other two runs and in every
+  Chromium run. Why deferred: a single failure outside the WebKit task, with nothing yet to go on.
+  **Revisit when** it fails again: keep a trace on failure for the Firefox job and look at what
+  holds the Data Portal open.
 - **"A resize animation redraws once, after it ends" flaked in CI.** _Noted 2026-11-12 (step 5
   spec 2, PR #56)._ `src/lib/charts/time-chart.browser.test.ts` failed once with "expected 640 to
   be less than 640" (the frame's width read before the 640 → 400 px animation's first frame had

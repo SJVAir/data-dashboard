@@ -32,6 +32,13 @@ export default defineConfig({
 			workers: 1
 		},
 		{ name: "firefox", use: { ...devices["Desktop Firefox"] }, testIgnore: PERF },
-		{ name: "webkit", use: { ...devices["Desktop Safari"] }, testIgnore: PERF }
+		// WebKit at 1x, like the Chrome and Firefox devices: "Desktop Safari" draws at 2x, and in CI's
+		// software rendering on shared CPUs a 2x frame took 0.5-2.5 s, so anything waiting on frames
+		// (a dialog's close animation, Playwright's "stable" check, the map) ran out of time.
+		{
+			name: "webkit",
+			use: { ...devices["Desktop Safari"], deviceScaleFactor: 1 },
+			testIgnore: PERF
+		}
 	]
 });
