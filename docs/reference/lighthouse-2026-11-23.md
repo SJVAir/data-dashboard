@@ -11,6 +11,18 @@ Rerun it with:
 npm run build && npm run perf:lighthouse
 ```
 
+Against the local stack (page loads and the sign-in only; nothing is written):
+
+```bash
+LIGHTHOUSE_ORIGIN=http://localhost:8000 WORKSPACE_E2E_IDENTIFIER=… WORKSPACE_E2E_PASSWORD=… \
+  npm run perf:lighthouse
+```
+
+The variables go right before the command and are never stored. Set both credential variables or
+neither: signed out, the stack's `/workspace/` is a 404, and the script refuses to measure it.
+`LIGHTHOUSE_ORIGIN` must never be production. The script accepts only `localhost` or `127.0.0.1`
+unless `LIGHTHOUSE_ALLOW_REMOTE=1` is set.
+
 Build the way the E2E suite does, so no real key is embedded:
 `VITE_SENTRY_DSN= VITE_PROD_URL= VITE_MAPTILER_KEY=e2e-dummy-key npm run build`. The script is
 `e2e/lighthouse/lighthouse.perf.ts`, with the fake server in `e2e/lighthouse/fake-server.ts`.
@@ -107,7 +119,10 @@ The LCP of the individual runs: 4.83, 7.83 and 5.04 s; 18.05, 18.04 and 9.53 s; 
 2. **TBT misses in all four cases under DevTools throttling.** The medians are 273–357 ms, and
    every run was over 200 ms. Under simulated throttling the medians are just under the limit
    (176–192 ms), with one run at 226 ms.
-3. **CLS passes** in every case, at 0.054–0.057. Nearly all of it is one shift of the now-row
+3. **On the local stack, LCP and TBT miss too** (see "The local stack run"). LCP is 10.35 s, and
+   the median TBT is 224 ms (one run of the three was under 200 ms). The run is a saved dashboard
+   with a Map, served uncompressed.
+4. **CLS passes** in every case, at 0.054–0.057. Nearly all of it is one shift of the now-row
    widget ("PM2.5 · Fresno County", about 0.054). The page title's text shifts by about 0.0002
    when the web font loads.
 
@@ -196,12 +211,16 @@ template embedding, real API, real MapTiler tiles), signed in as the E2E test us
 same as `ba5b99a`. Lighthouse 13.6.0, DevTools throttling, mobile preset, median of 3. Page loads
 and the sign-in only; nothing was written.
 
-| Case               | Score | FCP    | LCP     | TBT    | CLS   | Speed Index | Total bytes | Script bytes | Map chunk |
-| ------------------ | ----- | ------ | ------- | ------ | ----- | ----------- | ----------- | ------------ | --------- |
-| origin-first-visit | 66    | 2.58 s | 10.35 s | 224 ms | 0.054 | 3.24 s      | 3009.7 KB   | 2643.4 KB    | 1580.2 KB |
+| Case               | Score | FCP    | LCP     | TBT    | CLS   | Speed Index | Total bytes | Script bytes | Map chunk  |
+| ------------------ | ----- | ------ | ------- | ------ | ----- | ----------- | ----------- | ------------ | ---------- |
+| origin-first-visit | 66    | 2.58 s | 10.35 s | 224 ms | 0.054 | 3.24 s      | 3,009.7 KB  | 2,643.4 KB   | 1,580.2 KB |
 
 Runs: LCP 10.35, 10.31, 10.37 s; TBT 224, 171, 257 ms.
 
+- **No document writes:** checked read-only in the stack's database for 13:45–14:05 PT (no
+  SavedDocument created/updated/deleted, no DocumentSnapshot, BlockedBuild or PurgedDocument rows;
+  SavedDocument.updated_at is auto_now, so a sync push would show; one last_login, the script's
+  sign-in). The request log wasn't available.
 - **What it opened:** the test account has saved dashboards, so `/workspace/` opened a saved
   dashboard (`/workspace/dashboards/<id>`), not the starter. That dashboard holds a Map.
 - **Delivery is uncompressed**, as S3 will serve it today: the Map chunk's transfer size equals its
@@ -210,5 +229,7 @@ Runs: LCP 10.35, 10.31, 10.37 s; TBT 224, 171, 257 ms.
   loads the entry files directly. **LCP is a widget's text** (selector
   `div.relative > div.h-full > div.flex > p`), with almost all of it render delay (about 10.3 s
   after a 25 ms first byte).
+- **Findings under decision 19:** LCP (10.35 s) is over 2.5 s, and the median TBT (224 ms) is
+  over 200 ms.
 - **TBT straddles the threshold** (171–257 ms); the app chunk's scripting is about 470 ms of main
   thread under 4× CPU.

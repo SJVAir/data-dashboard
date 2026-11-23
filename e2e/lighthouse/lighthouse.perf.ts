@@ -7,9 +7,16 @@
  * four cases: a first visit (a fresh profile: the starter with its Map) and a saved dashboard (a
  * profile where the starter's first edit made a copy), each with the files gzipped and not.
  *
+ * The fakes expect the E2E build (`VITE_MAPTILER_KEY=e2e-dummy-key`, no Sentry DSN, no prod URL):
+ * every MapTiler request goes to a local stub with a throwaway certificate, which is why the
+ * browser gets the broad `--ignore-certificate-errors`; no real key or real MapTiler is involved.
+ *
+ * LIGHTHOUSE_ORIGIN MUST NEVER BE PRODUCTION. Only `localhost` or `127.0.0.1` are accepted unless
+ * `LIGHTHOUSE_ALLOW_REMOTE=1` is set.
+ *
  * Another origin (the local stack): `LIGHTHOUSE_ORIGIN=http://localhost:8000`, signed in with
  * `WORKSPACE_E2E_IDENTIFIER` and `WORKSPACE_E2E_PASSWORD` (the way `npm run test:embedding` signs
- * in) when both are set. Page loads only: the sign-in, then the first-visit case on whatever the
+ * in) when both are set (setting only one of them is an error). Page loads only: the sign-in, then the first-visit case on whatever the
  * account opens to, as the server serves the files. Nothing is written. It fails before measuring
  * when the sign-in doesn't give a signed-in session or `<origin>/workspace/` doesn't answer 2xx
  * (signed out, the stack's `/workspace/` is a 404), and fails a run whose page wasn't a 2xx under
@@ -72,14 +79,25 @@ type Lhr = {
 	audits: Record<string, LhrAudit>;
 };
 
+/** This process's environment without the account credentials, for the processes it starts. */
+function withoutCredentials(): NodeJS.ProcessEnv {
+	const env = { ...process.env };
+	delete env.WORKSPACE_E2E_IDENTIFIER;
+	delete env.WORKSPACE_E2E_PASSWORD;
+	return env;
+}
+
+/** Lighthouse's error output, without any `key=` query value (MapTiler's key rides in URLs). */
+function redactKeys(text: string): string {
+	return text.replace(/([?&;]key=)[^&\s"'<>]*/gi, "$1<redacted>");
+}
+
 /**
  * Runs the Lighthouse CLI (`npx -y lighthouse@13.6.0`) against the Chromium on `port`, writing
  * the JSON report to `file`. The child gets no account credentials in its environment.
  */
 function runLighthouse(url: string, port: number, file: string): Promise<Lhr> {
-	const env = { ...process.env };
-	delete env.WORKSPACE_E2E_IDENTIFIER;
-	delete env.WORKSPACE_E2E_PASSWORD;
+	const env = withoutCredentials();
 	const args = [
 		"-y",
 		LIGHTHOUSE,
@@ -101,7 +119,7 @@ function runLighthouse(url: string, port: number, file: string): Promise<Lhr> {
 		child.on("error", fail);
 		child.on("exit", (code) => {
 			if (code !== 0 || !existsSync(file)) {
-				fail(new Error(`Lighthouse exited ${code}: ${stderr.trim().slice(-2000)}`));
+				fail(new Error(`Lighthouse exited ${code}: ${redactKeys(stderr.trim()).slice(-2000)}`));
 				return;
 			}
 			done(JSON.parse(readFileSync(file, "utf8")) as Lhr);
@@ -196,7 +214,7 @@ async function launchChrome(
 			"--remote-debugging-port=0",
 			"about:blank"
 		],
-		{ stdio: "ignore" }
+		{ stdio: "ignore", env: withoutCredentials() }
 	);
 	const portFile = join(profile, "DevToolsActivePort");
 	for (let i = 0; i < 200; i++) {
@@ -277,42 +295,61 @@ async function checkWorkspace(
  * unless the session account answers as signed in and `/workspace/` answers 2xx. Never prints the
  * credentials.
  */
+/** A sign-in failure this script describes itself: a step and an HTTP status, nothing secret. */
+class SignInFailure extends Error {}
+
 async function signedInProfile(origin: string): Promise<string> {
 	const profile = mkdtempSync(join(tmpdir(), "lighthouse-stack-"));
 	const identifier = process.env.WORKSPACE_E2E_IDENTIFIER!;
 	const password = process.env.WORKSPACE_E2E_PASSWORD!;
-	await withProfile(profile, EXTRA_FLAGS, async (page) => {
-		page.setDefaultTimeout(15_000);
-		const login = await page.goto(`${origin}/account/login/`);
-		if (!login?.ok()) {
-			throw new Error(`Sign-in failed: the login page answered HTTP ${login?.status()}`);
-		}
-		await page.locator("[name=identifier]").fill(identifier);
-		await page.locator("[name=password]").fill(password);
-		await page
-			.locator("form", { has: page.locator("[name=identifier]") })
-			.locator("[type=submit]")
-			.first()
-			.click();
-		try {
-			await page.waitForURL((url) => !url.pathname.startsWith("/account/login"), {
-				timeout: 15_000
-			});
-		} catch {
-			throw new Error("Sign-in failed: still on the login page after submitting");
-		}
-		const request = page.context().request;
-		const account = await request.get(`${origin}/api/2.0/account/`, { maxRedirects: 0 });
-		const user = account.ok() ? ((await account.json()) as { data?: { id?: unknown } }).data : null;
-		if (!user?.id) {
-			throw new Error(`Sign-in failed: the session account answered HTTP ${account.status()}`);
-		}
-		await checkWorkspace(
-			async (url) => ({ status: (await request.get(url, { maxRedirects: 0 })).status() }),
-			`${origin}/workspace/`,
-			"signed in"
-		);
-	});
+	let step = "starting the browser";
+	try {
+		await withProfile(profile, EXTRA_FLAGS, async (page) => {
+			page.setDefaultTimeout(15_000);
+			step = "opening the login page";
+			const login = await page.goto(`${origin}/account/login/`);
+			if (!login?.ok()) {
+				throw new SignInFailure(`Sign-in failed: the login page answered HTTP ${login?.status()}`);
+			}
+			step = "filling in the identifier";
+			await page.locator("[name=identifier]").fill(identifier);
+			step = "filling in the password";
+			await page.locator("[name=password]").fill(password);
+			step = "submitting the form";
+			await page
+				.locator("form", { has: page.locator("[name=identifier]") })
+				.locator("[type=submit]")
+				.first()
+				.click();
+			step = "leaving the login page";
+			await page.waitForURL((url) => !url.pathname.startsWith("/account/login"));
+			step = "checking the session account";
+			const request = page.context().request;
+			const account = await request.get(`${origin}/api/2.0/account/`, { maxRedirects: 0 });
+			const user = account.ok()
+				? ((await account.json()) as { data?: { id?: unknown } }).data
+				: null;
+			if (!user?.id) {
+				throw new SignInFailure(
+					`Sign-in failed: the session account answered HTTP ${account.status()}`
+				);
+			}
+			step = "checking /workspace/";
+			const status = (await request.get(`${origin}/workspace/`, { maxRedirects: 0 })).status();
+			if (status < 200 || status > 299) {
+				throw new SignInFailure(
+					`${origin}/workspace/ answered HTTP ${status} signed in; not measuring a page that isn't the dashboard`
+				);
+			}
+		});
+	} catch (error) {
+		rmSync(profile, { recursive: true, force: true });
+		// Playwright's own errors carry a call log that can quote what was typed: never pass them on,
+		// not even as the new error's `cause` (which the test report would print).
+		if (error instanceof SignInFailure) throw error;
+		// eslint-disable-next-line preserve-caught-error
+		throw new Error(`Sign-in failed at ${step}`);
+	}
 	return profile;
 }
 
@@ -523,8 +560,22 @@ test("Lighthouse: the starter on a low-end phone", async () => {
 	let cases: Case[];
 	const templates: string[] = [];
 	if (ORIGIN) {
+		const { hostname } = new URL(ORIGIN);
+		if (
+			!["localhost", "127.0.0.1"].includes(hostname) &&
+			process.env.LIGHTHOUSE_ALLOW_REMOTE !== "1"
+		) {
+			throw new Error(
+				`Refusing LIGHTHOUSE_ORIGIN host ${hostname}: only localhost or 127.0.0.1 without LIGHTHOUSE_ALLOW_REMOTE=1 (never production)`
+			);
+		}
 		url = new URL("/workspace/", ORIGIN).href;
-		const signIn = !!process.env.WORKSPACE_E2E_IDENTIFIER && !!process.env.WORKSPACE_E2E_PASSWORD;
+		const hasIdentifier = !!process.env.WORKSPACE_E2E_IDENTIFIER;
+		const hasPassword = !!process.env.WORKSPACE_E2E_PASSWORD;
+		if (hasIdentifier !== hasPassword) {
+			throw new Error("Set both WORKSPACE_E2E_IDENTIFIER and WORKSPACE_E2E_PASSWORD, or neither");
+		}
+		const signIn = hasIdentifier && hasPassword;
 		let profile: string | null = null;
 		cases = [
 			{
