@@ -10,7 +10,10 @@
  * Another origin (the local stack): `LIGHTHOUSE_ORIGIN=http://localhost:8000`, signed in with
  * `WORKSPACE_E2E_IDENTIFIER` and `WORKSPACE_E2E_PASSWORD` (the way `npm run test:embedding` signs
  * in) when both are set. Page loads only: the sign-in, then the first-visit case on whatever the
- * account opens to, as the server serves the files. Nothing is written.
+ * account opens to, as the server serves the files. Nothing is written. It fails before measuring
+ * when the sign-in doesn't give a signed-in session or `<origin>/workspace/` doesn't answer 2xx
+ * (signed out, the stack's `/workspace/` is a 404), and fails a run whose page wasn't a 2xx under
+ * `/workspace/`. Errors give the HTTP status, never the credentials.
  *
  * Throttling is DevTools throttling by default: the browser really runs at a quarter speed on slow
  * 4G (Lighthouse's own values for it), so the three runs agree and each request's real throttled
@@ -194,13 +197,39 @@ async function savedDashboardProfile(server: FakeServer): Promise<string> {
 	return profile;
 }
 
-/** A profile signed in on `origin` as the E2E test user (page loads and the sign-in only). */
+/**
+ * Checks, before anything is measured, that `<origin>/workspace/` answers 2xx without a redirect.
+ * Signed out, the stack's `/workspace/` is a 404 behind its feature flag, and a 404 page must never
+ * be measured as the dashboard. A plain request: no page runs, so nothing is stored.
+ */
+async function checkWorkspace(
+	get: (url: string) => Promise<{ status: number }>,
+	url: string,
+	who: string
+): Promise<void> {
+	const { status } = await get(url);
+	if (status < 200 || status > 299) {
+		throw new Error(
+			`${url} answered HTTP ${status} ${who}; not measuring a page that isn't the dashboard`
+		);
+	}
+}
+
+/**
+ * A profile signed in on `origin` as the E2E test user (page loads and the sign-in only). Fails
+ * unless the session account answers as signed in and `/workspace/` answers 2xx. Never prints the
+ * credentials.
+ */
 async function signedInProfile(origin: string): Promise<string> {
 	const profile = mkdtempSync(join(tmpdir(), "lighthouse-stack-"));
 	const identifier = process.env.WORKSPACE_E2E_IDENTIFIER!;
 	const password = process.env.WORKSPACE_E2E_PASSWORD!;
 	await withProfile(profile, EXTRA_FLAGS, async (page) => {
-		await page.goto(`${origin}/account/login/`);
+		page.setDefaultTimeout(15_000);
+		const login = await page.goto(`${origin}/account/login/`);
+		if (!login?.ok()) {
+			throw new Error(`Sign-in failed: the login page answered HTTP ${login?.status()}`);
+		}
 		await page.locator("[name=identifier]").fill(identifier);
 		await page.locator("[name=password]").fill(password);
 		await page
@@ -208,9 +237,40 @@ async function signedInProfile(origin: string): Promise<string> {
 			.locator("[type=submit]")
 			.first()
 			.click();
-		await page.waitForURL((url) => !url.pathname.startsWith("/account/login"));
+		try {
+			await page.waitForURL((url) => !url.pathname.startsWith("/account/login"), {
+				timeout: 15_000
+			});
+		} catch {
+			throw new Error("Sign-in failed: still on the login page after submitting");
+		}
+		const request = page.context().request;
+		const account = await request.get(`${origin}/api/2.0/account/`, { maxRedirects: 0 });
+		const user = account.ok() ? ((await account.json()) as { data?: { id?: unknown } }).data : null;
+		if (!user?.id) {
+			throw new Error(`Sign-in failed: the session account answered HTTP ${account.status()}`);
+		}
+		await checkWorkspace(
+			async (url) => ({ status: (await request.get(url, { maxRedirects: 0 })).status() }),
+			`${origin}/workspace/`,
+			"signed in"
+		);
 	});
 	return profile;
+}
+
+/** The measured page's own document request: 2xx and still under `/workspace/`, or the run fails. */
+function checkMeasuredDocument(lhr: Lhr): void {
+	const document = networkItems(lhr).find(
+		(i) => i.resourceType === "Document" && i.url.split("#")[0] === lhr.mainDocumentUrl
+	) as (NetworkItem & { statusCode?: number }) | undefined;
+	const status = document?.statusCode ?? NaN;
+	const path = new URL(lhr.finalDisplayedUrl).pathname;
+	if (!(status >= 200 && status <= 299) || !path.startsWith("/workspace/")) {
+		throw new Error(
+			`The measured page answered HTTP ${status} at ${path}; not counting it as the dashboard`
+		);
+	}
 }
 
 type Metrics = {
@@ -417,6 +477,12 @@ test("Lighthouse: the starter on a low-end phone", async () => {
 					if (signIn && !profile) {
 						profile = await signedInProfile(new URL(ORIGIN).origin);
 						templates.push(profile);
+					} else if (!signIn) {
+						await checkWorkspace(
+							async (u) => ({ status: (await fetch(u, { redirect: "manual" })).status }),
+							url,
+							"signed out"
+						);
 					}
 					return profile;
 				}
@@ -488,6 +554,7 @@ test("Lighthouse: the starter on a low-end phone", async () => {
 					writeFileSync(join(out, `${c.name}-run${run}.json`), result.report as string);
 					const lhr = result.lhr;
 					if (lhr.runtimeError) throw new Error(`Lighthouse: ${lhr.runtimeError.message}`);
+					checkMeasuredDocument(lhr);
 					const m = metricsOf(lhr, mapChunk);
 					if (ORIGIN && !summary.version) summary.version = await buildVersion(lhr);
 					runs.push(m);
