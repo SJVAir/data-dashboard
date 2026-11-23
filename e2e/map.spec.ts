@@ -39,9 +39,11 @@ import {
 	routeMapMeta,
 	routeMapNotices,
 	routeMapReadings,
+	routeMapLocations,
 	routeMapUse,
 	routeOneOutline,
 	EVERY_MONITOR_TYPE,
+	ROOSEVELT_PLACE,
 	USE_CATALOG,
 	USE_FILE,
 	useFixtures,
@@ -2162,5 +2164,111 @@ test.describe("a Map's pesticide use", () => {
 			for (const key of PLACE_PARAMS) expect(params.has(key), key).toBe(false);
 			expect(params.get("bbox")).toMatch(/^-?[\d.]+(,-?[\d.]+){3}$/);
 		}
+	});
+});
+
+test.describe("schools and child care", () => {
+	let locationRequests: URLSearchParams[];
+
+	test.beforeEach(async ({ context, page }) => {
+		locationRequests = await routeMapLocations(context);
+		// Noon Pacific, as the other day tests.
+		await page.clock.install({ time: TODAY });
+	});
+
+	/** A full-width Map of Roosevelt High's PM2.5, with its type (Public school) ticked. */
+	const rooseveltDoc = {
+		kind: "dashboard",
+		schemaVersion: 1,
+		id: "shared-map-school",
+		name: "School map",
+		body: {
+			widgets: [
+				{
+					id: "w0",
+					type: "map",
+					title: null,
+					rect: { x: 0, y: 0, w: 12, h: 8 },
+					data: {
+						place: ROOSEVELT_PLACE,
+						layers: [
+							{ dataset: "air-quality", entryType: "pm25", monitorTypes: EVERY_MONITOR_TYPE },
+							{ dataset: "locations", locationTypes: ["public_school"] }
+						]
+					}
+				}
+			]
+		}
+	};
+
+	/** Ticks `types` in the Map's Data Portal and saves. */
+	async function tickInDataPortal(page: Page, title: string, types: string[]): Promise<void> {
+		await widgetMenuItem(page, title, "Open in Data Portal");
+		await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeVisible();
+		for (const type of types) await page.getByRole("checkbox", { name: type, exact: true }).check();
+		await page.getByRole("button", { name: "Save changes" }).click();
+		await expect(widgetTitles(page)).toHaveText([title]);
+		await expectSaved(page);
+	}
+
+	test("ticking a type loads the county's sites once, by its region and every type; the legend names each group", async ({
+		page
+	}) => {
+		const map = await addMap(page);
+		await tickInDataPortal(page, FRESNO_MAP, ["Public school"]);
+
+		const legend = legendOf(map);
+		await expect(
+			legend.getByRole("heading", { level: 3, name: "Schools", exact: true })
+		).toBeVisible();
+		await expect(legend.getByText("Public school", { exact: true })).toBeVisible();
+		// One request: Fresno County's server id, with no type (ticking filters what's loaded).
+		expect(locationRequests).toHaveLength(1);
+		expect(locationRequests[0].getAll("region")).toEqual(["r6phe"]);
+		expect(locationRequests[0].has("type")).toBe(false);
+		const list = await featureList(map);
+		await expect(
+			list.getByRole("option", { name: /^Example (Elementary|Middle|High)\b/ })
+		).toHaveCount(3);
+		await expect(list.getByRole("option", { name: /^Example Private Academy\b/ })).toHaveCount(0);
+		await closeFeatureList(map);
+
+		// Child care too: drawn from what's loaded, asking nothing more.
+		await tickInDataPortal(page, FRESNO_MAP, ["Child care"]);
+		await expect(
+			legend.getByRole("heading", { level: 3, name: "Child care", exact: true })
+		).toBeVisible();
+		const again = await featureList(map);
+		await expect(again.getByRole("option", { name: /^EXAMPLE / })).toHaveCount(3);
+		await closeFeatureList(map);
+		expect(locationRequests).toHaveLength(1);
+	});
+
+	test("a school in Where with its type ticked: the feature list shows it once", async ({
+		page
+	}) => {
+		await openSharedDoc(page, rooseveltDoc);
+		const map = page.getByRole("region", { name: /map$/ }).first();
+		const list = await featureList(map);
+		// The site's own row (the focus pin gives way to it), named with its type.
+		await expect(list.getByRole("option", { name: /^Roosevelt High\b/ })).toHaveCount(1);
+		await expect(
+			list.getByRole("option", { name: "Roosevelt High, Public school", exact: true })
+		).toHaveCount(1);
+		await closeFeatureList(map);
+		// Its first fallback region the server has: ZIP 93702.
+		expect(locationRequests.map((p) => p.getAll("region"))).toEqual([["c85na"]]);
+	});
+
+	test("Show as Chart from a Map with schools notes them left out", async ({ page }) => {
+		await openSharedDoc(page, rooseveltDoc);
+		const [title] = await widgetTitles(page).allTextContents();
+		await widgetMenuItem(page, title, "Open in Data Portal");
+		await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeVisible();
+		await page.locator('[data-show-as="chart"]').click();
+		await expect(page.locator('[data-show-as="chart"]')).toHaveAttribute("data-state", "on");
+		await expect(
+			page.getByText("Left out, as they're shown only on a map: Schools.", { exact: true })
+		).toBeVisible();
 	});
 });
