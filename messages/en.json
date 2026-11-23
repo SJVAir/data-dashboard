@@ -1095,11 +1095,28 @@
 	],
 	"get_data_show_as": "Show as",
 	"get_data_alert_level": "Alert level",
+	"get_data_alert_level_for": "Alert level for {pollutant}",
+	"get_data_choose_pollutant": "Choose a pollutant",
+	"get_data_alert_level_use": "Use {level}",
 	"get_data_tell_me_at_level_or_worse": "Tell me at {level} or worse",
 	"get_data_off": "Off",
 	"get_data_alert_level_replaced": "The saved alert level isn't one of this pollutant's levels, so {level} is used instead.",
 	"get_data_dates_left_out": "Dates don't apply to this widget, so they were left out.",
 	"get_data_overlays_left_out": "Other data layers don't apply to this widget, so they were left out.",
+	"get_data_pollutants_left_out": [
+		{
+			"declarations": [
+				"input pollutants",
+				"input countValue",
+				"local countPlural = countValue: plural"
+			],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{pollutants} was left out: this type shows one pollutant.",
+				"countPlural=other": "{pollutants} were left out: this type shows one pollutant."
+			}
+		}
+	],
 	"get_data_extra_places_left_out": "This widget shows one place, so the others were left out.",
 	"get_data_school_point_left_out": "This widget shows areas, and the school or point's area couldn't be found, so it was left out.",
 	"get_data_monitor_types_left_out": "This widget shows one place or one monitor, so the chosen monitor types were left out.",
@@ -1557,6 +1574,8 @@
 	"current_no_recent_data": "No recent data",
 	"current_not_enough_readings": "Not enough recent readings",
 	"current_no_data": "No data for this place",
+	"current_choose_pollutant": "Choose a pollutant to show data.",
+	"current_rows_label": "Current conditions by pollutant",
 	"current_alert_level_reached": "Alert level reached",
 	"current_average_help": "The value is an average over the period shown, and it updates as new readings arrive.",
 	"current_latest_reading_help": "This is the most recent single reading. It updates as new readings arrive.",
@@ -1577,11 +1596,12 @@
 	"widget_outside_title": "Can we go outside?",
 	"outside_heat_today": "Heat today",
 	"outside_heat_highest": "Highest in {place} (ZIP {zip})",
+	"outside_no_pollutant_data": "No {pollutant} data for this place",
 	"outside_no_heat_score_today": "No heat score today",
 	"outside_heat_load_failed": "Heat score couldn't be loaded",
 	"outside_no_guidance_for_level": "No guidance for this level",
 	"outside_no_activity_guidance": "No activity guidance is available",
-	"outside_no_pm25": "No PM2.5 data for this place",
+	"outside_no_guideline_pollutants": "No pollutant has school activity guidelines yet",
 	"alert_pollutant_at_place_is_now_level": "{pollutant} at {place} is now {level}",
 	"taskbar_restore_named_alert_reached": "Restore {title} (alert level reached)",
 	"widget_fullscreen_named_alert_reached": "Show {title} fullscreen (alert level reached)",

@@ -1171,8 +1171,11 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   2); reworded 2026-11-22 (step 5 spec 7a)._ The Monitors search in the Air quality section offers
   monitors by type (`monitors/meta/` `monitors[<type>].entries`), so a site whose type takes the
   pollutant but that doesn't measure it (an AirNow site without ozone) can still be picked and then
-  shows "No data". Ticked types behave the same way. **Revisit when** the server exposes
-  per-monitor entry types.
+  shows "No data". Ticked types behave the same way. With several pollutants ticked on Current
+  conditions (step 5 spec 7b, 2026-11-22), the Monitors search and its rows judge only the first
+  ticked pollutant (`AirQualitySection.svelte` `purpose`/`monitorRows`): a monitor lacking it is
+  greyed out though the card would read it for another pollutant. **Revisit when** the server
+  exposes per-monitor entry types, or a monitor type measures a later pollutant but not the first.
 - **Location type and region filters in the place picker.** _Deferred 2026-11-04 (step 4 spec
   2)._ One search box covers the brief; `searchLocations`' `type` and `region` options stay
   unused. **Revisit if** school searches return too many unrelated rows.
@@ -2335,6 +2338,14 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
 
 ## Widgets
 
+- **"Can we go outside?" with several pollutants: combining their guidelines.** _Deferred
+  2026-11-22 (spec 7b plan, the user's choice)._ The widget holds one pollutant, chosen from those
+  whose monitors meta has `school_guidelines` (PM2.5 alone today). Giving one answer from two
+  pollutants' guidelines needs a rule nobody has decided (the strictest one, say). **Why
+  deferred:** only PM2.5 has guidelines, so it can't be built against real data or tried. **Revisit
+  when** the server adds guidelines for a second pollutant: decide the combining rule with the
+  user, then let the widget hold several, as Current conditions does.
+
 - **Share opens its dialog only after the link is built.** _Noted 2026-11-11 (the WebKit share
   test fix, #54); left as it is by the user._ With no exact points, `shareDashboard`
   (`src/lib/sharing/actions.ts`) awaits `copyOf` (building and compressing the link) before
@@ -2878,8 +2889,6 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
     calls are unguarded. **Revisit with** the next now client change.
   - **A failed watcher chunk load retries only on the next dashboard or watched-set change.**
     **Revisit if** seen on flaky connections.
-  - **A fell-back default alert level cannot be confirmed in the form** (a stored bad key
-    persists until the person picks a level). **Revisit with** the next thresholds form change.
   - **The Forecast strip's Where list is filtered to PM2.5 monitors** (coverage unconfirmed), and
     a names-only Data widget runs a 30-day query. **Revisit** when coverage is checked, or if
     seen.
@@ -2912,6 +2921,12 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
 - **Toasts or notifications from Chart threshold lines.** _(step 4 spec 4, 2026-11-08)_ Charts only display the line,
   to avoid noise from widgets people are not watching. **Revisit if** people ask to be told
   from a Chart.
+- **A minimized untitled card's notifications use the type's name.** _Deferred 2026-11-22 (step 5
+  spec 7b)._ Generated titles live only in memory and are set by the mounted component
+  (`widgets/titles.svelte.ts`), so a minimized untitled card is never mounted and its notification
+  title stays the type label (e.g. "Current conditions") until the card is shown; the body still
+  names the pollutant and place. Pre-dates 7b. **Revisit if** someone reports it: work out the
+  generated title in a shared helper the watcher can call.
 - **A client-side daily "still bad" reminder.** _(step 4 spec 4, 2026-11-08)_ The server's 10 AM reminder is for
   texts; the dashboard tells you once per rise. **Revisit if** people keep a dashboard open all
   day and ask for one.
@@ -3311,6 +3326,27 @@ layerLabel, types?, zoomRange? })`, `featureclick` `properties` (with `source`, 
   checks (sizes after layout, an animation), not wrong behaviour. **Revisit when** one fails in
   CI, or when touching the test: wait on the settled state (a poll on the final size, or the
   animation's end) instead of a fixed moment.
+- **"The submenu by keyboard: Enter repeats, focus leaves an item that turns disabled" flaked in
+  CI.** _Noted 2026-11-22 (step 5 spec 7b, PR #65)._
+  `src/lib/components/dashboard/arranging.browser.test.ts` failed in `focusItem` ("expected
+  'Size' / 'Move' to be 'Right'"): CI's screenshot shows the Move submenu had opened (the poll saw
+  two menus with focus inside the newest) and then closed again, so the ArrowDowns moved focus in
+  the parent menu. It is not 7b's: it failed on `step-5` itself too (1 of 4 CI runs; 2 of 5 on the
+  7b branch). It never failed locally (alone, the whole file, or a full `npm test` pinned to 4
+  cores under `TZ=America/New_York`), and a pointer resting where the menu opens didn't trigger
+  it. What closes the submenu wasn't found. **Revisit when** it fails in CI again, or when
+  touching the arrange submenu: find what closes the submenu (log bits-ui's `onOpenChange` with a
+  stack), then wait on the submenu staying open rather than one poll.
+- **WebKit E2E tests flake on CI.** _Noted 2026-11-22 (step 5 spec 7b, PR #65)._ In six manual
+  `ci.yml` runs (three on `step-5`, three on `step-5-spec-7b`), the WebKit job failed four times,
+  on both branches, on one or two tests each time, never the same set; a rerun passed. Neither
+  branch changed these areas: `e2e/recovery.spec.ts` "restore an
+  earlier version from the account", `e2e/safety.spec.ts` "Delete now moves focus to the next
+  row's Restore button", `e2e/place-picker.spec.ts` "the Share dialog asks before a live link
+  carries the point" (its text matched two elements) and `e2e/map.spec.ts` "the view summary
+  follows a refresh while the view stays still" (moved 0.095 against < 0.02). The full
+  three-engine job runs only on manual runs, not on PRs. **Revisit before** relying on the
+  WebKit job as a merge gate, or if one of these fails twice in a row.
 - **"A resize animation redraws once, after it ends" flaked in CI.** _Noted 2026-11-12 (step 5
   spec 2, PR #56)._ `src/lib/charts/time-chart.browser.test.ts` failed once with "expected 640 to
   be less than 640" (the frame's width read before the 640 → 400 px animation's first frame had

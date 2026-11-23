@@ -7,7 +7,7 @@ import { getMetadata } from "$lib/data";
 import { MAP_TYPE, MapOptionsSchema } from "$lib/widgets/map/options";
 import { tickEveryTypeIfNone } from "./map";
 import { ChartOptionsSchema } from "$lib/widgets/shared/overlays";
-import { ThresholdSchema } from "$lib/thresholds/schema";
+import { ThresholdsSchema } from "$lib/thresholds/schema";
 import { CHART_TYPE } from "$lib/widgets/chart";
 
 /** Preference key (per space) for the Get data draft. Preferences stay on this device. */
@@ -21,7 +21,7 @@ export const DraftSchema = z.object({
 	/** A Map's options (marks, the pollutant showing), else a Chart's (the overlay's place). */
 	options: z.union([MapOptionsSchema, ChartOptionsSchema]).optional(),
 	/** The alert level (threshold types); none means Off. */
-	thresholds: z.array(ThresholdSchema).max(1).optional()
+	thresholds: ThresholdsSchema.optional()
 });
 export type Draft = z.infer<typeof DraftSchema>;
 

@@ -482,7 +482,7 @@ test("a viewer reaches their own notifications switch when a widget has an alert
 					data: {
 						layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }]
 					},
-					thresholds: [{ level: "unhealthy_sensitive" }]
+					thresholds: [{ level: "unhealthy_sensitive", entryType: "pm25" }]
 				}
 			]
 		}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Level } from "$lib/data/metadata";
-import { defaultThresholdLevel, resolveThreshold } from "./levels";
+import { defaultThresholdLevel, resolveThreshold, thresholdFor } from "./levels";
 
 function scale(rows: [string, number | null][]): Level[] {
 	return rows.map(([key, tier], i) => ({
@@ -55,5 +55,27 @@ describe("resolveThreshold", () => {
 		expect(resolveThreshold(undefined, pm25)).toBeNull();
 		expect(resolveThreshold([], pm25)).toBeNull();
 		expect(resolveThreshold([{ level: "good" }], [])).toBeNull();
+	});
+});
+
+describe("thresholdFor", () => {
+	const saved = [
+		{ level: "usg", entryType: "pm25" },
+		{ level: "unhealthy", entryType: "o3" }
+	];
+	it("finds the entry for an entryType", () => {
+		expect(thresholdFor(saved, "o3")).toEqual({ level: "unhealthy", entryType: "o3" });
+	});
+	it("gives the first entry without an entryType", () => {
+		expect(thresholdFor(saved)).toEqual(saved[0]);
+	});
+	it("is undefined for an entryType that isn't there, or no saved list", () => {
+		expect(thresholdFor(saved, "pm10")).toBeUndefined();
+		expect(thresholdFor(undefined, "o3")).toBeUndefined();
+	});
+	it("resolveThreshold reads the entry for the entryType", () => {
+		const r = resolveThreshold(saved, o3, "o3");
+		expect(r?.level.key).toBe("unhealthy");
+		expect(r?.fellBack).toBe(false);
 	});
 });

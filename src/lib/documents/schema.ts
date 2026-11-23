@@ -1,5 +1,5 @@
 import { ChosenPlaceSchema, WidgetDataConfigSchema, hasDefaultPlace } from "$lib/data/schema";
-import { ThresholdSchema } from "$lib/thresholds/schema";
+import { ThresholdsSchema } from "$lib/thresholds/schema";
 import { GRID_COLUMNS, MAX_HEIGHT, MAX_ROW } from "$lib/layout/config";
 import { NOTE_TYPE, NoteOptionsSchema } from "$lib/notes/options";
 import { MAP_TYPE, MapOptionsSchema } from "$lib/widgets/map/options";
@@ -28,7 +28,7 @@ export const WidgetInstanceSchema = z.object({
 	minimized: z.object({ order: z.number().int().min(0) }).optional(),
 	data: WidgetDataConfigSchema,
 	options: z.record(z.string(), z.unknown()).optional(),
-	thresholds: z.array(ThresholdSchema).max(1).optional()
+	thresholds: ThresholdsSchema.optional()
 });
 export type WidgetInstance = z.infer<typeof WidgetInstanceSchema>;
 

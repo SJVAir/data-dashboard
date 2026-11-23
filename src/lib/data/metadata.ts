@@ -159,7 +159,9 @@ export interface MetadataSource {
 		entryType: string,
 		signal?: AbortSignal
 	): Promise<string | null>;
-	/** The entry type's school activity guidelines (PM2.5 only); `null` when it has none. */
+	/** The entry types with school activity guidelines, in the monitors meta's order. */
+	guidelinePollutants(signal?: AbortSignal): Promise<string[]>;
+	/** The entry type's school activity guidelines; `null` when it has none. */
 	schoolGuidelines(entryType: string, signal?: AbortSignal): Promise<SchoolGuidelines | null>;
 	/**
 	 * Where a scale's breakpoints come from; `dataset` routes like `datasetLevels`. `null` when
@@ -428,6 +430,11 @@ export function createWebMetadata(): MetadataSource {
 		},
 		async figure(entryType, resolution, signal) {
 			return figureFromScale((await meta(signal)).entries[entryType]?.scale, resolution);
+		},
+		async guidelinePollutants(signal) {
+			return Object.entries((await meta(signal)).entries)
+				.filter(([, entry]) => entry?.school_guidelines)
+				.map(([id]) => id);
 		},
 		async schoolGuidelines(entryType, signal) {
 			return (await meta(signal)).entries[entryType]?.school_guidelines ?? null;

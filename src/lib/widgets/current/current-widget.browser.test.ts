@@ -15,7 +15,7 @@ import { m } from "$lib/paraglide/messages.js";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
-import { setMark } from "$lib/thresholds/marks.svelte";
+import { markKey, setMark } from "$lib/thresholds/marks.svelte";
 import { PM25_LEVELS } from "../shared/test-harness/fake-data";
 import { generatedTitle } from "../titles.svelte";
 import { animationsSettled } from "../../../test/animations";
@@ -42,7 +42,9 @@ const fake = vi.hoisted(() => ({
 	hourly: {} as Record<string, "fail" | "hang">,
 	hourlyCalls: 0,
 	/** Makes the next scale (levels) lookup reject. */
-	levelsFail: false
+	levelsFail: false,
+	/** Hourly values by entry type, over the monitor's; an entry type mapped to null has no data. */
+	byEntry: {} as Record<string, [number, number] | null>
 }));
 vi.mock("$lib/data", () => ({
 	getQueryClient: () => fake.client!,
@@ -72,6 +74,8 @@ const LEVELS: Level[] = PM25_LEVELS.map((l) =>
 		? { ...l, guidance: "Unusually sensitive people should reduce exertion." }
 		: l
 );
+/** Ozone's levels in the test: PM2.5's, renamed so a row's label shows whose level it is. */
+const O3_LEVELS: Level[] = PM25_LEVELS.map((l) => ({ ...l, label: `Ozone ${l.label}` }));
 const CATALOG: CatalogEntry[] = FIXTURE_CATALOG.map((d) => ({
 	...d,
 	entryTypes: d.entryTypes.map((e) => ({ ...e, precision: 1 }))
@@ -94,7 +98,8 @@ function adapter(values: Record<string, [number, number]>): DatasetAdapter {
 			fake.hourlyCalls++;
 			if (fake.hourly[id] === "fail") throw new Error("hourly failed");
 			if (fake.hourly[id] === "hang") await new Promise(() => {});
-			const [before, latest] = values[id] ?? [0, 0];
+			const own = fake.byEntry[req.entryType];
+			const [before, latest] = own ?? values[id] ?? [0, 0];
 			const t = t0 - 6 * 60_000 - HOUR;
 			const point = (at: number, mean: number) => ({
 				t: at,
@@ -105,7 +110,12 @@ function adapter(values: Record<string, [number, number]>): DatasetAdapter {
 				partial: false
 			});
 			return {
-				series: [{ place: `monitor:${id}`, points: [point(t - HOUR, before), point(t, latest)] }],
+				series: [
+					{
+						place: `monitor:${id}`,
+						points: own === null ? [] : [point(t - HOUR, before), point(t, latest)]
+					}
+				],
 				places: [{ place: `monitor:${id}`, name: `Monitor ${id}` }],
 				resolution: req.resolution,
 				fromRaw: false,
@@ -129,6 +139,7 @@ beforeEach(async () => {
 	fake.hourly = {};
 	fake.hourlyCalls = 0;
 	fake.levelsFail = false;
+	fake.byEntry = {};
 	fake.metadata = fixtureMetadata({
 		catalog: async () => CATALOG,
 		levels: async (entryType) => {
@@ -136,7 +147,7 @@ beforeEach(async () => {
 				fake.levelsFail = false;
 				throw new Error("levels failed");
 			}
-			return entryType === "pm25" ? LEVELS : [];
+			return entryType === "pm25" ? LEVELS : entryType === "o3" ? O3_LEVELS : [];
 		},
 		monitorType: async (id) =>
 			({ "m-pa": "purpleair", "m-bam": "bam1022", voz: "vozbox", "m-x": "purpleair" })[id] ?? null,
@@ -261,12 +272,12 @@ test("an unlisted monitor shows the no-longer-available card", async () => {
 test("a threshold mark shows the label and an outline in the level color", async () => {
 	const widget = currentWidget("a");
 	const moderate = LEVELS.find((l) => l.key === "moderate")!;
-	setMark(widget.id, { level: moderate, at: Date.now(), pulse: 1 });
+	setMark(markKey(widget.id, "pm25"), { level: moderate, at: Date.now(), pulse: 1 });
 	const screen = await show(widget);
 	await expect.element(screen.getByText(m.current_alert_level_reached())).toBeVisible();
 	const card = frame.querySelector<HTMLElement>("[data-mark]")!;
 	expect(getComputedStyle(card).outlineColor).toBe("rgb(255, 255, 0)");
-	setMark(widget.id, null);
+	setMark(markKey(widget.id, "pm25"), null);
 	await expect.poll(() => frame.querySelector("[data-mark]")).toBeNull();
 });
 
@@ -277,21 +288,21 @@ test("the pulse replays once with motion and not at all under reduced motion", a
 		at: Date.now(),
 		pulse: 1
 	};
-	setMark(widget.id, mark);
+	setMark(markKey(widget.id, "pm25"), mark);
 	await show(widget);
 	await expect.poll(() => frame.querySelector("[data-mark]")).not.toBeNull();
 	expect(frame.getAnimations({ subtree: true }).length).toBeGreaterThan(0);
 	await animationsSettled(frame);
 	await commands.setReducedMotion(true);
 	try {
-		setMark(widget.id, { ...mark, pulse: 2 });
+		setMark(markKey(widget.id, "pm25"), { ...mark, pulse: 2 });
 		await expect
 			.poll(() => frame.querySelector("[data-pulse]")?.getAttribute("data-pulse"))
 			.toBe("2");
 		expect(frame.getAnimations({ subtree: true })).toHaveLength(0);
 	} finally {
 		await commands.setReducedMotion(null);
-		setMark(widget.id, null);
+		setMark(markKey(widget.id, "pm25"), null);
 	}
 });
 
@@ -359,7 +370,7 @@ test("a retired place shows its note over the value", async () => {
 
 test("has no axe violations", async () => {
 	const widget = currentWidget("a");
-	setMark(widget.id, {
+	setMark(markKey(widget.id, "pm25"), {
 		level: LEVELS.find((l) => l.key === "moderate")!,
 		at: Date.now(),
 		pulse: 1
@@ -368,7 +379,7 @@ test("has no axe violations", async () => {
 	await expect.element(screen.getByText("28.4"), { timeout: 5000 }).toBeVisible();
 	const results = await axe.run(frame);
 	expect(results.violations).toEqual([]);
-	setMark(widget.id, null);
+	setMark(markKey(widget.id, "pm25"), null);
 });
 
 /** An alert result in the published shape; `over` replaces fields. */
@@ -611,4 +622,119 @@ test("a later alert retry in flight keeps the hourly value on the tile", async (
 	await new Promise((r) => setTimeout(r, 200));
 	await expect.element(screen.getByText("21.0", { exact: true })).toBeVisible();
 	expect(frame.querySelector("[data-skeleton], [aria-busy='true']")).toBeNull();
+});
+
+/** A widget showing PM2.5 and ozone at monitor `id`, with an alert level for each. */
+function twoPollutants(id: string): WidgetInstance {
+	return {
+		...currentWidget(id),
+		data: {
+			layers: [
+				{ dataset: "air-quality", entryType: "pm25", monitors: [id] },
+				{ dataset: "air-quality", entryType: "o3" }
+			]
+		}
+	};
+}
+
+test("a two-pollutant widget shows a row for each, with its value and level", async () => {
+	fake.byEntry = { o3: [40, 52] };
+	const widget = twoPollutants("a");
+	const screen = await show(widget);
+	await expect.element(screen.getByText("28.4"), { timeout: 5000 }).toBeVisible();
+	await expect.element(screen.getByText("52.0")).toBeVisible();
+	await expect.element(screen.getByText("Moderate", { exact: true })).toBeVisible();
+	await expect.element(screen.getByText("Ozone Unhealthy for Sensitive Groups")).toBeVisible();
+	const rows = [...frame.querySelectorAll("[data-pollutant]")];
+	expect(rows.map((r) => r.getAttribute("data-pollutant"))).toEqual(["pm25", "o3"]);
+	await expect.element(screen.getByText("PM2.5", { exact: true })).toBeVisible();
+	await expect.element(screen.getByText("Ozone", { exact: true })).toBeVisible();
+});
+
+test("a pollutant with no data here says so, and the other still shows its value", async () => {
+	fake.byEntry = { o3: null };
+	const screen = await show(twoPollutants("a"));
+	await expect.element(screen.getByText("28.4"), { timeout: 5000 }).toBeVisible();
+	const ozone = frame.querySelector<HTMLElement>("[data-pollutant='o3']")!;
+	await expect.poll(() => ozone.textContent).toContain(m.current_no_data());
+	expect(frame.querySelector("[data-pollutant='pm25']")!.textContent).not.toContain(
+		m.current_no_data()
+	);
+});
+
+test("several pollutants with no place show one idle message", async () => {
+	const widget = twoPollutants("a");
+	widget.data = {
+		layers: [
+			{ dataset: "air-quality", entryType: "pm25" },
+			{ dataset: "air-quality", entryType: "o3" }
+		]
+	};
+	const screen = await show(widget);
+	await expect
+		.element(screen.getByText(m.widget_state_idle_place_or_monitor()), { timeout: 5000 })
+		.toBeVisible();
+	await new Promise((r) => setTimeout(r, 200));
+	expect(screen.getByText(m.widget_state_idle_place_or_monitor()).elements()).toHaveLength(1);
+});
+
+test("no pollutant ticked asks for one, once", async () => {
+	const widget = currentWidget("a");
+	widget.data = { layers: [{ dataset: "air-quality", monitors: ["a"] }] };
+	const screen = await show(widget);
+	await expect
+		.element(screen.getByText(m.current_choose_pollutant()), { timeout: 5000 })
+		.toBeVisible();
+	expect(screen.getByText(m.widget_state_idle_place_or_monitor()).elements()).toHaveLength(0);
+});
+
+test("several pollutants are titled as a list, then the place", async () => {
+	fake.byEntry = { o3: [40, 52] };
+	const widget = twoPollutants("a");
+	await show(widget);
+	await expect
+		.poll(() => generatedTitle(widget.id), { timeout: 5000 })
+		.toBe("PM2.5 and Ozone · Monitor a");
+});
+
+test("each pollutant's row carries its own mark", async () => {
+	fake.byEntry = { o3: [40, 52] };
+	const widget = twoPollutants("a");
+	const o3 = O3_LEVELS.find((l) => l.key === "moderate")!;
+	setMark(markKey(widget.id, "o3"), { level: o3, at: Date.now(), pulse: 1 });
+	try {
+		const screen = await show(widget);
+		await expect.element(screen.getByText(m.current_alert_level_reached())).toBeVisible();
+		expect(frame.querySelector("[data-pollutant='o3'] [data-mark]")).not.toBeNull();
+		expect(frame.querySelector("[data-pollutant='pm25'] [data-mark]")).toBeNull();
+	} finally {
+		setMark(markKey(widget.id, "o3"), null);
+	}
+});
+
+test("several pollutants are headed, each row a group named by its heading", async () => {
+	fake.byEntry = { o3: [40, 52] };
+	const screen = await show(twoPollutants("a"));
+	await expect
+		.element(screen.getByRole("heading", { level: 3, name: "PM2.5" }), { timeout: 5000 })
+		.toBeVisible();
+	await expect.element(screen.getByRole("heading", { level: 3, name: "Ozone" })).toBeVisible();
+	expect(screen.getByRole("heading", { level: 3 }).elements()).toHaveLength(2);
+	await expect.element(screen.getByRole("group", { name: "Ozone" })).toBeVisible();
+	// A group, not a landmark: two cards would make same-named landmarks.
+	const column = screen.getByRole("group", { name: m.current_rows_label() });
+	await expect.element(column).toBeVisible();
+	expect(screen.getByRole("region").elements()).toHaveLength(0);
+	// A Tab stop only while it overflows.
+	frame.style.height = "200px";
+	await expect.element(column).toHaveAttribute("tabindex", "0");
+	frame.style.height = "2000px";
+	await expect.element(column).toHaveAttribute("tabindex", "-1");
+});
+
+test("one pollutant has no heading, group or focusable column", async () => {
+	const screen = await show(currentWidget("a"));
+	await expect.element(screen.getByText("28.4"), { timeout: 5000 }).toBeVisible();
+	expect(screen.getByRole("heading").elements()).toHaveLength(0);
+	expect(frame.querySelector("[role='group'], [tabindex='0']")).toBeNull();
 });

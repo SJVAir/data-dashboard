@@ -1,10 +1,7 @@
 <script lang="ts">
 	import { getContext, onDestroy, untrack } from "svelte";
-	import { widgetTitle } from "$lib/actions/widget";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { canonicalJson } from "$lib/sync/merge";
-	import { OUTSIDE_TYPE } from "$lib/widgets/outside";
-	import { asPm25 } from "$lib/widgets/outside/pm25";
 	import { CurrentConditions } from "$lib/widgets/shared/current.svelte";
 	import { widgetWhere } from "$lib/widgets/shared/input";
 	import { ReadingClock } from "$lib/widgets/shared/reading-clock.svelte";
@@ -14,13 +11,24 @@
 	import { setMark } from "./marks.svelte";
 	import type { ThresholdWatch } from "./watcher.svelte";
 
-	let { widget, watch }: { widget: WidgetInstance; watch: ThresholdWatch } = $props();
+	let {
+		widget,
+		markKey,
+		title,
+		watch
+	}: {
+		/** The widget as this watch reads it (Current conditions: one pollutant, `onePollutant`). */
+		widget: WidgetInstance;
+		/** The watch's key: its mark, "last told" and notification tag are held under it. */
+		markKey: string;
+		/** The saved widget's title (not the one-pollutant reading's), for its notification. */
+		title: string;
+		watch: ThresholdWatch;
+	} = $props();
 
 	const viewer = getContext<PlaceViewer | undefined>(PLACE_VIEWER_KEY) ?? "owner";
-	// What the tile itself reads ("Can we go outside?" is always PM2.5).
-	const read = $derived(widget.type === OUTSIDE_TYPE ? asPm25(widget) : widget);
 	// Polling even while minimized: a minimized widget isn't on the grid, but still watches.
-	const current = new CurrentConditions(() => read, { polling: () => true });
+	const current = new CurrentConditions(() => widget, { polling: () => true });
 	// Ticks each minute, so a reading that ages past "recent" loses its mark between polls.
 	const clock = new ReadingClock(() => current.reading);
 	const threshold = $derived(resolveThreshold(widget.thresholds, current.levels)?.level ?? null);
@@ -29,13 +37,18 @@
 	let gone = false;
 	onDestroy(() => {
 		gone = true;
-		setMark(widget.id, null);
+		setMark(markKey, null);
 	});
 
-	// What the reading is of (place and pollutant): when it changes, "last told" was about
-	// another place, so it's dropped and the new place's first reading only seeds it.
+	// What is watched (place, this watch's pollutant and its alert level): when it changes, "last
+	// told" was about something else, so it's dropped and the next reading only seeds it. Another
+	// pollutant of the same widget has its own watch, so changing it leaves this one alone.
 	const watchedKey = $derived(
-		canonicalJson({ where: widgetWhere(read.data), layers: read.data.layers })
+		canonicalJson({
+			where: widgetWhere(widget.data),
+			layers: widget.data.layers,
+			thresholds: widget.thresholds ?? null
+		})
 	);
 	let lastKey: string | undefined;
 
@@ -47,18 +60,18 @@
 		const meta = current.meta;
 		void clock.stale;
 		untrack(() => {
-			if (lastKey !== undefined && key !== lastKey) void watch.forget([widget.id]);
+			if (lastKey !== undefined && key !== lastKey) void watch.forget([markKey]);
 			lastKey = key;
-			watch.mark(widget.id, reading, limit, levels, clock.now);
+			watch.mark(markKey, reading, limit, levels, clock.now);
 			const ok = reading?.status === "ok" ? reading : undefined;
 			if (!ok?.level || !limit || !meta) return;
 			void watch.process(
-				widget.id,
+				markKey,
 				{ level: ok.level, at: ok.watchAt ?? ok.at },
 				limit,
 				levels,
 				() => ({
-					title: widgetTitle(widget),
+					title,
 					pollutant: meta.entryType.label,
 					place: placeLabel(ok.place, viewer)
 				}),

@@ -116,6 +116,7 @@ export function fixtureMetadata(overrides: Partial<MetadataSource> = {}): Metada
 		mapPollutants: async () => ["o3", "pm25"],
 		serverScale: async () => null,
 		monitorTypeInterval: async (type) => (type === "purpleair" ? "2 min" : null),
+		guidelinePollutants: async () => [],
 		schoolGuidelines: async () => null,
 		scaleSource: async () => null,
 		monitorType: async (id) => FIXTURE_MONITORS.find((m) => m.id === id)?.type ?? null,

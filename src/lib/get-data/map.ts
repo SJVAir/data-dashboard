@@ -452,13 +452,14 @@ export function fromMapDraft(
 	type: WidgetType,
 	catalog: CatalogEntry[],
 	levels: Level[] | "unavailable" = "unavailable",
-	now: Date = new Date()
+	now: Date = new Date(),
+	allowed?: string[]
 ): NowConversion {
 	const one = mapShowingOnly(draft, catalog);
 	// `type` is never the Map (Map to Map goes through `toMapDraft`), so a now type here is one.
 	const converted =
 		type.time === "now"
-			? toNowDraft(one.draft, type, catalog, levels, mapType)
+			? toNowDraft(one.draft, type, catalog, levels, mapType, allowed)
 			: fromNowDraft(one.draft, type);
 	const range = one.draft.data.dateRange;
 	if (type.time !== "now" && range && !blockedBySpan(range, type.span, now)) {

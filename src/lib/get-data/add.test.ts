@@ -121,11 +121,13 @@ describe("addFromDraft", () => {
 		const now: Draft = {
 			type: "current-conditions",
 			data: { place: FRESNO, layers: [{ dataset: "air-quality", entryType: "pm25" }] },
-			thresholds: [{ level: "unhealthy_sensitive" }]
+			thresholds: [{ level: "unhealthy_sensitive", entryType: "pm25" }]
 		};
 		await addFromDraft(app, "d1", now);
 		const session = (await app.sessions.get("d1"))!;
-		expect(session.doc.body.widgets.at(-1)!.thresholds).toEqual([{ level: "unhealthy_sensitive" }]);
+		expect(session.doc.body.widgets.at(-1)!.thresholds).toEqual([
+			{ level: "unhealthy_sensitive", entryType: "pm25" }
+		]);
 		// Off stores none.
 		await addFromDraft(app, "d1", { ...now, thresholds: undefined });
 		expect("thresholds" in session.doc.body.widgets.at(-1)!).toBe(false);

@@ -4,6 +4,7 @@
  */
 import type { CatalogEntry, Level } from "$lib/data/metadata";
 import { MAP_TYPE } from "$lib/widgets/map/options";
+import { OUTSIDE_TYPE } from "$lib/widgets/outside";
 import { getWidgetType, type WidgetType } from "$lib/widgets/registry";
 import { offersNow } from "$lib/widgets/time";
 import type { Draft } from "./draft.svelte";
@@ -13,7 +14,10 @@ import { fromNowDraft, fromRangeDraft, isNowShaped, toNowDraft, type NowConversi
 /** What a conversion reads besides the draft. */
 export type ShowAsContext = {
 	catalog: CatalogEntry[];
-	/** The Map's pollutants (the monitors meta's `available_pollutants`). */
+	/**
+	 * The pollutants the target type offers: the Map's (the monitors meta's `available_pollutants`),
+	 * or for "Can we go outside?" the ones with school guidelines. Other types offer them all.
+	 */
 	allowed: string[];
 	/** A now type's new pollutant's scale, or `"unavailable"` (`toNowDraft`). */
 	levels: Level[] | "unavailable";
@@ -41,11 +45,12 @@ export function sourceType(draft: Draft, ctx: ShowAsContext): WidgetType | undef
 export function showAsDraft(draft: Draft, to: WidgetType, ctx: ShowAsContext): NowConversion {
 	const { catalog, allowed, levels, now } = ctx;
 	if (to.type === MAP_TYPE) return toMapDraft(draft, catalog, allowed, now);
+	const offered = to.type === OUTSIDE_TYPE ? allowed : undefined;
 	const fromMap = draft.type === MAP_TYPE;
 	if (offersNow(to)) {
 		return fromMap
-			? fromMapDraft(draft, to, catalog, levels, now)
-			: toNowDraft(draft, to, catalog, levels, sourceType(draft, ctx));
+			? fromMapDraft(draft, to, catalog, levels, now, offered)
+			: toNowDraft(draft, to, catalog, levels, sourceType(draft, ctx), offered);
 	}
 	const from = getWidgetType(draft.type);
 	if (from && offersNow(from)) {

@@ -761,6 +761,18 @@ describe("now-widget metadata", () => {
 		expect(await md.schoolGuidelines("nope")).toBeNull();
 	});
 
+	it("guidelinePollutants lists the entries with school guidelines, in the meta's order", async () => {
+		vi.mocked(getMonitorsMeta).mockResolvedValue({
+			monitors: {},
+			entries: {
+				o3: { school_guidelines: null },
+				pm25: { school_guidelines: { source: null, activities: [] } },
+				pm10: {}
+			}
+		} as never);
+		expect(await createWebMetadata().guidelinePollutants()).toEqual(["pm25"]);
+	});
+
 	it("datasetLevels reads calheatscore scales", async () => {
 		const keys = ["low", "moderate", "high", "very-high", "severe"];
 		vi.mocked(getCalHeatScoreMeta).mockResolvedValue({

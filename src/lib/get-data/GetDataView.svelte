@@ -11,6 +11,7 @@
 	import { scrollFocusable } from "$lib/components/shared/scroll-focusable";
 	import { adapterOffers, getMetadata, getResolvers } from "$lib/data";
 	import { csvPending, saveDataCsv } from "$lib/data/csv";
+	import { AIR_QUALITY } from "$lib/data/layer-kind";
 	import type { CatalogEntry, Level } from "$lib/data/metadata";
 	import { fillableTypes } from "$lib/data/snapshot";
 	import type { ChosenPlace, DateRangeSpec, Layer, PesticideFilters } from "$lib/data/schema";
@@ -26,6 +27,14 @@
 	import { CHART_TYPE } from "$lib/widgets/chart";
 	import { DEFAULT_LAYER, DEFAULT_RANGE } from "$lib/widgets/defaults";
 	import { CURRENT_TYPE } from "$lib/widgets/current";
+	import { OUTSIDE_TYPE } from "$lib/widgets/outside";
+	import {
+		currentPollutants,
+		firstPollutantOnly,
+		setCurrentPollutants
+	} from "$lib/widgets/current/pollutants";
+	import { thresholdFor, withThreshold } from "$lib/thresholds/levels";
+	import type { Threshold } from "$lib/thresholds/schema";
 	import { MAP_TYPE } from "$lib/widgets/map";
 	import {
 		HMS_FIRE,
@@ -75,7 +84,7 @@
 		type NowConversion
 	} from "./now";
 	import { showAsDraft } from "./show-as";
-	import NowControls from "./NowControls.svelte";
+	import NowControls, { type NowAlert } from "./NowControls.svelte";
 	import {
 		isMapShaped,
 		mapShowingOnly,
@@ -217,6 +226,36 @@
 			active = false;
 		};
 	});
+	/**
+	 * The pollutants with school guidelines (what "Can we go outside?" offers), once loaded. When
+	 * they can't be loaded they stay unknown (undefined): nothing says none have guidelines, the
+	 * draft keeps its pollutant, and the next type change asks again.
+	 */
+	let guidelinePollutants = $state.raw<string[] | undefined>();
+	/** Asked since the last type change (so a failed load isn't asked again until the next one). */
+	let guidelinesAsked = false;
+	const loadGuidelinePollutants = (): Promise<string[] | undefined> => {
+		guidelinesAsked = true;
+		return getMetadata()
+			.guidelinePollutants()
+			.catch((error: unknown) => {
+				report(error, { operation: "guideline-pollutants" });
+				return undefined;
+			});
+	};
+	const draftType = $derived(plain.type);
+	$effect(() => {
+		if (draftType !== OUTSIDE_TYPE || guidelinePollutants || untrack(() => guidelinesAsked)) {
+			return;
+		}
+		let active = true;
+		void loadGuidelinePollutants().then((p) => {
+			if (active) guidelinePollutants = p;
+		});
+		return () => {
+			active = false;
+		};
+	});
 	const loadMapPollutants = async () => {
 		const p = await getMetadata().mapPollutants();
 		return p === "unavailable" ? [] : p;
@@ -251,6 +290,10 @@
 			monitors: widgetMonitors(plain.data).monitors
 		})
 	);
+	/** Current conditions with no pollutant ticked (C2): Add and Save ask for one. */
+	const noPollutant = $derived(
+		plain.type === CURRENT_TYPE && currentPollutants(plain.data).length === 0
+	);
 	/** Only level layers (smoke, burn status): nothing to chart, so no Add, Save or Download. */
 	const levelOnly = $derived(layers.levelOnly(plain.data, known));
 
@@ -260,9 +303,12 @@
 			: []
 	);
 	// A now type is never blocked: choosing it converts the draft (`toNowDraft`). A Map, in its
-	// shape or not, is checked as what `fromMapDraft` converts it to: its pollutant, at its places.
+	// shape or not, is checked as what `fromMapDraft` converts it to: its pollutant, at its places;
+	// Current conditions as its first pollutant (`firstPollutantOnly`), which Show as converts.
 	const blockData = $derived(
-		known && plain.type === MAP_TYPE ? mapShowingOnly(plain, known).draft.data : plain.data
+		known && plain.type === MAP_TYPE
+			? mapShowingOnly(plain, known).draft.data
+			: firstPollutantOnly(plain).data
 	);
 	const showAs = $derived(
 		dataTypes().map((t) => {
@@ -622,6 +668,16 @@
 		const out: string[] = [];
 		if (what.includes("dates")) out.push(m.get_data_dates_left_out());
 		if (what.includes("overlays")) out.push(m.get_data_overlays_left_out());
+		const others = dropped.conversion.leftOut ?? [];
+		if (what.includes("pollutants") && others.length > 0) {
+			const names = others.map((p) => entryMeta(known, p)?.entryType.label ?? p.entryType);
+			out.push(
+				m.get_data_pollutants_left_out({
+					pollutants: formatList(names),
+					countValue: names.length
+				})
+			);
+		}
 		const cap = placeLimit(getWidgetType(plain.type));
 		if (what.includes("places")) {
 			out.push(
@@ -704,23 +760,44 @@
 		else delete draft.thresholds;
 	}
 
-	/** A pollutant's scale (empty when it has none), or `"unavailable"` when it can't be loaded. */
-	async function levelsOf(entryType: string | undefined): Promise<Level[] | "unavailable"> {
-		if (!entryType) return [];
-		try {
-			return await getMetadata().levels(entryType);
-		} catch {
-			return "unavailable";
+	/**
+	 * Each pollutant's scale (empty when it has none), by entry type, once asked for;
+	 * `"unavailable"` when it couldn't be loaded. Shared by the now types' alert levels and the
+	 * Chart's line: each scale loads once, and one that failed loads again on its own (Retry, or the
+	 * next change that asks for it).
+	 */
+	let alertLevels = $state.raw<Record<string, Level[] | "unavailable">>({});
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- bookkeeping, not rendered
+	const levelsLoading = new Map<string, Promise<Level[] | "unavailable">>();
+	/** `entryType`'s scale: the loaded one, else loads it (once at a time); `[]` for none. */
+	function levelsOf(entryType: string | undefined): Promise<Level[] | "unavailable"> {
+		if (!entryType) return Promise.resolve([]);
+		const have = alertLevels[entryType];
+		if (Array.isArray(have)) return Promise.resolve(have);
+		let loading = levelsLoading.get(entryType);
+		if (!loading) {
+			loading = getMetadata()
+				.levels(entryType)
+				.catch(() => "unavailable" as const)
+				.then((levels) => {
+					levelsLoading.delete(entryType);
+					alertLevels = { ...alertLevels, [entryType]: levels };
+					if (Array.isArray(levels)) payDefault(entryType, levels);
+					return levels;
+				});
+			levelsLoading.set(entryType, loading);
 		}
+		return loading;
 	}
 
 	/** Bumped by each type or pollutant change, so a slower earlier one doesn't land after it. */
 	let changeId = 0;
 	/**
-	 * A conversion that should have set the default alert level couldn't load the scale: it's set
-	 * once the scale loads, unless the person chooses one first.
+	 * The pollutants owed a default alert level: a conversion or a newly ticked pollutant whose
+	 * scale couldn't be loaded. Set once the scale loads, unless the person chooses one first.
 	 */
-	let defaultOwed = false;
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- bookkeeping, not rendered
+	const owed = new Set<string>();
 
 	/** Whether `d` already has now type `t`'s shape (the Map's own, for the Map). */
 	function shaped(d: Draft, t: WidgetType): boolean {
@@ -742,25 +819,40 @@
 				levels: "unavailable",
 				now
 			});
-			defaultOwed = false;
+			owed.clear();
 			replaceDraft(converted.draft);
 			noteConversion(converted);
 			return;
 		}
 		// From a Map, its pollutant is the one that converts.
 		const base = (d: Draft) => (d.type === MAP_TYPE ? mapShowingOnly(d, catalog).draft : d);
-		const pollutant = nowPollutant(base($state.snapshot(draft) as Draft), next, catalog);
+		// "Can we go outside?" offers only the pollutants with school guidelines; while they can't be
+		// loaded, any pollutant (the draft keeps its own).
+		const guidelines = next.type === OUTSIDE_TYPE ? await loadGuidelinePollutants() : undefined;
+		if (id !== changeId) return;
+		if (guidelines) guidelinePollutants = guidelines;
+		const offered =
+			next.type !== OUTSIDE_TYPE
+				? undefined
+				: (guidelines ?? offeredPollutants(catalog).map((e) => e.id));
+		const pollutant = nowPollutant(base($state.snapshot(draft) as Draft), next, catalog, offered);
 		const levels = await levelsOf(pollutant);
 		if (id !== changeId) return;
 		// An edit made while the scale loaded counts: convert the draft as it is now (again, when
 		// that edit changed the pollutant).
 		const fresh = $state.snapshot(draft) as Draft;
-		if (nowPollutant(base(fresh), next, catalog) !== pollutant) {
+		if (nowPollutant(base(fresh), next, catalog, offered) !== pollutant) {
 			return convertToNow(next, catalog);
 		}
-		const converted = showAsDraft(fresh, next, { catalog, allowed: [], levels, now });
-		alertLevels = { entryType: nowEntryType(converted.draft), levels };
-		defaultOwed = !!converted.defaultOwed;
+		const converted = showAsDraft(fresh, next, {
+			catalog,
+			allowed: offered ?? [],
+			levels,
+			now
+		});
+		owed.clear();
+		const owing = converted.defaultOwed ? nowEntryType(converted.draft) : undefined;
+		if (owing) owed.add(owing);
 		replaceDraft(converted.draft);
 		noteConversion(converted);
 	}
@@ -773,12 +865,13 @@
 
 	function switchType(to: WidgetType): void {
 		const next = to.type;
+		guidelinesAsked = false;
 		if (offersNow(to) && known) {
 			void convertToNow(to, known);
 			return;
 		}
 		const id = ++changeId;
-		defaultOwed = false;
+		owed.clear();
 		const school = areaToLookUp(plain, next);
 		if (school) {
 			// A Chart or Table holds areas only: the school or point's area first (as the starter
@@ -829,43 +922,47 @@
 		if (!untrack(() => shaped(plain, to))) void convertToNow(to, known);
 	});
 
-	// The alert level: the pollutant's scale ("Can we go outside?" reads PM2.5 whatever's saved).
+	// The alert level: the pollutant's scale (the one on the draft's layer once it's shaped).
 	const nowEntryType = (d: Draft) =>
 		d.type === CURRENT_TYPE
-			? d.data.layers[0]?.entryType
-			: nowPollutant(d, getWidgetType(d.type)!, known ?? []);
-	let alertLevels = $state.raw<{
-		entryType: string | undefined;
-		levels: Level[] | "unavailable";
-	} | null>(null);
-	let alertTry = $state(0);
+			? currentPollutants(d.data)[0]
+			: d.type === OUTSIDE_TYPE
+				? d.data.layers.find((l) => l.dataset === AIR_QUALITY)?.entryType
+				: nowPollutant(d, getWidgetType(d.type)!, known ?? []);
+	const isCurrent = $derived(plain.type === CURRENT_TYPE);
 	// A Chart's threshold line reads its main pollutant's scale the same way (no default).
 	const lineEntryType = $derived.by(() => {
 		if (isNow || !type?.thresholds || !known) return undefined;
 		const meta = entryMeta(known, main);
 		return meta?.entryType.kind === "pollutant" ? main?.entryType : undefined;
 	});
-	const alertEntryType = $derived(
-		isNow && type?.thresholds && known ? nowEntryType(plain) : lineEntryType
-	);
-	$effect(() => {
-		void alertTry;
-		const entryType = alertEntryType;
-		if (!entryType) return;
-		const have = untrack(() => alertLevels);
-		if (have?.entryType === entryType && have.levels !== "unavailable") return;
-		let active = true;
-		void levelsOf(entryType).then((levels) => {
-			if (!active) return;
-			alertLevels = { entryType, levels };
-			if (Array.isArray(levels)) untrack(() => payDefault(levels));
-		});
-		return () => {
-			active = false;
-		};
+	/** The pollutants whose scales the form shows: Current conditions' each, else one. */
+	const alertEntryTypes = $derived.by<string[]>(() => {
+		if (!isNow) return lineEntryType ? [lineEntryType] : [];
+		if (!type?.thresholds || !known) return [];
+		if (isCurrent) return currentPollutants(plain.data);
+		const one = nowEntryType(plain);
+		return one ? [one] : [];
 	});
-	const shownLevels = $derived(
-		alertEntryType && alertLevels?.entryType === alertEntryType ? alertLevels.levels : null
+	// Keyed on a string, so an edit that keeps the pollutants asks for nothing.
+	const alertKey = $derived(alertEntryTypes.join(" "));
+	$effect(() => {
+		const wanted = alertKey ? alertKey.split(" ") : [];
+		untrack(() => wanted.forEach((e) => void levelsOf(e)));
+	});
+	/** The Chart's line's scale; null while loading or without a line. */
+	const shownLevels = $derived(lineEntryType ? (alertLevels[lineEntryType] ?? null) : null);
+	/** The now types' alert levels: Current conditions' one per pollutant, else the one. */
+	const nowAlerts = $derived<NowAlert[]>(
+		isNow
+			? alertEntryTypes.map((entryType) => ({
+					entryType,
+					label:
+						entryMeta(known, { dataset: AIR_QUALITY, entryType })?.entryType.label ?? entryType,
+					levels: alertLevels[entryType] ?? null,
+					threshold: thresholdFor(plain.thresholds, isCurrent ? entryType : undefined)
+				}))
+			: []
 	);
 
 	// A Chart's saved line is dropped once it can't be shown or edited: the type has no
@@ -879,20 +976,35 @@
 		if (gone) untrack(() => delete draft.thresholds);
 	});
 
-	/** Sets the default alert level a conversion owed, keeping its notes up. */
-	function payDefault(levels: Level[]): void {
-		if (!defaultOwed) return;
-		defaultOwed = false;
-		if (draft.thresholds) return;
+	/** Sets the draft's alert levels (none deletes them). */
+	function putThresholds(next: Threshold[] | undefined): void {
+		if (next) draft.thresholds = next;
+		else delete draft.thresholds;
+	}
+
+	/**
+	 * Sets the default alert level owed to `entryType` (a conversion, or a newly ticked pollutant,
+	 * whose scale couldn't load), keeping the notes up. Current conditions' is tagged with its
+	 * pollutant; another type's has none.
+	 */
+	function payDefault(entryType: string, levels: Level[]): void {
+		if (!owed.delete(entryType)) return;
+		const current = draft.type === CURRENT_TYPE;
+		const shown = current
+			? currentPollutants(draft.data).includes(entryType)
+			: nowEntryType(draft) === entryType;
+		if (!shown) return;
+		const saved = $state.snapshot(draft.thresholds) as Threshold[] | undefined;
+		if (current ? thresholdFor(saved, entryType) : saved?.length) return;
 		const noted = !!dropped && dropped.after === JSON.stringify(plain);
-		const thresholds = keptThreshold(undefined, levels, true);
-		if (!thresholds) return;
-		draft.thresholds = thresholds;
+		const made = keptThreshold(undefined, levels, true, current ? entryType : undefined);
+		if (!made) return;
+		putThresholds(current ? withThreshold(saved, entryType, made[0]) : made);
 		if (noted && dropped) noteConversion(dropped.conversion);
 	}
 
 	/**
-	 * Current conditions' pollutant: the alert level keeps its key if the new scale has it, else
+	 * "Can we go outside?"'s pollutant: the alert level keeps its key if the new scale has it, else
 	 * takes its default. When the scale can't be loaded, the alert level is kept as it is.
 	 */
 	async function setNowPollutant(entryType: string): Promise<void> {
@@ -902,17 +1014,47 @@
 		const layer = draft.data.layers[0];
 		if (!layer) return;
 		layer.entryType = entryType;
-		alertLevels = { entryType, levels };
 		if (levels === "unavailable") return;
-		const thresholds = keptThreshold($state.snapshot(draft.thresholds), levels, false);
-		if (thresholds) draft.thresholds = thresholds;
-		else delete draft.thresholds;
+		putThresholds(keptThreshold($state.snapshot(draft.thresholds), levels, false));
 	}
 
-	function setThreshold(level: string | null): void {
-		defaultOwed = false;
-		if (level) draft.thresholds = [{ level }];
-		else delete draft.thresholds;
+	/**
+	 * Current conditions' ticked pollutants (C2, C3): their layers, in the order given (the offered
+	 * order; the monitor stays on the first); a newly ticked one gets its scale's default alert
+	 * level (owed until the scale loads), an unticked one's goes.
+	 */
+	function setNowPollutants(entryTypes: string[]): void {
+		const before = currentPollutants(draft.data);
+		draft.data = setCurrentPollutants($state.snapshot(draft.data), entryTypes);
+		let thresholds = $state.snapshot(draft.thresholds) as Threshold[] | undefined;
+		for (const e of before) {
+			if (entryTypes.includes(e)) continue;
+			owed.delete(e);
+			thresholds = withThreshold(thresholds, e, undefined);
+		}
+		putThresholds(thresholds);
+		for (const e of entryTypes) {
+			if (before.includes(e)) continue;
+			owed.add(e);
+			const levels = alertLevels[e];
+			// A scale already loaded pays now; else once it loads (`levelsOf`).
+			if (Array.isArray(levels)) payDefault(e, levels);
+			else void levelsOf(e);
+		}
+	}
+
+	/** A now type's alert level for `entryType` (tagged on Current conditions), or Off. */
+	function setThreshold(entryType: string, level: string | null): void {
+		owed.delete(entryType);
+		if (draft.type === CURRENT_TYPE) {
+			const saved = $state.snapshot(draft.thresholds) as Threshold[] | undefined;
+			putThresholds(withThreshold(saved, entryType, level ? { level, entryType } : undefined));
+		} else putThresholds(level ? [{ level }] : undefined);
+	}
+
+	/** A Chart's or calendar's line level, or Off. */
+	function setLineThreshold(level: string | null): void {
+		putThresholds(level ? [{ level }] : undefined);
 	}
 
 	function setOverlayFor(index: number): void {
@@ -988,6 +1130,7 @@
 						maxOverlays={MAX_OVERLAYS}
 						onpollutant={setPollutant}
 						onnowpollutant={(e) => void setNowPollutant(e)}
+						onnowpollutants={setNowPollutants}
 						onmonitortypes={setMonitorTypes}
 						onmonitors={setMonitors}
 						ontoggle={toggleLayer}
@@ -996,6 +1139,9 @@
 						onfilters={setFilters}
 						onstation={setStation}
 						blocked={datasetReason}
+						guidelines={guidelinePollutants && known
+							? offeredPollutants(known, guidelinePollutants)
+							: undefined}
 						map={{
 							pollutants: offeredPollutants(known, mapPollutants ?? []),
 							onsmoke: (on) => setSmokeAndFire(draft.data, on),
@@ -1014,12 +1160,11 @@
 						}}
 					/>
 					{#if isNow && type.thresholds}
-						<!-- A now type's alert level (its pollutant is chosen in Air quality). -->
+						<!-- A now type's alert levels, one per pollutant (chosen in Air quality). -->
 						<NowControls
-							levels={shownLevels}
-							thresholds={plain.thresholds}
+							alerts={nowAlerts}
 							onthreshold={setThreshold}
-							onretry={() => alertTry++}
+							onretry={(e) => void levelsOf(e)}
 						/>
 					{/if}
 				{/if}
@@ -1080,8 +1225,8 @@
 						<ThresholdLineControl
 							levels={shownLevels}
 							thresholds={plain.thresholds}
-							onthreshold={setThreshold}
-							onretry={() => alertTry++}
+							onthreshold={setLineThreshold}
+							onretry={() => void levelsOf(lineEntryType)}
 							marks={isCalendarType(plain.type)}
 						/>
 					</section>
@@ -1090,8 +1235,8 @@
 						<ThresholdLineControl
 							levels={shownLevels}
 							thresholds={plain.thresholds}
-							onthreshold={setThreshold}
-							onretry={() => alertTry++}
+							onthreshold={setLineThreshold}
+							onretry={() => void levelsOf(lineEntryType)}
 							marks={isCalendarType(plain.type)}
 						/>
 					</MoreOptions>
@@ -1103,6 +1248,7 @@
 			class="focus-visible:ring-ring flex min-w-0 flex-col gap-2 rounded-sm focus-visible:ring-2 focus-visible:outline-none md:relative md:-m-1 md:min-h-0 md:overflow-y-auto md:overscroll-contain md:p-1"
 			role="group"
 			aria-label={m.get_data_preview_column_label()}
+			data-testid="get-data-preview-column"
 			{@attach scrollFocusable}
 		>
 			<ShowAs types={showAs} value={plain.type} onchange={setType} />
@@ -1120,14 +1266,20 @@
 					</select>
 				</label>
 			{/if}
-			<Preview
-				widget={previewWidget}
-				{title}
-				{size}
-				gridWidth={width}
-				phone={phone.current}
-				onsize={(s) => (size = s)}
-			/>
+			{#if noPollutant}
+				<!-- Current conditions with nothing ticked (C2): nothing to preview yet. -->
+				<!-- Not a status: the action bar's blocked reason says it once. -->
+				<p class="text-muted-foreground text-sm">{m.get_data_choose_pollutant()}</p>
+			{:else}
+				<Preview
+					widget={previewWidget}
+					{title}
+					{size}
+					gridWidth={width}
+					phone={phone.current}
+					onsize={(s) => (size = s)}
+				/>
+			{/if}
 		</div>
 	</div>
 
@@ -1136,12 +1288,14 @@
 	<ActionBar
 		blocked={levelOnly
 			? m.get_data_level_only()
-			: (misfitReason ??
-				(resolutionUnknown
-					? m.get_data_resolution_unknown_blocked()
-					: resolutionBlocked
-						? m.get_data_resolution_blocked()
-						: undefined))}
+			: noPollutant
+				? m.get_data_choose_pollutant()
+				: (misfitReason ??
+					(resolutionUnknown
+						? m.get_data_resolution_unknown_blocked()
+						: resolutionBlocked
+							? m.get_data_resolution_blocked()
+							: undefined))}
 		downloading={csvPending("get-data")}
 		ondownload={type?.downloadable ? download : undefined}
 		oncancel={onCancel}

@@ -39,7 +39,7 @@ const doc = {
 				title: null,
 				rect: { x: 0, y: 0, w: 4, h: 6 },
 				data: { place: FRESNO, layers: [{ dataset: "air-quality", entryType: "pm25" }] },
-				thresholds: [{ level: "unhealthy_sensitive" }]
+				thresholds: [{ entryType: "pm25", level: "unhealthy_sensitive" }]
 			}
 		]
 	}

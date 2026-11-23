@@ -206,9 +206,27 @@ test("shows the level and each activity's first sentence, and the source link", 
 	await expect.poll(() => generatedTitle(widget.id)).toBe("Can we go outside? · Monitor usg");
 });
 
-test("a saved layer for another pollutant still reads PM2.5", async () => {
-	const screen = await show(outsideWidget("usg", "o3"));
-	await expect.element(screen.getByText("Keep recess short."), { timeout: 5000 }).toBeVisible();
+test("reads the widget as saved: guidelines are asked for its layer's pollutant", async () => {
+	const asked: string[] = [];
+	fake.metadata = fixtureMetadata({
+		...fake.metadata,
+		schoolGuidelines: async (entryType) => {
+			asked.push(entryType);
+			return GUIDELINES;
+		}
+	});
+	await show(outsideWidget("usg", "o3"));
+	await expect.poll(() => asked, { timeout: 5000 }).toContain("o3");
+	expect(asked).not.toContain("pm25");
+});
+
+test("a widget with no pollutant says no pollutant has guidelines", async () => {
+	const widget = outsideWidget("usg");
+	delete widget.data.layers[0].entryType;
+	const screen = await show(widget);
+	await expect
+		.element(screen.getByText(m.outside_no_guideline_pollutants()), { timeout: 5000 })
+		.toBeVisible();
 });
 
 test("an activity's button is named by the activity, not its preview sentence", async () => {
@@ -288,9 +306,11 @@ test("a level with no sentences says there is no guidance, never another level's
 	expect(screen.getByText("Keep recess short.").elements()).toHaveLength(0);
 });
 
-test("no PM2.5 says so and keeps the heat line", async () => {
+test("no data says so, naming the pollutant, and keeps the heat line", async () => {
 	const screen = await show(outsideWidget("none"));
-	await expect.element(screen.getByText(m.outside_no_pm25()), { timeout: 5000 }).toBeVisible();
+	await expect
+		.element(screen.getByText("No PM2.5 data for this place"), { timeout: 5000 })
+		.toBeVisible();
 	await expect.element(screen.getByText(m.outside_heat_today()), { timeout: 5000 }).toBeVisible();
 	await expect.element(screen.getByText("Severe", { exact: true })).toBeVisible();
 });
@@ -300,7 +320,7 @@ test("a stale reading says there is no recent data and keeps the heat line", asy
 	await expect
 		.element(screen.getByText(m.current_no_recent_data()), { timeout: 5000 })
 		.toBeVisible();
-	expect(screen.getByText(m.outside_no_pm25()).elements()).toHaveLength(0);
+	expect(screen.getByText(/^No .*data for this place$/).elements()).toHaveLength(0);
 	await expect.element(screen.getByText("Severe", { exact: true })).toBeVisible();
 });
 

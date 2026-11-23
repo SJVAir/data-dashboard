@@ -286,7 +286,11 @@ offers **Air Quality** and **Air Quality Forecasts** (`forecasts`); spec 3b (202
 **Show as.** The data types (those with `accepts.datasets`) are offered; one that can't show
 the current data (too many places, a dataset it doesn't accept, a span outside its `span`, or
 the dataset's resolution, since step 5 spec 6a) is greyed out with a short reason, never hidden.
-Switching keeps the data. Spec 5's calendars
+Switching keeps the data. From a Current conditions draft with several pollutants, the other
+types keep the **first** pollutant (layer order) and its alert level, and the form notes the rest
+("Ozone was left out: this type shows one pollutant.", the names joined through the `format`
+module's list helper); the note is `NowDropped` `"pollutants"` with the entry types in `leftOut`
+(`firstPollutantOnly` in `src/lib/widgets/current/pollutants.ts`, then `fromNowDraft`). Spec 5's calendars
 appear by registering descriptors (see "Widget-type contract"), with no change here.
 
 **Add to dashboard.** The button names its target: the dashboard Get data was opened from, else
@@ -500,6 +504,22 @@ notify.
 - **The watcher** is a dashboard-level component (lazy-loaded) that subscribes to every widget
   with a threshold, so a minimized or off-screen tile still fires; it shares each widget's query
   with the tile, so there is one fetch per place.
+- **One watch per pollutant on Current conditions** (step 5 spec 7b). Each of a Current
+  conditions card's pollutants has its own alert level (a threshold tagged with its `entryType`),
+  and each pollutant with one is watched on its own (`watchesOf` in
+  `src/lib/thresholds/watched.ts`, reading the card as `onePollutant` shows that pollutant). The
+  mark, "last told" and the notification tag are held under **`markKey(widgetId, entryType)`**
+  (`widgetId:entryType`); every other type is watched once, under `markKey(widgetId)` (its id).
+  Each pollutant's crossing toasts on its own and names the pollutant; a notification's title is
+  the saved card's title (an untitled card's generated one names every pollutant). The card's
+  rows each show their own mark, and the taskbar entry and the fullscreen button show
+  **`widgetMark`**: the first marked pollutant in layer order, in its level's colour. Removing a
+  card prunes every pollutant's "last told".
+- **Changing a watch's alert level starts it afresh.** The watch's key includes its threshold,
+  so changing a pollutant's alert level forgets that pollutant's "last told" (other pollutants on
+  the card keep theirs), on any watched type, as turning a level Off and back On does: the next
+  reading seeds again, so lowering a level below the current reading shows the mark without a
+  toast.
 
 **2. Automated alerting — server-side, requires an account.** The dashboard only
 _creates rules_; the server evaluates them on its periodic task and delivers through a
@@ -1525,7 +1545,7 @@ type WidgetDataConfig = {
 	resolution?: Resolution; // one for every layer; missing = Automatic (step 5 spec 6a)
 	place?: PlaceRef; // Where, for the whole widget (step 5 spec 7a); see below
 	selection?: SpatialSelection;
-	layers: Layer[]; // ≤ 1 pollutant layer; a Layer has no place (see below)
+	layers: Layer[]; // ≤ 1 pollutant layer (Current conditions: one per pollutant); no place
 };
 
 // A layer (the saved shape, `LayerSchema`) is the dataset and entry type plus its filters, and, on
@@ -2701,8 +2721,13 @@ is a map idea instead (see `DEFERRED.md` → "Map plugins").
 - **Forecast strip:** today and tomorrow, each with its AQI category and burn status (the
   feed's text; "No Burning For All" has no level of its own yet), and an **Air Alert banner**
   when a declared alert's dates overlap today or tomorrow (Pacific).
-- **"Can we go outside?":** always reads PM2.5 and the school activity guidelines from
-  `monitors/meta/`, and adds today's CalHeatScore. **The heat needs no SDK work**:
+- **"Can we go outside?":** reads its saved pollutant and that pollutant's school activity
+  guidelines from `monitors/meta/`, and adds today's CalHeatScore. The Data Portal offers only the
+  pollutants with guidelines (`MetadataSource.guidelinePollutants()`, the monitors meta's entries
+  with `school_guidelines`, in its order); with one offered (PM2.5 today) no pollutant choice is
+  shown. A failed load of that list says nothing and changes nothing (the draft keeps its layer);
+  it is reported through the platform errors adapter and tried again on the next type change.
+  Combining several pollutants' guidelines is in `DEFERRED.md`. **The heat needs no SDK work**:
   `getHeatForPlace` already exists. A heat failure only blanks the heat line, never the card.
 - **Current conditions' number:** for monitor types and pollutants the server evaluates alerts
   for, the number is the **server's alert value** (the same trailing 60-minute figure the server
@@ -2710,6 +2735,17 @@ is a map idea instead (see `DEFERRED.md` → "Map plugins").
   says which pairs are evaluated); otherwise it is the **latest complete
   hourly average**. The tile says which it is ("updated N min ago", an averaging note), and a
   reading older than 3 hours is marked stale. Regions always use hourly averages.
+- **Current conditions with several pollutants** (step 5 spec 7b). The card holds one
+  air-quality layer per pollutant, in the order the Data Portal offers them (the catalog's), the
+  first holding the searched monitor (`src/lib/widgets/current/pollutants.ts`). The Data Portal
+  shows a checkbox per pollutant (no None; unticking the last is allowed, and Save then asks to
+  "Choose a pollutant") and an alert level per pollutant ("Alert level for Ozone"; one pollutant
+  reads "Alert level"). A saved level that isn't in its pollutant's scale shows the fallback with
+  a note and a **"Use {level}"** button that saves the shown level. The card shows **one row per
+  pollutant** (`CurrentRow`, each read as `onePollutant`), each with its own number, level, trend,
+  guidance and mark; with several, each row has its pollutant's name as an `h3`, the rows are a
+  group labelled "Current conditions by pollutant", and the column scrolls and is focusable. The
+  generated title names every pollutant ("PM2.5 and Ozone · Fresno County").
 
 **The two calendars as built (step 4 spec 5, 2026-11-09).** Both are `time: "range"` types with
 the resolution pinned to `"day"`, lazily loaded, set up in Get data, and limited to **one place
@@ -2872,11 +2908,13 @@ which the document schema checks for `note` widgets (it is not left free-form). 
 strip**, and **"Can we go outside?"** are `time: "now"` with `placePicker: true`; for those,
 Get data hides the date section and shows **the shared place picker** instead of
 the dataset accordions, plus a **separate pollutant control** for Current conditions and
-"Can we go outside?" (gated by available pollutants); in `WidgetDataConfig` that's a
-**single layer whose `place` holds the picked place** (decided 2026-10-14: the separate
-`target` field was removed so every widget type stores places the same way). Current
-conditions and "Can we go outside?" have one pollutant layer (heat for "Can we go
-outside?" follows from the same place); the Forecast strip has one forecasts layer. **Chart** is `time: "range"` and accepts multiple layers. **Map** is `time: "range"` with the
+"Can we go outside?" (a checkbox per pollutant for Current conditions; for "Can we go outside?"
+the pollutants with school guidelines); in `WidgetDataConfig` the picked place is the widget's
+Where, **`place`** on the widget's data, and layers hold no place (step 5 spec 7a; every widget
+type stores places the same way). Current
+conditions holds one air-quality layer per pollutant (step 5 spec 7b; see "The three
+"now" widgets as built"), and "Can we go outside?" one pollutant layer (heat follows from the
+same place); the Forecast strip has one forecasts layer. **Chart** is `time: "range"` and accepts multiple layers. **Map** is `time: "range"` with the
 **`now` flag** (step 5 spec 4, 2026-11-15): the type offers "Now" as a When choice, and a Map with
 no `dateRange` shows now, as it did in specs 1–3 (`offersNow` and `showsNow` in
 `src/lib/widgets/time.ts`). It holds zero or one pollutant layer (spec 7a), and its Where takes up to 25 places.
@@ -3169,8 +3207,13 @@ type WidgetInstance = {
 };
 ```
 
-**`thresholds` as built (step 4 spec 4, 2026-11-08).** The saved shape is an array of **at most
-one `{ level }` entry** (a level key from the pollutant's scale); **no entry means Off**.
+**`thresholds` as built (step 4 spec 4, 2026-11-08; per pollutant since step 5 spec 7b).** The
+saved shape is an array of `{ level, entryType? }` entries (`level` a key from the pollutant's
+scale); **no entry for a pollutant means Off**. Current conditions saves **one entry per
+pollutant, each tagged with its `entryType`** (`withThreshold`, read back with `thresholdFor` in
+`src/lib/thresholds/levels.ts`); every other type saves at most one untagged entry. The schema
+allows at most one entry per pollutant layer (`LIMITS.LAYERS_MAX`) and no two with the same
+`entryType`.
 Live tiles use it as their alert level; Charts use it for the threshold line (a Chart whose
 pollutant's scale lacks the key draws no line and says so). Switching a widget's type carries
 the level where the new type can hold it and says what was dropped. The `SelfMonitorThreshold`
