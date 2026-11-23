@@ -641,6 +641,12 @@ string`) now get the union return type. The mobile app passes a string token, so
     run. No migration (the sqid is derived from the pk), command or config. PR D changes the
     snapshot API shape, so the dashboard build deployed with it must have its string snapshot ids
     (data-dashboard #63).
+  - **Slow-CI fix, bulk `type`, location groups (sjvair.com #348–#350, merged 2026-11-21; #351,
+    merged 2026-11-22, 1af05307):** nothing to run (no migration, command or cache step). **After the deploy,
+    check #351's valley-wide `pesticides/locations/` (no area) is cached:** its cached value is
+    about 1–1.5 MB, and whether the hosted memcached keeps it (1 MB item limit, bmemcached
+    compression) is unverified. A refused set only logs "Could not cache", and every request
+    becomes a ~0.8 s miss. A second GET should show `X-Cache-Status: HIT` (session `sjvair-com-6f`).
   - **Deploy window:** between about 17:15 and 01:00 Pacific (#301 moved the rollups from
     01:00 UTC to 01:00 Pacific; deploying 01:00–17:00 Pacific skips a day). Otherwise run
     `daily_monitor_summaries(day=<yesterday>)` and `daily_region_summaries(day=<yesterday>)`
