@@ -106,11 +106,32 @@ Decided 2026-09-28. The dashboard a first-time visitor sees (not a blank page):
 - **Contents** (decided 2026-09-28; layout settled in the step 4 spec): Current conditions
   (PM2.5), Forecast strip, "Can we go outside?", a PM2.5 chart (last 30 days), a
   day-colored calendar (this month), and a short welcome Note. (The hour × weekday heatmap was
-  dropped on 2026-11-09, step 4 spec 5.) **Layout as built (spec 6, 12 columns):** the welcome
-  Note full width on top; then Current conditions, "Can we go outside?" and the Forecast strip
-  in a row; then the chart (8 wide) beside the month calendar (4 wide). The heatmap's old slot
-  stays empty. The Map joins in step 6 as a full-width row under the "now" row. The welcome
-  Note is a message reference (`{ message }`); a copy keeps it until the person edits the Note.
+  dropped on 2026-11-09, step 4 spec 5.) **Layout as built (step 4 spec 6 and step 6 spec 1, 12
+  columns):** the welcome Note full width on top; then Current conditions, "Can we go outside?"
+  and the Forecast strip in a row (7 rows high); then **the Map, a full-width row of the same
+  height** (`{x 0, y 9, w 12, h 7}`; on a phone it is one column, full width, 7 rows tall); then the
+  chart (8 wide) beside the month calendar (4 wide). The welcome Note is a message reference
+  (`{ message }`); a copy keeps it until the person edits the Note.
+- **The starter's Map** (step 6 spec 1, decided 2026-11-23). Its place is the template's
+  `default-place`, so "Change place" and "Duplicate for another place" move it like the other
+  one-place widgets (it is not areas-only, so a school or point stays a school or point). Its data
+  is PM2.5 now, every monitor type ticked, plus smoke and fire, exactly as Get data stores them
+  (`mapStartData` plus `setSmokeAndFire`); it stores no options, so it looks like a new Map. A test
+  checks it against that.
+- **Where its monitor types come from.** The template is synchronous and holds no type ids
+  (metadata is the source of truth). The **app holds the catalog's monitor types**, as it holds
+  the starter's area: unknown until loaded, then a list (empty when the catalog failed or was
+  late; a failure is reported). They load lazily, so the initial bundle doesn't grow, and they
+  aren't a preference; each visit reads them again. The starter shows at once without them, then
+  is swapped for a fresh one that has them, unless its first edit already began the hand-off.
+  Every exit (the first edit's copy, Share, New from starter, Duplicate, Duplicate for another
+  place, Export) **waits for the types** before it stores anything, so a copy's Map holds the
+  explicit list, like a new Map's. With none, the copy's Map shows its "no monitors chosen" note.
+- **The Map's code loads near the screen.** A widget type with `loadWhenNear` (the Map) has its
+  code fetched only once its frame is within 200 px of the screen, takes focus, or is fullscreen.
+  Without it, a first visit on a phone would fetch the Map's 431 KB (gzipped) chunk and run it
+  (a 211–238 ms task) before anything scrolled near. Until it loads, the frame's title reads the
+  type label "Map" (see `DEFERRED.md`).
 
 ### Get data (formerly the Data Explorer and "Widget Creation view")
 
@@ -4140,7 +4161,12 @@ Decided 2026-09-28.
   delivery, which S3 only gives if files are uploaded pre-compressed (see "Template
   embedding").
 - **A low-end device check before go-live:** Lighthouse with throttled CPU and network,
-  plus a real older Chromebook from the private-preview school if possible.
+  plus a real older Chromebook from the private-preview school if possible. **The Lighthouse
+  half is done and rerunnable** (step 6 spec 1, 2026-11-23): `npm run perf:lighthouse` runs the
+  starter and a saved dashboard, compressed and uncompressed, on the mobile preset; the numbers,
+  method and findings are in `docs/reference/lighthouse-2026-11-23.md`. **The real Chromebook
+  stays open** (a hand check for the user): Lighthouse doesn't measure dragging or resizing, and
+  its host is much faster than a school Chromebook.
 
 ## Telemetry, analytics & privacy
 

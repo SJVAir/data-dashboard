@@ -232,3 +232,36 @@ speed before go-live: a school Chromebook on a slow connection has to get a usab
 - How Lighthouse is driven and how the fakes reach it (decision 16), the script's location and
   npm script name, and the results' format.
 - Message keys for anything new (none expected).
+
+## Build calls
+
+Decided while building (2026-11-23). Calls by the build's controller, then the user's.
+
+- **The controller's rulings:**
+  - `DashboardList` passes the starter's area early. The plan's Task 3 lists it, and it costs
+    nothing if wrong.
+  - A starter that isn't the current one is replaced in the app's cache, not discarded, so holders
+    like Add or Share stay usable. Home reads again after setting the current dashboard and swaps
+    or discards the old one. Why: decision 10 (no Map shown without its types). If wrong, a left
+    over session keeps its listeners until its hand-off or the page closes (a deferred leftover).
+  - The types wait never rejects: a failed catalog gives an empty list, so the starter can still
+    be edited.
+  - A Map's title reads "Map" until its code loads (Task 6). The title is worked out in the Map's
+    lazy module, and moving it is a refactor beyond the approved fix. Deferred in `DEFERRED.md`.
+  - A Map frame's "already loaded" state is not reactive. A waiting off-screen Map loads once it
+    nears the screen (the code is cached by then, so it is instant).
+- **The user's five decisions after the first Lighthouse numbers:**
+  1. The speed fix, loading a widget's code when its frame nears the screen, is built in this
+     spec (decision 20; Task 6).
+  2. Compressed uploads before go-live: on hold. "Upload compression, cache headers…" in
+     `DEFERRED.md` keeps its go-live trigger, with the numbers.
+  3. The startup chain's LCP (5.3 s with gzip even without the Map) is recorded in `DEFERRED.md`,
+     to revisit at go-live.
+  4. Lighthouse runs through a pinned `npx lighthouse@13.6.0`, not a dev dependency: its
+     transitive dependencies carry FSL-1.1 and BlueOak-1.0.0 licences that aren't on the allow-list.
+  5. A generated Map title names the map ("PM2.5 map · Fresno County"), so the starter's Map and
+     "Current" no longer share a title (Task 6b).
+- **Tasks added after the plan, with the user's approval:** Task 6 (the speed fix) and Task 6b
+  (the Map's generated title).
+- **Results:** `docs/reference/lighthouse-2026-11-23.md`. After the fix, TBT passes in all four
+  cases (115–152 ms); LCP still misses, as the welcome Note's text waits for the app chunk.
