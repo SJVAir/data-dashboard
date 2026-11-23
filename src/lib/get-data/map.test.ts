@@ -134,8 +134,9 @@ describe("the locations layer", () => {
 		const d = tile("pm25");
 		setSmokeAndFire(d, true);
 		setNotices(d, true);
-		setUse(mapWith(d), true);
-		setLocationTypes(d, ["public_school", "child_care"]);
+		const draft = mapWith(d);
+		setUse(draft, true);
+		setLocationTypes(draft, ["public_school", "child_care"]);
 		expect(order(d)).toEqual([
 			"air-quality",
 			HMS_SMOKE,
@@ -148,17 +149,62 @@ describe("the locations layer", () => {
 			dataset: LOCATIONS,
 			locationTypes: ["public_school", "child_care"]
 		});
-		setLocationTypes(d, ["public_school"]);
+		setLocationTypes(draft, ["public_school"]);
 		expect(locationsLayer(d)?.locationTypes).toEqual(["public_school"]);
 		expect(d.layers.filter((l) => l.dataset === LOCATIONS)).toHaveLength(1);
-		setLocationTypes(d, []);
+		setLocationTypes(draft, []);
 		expect(locationsLayer(d)).toBeUndefined();
+	});
+
+	const GROUPS = [
+		{
+			key: "school",
+			label: "Schools",
+			order: 0,
+			types: [
+				{ type: "public_school", label: "Public school", source: "s" },
+				{ type: "private_school", label: "Private school", source: "s" }
+			]
+		},
+		{
+			key: "child_care",
+			label: "Child care",
+			order: 1,
+			types: [{ type: "child_care", label: "Child care", source: "c" }]
+		}
+	];
+
+	it("unticking a group's last type shows it again when re-ticked (leaves hiddenLocationGroups)", () => {
+		const d = mapWith(tile("pm25"));
+		d.options = { basemap: "light", hiddenLocationGroups: ["school", "child_care"] };
+		setLocationTypes(d, ["public_school", "private_school", "child_care"], GROUPS);
+		expect(mapOptions(d).hiddenLocationGroups).toEqual(["school", "child_care"]);
+		// One school type left: the group stays hidden.
+		setLocationTypes(d, ["private_school", "child_care"], GROUPS);
+		expect(mapOptions(d).hiddenLocationGroups).toEqual(["school", "child_care"]);
+		// No school type left: the group leaves the hidden list.
+		setLocationTypes(d, ["child_care"], GROUPS);
+		expect(mapOptions(d).hiddenLocationGroups).toEqual(["child_care"]);
+		setLocationTypes(d, ["public_school", "child_care"], GROUPS);
+		expect(mapOptions(d).hiddenLocationGroups).toEqual(["child_care"]);
+		// Nothing ticked: none is hidden, and the other options stay.
+		setLocationTypes(d, [], GROUPS);
+		expect(d.options).toEqual({ basemap: "light" });
+	});
+
+	it("clears every hidden group when nothing is ticked, groups unknown", () => {
+		const d = mapWith(tile("pm25"));
+		d.options = { hiddenLocationGroups: ["school"] };
+		setLocationTypes(d, ["public_school"]);
+		expect(mapOptions(d).hiddenLocationGroups).toEqual(["school"]);
+		setLocationTypes(d, []);
+		expect(d.options).toBeUndefined();
 	});
 
 	it("goes ahead of an existing use layer", () => {
 		const d = mapWith(tile("pm25"));
 		d.data.layers.push({ dataset: PESTICIDE_USE });
-		setLocationTypes(d.data, ["public_school"]);
+		setLocationTypes(d, ["public_school"]);
 		expect(order(d.data)).toEqual(["air-quality", LOCATIONS, PESTICIDE_USE]);
 	});
 
@@ -177,7 +223,7 @@ describe("the locations layer", () => {
 
 	it("Map to Map keeps it", () => {
 		const d = mapWith(tile("pm25"));
-		setLocationTypes(d.data, ["public_school"]);
+		setLocationTypes(d, ["public_school"]);
 		const c = toMapDraft(d, CATALOG, ["pm25"], NOW);
 		expect(locationsLayer(c.draft.data)).toEqual({
 			dataset: LOCATIONS,
@@ -188,7 +234,7 @@ describe("the locations layer", () => {
 
 	it("mapShowingOnly drops it as its own outcome, not only as overlays", () => {
 		const d = mapWith(tile("pm25"));
-		setLocationTypes(d.data, ["public_school"]);
+		setLocationTypes(d, ["public_school"]);
 		const c = mapShowingOnly(d, CATALOG);
 		expect(c.dropped).toContain("locations");
 		expect(c.dropped).not.toContain("overlays");
@@ -201,7 +247,7 @@ describe("the locations layer", () => {
 
 	it("fromMapDraft to a Chart notes it", () => {
 		const d = mapWith(tile("pm25"));
-		setLocationTypes(d.data, ["public_school"]);
+		setLocationTypes(d, ["public_school"]);
 		const c = fromMapDraft(d, chartType, CATALOG, "unavailable", NOW);
 		expect(c.dropped).toContain("locations");
 		expect(c.dropped).not.toContain("overlays");

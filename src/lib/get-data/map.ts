@@ -3,7 +3,7 @@
  * converting a draft to and from it.
  */
 import { everyMonitorType } from "$lib/data/layer-kind";
-import type { CatalogEntry, Level } from "$lib/data/metadata";
+import type { CatalogEntry, Level, LocationGroup } from "$lib/data/metadata";
 import type { DateRangeSpec, Layer, PesticideFilters, WidgetDataConfig } from "$lib/data/schema";
 import { addDays, parseDateKey } from "$lib/format";
 import { resolveRange } from "$lib/format/range";
@@ -89,9 +89,17 @@ export function locationsLayer(data: WidgetDataConfig): Layer | undefined {
 
 /**
  * Sets the ticked location types (the caller keeps the meta's order), as the one place-less
- * locations layer after the notices and ahead of the use; `[]` removes the layer.
+ * locations layer after the notices and ahead of the use; `[]` removes the layer. A group of
+ * `groups` left with no type ticked leaves `hiddenLocationGroups` too, so ticking it again shows
+ * it (as removing the use layer drops its options).
  */
-export function setLocationTypes(data: WidgetDataConfig, types: string[]): void {
+export function setLocationTypes(
+	draft: Draft,
+	types: string[],
+	groups: readonly LocationGroup[] = []
+): void {
+	const { data } = draft;
+	dropUntickedGroups(draft, types, groups);
 	if (!types.length) {
 		data.layers = data.layers.filter((l) => l.dataset !== LOCATIONS);
 		return;
@@ -106,6 +114,25 @@ export function setLocationTypes(data: WidgetDataConfig, types: string[]): void 
 		dataset: LOCATIONS,
 		locationTypes: [...types]
 	});
+}
+
+/**
+ * Removes from `hiddenLocationGroups` every group with none of `types` ticked: all of them when
+ * none is, else those of `groups` with none ticked.
+ */
+function dropUntickedGroups(draft: Draft, types: string[], groups: readonly LocationGroup[]): void {
+	const hidden = mapOptions(draft).hiddenLocationGroups;
+	if (!hidden?.length) return;
+	const ticked = new Set(types);
+	const empty = new Set(
+		groups.filter((g) => !g.types.some((t) => ticked.has(t.type))).map((g) => g.key)
+	);
+	const kept = types.length ? hidden.filter((key) => !empty.has(key)) : [];
+	if (kept.length === hidden.length) return;
+	const options = { ...mapOptions(draft) };
+	if (kept.length) options.hiddenLocationGroups = kept;
+	else delete options.hiddenLocationGroups;
+	writeOptions(draft, options);
 }
 
 /**
@@ -215,8 +242,9 @@ export function setMapPesticideFilters(
  * Whether `draft` already has the Map's shape, so opening it as a Map converts nothing: no day
  * selection and no date range the Map's span rules out at its resolution (`mapLevelOf`, with
  * `catalog`; none is Now); zero or one air-quality layer first, and at most `maxPlaces` places in
- * its Where; then only smoke and fire layers, then at most one spray notices layer, at most one locations layer and, last, at
- * most one use layer (each with no entry type, and optional filters).
+ * its Where; then only smoke and fire layers, then at most one spray notices layer, at most one
+ * locations layer and, last, at most one use layer (each with no entry type, and optional
+ * filters).
  */
 export function isMapShaped(
 	draft: Draft,
@@ -452,7 +480,8 @@ export function toMapDraft(
 /**
  * A Map draft cut to its pollutant (no layers with none), at its Where, over its range (if it has
  * one), with no options. `dropped` says when other layers (smoke and fire, notices, use) were left
- * out (`"overlays"`), when schools and child care were (`"locations"`), when marks were (`"marks"`) and when a region fill was (`"fill"`).
+ * out (`"overlays"`), when schools and child care were (`"locations"`), when marks were
+ * (`"marks"`) and when a region fill was (`"fill"`).
  */
 export function mapShowingOnly(
 	draft: Draft,

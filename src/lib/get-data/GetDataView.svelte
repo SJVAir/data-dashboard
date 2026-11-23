@@ -1197,7 +1197,7 @@
 							fillTypes,
 							onfill: (type) => setMapFill(draft, type),
 							locationGroups,
-							onlocations: (types) => setLocationTypes(draft.data, types),
+							onlocations: (types) => setLocationTypes(draft, types, locationGroups),
 							blocks: mapBlocks
 						}}
 					/>

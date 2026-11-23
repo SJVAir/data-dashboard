@@ -113,8 +113,8 @@ export function whatSections(
 
 /**
  * The types that show section `key`, in `types`' order: those that accept its dataset, the Map for
- * its own sections (the location sections among them), and the Forecast strip for Air quality (its one monitor is searched there,
- * spec decision 11). Any other type shows it greyed out.
+ * its own sections (the location sections among them), and the Forecast strip for Air quality
+ * (its one monitor is searched there, spec decision 11). Any other type shows it greyed out.
  */
 export function sectionTypes(key: string, types: WidgetType[]): WidgetType[] {
 	return types.filter(

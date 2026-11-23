@@ -40,9 +40,9 @@
 	const layerLabel = $derived(label);
 	const drawn = $derived(loads);
 
-	// Under the monitors, over the fill and use, and among the groups in the meta's order. The preset owns the badges, the count bubbles,
-	// the legend, and the card (static on hover; interactive pinned or keyboard-focused). It's
-	// not selectable. The source is read through getters, so a refetch keeps the plugin (and a
+	// Under the monitors, over the fill and use, and among the groups in the meta's order. The
+	// preset owns the badges, the count bubbles, the legend, and the card (static on hover;
+	// interactive pinned or keyboard-focused). It's not selectable. The source is read through getters, so a refetch keeps the plugin (and a
 	// card with focus inside) in place; only a change of label or types makes it again.
 	$effect(() => {
 		const current = map;

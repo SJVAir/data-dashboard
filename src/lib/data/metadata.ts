@@ -7,7 +7,6 @@ import {
 	getMonitorsMeta,
 	getRegionsMeta,
 	type DatasetCatalog,
-	type LocationGroup as SdkLocationGroup,
 	type MonitorGroup,
 	type SchoolGuidelines,
 	type Retired
@@ -536,7 +535,7 @@ export function createWebMetadata(): MetadataSource {
 		},
 		async locationGroups(signal) {
 			const meta = await regionsMeta(signal);
-			const defined: Record<string, SdkLocationGroup> = meta.location_groups;
+			const defined = meta.location_groups;
 			const named = new Map<string, LocationGroup>();
 			for (const [id, g] of Object.entries(defined)) {
 				named.set(id, { key: g.key, label: g.label, order: g.order, types: [] });

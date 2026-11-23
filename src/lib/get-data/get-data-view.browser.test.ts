@@ -29,6 +29,7 @@ import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { thresholdMarks } from "$lib/thresholds/marks.svelte";
 import { chartType } from "$lib/widgets/chart";
 import { DEFAULT_RANGE } from "$lib/widgets/defaults";
+import { mapOptions } from "$lib/widgets/map/options";
 import {
 	FORECASTS_ENTRY,
 	fakeForecastsAdapter,
@@ -2221,6 +2222,21 @@ describe("now widgets", () => {
 			await box("Child care").click();
 			expect(await locations(current)).toBeUndefined();
 			await expect.element(none()).toBeEnabled();
+		});
+
+		test("a group hidden in the Map's Layers shows again once its types are unticked and ticked", async () => {
+			const draft = monitorsDraft(["m1"], { type: "map" });
+			draft.data.layers.push({ dataset: "locations", locationTypes: ["child_care"] });
+			draft.options = { hiddenLocationGroups: ["child_care"] };
+			const { current } = await show(draft);
+			const hidden = async () => mapOptions(await current()).hiddenLocationGroups;
+			await box("Public school").click();
+			expect(await hidden()).toEqual(["child_care"]);
+			await box("Child care").click();
+			expect(await hidden()).toBeUndefined();
+			await box("Child care").click();
+			expect((await locations(current))?.locationTypes).toEqual(["public_school", "child_care"]);
+			expect(await hidden()).toBeUndefined();
 		});
 
 		test("a Chart shows the location sections greyed, Map only", async () => {

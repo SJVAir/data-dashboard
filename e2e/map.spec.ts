@@ -2294,7 +2294,7 @@ test.describe("schools and child care", () => {
 		await page.locator('[data-show-as="chart"]').click();
 		await expect(page.locator('[data-show-as="chart"]')).toHaveAttribute("data-state", "on");
 		await expect(
-			page.getByText("Left out, as they're shown only on a map: Schools.", { exact: true })
+			page.getByText("Schools: shown only on a map, so left out.", { exact: true })
 		).toBeVisible();
 	});
 });

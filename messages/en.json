@@ -1082,7 +1082,7 @@
 	"get_data_overlay_for": "Overlay for",
 	"get_data_smoke_and_fire": "Smoke and fire",
 	"getdata_note_fill_dropped": "Filled regions only apply to the map, so the fill was left out.",
-	"get_data_dropped_locations": "Left out, as they're shown only on a map: {layers}.",
+	"get_data_dropped_locations": "{layers}: shown only on a map, so left out.",
 	"get_data_dropped_locations_unnamed": "Layers shown only on a map were left out.",
 	"get_data_marks_left_out": "Marked monitors don't apply to this widget, so they were left out.",
 	"get_data_marks_hidden_left_out": [
