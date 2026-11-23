@@ -27,11 +27,11 @@ export function mapStartData(doc: Dashboard, types: string[] = []): WidgetDataCo
 export const CATALOG_WAIT_MS = 10_000;
 
 /**
- * A new Map's data with every monitor type ticked (`everyMonitorType`, from the catalog). A catalog
- * that can't be loaded, or isn't in `CATALOG_WAIT_MS`, ticks none: the Map then draws no monitors
- * and says so (never an invented list).
+ * Every monitor type of the catalog (`everyMonitorType`). A catalog that can't be loaded, or isn't
+ * in `CATALOG_WAIT_MS`, gives none: the Map then draws no monitors and says so (never an invented
+ * list). A failure is reported.
  */
-export async function mapStartDataWithTypes(doc: Dashboard): Promise<WidgetDataConfig> {
+export async function loadMonitorTypes(): Promise<string[]> {
 	let types: string[] = [];
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	try {
@@ -51,5 +51,10 @@ export async function mapStartDataWithTypes(doc: Dashboard): Promise<WidgetDataC
 	} finally {
 		clearTimeout(timer);
 	}
-	return mapStartData(doc, types);
+	return types;
+}
+
+/** A new Map's data with every monitor type ticked (spec decision 8). */
+export async function mapStartDataWithTypes(doc: Dashboard): Promise<WidgetDataConfig> {
+	return mapStartData(doc, await loadMonitorTypes());
 }
