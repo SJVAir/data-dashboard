@@ -1277,6 +1277,8 @@
 	"getdata_map_pesticide_filters": "Filter pesticides",
 	"getdata_map_notices_filter_skipped": "{filter}: doesn't apply to spray notices",
 	"getdata_map_use_switch": "Show pesticide use",
+	"getdata_map_locations_gone": "No longer offered",
+	"getdata_map_location_type_gone": "SJVAir no longer offers these places. Untick to remove them.",
 	"getdata_map_use_no_years": "No years with pesticide use data are available yet.",
 	"getdata_map_use_years_unavailable": "Pesticide use can't be shown right now: the years with data couldn't be loaded.",
 	"getdata_map_section_fallback": [

@@ -5,7 +5,7 @@
 	import Toggletip from "$lib/components/Toggletip.svelte";
 	import { noticeFiltersSkipped } from "$lib/data/adapters/pesticides";
 	import { AIR_QUALITY, isPollutantLayer } from "$lib/data/layer-kind";
-	import type { CatalogEntry, EntryTypeMeta } from "$lib/data/metadata";
+	import type { CatalogEntry, EntryTypeMeta, LocationGroup } from "$lib/data/metadata";
 	import type { Layer, PesticideFilters as Filters, WidgetDataConfig } from "$lib/data/schema";
 	import { formatList, formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
@@ -25,7 +25,7 @@
 	import AirQualitySection from "./AirQualitySection.svelte";
 	import { PESTICIDE_FILTER_NAMES } from "./filter-names";
 	import { canAddLayer, WEATHER, type EntryPick } from "./layers";
-	import { hasNotices, hasSmokeAndFire, hasUse, mapPesticideFilters } from "./map";
+	import { hasNotices, hasSmokeAndFire, hasUse, locationsLayer, mapPesticideFilters } from "./map";
 	import { nowPollutants } from "./now";
 	import type { OfferedDataset } from "./offer";
 	import PesticideFilters from "./PesticideFilters.svelte";
@@ -33,7 +33,14 @@
 	import SectionTrigger from "./SectionTrigger.svelte";
 	import { pesticideMeta } from "./sources";
 	import StationChoice from "./StationChoice.svelte";
-	import { FILL, sectionTypes, whatSections, type WhatSection } from "./what-sections";
+	import {
+		FILL,
+		LOCATIONS_GONE,
+		sectionTypes,
+		toggledLocationTypes,
+		whatSections,
+		type WhatSection
+	} from "./what-sections";
 
 	/**
 	 * What, for every widget type (spec decision 16): one list of sections, in catalog order, the
@@ -132,6 +139,13 @@
 			/** A fill chosen (a region type), or none (undefined). */
 			onfill: (type: string | undefined) => void;
 			/**
+			 * The location groups (the regions meta's, by order), a section each; undefined while
+			 * loading or when they couldn't be loaded (no location sections then).
+			 */
+			locationGroups?: LocationGroup[];
+			/** The ticked location types after a change (in the meta's order; `[]`: none). */
+			onlocations: (types: string[]) => void;
+			/**
 			 * Why smoke and fire, the notices or use can't be switched on at the Map's data resolution
 			 * (or, for use, on Now); greyed with the reason, never hidden.
 			 */
@@ -142,7 +156,7 @@
 	const uid = $props.id();
 
 	const isMap = $derived(type.type === MAP_TYPE);
-	const list = $derived(whatSections(catalog, sections, data.layers));
+	const list = $derived(whatSections(catalog, sections, data.layers, map.locationGroups));
 	/** Why `key` is greyed out for this type: the types that show it; undefined when it shows. */
 	function greyed(key: string): string | undefined {
 		const showing = sectionTypes(key, types);
@@ -170,6 +184,19 @@
 	let open = $state<string[]>(opened(type));
 	// Another type: its own sections open too; any it greys out close.
 	let openFor = untrack(() => type.type);
+	// A section listed later (the location groups load after the catalog) opens as it would have.
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- bookkeeping, not rendered
+	const seen = new Set(untrack(() => list.map((s) => s.key)));
+	$effect(() => {
+		const keys = list.map((s) => s.key);
+		untrack(() => {
+			const fresh = keys.filter((key) => !seen.has(key));
+			if (!fresh.length) return;
+			for (const key of fresh) seen.add(key);
+			const opening = opened(type).filter((key) => fresh.includes(key) && !open.includes(key));
+			if (opening.length) open = [...open, ...opening];
+		});
+	});
 	$effect(() => {
 		const next = type;
 		if (next.type === openFor) return;
@@ -233,6 +260,12 @@
 	/** What's chosen in a section, for its heading (so a closed section still says). */
 	function chosen(section: WhatSection): string | undefined {
 		if (section.key === FILL) return isMap ? fillShown?.plural : undefined;
+		if (section.group) {
+			const labels = section.group.types.filter((t) => ticked.includes(t.type)).map((t) => t.label);
+			return formatList(labels) || undefined;
+		}
+		if (section.gone)
+			return formatList(section.gone.filter((t) => ticked.includes(t))) || undefined;
 		const entryTypes = section.entry?.entryTypes ?? [];
 		const labels = data.layers
 			.filter((l) => l.dataset === section.key)
@@ -245,6 +278,8 @@
 	/** A section's heading. */
 	function labelOf(section: WhatSection): string {
 		if (section.key === FILL) return m.getdata_map_fill();
+		if (section.group) return section.group.label;
+		if (section.key === LOCATIONS_GONE) return m.getdata_map_locations_gone();
 		if (section.key === HMS_SMOKE && isMap) return m.get_data_smoke_and_fire();
 		if (section.entry) return section.entry.label;
 		if (section.key === HMS_SMOKE) return m.get_data_smoke_and_fire();
@@ -291,6 +326,11 @@
 	const noticesSkipped = $derived(
 		notices && noticeFilters ? noticeFiltersSkipped(noticeFiltersSaved ?? {}, noticeFilters) : []
 	);
+	/** The locations layer's ticked types (saved order). */
+	const ticked = $derived(locationsLayer(data)?.locationTypes ?? []);
+	function tickLocation(locationType: string, on: boolean): void {
+		map.onlocations(toggledLocationTypes(map.locationGroups ?? [], ticked, locationType, on));
+	}
 	const fillChoices = $derived(map.fillTypes ?? []);
 	/** The saved fill, only while it's offered (else None shows; the saved value stays). */
 	const fillShown = $derived(fillChoices.find((t) => t.type === map.fill));
@@ -528,6 +568,40 @@
 	{/if}
 {/snippet}
 
+{#snippet locationsSection(section: WhatSection)}
+	<fieldset class="flex flex-col gap-1">
+		<legend class="sr-only">{labelOf(section)}</legend>
+		{#each section.group?.types ?? [] as locationType (locationType.type)}
+			<label class="flex min-h-6 items-center gap-2 text-sm">
+				<input
+					type="checkbox"
+					class="accent-primary size-4"
+					checked={ticked.includes(locationType.type)}
+					onchange={(e) => tickLocation(locationType.type, e.currentTarget.checked)}
+				/>
+				<span>{locationType.label}</span>
+			</label>
+		{/each}
+		{#each section.gone ?? [] as id (id)}
+			{@const reasonId = `${uid}-location-gone-${id}`}
+			<!-- Saved, but no meta group lists it any more: greyed with why, still untickable. -->
+			<div class="flex min-h-6 flex-wrap items-center gap-x-2 text-sm">
+				<label class="flex items-center gap-2">
+					<input
+						type="checkbox"
+						class="accent-primary size-4"
+						checked={ticked.includes(id)}
+						aria-describedby={reasonId}
+						onchange={(e) => tickLocation(id, e.currentTarget.checked)}
+					/>
+					<span class="text-muted-foreground">{id}</span>
+				</label>
+				{@render reason(reasonId, m.getdata_map_location_type_gone())}
+			</div>
+		{/each}
+	</fieldset>
+{/snippet}
+
 {#snippet fillSection()}
 	<fieldset class="flex flex-col gap-1">
 		<legend class="sr-only">{m.getdata_map_fill()}</legend>
@@ -585,6 +659,8 @@
 						{@render useSection(section)}
 					{:else if section.key === FILL}
 						{@render fillSection()}
+					{:else if section.group || section.gone}
+						{@render locationsSection(section)}
 					{:else if section.offered}
 						{@render description(section.entry?.description)}
 						{#if type.type === FORECAST_TYPE}
