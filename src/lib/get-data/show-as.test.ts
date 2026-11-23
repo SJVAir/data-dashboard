@@ -193,6 +193,26 @@ describe("Show as to a calendar from a county and two ticked types (no monitor)"
 	}
 });
 
+describe("Show as from a Map with schools and child care", () => {
+	it("notes them as left out, with copy", () => {
+		const draft: Draft = {
+			type: MAP,
+			data: {
+				place: structuredClone(COUNTY),
+				layers: [
+					{ dataset: "air-quality", entryType: "pm25" },
+					{ dataset: "locations", locationTypes: ["x"] }
+				]
+			}
+		};
+		const c = convert(draft, chartType);
+		expect(c.dropped).toContain("locations");
+		expect(c.dropped).not.toContain("overlays");
+		expect(c.draft.data.layers.some((l) => l.dataset === "locations")).toBe(false);
+		expect(m.get_data_dropped_locations()).toMatch(/left out/);
+	});
+});
+
 describe("Show as from a Map with None, smoke and a fill", () => {
 	const none = (ticks: boolean): Draft => ({
 		type: MAP,

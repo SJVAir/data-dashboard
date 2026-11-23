@@ -7,7 +7,7 @@ import { contributionCalendarType } from "$lib/widgets/calendars/contribution";
 import { monthCalendarType } from "$lib/widgets/calendars/month";
 import { currentType } from "$lib/widgets/current";
 import { MAP_TYPE } from "$lib/widgets/map";
-import { mapOptions, PESTICIDE_NOTICES, PESTICIDE_USE } from "$lib/widgets/map/options";
+import { LOCATIONS, mapOptions, PESTICIDE_NOTICES, PESTICIDE_USE } from "$lib/widgets/map/options";
 import { registerWidgetType } from "$lib/widgets/registry";
 import type { Draft } from "./draft.svelte";
 import {
@@ -16,6 +16,8 @@ import {
 	HMS_FIRE,
 	HMS_SMOKE,
 	isMapShaped,
+	locationsLayer,
+	setLocationTypes,
 	hasNotices,
 	hasUse,
 	mapLevelOf,
@@ -121,6 +123,88 @@ describe("setMapFill", () => {
 		const only = draft({ fill: "zipcode" });
 		setMapFill(only, undefined);
 		expect(only.options).toBeUndefined();
+	});
+});
+
+describe("the locations layer", () => {
+	const order = (d: WidgetDataConfig) => d.layers.map((l) => l.dataset);
+	const mapWith = (data: WidgetDataConfig): Draft => ({ type: MAP_TYPE, data });
+
+	it("setLocationTypes puts it after the notices and before the use, and [] removes it", () => {
+		const d = tile("pm25");
+		setSmokeAndFire(d, true);
+		setNotices(d, true);
+		setUse(mapWith(d), true);
+		setLocationTypes(d, ["public_school", "child_care"]);
+		expect(order(d)).toEqual([
+			"air-quality",
+			HMS_SMOKE,
+			HMS_FIRE,
+			PESTICIDE_NOTICES,
+			LOCATIONS,
+			PESTICIDE_USE
+		]);
+		expect(locationsLayer(d)).toEqual({
+			dataset: LOCATIONS,
+			locationTypes: ["public_school", "child_care"]
+		});
+		setLocationTypes(d, ["public_school"]);
+		expect(locationsLayer(d)?.locationTypes).toEqual(["public_school"]);
+		expect(d.layers.filter((l) => l.dataset === LOCATIONS)).toHaveLength(1);
+		setLocationTypes(d, []);
+		expect(locationsLayer(d)).toBeUndefined();
+	});
+
+	it("goes ahead of an existing use layer", () => {
+		const d = mapWith(tile("pm25"));
+		d.data.layers.push({ dataset: PESTICIDE_USE });
+		setLocationTypes(d.data, ["public_school"]);
+		expect(order(d.data)).toEqual(["air-quality", LOCATIONS, PESTICIDE_USE]);
+	});
+
+	it("isMapShaped accepts the order and rejects a locations layer after the use", () => {
+		const ok = tile("pm25");
+		ok.layers.push({ dataset: HMS_SMOKE }, { dataset: PESTICIDE_NOTICES });
+		ok.layers.push({ dataset: LOCATIONS, locationTypes: ["a"] }, { dataset: PESTICIDE_USE });
+		expect(isMapShaped(mapWith(ok), NOW)).toBe(true);
+		const bad = tile("pm25");
+		bad.layers.push({ dataset: PESTICIDE_USE }, { dataset: LOCATIONS, locationTypes: ["a"] });
+		expect(isMapShaped(mapWith(bad), NOW)).toBe(false);
+		const twice = tile("pm25");
+		twice.layers.push({ dataset: LOCATIONS }, { dataset: LOCATIONS });
+		expect(isMapShaped(mapWith(twice), NOW)).toBe(false);
+	});
+
+	it("Map to Map keeps it", () => {
+		const d = mapWith(tile("pm25"));
+		setLocationTypes(d.data, ["public_school"]);
+		const c = toMapDraft(d, CATALOG, ["pm25"], NOW);
+		expect(locationsLayer(c.draft.data)).toEqual({
+			dataset: LOCATIONS,
+			locationTypes: ["public_school"]
+		});
+		expect(c.dropped).not.toContain("locations");
+	});
+
+	it("mapShowingOnly drops it as its own outcome, not only as overlays", () => {
+		const d = mapWith(tile("pm25"));
+		setLocationTypes(d.data, ["public_school"]);
+		const c = mapShowingOnly(d, CATALOG);
+		expect(c.dropped).toContain("locations");
+		expect(c.dropped).not.toContain("overlays");
+		expect(locationsLayer(c.draft.data)).toBeUndefined();
+		setSmokeAndFire(d.data, true);
+		expect(mapShowingOnly(d, CATALOG).dropped).toEqual(
+			expect.arrayContaining(["locations", "overlays"])
+		);
+	});
+
+	it("fromMapDraft to a Chart notes it", () => {
+		const d = mapWith(tile("pm25"));
+		setLocationTypes(d.data, ["public_school"]);
+		const c = fromMapDraft(d, chartType, CATALOG, "unavailable", NOW);
+		expect(c.dropped).toContain("locations");
+		expect(c.dropped).not.toContain("overlays");
 	});
 });
 

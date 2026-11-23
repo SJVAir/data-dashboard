@@ -8,6 +8,7 @@ import {
 	mapOptions,
 	pollutantLayer,
 	useFigureOf,
+	LOCATIONS,
 	MAP_TOOLBAR_KEYS
 } from "./options";
 
@@ -80,6 +81,22 @@ describe("Map options", () => {
 		expect(MapOptionsSchema.safeParse({ day: "2026-11-14" }).success).toBe(false);
 		expect(MapOptionsSchema.safeParse({ fill: "a b" }).success).toBe(false);
 		expect(MapOptionsSchema.safeParse({ fillShown: true }).success).toBe(false);
+	});
+});
+
+describe("hiddenLocationGroups", () => {
+	it("accepts unique ids and rejects duplicates, unsafe ids and more than 32", () => {
+		const ok = (v: unknown) => MapOptionsSchema.safeParse({ hiddenLocationGroups: v }).success;
+		expect(ok(["school"])).toBe(true);
+		expect(ok(["school", "school"])).toBe(false);
+		expect(ok(["a b"])).toBe(false);
+		expect(ok(Array.from({ length: 33 }, (_, i) => `g${i}`))).toBe(false);
+		expect(ok(Array.from({ length: 32 }, (_, i) => `g${i}`))).toBe(true);
+	});
+
+	it("is a toolbar key", () => {
+		expect(MAP_TOOLBAR_KEYS).toContain("hiddenLocationGroups");
+		expect(LOCATIONS).toBe("locations");
 	});
 });
 

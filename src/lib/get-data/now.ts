@@ -43,6 +43,7 @@ import type { Draft } from "./draft.svelte";
 export type NowDropped =
 	| "dates"
 	| "overlays"
+	| "locations"
 	| "places"
 	| "monitor-types"
 	| "alert"

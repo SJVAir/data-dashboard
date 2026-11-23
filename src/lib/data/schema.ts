@@ -172,7 +172,9 @@ export const LayerSchema = z.object({
 	 * them inside the widget's Where, or everywhere with no Where. Meaningful only on the
 	 * air-quality layer.
 	 */
-	monitorTypes: uniqueIds("Monitor types must be unique").optional()
+	monitorTypes: uniqueIds("Monitor types must be unique").optional(),
+	/** The locations layer's ticked location types (the regions meta's type keys). */
+	locationTypes: uniqueIds("Location types must be unique").optional()
 });
 export type Layer = z.infer<typeof LayerSchema>;
 
