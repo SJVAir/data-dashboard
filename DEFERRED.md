@@ -3379,7 +3379,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   Safari draws with the GPU. **Revisit if** a bug shows only on a 2x screen, or CI gets GPU
   rendering or more CPU (then try 2x again).
 - **"A Chart and a Data table: data, readout, CSV, duplicate, reload" flaked once in Firefox CI.**
-  _Noted 2026-11-23 (step 5, WebKit E2E fix)._ In run 45116032796 on `step-5` (one of three
+  _Noted 2026-11-22 (step 5, WebKit E2E fix)._ In run 45116032796 on `step-5` (one of three
   baseline runs), `e2e/widgets.spec.ts` failed in Firefox: the Data Portal's heading was still
   visible 5 s after the save that should close it. It passed in the other two runs and in every
   Chromium run. Why deferred: a single failure outside the WebKit task, with nothing yet to go on.
