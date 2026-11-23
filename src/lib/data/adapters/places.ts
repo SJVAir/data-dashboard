@@ -47,8 +47,8 @@ function resolvedLocation(location: Location): NonNullable<Resolved> {
 /**
  * The web build's location resolver, through `getLocationsByCode`. A code may be a location's own
  * code or one of its aliases; a retired location still resolves; a code the server doesn't know
- * and a source the regions meta doesn't list (with no request) are `null`. Codes asked for in the same
- * tick are batched into one request per source (at most 100 codes each), and each code is cached
+ * and a source the regions meta doesn't list (with no request) are `null`. Codes asked for in the
+ * same tick are batched into one request per source (at most 100 codes each), and each code is cached
  * for the resolver's lifetime, including an unknown code's `null`. A failed lookup rejects and is
  * retried on the next call; one caller's abort rejects only that caller.
  */
@@ -57,7 +57,7 @@ export function createWebLocationResolver(
 ): LocationResolver {
 	let listed: Promise<string[]> | undefined;
 	const isLocationSource = async (source: string, signal?: AbortSignal) => {
-		listed ??= sources(signal).catch((error) => {
+		listed ??= sources().catch((error) => {
 			listed = undefined;
 			throw error;
 		});

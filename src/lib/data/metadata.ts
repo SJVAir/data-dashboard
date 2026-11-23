@@ -225,9 +225,11 @@ export interface MetadataSource {
 	entryTypeHelp(entryType: string, signal?: AbortSignal): Promise<string | null>;
 	/** The regions meta's label for a location type; `null` when unknown. */
 	locationTypeLabel(type: string, signal?: AbortSignal): Promise<string | null>;
-	/** The regions meta's location groups, by `order`, each with its types in meta order; a type
-	 *  with no (or an unknown) group is a group of its own (key = type, label = type label,
-	 *  ordered after the named groups). `[]` when the meta lists no location types. */
+	/**
+	 * The regions meta's location groups, by `order`, each with its types in meta order; a type
+	 * with no (or an unknown) group is a group of its own (key = type, label = type label,
+	 * ordered after the named groups). `[]` when the meta lists no location types.
+	 */
 	locationGroups(signal?: AbortSignal): Promise<LocationGroup[]>;
 	/** The location sources the regions meta lists (`location_types[t].source`), deduplicated. */
 	locationSources(signal?: AbortSignal): Promise<string[]>;
@@ -548,8 +550,8 @@ export function createWebMetadata(): MetadataSource {
 			const raw = (await regionsMeta(signal)) as unknown as RegionsMetaGroups;
 			const defined = raw.location_groups ?? raw.meta?.location_groups ?? {};
 			const named = new Map<string, LocationGroup>();
-			for (const g of Object.values(defined)) {
-				named.set(g.key, { key: g.key, label: g.label, order: g.order, types: [] });
+			for (const [id, g] of Object.entries(defined)) {
+				named.set(id, { key: g.key, label: g.label, order: g.order, types: [] });
 			}
 			const alone: LocationGroup[] = [];
 			for (const t of Object.values(raw.location_types ?? {})) {

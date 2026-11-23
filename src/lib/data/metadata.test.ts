@@ -562,6 +562,41 @@ describe("createWebMetadata", () => {
 		expect(await md.locationSources()).toEqual(["cde-public", "cde-private", "cdss-ccl", "osm"]);
 	});
 
+	it("reads location groups from the SDK's held meta when there is no getter", async () => {
+		vi.mocked(getRegionsMeta).mockResolvedValue({
+			meta: { location_groups: { school: { key: "school", label: "Schools", order: 0 } } },
+			location_types: {
+				public_school: {
+					type: "public_school",
+					label: "Public school",
+					source: "cde-public",
+					group: "school"
+				}
+			}
+		} as never);
+		expect(await createWebMetadata().locationGroups()).toEqual([
+			{
+				key: "school",
+				label: "Schools",
+				order: 0,
+				types: [{ type: "public_school", label: "Public school", source: "cde-public" }]
+			}
+		]);
+	});
+
+	it("makes every type its own group with no group definitions or an unknown group", async () => {
+		vi.mocked(getRegionsMeta).mockResolvedValue({
+			location_types: {
+				a: { type: "a", label: "A", source: "sa" },
+				b: { type: "b", label: "B", source: "sb", group: "missing" }
+			}
+		} as never);
+		expect(await createWebMetadata().locationGroups()).toEqual([
+			{ key: "a", label: "A", order: 0, types: [{ type: "a", label: "A", source: "sa" }] },
+			{ key: "b", label: "B", order: 1, types: [{ type: "b", label: "B", source: "sb" }] }
+		]);
+	});
+
 	it("locationGroups is [] when the meta lists no location types", async () => {
 		vi.mocked(getRegionsMeta).mockResolvedValue({ location_types: {} } as never);
 		expect(await createWebMetadata().locationGroups()).toEqual([]);

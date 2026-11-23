@@ -75,6 +75,28 @@ beforeEach(() => {
 });
 
 describe("createWebLocationResolver", () => {
+	it("one caller's abort during the sources fetch rejects only that caller", async () => {
+		let release!: (list: string[]) => void;
+		sources.mockReturnValue(new Promise<string[]>((r) => (release = r)));
+		const resolver = createWebLocationResolver(sources);
+		const controller = new AbortController();
+		const a = resolver.resolve("cde-public", "1", controller.signal);
+		const b = resolver.resolve("cde-public", "2");
+		controller.abort();
+		await expect(a).rejects.toBeDefined();
+		release(["cde-public"]);
+		expect(await b).toMatchObject({ name: "School 2" });
+		expect(sources).toHaveBeenCalledTimes(1);
+	});
+
+	it("retries the sources lookup after it fails", async () => {
+		sources.mockRejectedValueOnce(new Error("down"));
+		const resolver = createWebLocationResolver(sources);
+		await expect(resolver.resolve("cde-public", "1")).rejects.toThrow("down");
+		expect(await resolver.resolve("cde-public", "1")).toMatchObject({ name: "School 1" });
+		expect(sources).toHaveBeenCalledTimes(2);
+	});
+
 	it("makes one request for a source the meta lists", async () => {
 		const resolver = createWebLocationResolver(sources);
 		await resolver.resolve("cde-public", "1");
@@ -131,7 +153,6 @@ describe("createWebLocationResolver", () => {
 
 	it("resolves an unknown source to null without a request", async () => {
 		expect(await createWebLocationResolver(sources).resolve("schools", "1")).toBeNull();
-		expect(getLocationsByCode).not.toHaveBeenCalled();
 		expect(getLocationsByCode).not.toHaveBeenCalled();
 	});
 
