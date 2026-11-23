@@ -106,7 +106,7 @@ test("Change place on the starter makes no copy and survives a reload", async ({
 
 /** The starter's Map (its region, holding the GL map and its toolbar). */
 function starterMap(page: Page, place = "Fresno County"): Locator {
-	return page.getByRole("region", { name: `PM2.5 · ${place} map`, exact: true });
+	return page.getByRole("region", { name: `PM2.5 map · ${place} map`, exact: true });
 }
 
 test.describe("the starter's Map", () => {
@@ -144,7 +144,7 @@ test.describe("the starter's Map", () => {
 		await expect(starterMap(page)).toBeVisible();
 		await changeBarPlace(page, "Tulare County");
 		await expect(widgetTitles(page)).toHaveText(TULARE_TITLES);
-		await expect(widgetTitles(page).nth(4)).toHaveText("PM2.5 · Tulare County");
+		await expect(widgetTitles(page).nth(4)).toHaveText("PM2.5 map · Tulare County");
 		await expect(starterMap(page, "Tulare County")).toBeVisible();
 	});
 

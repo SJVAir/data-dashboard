@@ -881,21 +881,21 @@ test("refits when entering fullscreen", async () => {
 test("title for one place and several", async () => {
 	const one = mapWidget(region("019"));
 	const first = await show(one);
-	await expect.poll(() => generatedTitle(one.id)).toBe("PM2.5 · Fresno County");
+	await expect.poll(() => generatedTitle(one.id)).toBe("PM2.5 map · Fresno County");
 	const map = await madeMap();
-	await expect.poll(() => map.view.label).toBe(m.map_label({ title: "PM2.5 · Fresno County" }));
+	await expect.poll(() => map.view.label).toBe(m.map_label({ title: "PM2.5 map · Fresno County" }));
 	await first.unmount();
 
 	const point = mapWidget({ place: { kind: "point", lat: 36.7, lon: -119.8 } });
 	const shared = await show(point, "shared");
-	await expect.poll(() => generatedTitle(point.id)).toBe("PM2.5 · ZIP 93721 (shared location)");
+	await expect.poll(() => generatedTitle(point.id)).toBe("PM2.5 map · ZIP 93721 (shared location)");
 	await shared.unmount();
 
 	const several = mapWidget({
 		selection: { kind: "regions", ids: ["county:019", "county:029", "county:107"] }
 	});
 	await show(several);
-	await expect.poll(() => generatedTitle(several.id)).toBe("PM2.5 · 3 places");
+	await expect.poll(() => generatedTitle(several.id)).toBe("PM2.5 map · 3 places");
 });
 
 /** A query client that counts its subscriptions (each a data request). */
@@ -934,7 +934,10 @@ test("a Map with no pollutant is titled by what it shows and its area, with no d
 	namedRegions();
 	const smoke = noPollutant(region("019"), [{ dataset: "hms-smoke" }, { dataset: "hms-fire" }]);
 	const first = await show(smoke);
-	const title = `${m.get_data_smoke_and_fire()} · Fresno County`;
+	const title = m.widget_map_title_generated_place({
+		shows: m.get_data_smoke_and_fire(),
+		place: "Fresno County"
+	});
 	await expect.poll(() => generatedTitle(smoke.id)).toBe(title);
 	const map = await madeMap();
 	await expect.poll(() => map.view.label).toBe(m.map_label({ title }));
@@ -951,16 +954,22 @@ test("a Map with no pollutant is titled by what it shows and its area, with no d
 	await show(several);
 	await expect
 		.poll(() => generatedTitle(several.id))
-		.toBe("Spray Notices, Pesticide Use, and ZIP Codes");
+		.toBe(m.widget_map_title_generated({ shows: "Spray Notices, Pesticide Use, and ZIP Codes" }));
 });
 
 test("a Map with no pollutant whose area can't be named is titled by what it shows", async () => {
 	namedRegions(true);
 	const smoke = noPollutant(region("019"), [{ dataset: "hms-smoke" }, { dataset: "hms-fire" }]);
 	await show(smoke);
-	await expect.poll(() => generatedTitle(smoke.id)).toBe(m.get_data_smoke_and_fire());
+	await expect
+		.poll(() => generatedTitle(smoke.id))
+		.toBe(m.widget_map_title_generated({ shows: m.get_data_smoke_and_fire() }));
 	const map = await madeMap();
-	await expect.poll(() => map.view.label).toBe(m.map_label({ title: m.get_data_smoke_and_fire() }));
+	await expect
+		.poll(() => map.view.label)
+		.toBe(
+			m.map_label({ title: m.widget_map_title_generated({ shows: m.get_data_smoke_and_fire() }) })
+		);
 });
 
 test("a Map with no pollutant names a point by its region, for the viewer", async () => {
@@ -971,19 +980,24 @@ test("a Map with no pollutant names a point by its region, for the viewer", asyn
 	await show(point, "shared");
 	await expect
 		.poll(() => generatedTitle(point.id))
-		.toBe(`${m.get_data_smoke_and_fire()} · ZIP 93721 (shared location)`);
+		.toBe(
+			m.widget_map_title_generated_place({
+				shows: m.get_data_smoke_and_fire(),
+				place: "ZIP 93721 (shared location)"
+			})
+		);
 });
 
 test("a pollutant Map of several searched monitors and no Where counts them", async () => {
 	const widget = mapWidget({ monitors: ["a", "b", "c"], monitorTypes: [] });
 	await show(widget);
-	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 · 3 places");
+	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 map · 3 places");
 });
 
 test("a Map with a pollutant and no Where is titled by its pollutant alone", async () => {
 	const widget = mapWidget({});
 	await show(widget);
-	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5");
+	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 map");
 });
 
 test("shows unavailable with no key", async () => {
@@ -1215,7 +1229,7 @@ test("draws a spec 1 ozone tile as ozone", async () => {
 		dataset: "air-quality",
 		entryType: "o3"
 	});
-	await expect.poll(() => generatedTitle(widget.id)).toBe("Ozone · Fresno County");
+	await expect.poll(() => generatedTitle(widget.id)).toBe("Ozone map · Fresno County");
 });
 
 test("draws the Map's pollutant, and switches when it changes", async () => {
@@ -1560,7 +1574,10 @@ test("keeps marks when the pollutant changes, and counts the hidden ones", async
 	await expect
 		.poll(() => map.view.label)
 		.toBe(
-			m.map_label_marks_hidden({ title: "Ozone · Fresno County", notes: reasonLine("pollutant") })
+			m.map_label_marks_hidden({
+				title: "Ozone map · Fresno County",
+				notes: reasonLine("pollutant")
+			})
 		);
 	expect(marksOf()).toEqual(["a", "b"]);
 	expect(map.getSelection("monitors")).toEqual({ kind: "monitors", ids: ["a", "b"] });
@@ -1590,7 +1607,7 @@ test("gives each reason its own line, in order, in the list note and the map's n
 	});
 	await expect
 		.poll(() => map.view.label)
-		.toBe(m.map_label_marks_hidden({ title: "Ozone · Fresno County", notes }));
+		.toBe(m.map_label_marks_hidden({ title: "Ozone map · Fresno County", notes }));
 	expect((map.view.featureList as { note?: string }).note).toBe(notes);
 });
 

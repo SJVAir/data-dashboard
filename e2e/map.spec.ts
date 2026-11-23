@@ -72,8 +72,8 @@ test.beforeAll(async ({ browser, browserName }) => {
 	expect(webgl, `${browserName} has no WebGL, so it can't draw a map`).toBe(true);
 });
 
-const FRESNO_MAP = "PM2.5 · Fresno County";
-const TWO_MAP = "PM2.5 · 2 places";
+const FRESNO_MAP = "PM2.5 map · Fresno County";
+const TWO_MAP = "PM2.5 map · 2 places";
 /**
  * Drawn when the map shows Fresno County: Drummond Street only (Porterville is in view, just
  * outside the county, but isn't drawn; the Science Building is inactive and indoors).
@@ -386,7 +386,7 @@ test.describe("on a touch screen", () => {
 	// Shift-click or the card's Select do), so the tap only pins: the marks are unchanged.
 	test("a tap on a monitor shows its reading", async ({ page }) => {
 		await openSharedDoc(page, monitorDoc);
-		const title = "PM2.5 · Fresno - Drummond Street";
+		const title = "PM2.5 map · Fresno - Drummond Street";
 		await expect(widgetTitles(page)).toHaveText([title]);
 		const map = mapOf(page, title);
 		await expect(inView(map)).toBeVisible();
@@ -428,7 +428,7 @@ test("a point tile sends no coordinates and no MapTiler metrics", async ({
 	await widgetMenuItem(page, FRESNO_MAP, "Change place");
 	await picker(page).getByRole("button", { name: "Remove Fresno County" }).click();
 	await picker(page).getByRole("button", { name: "Use my location" }).click();
-	const title = "PM2.5 · ZIP 93721 (your location)";
+	const title = "PM2.5 map · ZIP 93721 (your location)";
 	await expect(widgetTitles(page)).toHaveText([title]);
 	const map = mapOf(page, title);
 	// The point's region's monitors (ZIP 93721's: Drummond Street), and the pin (the focus area's
@@ -488,8 +488,8 @@ test("the view summary follows a place change that leaves the view still", async
 		.click();
 	await picker(page).getByRole("button", { name: "Done" }).click();
 	await expect(picker(page)).toBeHidden();
-	await expect(widgetTitles(page)).toHaveText([/^PM2\.5 · (?!Fresno County)/]);
-	const after = page.getByRole("region", { name: /^PM2\.5 · .+ map$/ });
+	await expect(widgetTitles(page)).toHaveText([/^PM2\.5 map · (?!Fresno County)/]);
+	const after = page.getByRole("region", { name: /^PM2\.5 map · .+ map$/ });
 	await expect(inView(after)).toHaveText("PM2.5: 1 Good");
 	await expectStill(browser, after, before);
 });
@@ -644,7 +644,7 @@ const sam: AccountUser = {
 
 /** The Drummond Street monitor's id. */
 const DRUMMOND = "4Mb0j33kTnS0qzeE4iDGWw";
-const DRUMMOND_MAP = "PM2.5 · Fresno - Drummond Street";
+const DRUMMOND_MAP = "PM2.5 map · Fresno - Drummond Street";
 
 test("Shift-click marks a monitor, the card's Remove unmarks it, and undo marks it again", async ({
 	page
@@ -1292,7 +1292,7 @@ test.describe("a Map's region fill", () => {
 		// None keeps the ticks with no entry type. Its generated title names what it shows.
 		delete widget.data.layers[0].entryType;
 		await openSharedDoc(page, doc);
-		const map = mapOf(page, "ZIP Codes · Fresno County");
+		const map = mapOf(page, "ZIP Codes map · Fresno County");
 		await expect(map).toBeVisible();
 		// Every ZIP is listed, with no figure.
 		const list = await featureList(map);
@@ -1590,7 +1590,7 @@ test.describe("a Map's spray notices", () => {
 			noticesDoc({ chemical: "gs65e", commodity: NOTICE_COMMODITY.id, category: ["fumigant"] })
 		);
 		// A day with no monitor figures adds its note to the map's name.
-		const map = page.getByRole("region", { name: /^PM2\.5 · Fresno County map/ });
+		const map = page.getByRole("region", { name: /^PM2\.5 map · Fresno County map/ });
 		await expect(daySlider(page)).toHaveAttribute("aria-valuetext", "Now");
 		let list = await featureList(map);
 		await expect(list.getByRole("option", { name: NOW_SECTION })).toHaveCount(1);
@@ -1806,7 +1806,7 @@ test.describe("a Map's pesticide use", () => {
 	 * month"), so it's found by the start of its name.
 	 */
 	function useMapOf(page: Page): Locator {
-		return page.getByRole("region", { name: /^PM2\.5 · Fresno County map\b/ });
+		return page.getByRole("region", { name: /^PM2\.5 map · Fresno County map\b/ });
 	}
 
 	/** The map, once its townships are drawn (the middle one in its feature list). */

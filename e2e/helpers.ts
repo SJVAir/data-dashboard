@@ -64,7 +64,7 @@ export const CHART_TITLE = "PM2.5 · Fresno County · Last 30 days";
 export const NOTE = "Note";
 
 /** The starter's Map's generated title: its pollutant in Fresno County. */
-export const MAP_TITLE = "PM2.5 · Fresno County";
+export const MAP_TITLE = "PM2.5 map · Fresno County";
 
 /** The starter's widgets' generated titles, in reading order (PM2.5 in Fresno County). */
 export const STARTER_TITLES = [

@@ -62,8 +62,8 @@ const EXTRAS: ExtraMonitor[] = ["A", "B", "C", "D", "E", "F"].map((letter) => ({
 }));
 const SEVEN = [DRUMMOND, ...EXTRAS.map((m) => m.id)];
 
-const FRESNO_MAP = "PM2.5 · Fresno County";
-const DRUMMOND_MAP = "PM2.5 · Fresno - Drummond Street";
+const FRESNO_MAP = "PM2.5 map · Fresno County";
+const DRUMMOND_MAP = "PM2.5 map · Fresno - Drummond Street";
 const GET_DATA = { level: 1, name: "Data Portal" } as const;
 const NEW_WIDGET_URL = /\/workspace\/dashboards\/[0-9a-f-]{36}\/widgets\/new$/;
 
