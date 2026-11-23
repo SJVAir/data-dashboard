@@ -1922,6 +1922,20 @@ shape.
   it still draws its other layers, and a region fill draws as outlines, uncoloured, with no
   legend section. _Single-place types_ (Current conditions, "Can we go outside?", the Forecast
   strip, the calendars) take one place in Where or one searched monitor, not both.
+- **Schools and child care are What on the Map** (step 5 spec 7c, built 2026-11-22). They are
+  one place-less layer, `{ dataset: "locations", locationTypes: [...] }`, after the notices and
+  ahead of the use (`setLocationTypes`, `src/lib/get-data/map.ts`), shown when at least one type
+  is ticked; unticking every type removes it. What has one section per location group
+  (`locations:<group key>`, from the regions meta; see "Metadata as source of truth"), a checkbox
+  per type, written in the meta's order. A saved type the meta no longer lists shows ticked and
+  greyed in a "No longer offered" block and can be unticked. The sections are greyed for every
+  other widget type ("Map only"), and every other reader of a widget's layers skips the locations
+  layer, as it skips the notices; "Show as" another type leaves it out with a note naming the
+  ticked groups ("Schools: shown only on a map, so left out."). Where filters it like everything
+  else: the sites inside Where's areas (a school or point: its fallback region, the first of ZIP,
+  city and county the server has), or the whole valley's with no Where. Unticking a group's last
+  type also takes the group off the Map's `hiddenLocationGroups` (below), so ticking it again
+  shows it.
 - **Compatibility.** There is no compatibility code for documents saved before this shape (the user,
   2026-11-22: nobody has any). The drop-on-read steps, the Map's `showing` option and the
   several-pollutant Map handling were removed; schemas that were strict stay strict, so an old
@@ -2446,11 +2460,13 @@ for the data that tile holds.
   fire on or off (two place-less layers, `hms-smoke` and `hms-fire`, added and removed together),
   spray notices on or off (the place-less `{ dataset: "pesticide-notices", filters? }`, spec
   5a), and pesticide use on or off (the place-less `{ dataset: "pesticide-use", filters? }`, spec
-  5b; a chart's place-held pesticide layers are another thing). Saved options (`options.ts`,
+  5b; a chart's place-held pesticide layers are another thing), and schools and child care (the
+  place-less `{ dataset: "locations", locationTypes }`, spec 7c). Saved options (`options.ts`,
   `MapOptionsSchema`): `marks` (monitor ids, at most 25, unique); spec 4 added
   `day` (renamed `at` in spec 6a), `fill` and `fillShown` (see "The Map's days and region
   fills"), spec 5a added `noticesShown`, and spec 5b added `useFigure` and `useShown` (removed
-  with the use layer; its `usePeriod` went in spec 6a). `MapOptionsSchema` is strict and the
+  with the use layer; its `usePeriod` went in spec 6a), and spec 7c added
+  `hiddenLocationGroups` (the location groups switched off in Layers). `MapOptionsSchema` is strict and the
   document schema checks it, so a dashboard still holding `day` or `usePeriod` is refused as
   invalid (no compatibility code: only test documents had them, the user, 2026-11-18). Missing
   options read as their defaults.
@@ -2554,6 +2570,33 @@ for the data that tile holds.
     (`map.pin`), while the townships plugin lists the township.
   - **Failures.** A failed load shows the note banner with Retry; a gone filter makes the sources
     `unavailable` (`filter-gone`), with the banner and the reason in the legend.
+- **Schools and child care** (step 5 spec 7c, built 2026-11-22; spec
+  `docs/superpowers/specs/2026-11-21-step-5-spec-7-data-portal-design.md`). The locations layer
+  is drawn with map-sdk's schools preset.
+  - **Loading** (`locationsEntry`, `src/lib/widgets/map/data/locations.ts`). The sites come from
+    `getPesticideLocations`, every type at once (ticking a type filters what is loaded, never
+    refetches): per region in Where (by sqid; a school or point uses its fallback region), or
+    valley-wide in one request with no Where (about 2,800 sites, 1.5 MB raw). Each region's list
+    and the valley's are fetched **once per session and shared by every Map**, kept in memory
+    with no expiry (sites change rarely and the server caches for 24 hours; see `DEFERRED.md`);
+    each Map filters a list, never copies it. A failed fetch is forgotten, so the next load asks
+    again, and one caller's abort never cancels the shared fetch. Sites have no time, so the
+    layer ignores the day showing and never polls. A Where with no region on the server makes
+    the source `unavailable`, with the reason in the legend.
+  - **One `schoolsPlugin` per group** (`layers/LocationsLayer.svelte`): plugin id
+    `locations-<group key>`, labelled with the group's meta label, with the group's ticked types
+    as the preset's allow-list. Every plugin reads one shared source through getters, so a
+    refetch never remakes a plugin (or moves focus out of an open card); only a change of label
+    or types does. Each is placed under the monitors and under the next group's plugin, so the
+    legend lists the groups in the meta's order. The preset owns the badges, the count bubbles,
+    the legend rows and the cards (static on hover, interactive pinned or keyboard-focused).
+  - **Layers rows.** The toolbar has one row per drawn group (`location:<group key>`, in
+    `toolbar/values.ts` and `wiring.svelte.ts`); switching one off saves its key in
+    `hiddenLocationGroups`, which removes that group's plugin.
+  - **The focus school.** A school in Where is also a site in the sites list. Its focus pin takes
+    the location lookup's coordinates, which equal the site's own (checked on three local sites,
+    spec 7c), so map-sdk drops the focus row on the exact match and draws the focus ring around
+    the school's badge: one badge, one feature-list row.
 - **A tile draws only its own data.** Monitors are the ones in the places (a region or several:
   those regions' monitors; monitor places: exactly those; a school or exact point: the monitors
   in its `placeRegion` region, the one the frame uses), and only those reporting the Map's
@@ -2608,13 +2651,15 @@ for the data that tile holds.
   on entering or leaving fullscreen, after the frame's animations settle. A pan or zoom lasts
   only for the moment (it survives a theme switch's style reload). A map holding an exact point
   frames the point's region, never the point (see "Widget data selection").
-- **Layers:** the monitors, smoke and fire, the spray notices and pesticide use as the tile's
+- **Layers:** the monitors, smoke and fire, the spray notices, pesticide use and the schools
+  and child care groups as the tile's
   entries give them (`selectedStyle: "ring"` marks the marked monitors), and map-sdk's **focus
   area** (`focusAreaPlugin`, `focus.ts`): the places' outline with the surround dimmed, or a
   labelled pin for a school or exact point. It
   replaces spec 1's outline layer, pin layer and the dashboard's own pin label. **Draw order,
   bottom to top:** the fill, pesticide use (townships, lens, sections), the focus area, smoke and
-  fire and the notices (each placed under the monitors), then the monitors (spec 5a ruling:
+  fire, the notices and the schools and child care groups (each placed under the monitors, the
+  groups in the meta's order), then the monitors (spec 5a ruling:
   notices sit above the focus area, and the monitors stay on top; spec 5b ruling, checked on
   screen: use sits above the fill, or its classes can't be matched to the legend and the fill
   takes the pointer from the lens). `layers/order.ts` places each layer.
@@ -2990,6 +3035,14 @@ type MenuProvider = (ctx: MenuContext) => MenuItem[];
   Shift+F10 / Menu key (focused element). **On touchscreens it opens from the ⋯ buttons, not
   long-press** (decided 2026-10-28, step 2: long-press picks up widgets and is the browser's
   own gesture); the dashboard has its own visible ⋯ button for that reason.
+- **The menus do their own opening focus** (step 5 spec 7c). bits-ui 2.19.2 mounts a top-level
+  context or dropdown menu's focus scope twice as it opens, which queues two one-frame opening
+  focuses. On a busy machine the second could land after ArrowRight had opened a submenu,
+  focus the parent menu and close the submenu (a CI flake). The shadcn-svelte
+  `context-menu-content` and `dropdown-menu-content` wrappers pass `menuOpenAutoFocus`
+  (`src/lib/components/menu/open-auto-focus.ts`), which prevents bits-ui's own and focuses the
+  menu a frame later only while it is still open and focus isn't already in an open menu. Drop it
+  when a bits-ui upgrade no longer mounts twice (see `DEFERRED.md`).
 - **Baseline actions** (Release 1; IDEA.md's examples plus decided features):
   - _Global:_ Undo / Redo (in the dashboard's menu, not widgets'), "Clear my data",
     Sign in / out.
@@ -3737,6 +3790,13 @@ endpoint yet (since 2026-11-03 only `calenviroscreen`, `emissions`, `tempo`, and
   (`CatalogEntry.monitorTypes`; the air-quality entry lists its seven air types, weather lists
   `cimis`): the dashboard never hardcodes them, and a new Map ticks the air-quality entry's list
   (`everyMonitorType`).
+- **Location groups, types and sources come from the regions meta** (spec 7c): the Map's
+  schools and child care sections in What are `location_groups` sorted by `order` (labels such as
+  "Schools" and "Child care"), each type sits in the group its `group` key names (a type whose
+  group the meta doesn't define is a group of its own, after the others), and labels come from
+  `location_types` (`metadata.locationGroups()`). The location resolver reads each type's
+  `source` from the same meta (`metadata.locationSources()`), so no type id, group or source is
+  written in the dashboard's code.
 - **Weather (CIMIS) is its own dataset**, even though the server stores it as monitor
   entries: to users it's a different thing, and it isn't a pollutant. Its stations are
   listed via the catalog's `places_url` (`getMonitorsList({ dataset: "weather" })`).
