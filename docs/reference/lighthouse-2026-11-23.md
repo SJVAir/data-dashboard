@@ -19,7 +19,12 @@ cases takes about 7 minutes.
 
 ## Method
 
-- **Lighthouse 13.6.0** (a dev dependency, pinned exactly), using its Node API. It drives
+- **Lighthouse 13.6.0**, run with its CLI through a pinned `npx -y lighthouse@13.6.0`. It is
+  not a dev dependency: Lighthouse itself is Apache-2.0, but its transitive dependencies include
+  FSL-1.1 (`sentry`, via `@sentry/node`) and BlueOak-1.0.0 (`glob`, `minimatch` and others)
+  packages, which aren't on the project's licence allow-list (the user, 2026-11-23). The first run
+  downloads it into npm's cache. The numbers below came from the same version through its Node
+  API, with the same settings, before the switch; a check run after it matched them. It drives
   Playwright's Chromium (`chromium-1254`, new headless, software WebGL) over a DevTools port. The
   performance category only, with the **mobile preset** (Moto G Power viewport, 4× CPU slowdown,
   slow 4G). Each case gets **3 runs**, and the median is taken for each metric separately. Each run

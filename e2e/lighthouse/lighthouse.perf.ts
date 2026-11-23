@@ -41,16 +41,73 @@ import { cpus, totalmem, tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { chromium, expect, test, type Page } from "@playwright/test";
-import lighthouse from "lighthouse";
 import { DASHBOARD_URL, expectSaved } from "../helpers";
 import { startFakeServer, type FakeServer } from "./fake-server";
 
-type Lhr =
-	Awaited<ReturnType<typeof lighthouse>> extends infer R
-		? R extends { lhr: infer L }
-			? L
-			: never
-		: never;
+/**
+ * Lighthouse, pinned, run with `npx` and not a dev dependency: its transitive dependencies include
+ * FSL-1.1 and BlueOak-1.0.0 packages, which aren't on the project's licence allow-list (the user,
+ * 2026-11-23).
+ */
+const LIGHTHOUSE = "lighthouse@13.6.0";
+
+/** The parts of a Lighthouse result (LHR) the script reads. */
+type LhrAudit = {
+	id: string;
+	title: string;
+	score: number | null;
+	scoreDisplayMode: string;
+	numericValue?: number;
+	displayValue?: string;
+	details?: unknown;
+};
+type Lhr = {
+	lighthouseVersion: string;
+	mainDocumentUrl: string;
+	finalDisplayedUrl: string;
+	runtimeError?: { code: string; message: string };
+	runWarnings: string[];
+	environment: { benchmarkIndex: number };
+	categories: { performance?: { score: number | null } };
+	audits: Record<string, LhrAudit>;
+};
+
+/**
+ * Runs the Lighthouse CLI (`npx -y lighthouse@13.6.0`) against the Chromium on `port`, writing
+ * the JSON report to `file`. The child gets no account credentials in its environment.
+ */
+function runLighthouse(url: string, port: number, file: string): Promise<Lhr> {
+	const env = { ...process.env };
+	delete env.WORKSPACE_E2E_IDENTIFIER;
+	delete env.WORKSPACE_E2E_PASSWORD;
+	const args = [
+		"-y",
+		LIGHTHOUSE,
+		url,
+		`--port=${port}`,
+		"--output=json",
+		`--output-path=${file}`,
+		"--only-categories=performance",
+		// Each run has its own profile copy: a fresh one (first visit) or the saved dashboard's,
+		// whose storage Lighthouse would otherwise clear.
+		"--disable-storage-reset",
+		`--throttling-method=${THROTTLING}`,
+		"--quiet"
+	];
+	return new Promise((done, fail) => {
+		const child = spawn("npx", args, { env, stdio: ["ignore", "ignore", "pipe"] });
+		let stderr = "";
+		child.stderr.on("data", (chunk) => (stderr += String(chunk)));
+		child.on("error", fail);
+		child.on("exit", (code) => {
+			if (code !== 0 || !existsSync(file)) {
+				fail(new Error(`Lighthouse exited ${code}: ${stderr.trim().slice(-2000)}`));
+				return;
+			}
+			done(JSON.parse(readFileSync(file, "utf8")) as Lhr);
+		});
+	});
+}
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const RUNS = Number(process.env.LIGHTHOUSE_RUNS ?? 3);
@@ -512,8 +569,7 @@ test("Lighthouse: the starter on a low-end phone", async () => {
 
 	const summary: Record<string, unknown> = {
 		date: new Date().toISOString(),
-		lighthouse: JSON.parse(readFileSync(join(ROOT, "node_modules/lighthouse/package.json"), "utf8"))
-			.version,
+		lighthouse: LIGHTHOUSE,
 		chromium: chromium
 			.executablePath()
 			.split("/")
@@ -540,19 +596,8 @@ test("Lighthouse: the starter on a low-end phone", async () => {
 				const profile = profileFor(template);
 				const chrome = await launchChrome(profile, flags);
 				try {
-					const result = await lighthouse(url, {
-						port: chrome.port,
-						output: "json",
-						logLevel: "error",
-						onlyCategories: ["performance"],
-						// Each run has its own profile copy: a fresh one (first visit) or the saved
-						// dashboard's, whose storage Lighthouse would otherwise clear.
-						disableStorageReset: true,
-						throttlingMethod: THROTTLING
-					});
-					if (!result) throw new Error("Lighthouse returned no result");
-					writeFileSync(join(out, `${c.name}-run${run}.json`), result.report as string);
-					const lhr = result.lhr;
+					const lhr = await runLighthouse(url, chrome.port, join(out, `${c.name}-run${run}.json`));
+					summary.lighthouse = `${LIGHTHOUSE} (reported ${lhr.lighthouseVersion})`;
 					if (lhr.runtimeError) throw new Error(`Lighthouse: ${lhr.runtimeError.message}`);
 					checkMeasuredDocument(lhr);
 					const m = metricsOf(lhr, mapChunk);
