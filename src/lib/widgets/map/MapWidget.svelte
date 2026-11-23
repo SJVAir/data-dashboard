@@ -1232,6 +1232,9 @@
 			source={locationsSource}
 			label={group.label}
 			types={group.types}
+			later={tickedGroups
+				.slice(tickedGroups.findIndex((g) => g.key === group.key) + 1)
+				.map((g) => `locations-${g.key}`)}
 			{loads}
 		/>
 	{/each}

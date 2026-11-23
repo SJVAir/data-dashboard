@@ -5102,6 +5102,37 @@ describe("schools and child care on the Map", () => {
 		expect(schoolsOf(map, "school")).toBe(mounted);
 	});
 
+	test("a group ticked after a later one is drawn in the meta's order, kept on refetch", async () => {
+		vi.mocked(getPesticideLocations)
+			.mockRejectedValueOnce(new Error("offline"))
+			.mockResolvedValue(
+				siteCollection([site("s1", "private_school"), site("c1", "child_care")]) as never
+			);
+		const widget = locationsMap(["child_care"]);
+		const screen = await show(widget);
+		const map = await madeMap();
+		map.ready = true;
+		await expect.poll(() => schoolsOf(map, "child_care")).toBeTruthy();
+		const ticked = schoolsOf(map, "child_care");
+		await screen.rerender({
+			widget: { ...widget, data: locationsMap(["private_school", "child_care"]).data }
+		});
+		await expect.poll(() => schoolsOf(map, "school")).toBeTruthy();
+		// Bottom first, as map-sdk's legend reads them: Schools, then Child care.
+		const locations = () => pluginIds(map).filter((id) => id.startsWith("locations-"));
+		expect(locations()).toEqual(["locations-school", "locations-child_care"]);
+		const school = schoolsOf(map, "school");
+		const care = schoolsOf(map, "child_care");
+		// Placed below Child care: Child care's plugin was never made again.
+		expect(care).toBe(ticked);
+		// The sites are fetched again (Retry after the failed load): both plugins stay, in order.
+		await screen.getByRole("button", { name: m.widget_state_retry() }).click();
+		await expect.poll(() => care!.options.source.features?.features).toHaveLength(2);
+		expect(schoolsOf(map, "school")).toBe(school);
+		expect(schoolsOf(map, "child_care")).toBe(care);
+		expect(locations()).toEqual(["locations-school", "locations-child_care"]);
+	});
+
 	test("a Layers row per group; switching one off hides that group only", async () => {
 		vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
 		const screen = await showLive(locationsMap(["public_school", "child_care"]), editing());
