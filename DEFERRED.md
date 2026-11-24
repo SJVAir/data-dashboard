@@ -3382,6 +3382,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   it says nothing about this. The starter's TBT (the main thread's blocking time while it loads)
   is 116–152 ms on the throttled profile, under the 200 ms mark, and 224 ms on the local stack's
   saved dashboard. Still open for the real Chromebook._
+  _Flaked again in CI on 2026-11-24 (step 6 spec 2, run 45470864704, Chromium; passed on rerun)._
 - **Pen long-press still opens the context menu.** _Deferred 2026-10-28 (step 2, spec 2a)._ Only
   touch is blocked. **Revisit if** pen users report it.
 - **Screen-reader check of keyboard arranging (NVDA/JAWS browse mode, VoiceOver).** _Deferred
