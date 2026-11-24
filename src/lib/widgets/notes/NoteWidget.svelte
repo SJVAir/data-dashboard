@@ -69,7 +69,7 @@
 	data-fullscreen={fullscreen}
 	tabindex="0"
 	role="region"
-	aria-label={hasTypedTitle(widget) ? widget.title! : m.widget_note_title()}
+	aria-label={hasTypedTitle(widget) ? widget.title : m.widget_note_title()}
 	{ondblclick}
 >
 	<div class="flex flex-col gap-2" {@attach measure}>

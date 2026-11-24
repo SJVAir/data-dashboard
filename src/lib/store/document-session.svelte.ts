@@ -32,15 +32,15 @@ export type DocumentSessionOptions = {
 	debounceMs?: number;
 	now?: () => Date;
 	/**
-	 * Called with the first edit instead of applying it here (the starter dashboard, which is
-	 * never stored), or with `null` from `handOff` (a copy with no edit, for sharing). It returns
-	 * the session that took the edit; later edits go there too.
+	 * Called with the first edit instead of storing it here (the starter dashboard, which is never
+	 * stored: the edit is only shown here meanwhile), or with `null` from `handOff` (a copy with no
+	 * edit, for sharing). It returns the session that took the edit; later edits go there too.
 	 */
 	onBeforeFirstEdit?: (change: Change | null) => Promise<DocumentSession | null>;
 	/**
-	 * With `onBeforeFirstEdit`: each later queued edit, as the session that took the first one
-	 * (`successor`) gets it (the starter fills its Map's monitor types into a change made before
-	 * they arrived). The hook adapts the first edit itself.
+	 * With `onBeforeFirstEdit`: each later queued edit, and each edit applied here once handed off,
+	 * as the session that took the first one (`successor`) gets it (the starter fills its Map's
+	 * monitor types into a change made before they arrived). The hook adapts the first edit itself.
 	 */
 	adaptHandedOff?: (change: Change, successor: DocumentSession) => Change;
 	/**
@@ -314,7 +314,9 @@ export class DocumentSession {
 	apply(change: Change): void {
 		if (this.readOnly) return;
 		if (this.#successor) {
-			this.#successor.apply(change);
+			// Made from what this one showed (an Undo toast's widget, say): adapted as the queue is.
+			const adapt = this.#adaptHandedOff;
+			this.#successor.apply(adapt ? adapt(change, this.#successor) : change);
 			return;
 		}
 		if (this.#onBeforeFirstEdit || this.#handoff) {
@@ -800,7 +802,8 @@ export class DocumentSession {
 	 * hand-off), for a page that may be torn down next.
 	 */
 	#writeJournal(): void {
-		// Only one of the two is ever non-empty: a session that hands off applies nothing itself.
+		// Only one of the two is ever non-empty: a session that hands off only shows its edits (queued),
+		// never records them as its own.
 		const changes = [...this.#queued, ...this.#pending];
 		if (this.readOnly || this.#stopped || this.#successor || changes.length === 0) return;
 		if (this.#dataCleared()) return;

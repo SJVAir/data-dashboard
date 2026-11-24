@@ -283,18 +283,42 @@ export function starterSession(opts: StarterSessionOptions): DocumentSession {
 }
 
 /**
- * `change` as the starter's copy (`doc`, built with `types`) takes it. A `setWidgetData` on a Map
- * made from the shown starter while the types loaded carries its data without them (neither
- * searched monitors nor ticked types, before or after): the copy gets that data with `types`
- * ticked, as its Map has them. A Map whose monitors or types the person set keeps exactly theirs;
- * any other change is returned as is.
+ * `change` as the starter's copy (`doc`, built with `types`) takes it. A change made from the shown
+ * starter while the types loaded carries its Map without them (neither searched monitors nor ticked
+ * types): the copy gets that Map with `types` ticked, as its own Map has them. That's a
+ * `setWidgetData` on a Map (none set before or after), an `addWidget` of a Map (Duplicate, or a
+ * deleted one put back), and a `replaceDocument` whose Map set none before and after. A Map whose
+ * monitors or types the person set keeps exactly theirs; any other change is returned as is.
  */
 export function withStarterTypes(change: Change, doc: Dashboard, types: readonly string[]): Change {
-	if (change.op !== "setWidgetData" || types.length === 0) return change;
-	const widget = doc.body.widgets.find((w) => w.id === change.target.widgetId);
-	if ((change.type?.to ?? widget?.type) !== MAP_TYPE) return change;
-	if (!setsNoMonitors(change.from) || !setsNoMonitors(change.to)) return change;
-	const to = structuredClone(change.to);
-	tickTypesIfNone(to, types);
-	return { ...change, to };
+	if (types.length === 0) return change;
+	if (change.op === "setWidgetData") {
+		const widget = doc.body.widgets.find((w) => w.id === change.target.widgetId);
+		if ((change.type?.to ?? widget?.type) !== MAP_TYPE) return change;
+		if (!setsNoMonitors(change.from) || !setsNoMonitors(change.to)) return change;
+		const to = structuredClone(change.to);
+		tickTypesIfNone(to, types);
+		return { ...change, to };
+	}
+	if (change.op === "addWidget") {
+		const { widget } = change;
+		if (widget.type !== MAP_TYPE || !setsNoMonitors(widget.data)) return change;
+		const filled = structuredClone(widget);
+		tickTypesIfNone(filled.data, types);
+		return { ...change, widget: filled };
+	}
+	if (change.op === "replaceDocument") {
+		const before = new Map(change.from.body.widgets.map((w) => [w.id, w]));
+		const typeless = (w: WidgetInstance | undefined) =>
+			w?.type === MAP_TYPE && setsNoMonitors(w.data);
+		if (!change.to.body.widgets.some((w) => typeless(w) && typeless(before.get(w.id)))) {
+			return change;
+		}
+		const to = structuredClone(change.to);
+		for (const w of to.body.widgets) {
+			if (typeless(w) && typeless(before.get(w.id))) tickTypesIfNone(w.data, types);
+		}
+		return { ...change, to };
+	}
+	return change;
 }

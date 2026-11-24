@@ -392,9 +392,8 @@ async function chooseLastWeek() {
 }
 
 /** The stored Map's dates are the ones chosen (the starter's are Now). */
-const lastWeek = (map: WidgetInstance) => expect(map.data.dateRange).not.toEqual(starterMapRange());
-const starterMapRange = () =>
-	starterTemplate().body.widgets.find((w) => w.type === "map")!.data.dateRange;
+const lastWeek = (map: WidgetInstance) =>
+	expect(map.data.dateRange).toEqual({ kind: "trailing", amount: 7, unit: "day" });
 
 test("Edit data on the starter's Map: a change made while the types load survives their arrival, and Save stores them", async () => {
 	const { app, answer, restore, savedWidget } = await starterEditAt("map", [
@@ -437,10 +436,10 @@ test("Edit data on the starter's Map saved, then left before the types arrive: s
 	try {
 		await chooseLastWeek();
 		await saveButton().click();
-		// Saved (shown on the starter at once); the copy waits for the types.
+		// Saved (shown on the starter at once); the copy waits for the types. Leaving doesn't ask.
 		await page.getByRole("link", { name: "Dashboards" }).click();
-		await page.getByRole("button", { name: "Discard" }).click();
 		await expect.poll(() => location.pathname).toBe("/workspace/dashboards");
+		expect(discardDialog().query()).toBeNull();
 		answer();
 		await expect.poll(async () => (await platform.documents.list(app.space)).length).toBe(1);
 		const copy = (await app.sessions.get(app.index.items[0]?.id ?? ""))!;
@@ -450,9 +449,57 @@ test("Edit data on the starter's Map saved, then left before the types arrive: s
 			"purpleair"
 		]);
 		lastWeek(map);
-		// Nothing pulled the person to the copy's dashboard.
+		// Nothing pulled the person to the copy's dashboard, or made it current on the list.
 		await new Promise((resolve) => setTimeout(resolve, 200));
 		expect(location.pathname).toBe("/workspace/dashboards");
+		expect(app.current.session).toBeNull();
+	} finally {
+		restore();
+	}
+});
+
+test("Edit data on the starter's Map saved, then the Data Portal link before the types arrive: no ask, and Get data stays", async () => {
+	const { app, platform, answer, restore } = await starterEditAt("map", ["purpleair"]);
+	try {
+		await chooseLastWeek();
+		await saveButton().click();
+		await page.getByRole("link", { name: "Data Portal" }).click();
+		await expect.poll(() => location.pathname).toBe("/workspace/data");
+		expect(discardDialog().query()).toBeNull();
+		answer();
+		await expect.poll(async () => (await platform.documents.list(app.space)).length).toBe(1);
+		await app.index.refresh();
+		const copy = (await app.sessions.get(app.index.items[0]?.id ?? ""))!;
+		await copy.flush();
+		lastWeek(copy.doc.body.widgets.find((w) => w.type === "map")!);
+		await new Promise((resolve) => setTimeout(resolve, 200));
+		expect(location.pathname).toBe("/workspace/data");
+		expect(app.current.session).toBeNull();
+	} finally {
+		restore();
+	}
+});
+
+test("Edit data on the starter's Map saved, changed again, then the Data Portal link and Discard: Get data stays when the copy lands", async () => {
+	const { app, platform, answer, restore } = await starterEditAt("map", ["purpleair"]);
+	try {
+		await chooseLastWeek();
+		await saveButton().click();
+		// A change after Save: leaving asks about that one.
+		await datesButton().click();
+		await page.getByRole("option", { name: "Last 30 days" }).click();
+		await animationsSettled(document.body);
+		await page.getByRole("link", { name: "Data Portal" }).click();
+		await expect.element(discardDialog()).toBeVisible();
+		await page.getByRole("button", { name: "Discard" }).click();
+		await expect.poll(() => location.pathname).toBe("/workspace/data");
+		answer();
+		await expect.poll(async () => (await platform.documents.list(app.space)).length).toBe(1);
+		await new Promise((resolve) => setTimeout(resolve, 200));
+		expect(location.pathname).toBe("/workspace/data");
+		expect(app.current.session).toBeNull();
+		// Get data still works: its own Save state wasn't left busy.
+		await expect.element(page.getByRole("heading", { name: "Data Portal" })).toBeVisible();
 	} finally {
 		restore();
 	}
@@ -544,6 +591,8 @@ test("Save changes whose navigation is refused still asks before a later Back", 
 	} finally {
 		unblock();
 	}
+	// The saved change isn't asked about; a later one is.
+	await page.getByRole("radio", { name: "Chart" }).click();
 	history.back();
 	await expect.element(discardDialog()).toBeVisible();
 	await page.getByRole("button", { name: "Keep editing" }).click();

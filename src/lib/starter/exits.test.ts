@@ -26,7 +26,9 @@ import { barChange } from "$lib/places/replace";
 import { loadMonitorTypes, loadMonitorTypesResult } from "$lib/widgets/map/start";
 import { MAP_TYPE } from "$lib/widgets/map/options";
 import { dashboardActions } from "$lib/actions/dashboard";
+import { removeWidget, widgetActions } from "$lib/actions/widget";
 import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
+import { openRename } from "$lib/components/dialogs/RenameDialog.svelte";
 import { takeAfterMenuClose } from "$lib/components/menu/menu-state.svelte";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
 import { pickedData } from "$lib/places/apply";
@@ -814,9 +816,11 @@ describe("the starter's monitor types", () => {
 			app.current = { session: null, isStarter: false };
 			app.releaseStarter();
 			expect(removed).not.toHaveBeenCalled();
-			// Its copy is made current.
-			await vi.waitFor(() => expect(app.current.session).not.toBeNull());
-			await app.current.session!.flush();
+			// Its copy is made (not current: nothing showed the starter when it landed).
+			const copy = await opened.handoff;
+			expect(copy).not.toBeNull();
+			expect(app.current.session).toBeNull();
+			await copy!.flush();
 			// Once handed off, the fresh starter (never shown) goes, and the next open builds one.
 			expect(removed.mock.calls.filter(([t]) => t === "pagehide")).toHaveLength(1);
 			expect(await app.sessions.get(STARTER_ID)).not.toBe(fresh);
@@ -849,6 +853,7 @@ describe("the starter's monitor types", () => {
 			const { platform, app } = await setup(ZIP);
 			const starter = await showStarter(app);
 			vi.mocked(openPlacePicker).mockClear();
+			vi.mocked(openRename).mockClear();
 			await run(app, item);
 			if (item === "duplicate-for-another-place") {
 				await vi.waitFor(() => expect(openPlacePicker).toHaveBeenCalled());
@@ -871,7 +876,8 @@ describe("the starter's monitor types", () => {
 			if (item === "duplicate-for-another-place") {
 				expect(duplicate.body.placeBar).toEqual({ place: TULARE });
 			}
-			await new Promise((resolve) => setTimeout(resolve, 10));
+			// The action's last step (naming the copy it opened): nothing more is stored after it.
+			await vi.waitFor(() => expect(openRename).toHaveBeenCalledOnce());
 			expect(await platform.documents.list("anonymous")).toHaveLength(2);
 		});
 	}
@@ -899,12 +905,13 @@ describe("the starter's monitor types", () => {
 			const starter = await showStarter(app);
 			vi.mocked(openPlacePicker).mockClear();
 			vi.mocked(toast.info).mockClear();
+			const duplicate = vi.spyOn(app.index, "duplicate");
 			await run(app, "duplicate-for-another-place");
 			await vi.waitFor(() => expect(openPlacePicker).toHaveBeenCalled());
 			const { pick } = vi.mocked(openPlacePicker).mock.calls[0][0] as {
 				pick: (p: ChosenPlace) => void;
 			};
-			return { platform, app, starter, answer, pick };
+			return { platform, app, starter, answer, pick, duplicate };
 		}
 
 		it("after an edit moved the bar's place, replaces the place it copies", async () => {
@@ -921,7 +928,7 @@ describe("the starter's monitor types", () => {
 		});
 
 		it("after an edit left several places without the asked one, makes no copy and says so", async () => {
-			const { platform, starter, answer, pick } = await ask();
+			const { platform, starter, answer, pick, duplicate } = await ask();
 			const { name, body } = starter.doc;
 			const [first, second] = body.widgets.filter((w) => w.data.place);
 			const at = (w: typeof first, place: ChosenPlace) => ({ ...w, data: { ...w.data, place } });
@@ -939,12 +946,13 @@ describe("the starter's monitor types", () => {
 			await vi.waitFor(() =>
 				expect(toast.info).toHaveBeenCalledWith(m.dashboard_duplicate_no_single_place())
 			);
-			await new Promise((resolve) => setTimeout(resolve, 10));
+			// Said after the last await of the action, where a copy would have been asked for.
+			expect(duplicate).not.toHaveBeenCalled();
 			expect(await platform.documents.list("anonymous")).toHaveLength(1);
 		});
 
 		it("after an edit removed every place, makes no copy and says so", async () => {
-			const { platform, starter, answer, pick } = await ask();
+			const { platform, starter, answer, pick, duplicate } = await ask();
 			const { name, body } = starter.doc;
 			starter.apply({
 				op: "replaceDocument",
@@ -957,7 +965,8 @@ describe("the starter's monitor types", () => {
 			await vi.waitFor(() =>
 				expect(toast.info).toHaveBeenCalledWith(m.dashboard_duplicate_no_single_place())
 			);
-			await new Promise((resolve) => setTimeout(resolve, 10));
+			// Said after the last await of the action, where a copy would have been asked for.
+			expect(duplicate).not.toHaveBeenCalled();
 			expect(await platform.documents.list("anonymous")).toHaveLength(1);
 		});
 	});
@@ -1174,6 +1183,88 @@ describe("a Map edit on the starter while the types load", () => {
 		expect(airOf(await stored(platform, copy.doc.id))).not.toHaveProperty("monitorTypes");
 	});
 
+	it("Duplicate of its Map: both Maps in the copy keep the types", async () => {
+		const answer = holdTypes();
+		const { platform, app } = await setup();
+		const starter = await showStarter(app);
+		const map = mapOf(starter);
+		const ctx = { target: {} as Element, payload: {} };
+		widgetActions(app, map.id)(ctx).find((i) => i.id === "duplicate-widget")!.run!(ctx);
+		expect(starter.doc.body.widgets.filter((w) => w.type === MAP_TYPE)).toHaveLength(2);
+		answer();
+		await vi.waitFor(() => expect(app.current.isStarter).toBe(false));
+		const copy = app.current.session!;
+		await copy.flush();
+		const maps = (await stored(platform, copy.doc.id)).body.widgets.filter(
+			(w) => w.type === MAP_TYPE
+		);
+		expect(maps).toHaveLength(2);
+		for (const m of maps) {
+			expect(m.data.layers.find((l) => l.dataset === "air-quality")?.monitorTypes).toEqual(TYPES);
+		}
+	});
+
+	it("Duplicate of its Map as the edit after another: the duplicate keeps the types", async () => {
+		const answer = holdTypes();
+		const { platform, app } = await setup();
+		const starter = await showStarter(app);
+		starter.apply(rename);
+		const map = mapOf(starter);
+		const ctx = { target: {} as Element, payload: {} };
+		widgetActions(app, map.id)(ctx).find((i) => i.id === "duplicate-widget")!.run!(ctx);
+		answer();
+		await vi.waitFor(() => expect(app.current.isStarter).toBe(false));
+		const copy = app.current.session!;
+		await copy.flush();
+		const maps = (await stored(platform, copy.doc.id)).body.widgets.filter(
+			(w) => w.type === MAP_TYPE
+		);
+		expect(
+			maps.map((w) => w.data.layers.find((l) => l.dataset === "air-quality")?.monitorTypes)
+		).toEqual([TYPES, TYPES]);
+	});
+
+	it("its Map deleted, then put back with the toast's Undo after the copy took over: it keeps the types", async () => {
+		const answer = holdTypes();
+		const { platform, app } = await setup();
+		const starter = await showStarter(app);
+		const map = mapOf(starter);
+		vi.mocked(toast).mockClear();
+		removeWidget(app, map.id);
+		answer();
+		await vi.waitFor(() => expect(app.current.isStarter).toBe(false));
+		const copy = app.current.session!;
+		expect(copy.doc.body.widgets.some((w) => w.id === map.id)).toBe(false);
+		const options = vi.mocked(toast).mock.calls[0][1] as unknown as {
+			action: { onClick: () => void };
+		};
+		options.action.onClick();
+		await copy.flush();
+		const back = (await stored(platform, copy.doc.id)).body.widgets.find((w) => w.id === map.id)!;
+		expect(back.data.layers.find((l) => l.dataset === "air-quality")?.monitorTypes).toEqual(TYPES);
+	});
+
+	it("a replaced document keeps the types on a Map it leaves as it was", async () => {
+		const answer = holdTypes();
+		const { platform, app } = await setup();
+		const starter = await showStarter(app);
+		starter.apply(rename);
+		const { name, body } = starter.doc;
+		starter.apply({
+			op: "replaceDocument",
+			target: {},
+			from: { name, body },
+			to: { name: "Other", body: structuredClone(body) }
+		});
+		answer();
+		await vi.waitFor(() => expect(app.current.isStarter).toBe(false));
+		const copy = app.current.session!;
+		await copy.flush();
+		const doc = await stored(platform, copy.doc.id);
+		expect(doc.name).toBe("Other");
+		expect(airOf(doc).monitorTypes).toEqual(TYPES);
+	});
+
 	it("another widget's data is left as it is", async () => {
 		const answer = holdTypes();
 		const { platform, app } = await setup();
@@ -1190,5 +1281,56 @@ describe("a Map edit on the starter while the types load", () => {
 			(w) => w.id === chart.id
 		)!;
 		expect(saved.data).toEqual(to);
+	});
+});
+
+describe("the starter's copy, made after the person moved on", () => {
+	const rename = { op: "setField", target: { path: "name" }, from: null, to: "Mine" } as const;
+
+	it("another dashboard opened during the types wait stays current; the copy is stored with the edit and the types", async () => {
+		const answer = holdTypes();
+		const { platform, app } = await setup();
+		const starter = await showStarter(app);
+		const otherId = await app.index.createBlank();
+		starter.apply(rename);
+		const other = (await app.sessions.get(otherId))!;
+		app.current = { session: other, isStarter: false };
+		answer();
+		const handed = await starter.handoff;
+		expect(handed).not.toBeNull();
+		expect(app.current.session).toBe(other);
+		expect(app.current.isStarter).toBe(false);
+		await handed!.flush();
+		const doc = await stored(platform, handed!.doc.id);
+		expect(doc.name).toBe("Mine");
+		expect(mapTypes(doc)).toEqual(TYPES);
+		// The last-opened dashboard is still the one the person went to.
+		expect(await platform.preferences.get("anonymous", LAST_OPENED_KEY)).toBe(otherId);
+		// Listed, and openable as itself.
+		await vi.waitFor(() => expect(app.index.items.map((d) => d.id)).toContain(handed!.doc.id));
+		expect(await app.sessions.get(handed!.doc.id, { remember: false })).toBe(handed);
+	});
+
+	it("a page with no dashboard (the list, Get data, a shared page) stays without one", async () => {
+		const answer = holdTypes();
+		const { app } = await setup();
+		const starter = await showStarter(app);
+		starter.apply(rename);
+		app.current = { session: null, isStarter: false };
+		answer();
+		const handed = await starter.handoff;
+		expect(handed).not.toBeNull();
+		expect(app.current.session).toBeNull();
+	});
+
+	it("the starter still shown: the copy takes its place", async () => {
+		const answer = holdTypes();
+		const { platform, app } = await setup();
+		const starter = await showStarter(app);
+		starter.apply(rename);
+		answer();
+		const handed = await starter.handoff;
+		expect(app.current).toEqual({ session: handed, isStarter: false });
+		expect(await platform.preferences.get("anonymous", LAST_OPENED_KEY)).toBe(handed!.doc.id);
 	});
 });

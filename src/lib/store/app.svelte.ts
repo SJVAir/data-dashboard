@@ -612,18 +612,25 @@ class App implements AppContext {
 				if (this.resetCount !== resets) return copy.discard();
 				const id = copy.doc.id;
 				this.#kept.delete(starter);
-				// The next visit to the starter gets a fresh one. One built when this one was kept
-				// (a types swap) goes too: it was never shown, and its listeners mustn't stay.
 				const next = this.#live.get(STARTER_ID);
-				if (next && next !== starter && next !== this.current.session && !next.edited) {
-					next.discard();
-				}
+				// The copy takes the starter's place only where the starter is still shown (it, or the
+				// fresh one a types swap put in its place). A person who moved on during the types wait
+				// (another dashboard, the list, Get data, a shared page) stays there: the copy is stored
+				// and listed, and opens from its link.
+				const { session: shown, isStarter } = this.current;
+				const takesOver = shown === starter || (isStarter && !!next && shown === next);
 				this.#open.delete(STARTER_ID);
 				this.#live.delete(STARTER_ID);
 				this.#open.set(id, Promise.resolve(copy));
 				this.#live.set(id, copy);
-				this.current = { session: copy, isStarter: false };
-				void this.platform.preferences.set(this.space, LAST_OPENED_KEY, id);
+				if (takesOver) {
+					this.current = { session: copy, isStarter: false };
+					void this.platform.preferences.set(this.space, LAST_OPENED_KEY, id);
+				}
+				// The next visit to the starter gets a fresh one. One built when this one was kept
+				// (a types swap) goes too, shown or not: the copy replaced it, and its listeners
+				// mustn't stay.
+				if (next && next !== starter && !next.edited) next.discard();
 				void this.index.refresh();
 			}
 		});

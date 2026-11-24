@@ -272,20 +272,30 @@
 		if (saving || !session || mode.kind !== "edit") return;
 		const { widgetId } = mode;
 		saving = true;
+		const before = baseline;
 		let landed: Awaited<ReturnType<typeof landedIn>>;
 		try {
 			// On the starter before the types arrive, its hand-off ticks them into the copy's Map.
 			saveEdit(session, widgetId, draft);
+			// Saved (on the starter, shown at once while its copy waits for the types): leaving now
+			// doesn't ask about it, only about changes made after.
+			baseline = draft;
 			landed = await landedIn(session);
 		} catch (error) {
 			report(error, { operation: "get-data-save" });
 			toast.error(m.get_data_save_failed());
+			// Not stored: leaving asks again.
+			if (editing === session) baseline = before;
 			saving = false;
 			return;
 		}
-		// The person went elsewhere while the starter's copy was made (it waits for the types): the
-		// edit is saved, and they stay where they went.
+		// The person went elsewhere while the starter's copy was made (it waits for the types),
+		// another page or another mode of this one: the edit is saved, and they stay where they went.
 		if (gone) return;
+		if (editing !== session) {
+			saving = false;
+			return;
+		}
 		requestFocus({ kind: "title", id: widgetId });
 		try {
 			if (

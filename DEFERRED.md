@@ -309,13 +309,6 @@ string`) now get the union return type. The mobile app passes a string token, so
     same account.** _Deferred 2026-11-02 (sync spec 3, while building)._ A list answered just
     before the change can overwrite the newer state; it heals on the next poll (up to 60 s).
     **Revisit if** the dialog showing a stale link is reported.
-  - **The starter hand-off can set the current dashboard after the person has left for a shared
-    page.** _Deferred 2026-11-02 (sync spec 3, while building)._ This is the existing `onCopied`
-    in `src/lib/store/app.svelte.ts`, so Ctrl+Z there could reach that new copy. Very narrow
-    timing. **Revisit on a report, or when the hand-off is next changed.** _Looked at in step 4
-    spec 6, 2026-11-10: unchanged; Share on the starter now also uses the hand-off (through
-    `copyStarter`), so there is one more caller, with the same timing window._ _Looked at in step 6 spec 1, 2026-11-23: unchanged; the hand-off now
-    waits for the monitor types first, but `onCopied` is the same code and the same window._
   - **`?widget=` stays in the address bar when a fullscreen shared dashboard becomes
     unavailable.** _Deferred 2026-11-02 (sync spec 3, while building)._ Nothing shows; it is
     harmless. **Revisit with** any URL-state cleanup.
@@ -2661,11 +2654,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     (MapTiler's metrics timer). **Fix with** the next change to each.
 - **Step 6 spec 1 review leftovers.** _Deferred 2026-11-23 (step 6 spec 1, per-task reviews)._
   Small things the reviews let stay:
-  - **A late-catalog test doesn't assert the failure report isn't sent on a timeout.** (T1-a: the
-    monitor types loader's late-catalog case.) **Add with** the next change to
-    `src/lib/widgets/map/start.ts`.
-  - **A weak copies-length assertion in a starter test.** (T2-a.) It would pass with the wrong
-    count. **Fix with** the next change to `starter.test.ts`.
   - **The starter Map E2E skips Firefox entirely** (T4-a), though its geometry checks don't need
     WebGL. **Revisit with** the next change to `e2e/starter.spec.ts`: run the geometry part on all
     three engines.
@@ -2691,7 +2679,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   ruling T2-b)._ Playwright's WebKit exposes no worker CSP event and no worker console message, so
   the CSP walk can't see a violation raised inside a worker there. Workers are covered on Chromium
   (through CDP Audits) and on Firefox (through the console). The worker self-test in
-  `e2e/csp.spec.ts` is `test.fixme` on WebKit. A WebKit-only violation would go unseen; the Map's
+  `e2e/csp-walk.spec.ts` is `test.fixme` on WebKit. A WebKit-only violation would go unseen; the Map's
   worker code is the same across engines. **Revisit if** Playwright's WebKit exposes worker CSP
   events, or if a code path that runs only in WebKit workers appears.
 - **Step 6 spec 2 review leftovers.** _Deferred 2026-11-23 (step 6 spec 2, per-task reviews)._
@@ -2721,16 +2709,16 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     per-step summary prints only if the walk completes** (T3-m2), **and Sentry is detected by
     hostname only, so a same-origin tunnel wouldn't be seen** (T3-m3). **Fix with** the next
     change to the stack run.
-  - **Stale comments** in `src/lib/store/document-session.svelte.ts` (about lines 35 and 794, and
-    in `arrangeBy`) (T4-m1). **A read-only `arrangeBy` no longer closes the menu** (T4-m2).
-    **Fix with** the next change to `document-session.svelte.ts`.
+  - **A read-only `arrangeBy` no longer closes the menu** (T4-m2). Unreachable today: the Move and
+    Size items are disabled on a read-only dashboard. **Fix with** the next change to `arrangeBy`
+    in `src/lib/actions/widget.ts`. _Looked at in the final review's fixes, 2026-11-23: the stale
+    comments (T4-m1) were fixed there; this one left, being unreachable._
   - **Export after a failed hand-off adds no toast of its own** (T5-m2); the starter's save error
     from step 6 spec 2 task 4 shows. **`duplicateSource`'s `doc` is null for the starter, so the
     starter doc is built twice** (T5-m3). **The tie test doesn't assert two candidates remain**
     (T5-m4: add `expect(placesToReplace(...)).toHaveLength(2)`). **Fix with** the next change to
     `src/lib/actions/dashboard.ts` or its tests.
-  - **The mouse-Move test can pass vacuously** (T6-m1: it doesn't assert the closed-menu bounce
-    happened). **A request pending when the hand-off fails isn't re-evaluated until the next press
+  - **A request pending when the hand-off fails isn't re-evaluated until the next press
     or key** (T6-m2: `handingOff` is read untracked in `WidgetFrame.svelte`). **A comment at
     `WidgetFrame.svelte` (about line 585) omits Back and Forward** (T6-m3). **Screen-reader
     synthetic activation doesn't drop a pending request** (T6-m4, pre-existing). **Fix with** the
@@ -2739,13 +2727,12 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     starter** (T7-m2). Unreachable today. **Revisit with** the next change to the starter claims
     in `src/lib/store/app.svelte.ts`.
   - **Edit data on the starter: `starterPlace` and `resetCount` dependencies are untracked**
-    (T8-m2, likely unreachable); **the lastWeek date assertion in `get-data.browser.test.ts` (about
-    line 392) is weak** (T8-m3); **a new test uses a `setTimeout(200)` negative check** (T8-m8);
-    **`adaptHandedOff` doesn't cover edits forwarded after the copy takes over** (T8-m9, safe
-    today); **`air-quality-section.browser.test.ts` (about line 58) has an implicit any that
+    (T8-m2, likely unreachable; _looked at in the final review's fixes, 2026-11-23, which changed
+    `GetData.svelte`'s Save: left, still unreachable_); **the Edit-data-on-the-starter tests that check the page stays
+    where the person went use a `setTimeout(200)` negative check** (T8-m8, and the two the final
+    review's fixes added beside it: nothing observable changes when the page rightly stays);
+    **`air-quality-section.browser.test.ts` (about line 58) has an implicit any that
     `npm run check` misses** (T8-m5, pre-existing). **Fix with** the next change to each file.
-  - **`hasTypedTitle` could be a type guard** (T9-m1), to drop the `widget.title!` assertions.
-    **Do with** the next change to `src/lib/actions/widget.ts`.
 - **The startup chain keeps LCP over 2.5 s on a throttled phone.** _Deferred 2026-11-23 (step 6
   spec 1, the Lighthouse check; the user: revisit at go-live)._ The LCP element is the welcome
   Note's text. It waits for the app chunk (188 KB gzipped) to download and run its startup
