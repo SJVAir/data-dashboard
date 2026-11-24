@@ -251,11 +251,14 @@ async function copyWithPlace(
 	const places = placesToReplace(
 		source.doc ?? starterDashboard(app.starterPlace, app.starterArea, types)
 	);
-	if (places.length === 0) {
+	// The place asked if it's still there, else the one place left; none, or several without it:
+	// no copy.
+	const replaced =
+		places.find((place) => sameRef(place, from)) ?? (places.length === 1 ? places[0] : null);
+	if (!replaced) {
 		toast.info(m.dashboard_duplicate_no_single_place());
 		return;
 	}
-	const replaced = places.find((place) => sameRef(place, from)) ?? places[0];
 	// The starter is built at its chosen place, the bar's place `from`.
 	const copyId = await app.index.duplicate(id, {
 		from: replaced,

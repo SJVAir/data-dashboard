@@ -786,6 +786,29 @@ describe("the starter's monitor types", () => {
 			expect(duplicate.body.placeBar).toEqual({ place: TULARE });
 		});
 
+		it("after an edit left several places without the asked one, makes no copy and says so", async () => {
+			const { platform, starter, answer, pick } = await ask();
+			const { name, body } = starter.doc;
+			const [first, second] = body.widgets.filter((w) => w.data.place);
+			const at = (w: typeof first, place: ChosenPlace) => ({ ...w, data: { ...w.data, place } });
+			starter.apply({
+				op: "replaceDocument",
+				target: {},
+				from: { name, body },
+				to: {
+					name,
+					body: { ...body, widgets: [at(first, ZIP), at(second, TULARE)], placeBar: undefined }
+				}
+			});
+			pick(SCHOOL);
+			answer();
+			await vi.waitFor(() =>
+				expect(toast.info).toHaveBeenCalledWith(m.dashboard_duplicate_no_single_place())
+			);
+			await new Promise((resolve) => setTimeout(resolve, 10));
+			expect(await platform.documents.list("anonymous")).toHaveLength(1);
+		});
+
 		it("after an edit removed every place, makes no copy and says so", async () => {
 			const { platform, starter, answer, pick } = await ask();
 			const { name, body } = starter.doc;
