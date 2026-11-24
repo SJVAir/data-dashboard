@@ -1,5 +1,5 @@
 import "../../../app.css";
-import { afterEach, beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { toast } from "svelte-sonner";
 import { render } from "vitest-browser-svelte";
 import { commands, page, userEvent } from "vitest/browser";
@@ -8,7 +8,7 @@ import type { Dashboard, Rect, WidgetInstance } from "$lib/documents/schema";
 import type { Arrangement } from "$lib/layout/arrangement.svelte";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { DocumentSession } from "$lib/store/document-session.svelte";
-import { pendingFocusTarget } from "$lib/layout/focus-request.svelte";
+import { pendingFocusTarget, requestFocus } from "$lib/layout/focus-request.svelte";
 import { FULLSCREEN_STATE } from "$lib/layout/fullscreen";
 import { minimizeChange, restoreChange } from "$lib/layout/windowing";
 import { APP_CONTEXT_KEY, initApp, type AppContext } from "$lib/store/app.svelte";
@@ -19,6 +19,27 @@ import App from "../../../App.svelte";
 import { navigate, route } from "../../../router";
 import Harness from "./test-harness/Harness.svelte";
 import { stubStarterTypes } from "./test-harness/stub-starter-types";
+import { loadMonitorTypes } from "$lib/widgets/map/start";
+
+// The real loader unless a test holds the catalog's answer (`holdTypes`).
+const real = vi.hoisted(() => ({ load: null as null | (() => Promise<string[]>) }));
+vi.mock("$lib/widgets/map/start", async (importOriginal) => {
+	const original = await importOriginal<typeof import("$lib/widgets/map/start")>();
+	real.load = original.loadMonitorTypes;
+	return { ...original, loadMonitorTypes: vi.fn(original.loadMonitorTypes) };
+});
+afterEach(() => vi.mocked(loadMonitorTypes).mockImplementation(real.load!));
+
+/** The starter's first edit waits for the catalog until `answer` is called. */
+function holdTypes(): () => void {
+	let answer!: (types: string[]) => void;
+	const held = new Promise<string[]>((resolve) => (answer = resolve));
+	vi.mocked(loadMonitorTypes).mockImplementation(() => held);
+	return () => answer(["a"]);
+}
+
+/** Long enough for focus to settle (or be lost) while the hand-off waits. */
+const settle = () => new Promise((resolve) => setTimeout(resolve, 300));
 
 declare module "vitest/browser" {
 	interface BrowserCommands {
@@ -230,6 +251,76 @@ test("restore on the starter makes the copy and focuses the restored title bar",
 	await expect
 		.poll(() => document.activeElement)
 		.toBe(page.getByTestId("widget-starter-1").getByRole("group", { name: title }).element());
+});
+
+for (const by of ["mouse", "keyboard"] as const) {
+	test(`minimize on the starter by ${by} while the types load: focus reaches the copy's taskbar item`, async () => {
+		const answer = holdTypes();
+		const app = await starterApp("/workspace/");
+		const starter = app.current.session!;
+		const minimize = page
+			.getByTestId("widget-starter-1")
+			.getByRole("button", { name: /^Minimize/ });
+		if (by === "mouse") await minimize.click();
+		else {
+			(minimize.element() as HTMLElement).focus();
+			await userEvent.keyboard("{Enter}");
+		}
+		await settle();
+		expect(app.current.session).toBe(starter);
+		answer();
+		await expect.poll(() => app.current.session).not.toBe(starter);
+		await expect
+			.poll(() => (document.activeElement as HTMLElement | null)?.getAttribute("aria-label") ?? "")
+			.toMatch(/^Restore /);
+		expect(document.activeElement?.closest('[role="toolbar"]')).not.toBeNull();
+	});
+
+	test(`restore on the starter by ${by} while the types load: focus reaches the copy's title bar`, async () => {
+		const answer = holdTypes();
+		const app = await starterApp("/workspace/");
+		const starter = app.current.session!;
+		// Shown minimized without an edit (the built-in starter has none minimized).
+		starter.doc = {
+			...starter.doc,
+			body: {
+				widgets: starter.doc.body.widgets.map((w) =>
+					w.id === "starter-1" ? { ...w, minimized: { order: 0 } } : w
+				)
+			}
+		};
+		const restore = page.getByRole("toolbar").getByRole("button", { name: /^Restore / });
+		await expect.element(restore).toBeVisible();
+		const title = (restore.element() as HTMLElement).getAttribute("aria-label")!.slice(8);
+		if (by === "mouse") await restore.click();
+		else {
+			(restore.element() as HTMLElement).focus();
+			await userEvent.keyboard("{Enter}");
+		}
+		await settle();
+		expect(app.current.session).toBe(starter);
+		answer();
+		await expect.poll(() => app.current.session).not.toBe(starter);
+		await expect
+			.poll(() => document.activeElement)
+			.toBe(page.getByTestId("widget-starter-1").getByRole("group", { name: title }).element());
+	});
+}
+
+test("a dialog's title focus request on the starter while the types load reaches the copy", async () => {
+	// What Change place, Edit note and Get data do when they close after the first edit.
+	const answer = holdTypes();
+	const app = await starterApp("/workspace/");
+	const starter = app.current.session!;
+	starter.apply({ op: "setField", target: { path: "name" }, from: null, to: "Mine" });
+	requestFocus({ kind: "title", id: "starter-2" });
+	await settle();
+	expect(app.current.session).toBe(starter);
+	answer();
+	await expect.poll(() => app.current.session).not.toBe(starter);
+	await expect
+		.poll(() => document.activeElement)
+		.toBe(page.getByTestId("widget-starter-2").getByRole("group").element());
 });
 
 test("no Minimize on a read-only dashboard", async () => {
