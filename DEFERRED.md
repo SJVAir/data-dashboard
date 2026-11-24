@@ -2617,8 +2617,8 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **The no-key "Map unavailable" isn't a `WidgetState` card,** and it hides an idle map's
     "Choose a place". Only a build without a MapTiler key shows it. **Revisit with** the next
     change to the widget's states.
-  - **The legend toggle has no `aria-controls`,** and the feature list is tabbable under the
-    loading skeleton. **Revisit with** the next accessibility pass on the map.
+  - **The feature list is tabbable under the loading skeleton.** (The legend toggle's missing
+    `aria-controls` is fixed: the "Legend" header that folds it at any width, 2026-11-23.) **Revisit with** the next accessibility pass on the map.
   - **eslint is a runtime dependency** through `@maptiler/sdk`'s `eslint-plugin-compat`. The
     license check passes and nothing is bundled. **Revisit when** raised upstream with MapTiler.
   - **Code and type gaps:** `isNowShaped` doesn't check a Map draft's pollutant (the widget

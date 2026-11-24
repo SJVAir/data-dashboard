@@ -1117,7 +1117,7 @@
 	/** The toolbar's narrow breakpoint (48rem), which the day stepper follows. */
 	const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
 	const stepperNarrow = $derived(width > 0 && width < STEPPER_NARROW_REM * remPx);
-	let legendOpen = $state(false);
+	let legendOpen = $state<boolean | null>(null);
 </script>
 
 {#snippet nothing()}{/snippet}

@@ -2694,7 +2694,9 @@ for the data that tile holds.
   no focus area (only those monitors are drawn and the camera fits them). Region geometry comes
   from `getRegionsGeoJSON`, kept in a page-wide in-memory cache in `src/lib/widgets/map/regions.ts`
   (each region fetched once, one request per region type). `featureList={{ reveal: "focus" }}` is
-  the keyboard path, and the legend sits in the widget's card (a button on narrow maps).
+  the keyboard path, and the legend sits in the widget's card under a "Legend" header that folds it at any width, as
+  monitor-map's does (the user, 2026-11-23); it starts open on a wide widget and folded on a narrow
+  one, until the person chooses. The choice isn't saved.
 - **CSP:** `connect-src` and `img-src` both include `https://api.maptiler.com` (styles, tiles,
   glyphs, sprites, and the logo; the user, 2026-11-11). sjvair.com holds the real list, so it
   gets the same host (sjvair.com #330, on `develop`). `cdn.maptiler.com`, MapTiler's default

@@ -1118,20 +1118,46 @@ test("a failed place lookup shows the error, and a retry looks it up again", asy
 	await expect.poll(() => screen.getByText(m.widget_state_error()).query()).toBeNull();
 });
 
-test("the legend sits in the widget's card, and collapses on a narrow widget", async () => {
+test("the legend sits in the widget's card, folds at any width, and starts folded when narrow", async () => {
 	const screen = await show(mapWidget(region("019")));
 	const map = await madeMap();
 	map.ready = true;
 	await expect
 		.poll(() => frame.querySelector("[data-legend]")?.getAttribute("data-framed"))
 		.toBe("false");
-	frame.style.width = "320px";
+	const legend = () => frame.querySelector<HTMLElement>("[data-legend]")!;
 	const toggle = screen.getByRole("button", { name: m.map_legend_toggle() });
-	await expect.element(toggle).toBeVisible();
-	await expect.poll(() => frame.querySelector("[data-legend]")).toBeNull();
+	// Wide: open, and the header folds it.
+	await expect.element(toggle).toHaveAttribute("aria-expanded", "true");
+	const controls = toggle.element().getAttribute("aria-controls")!;
+	expect(document.getElementById(controls)?.contains(legend())).toBe(true);
+	await expect.poll(() => legend().checkVisibility()).toBe(true);
+	await toggle.click();
+	await expect.element(toggle).toHaveAttribute("aria-expanded", "false");
+	await expect.poll(() => legend().checkVisibility()).toBe(false);
 	await toggle.click();
 	await expect.element(toggle).toHaveAttribute("aria-expanded", "true");
-	expect(frame.querySelector("[data-legend]")).toBeTruthy();
+	await expect.poll(() => legend().checkVisibility()).toBe(true);
+	// The person's choice holds when the widget narrows.
+	frame.style.width = "320px";
+	await expect.element(toggle).toHaveAttribute("aria-expanded", "true");
+});
+
+test("a narrow Map's legend starts folded", async () => {
+	frame.style.width = "320px";
+	const screen = await show(mapWidget(region("019")));
+	const map = await madeMap();
+	map.ready = true;
+	const toggle = screen.getByRole("button", { name: m.map_legend_toggle() });
+	await expect.element(toggle).toHaveAttribute("aria-expanded", "false");
+	await expect
+		.poll(() => frame.querySelector<HTMLElement>("[data-legend]")?.checkVisibility())
+		.toBe(false);
+	await toggle.click();
+	await expect.element(toggle).toHaveAttribute("aria-expanded", "true");
+	await expect
+		.poll(() => frame.querySelector<HTMLElement>("[data-legend]")?.checkVisibility())
+		.toBe(true);
 });
 
 test("passes axe in light and dark", async () => {
