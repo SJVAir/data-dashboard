@@ -1006,6 +1006,11 @@
 			: []
 	);
 
+	/** The type's own options (level line or alert levels) have something to show. */
+	const showTypeOptions = $derived(
+		!!type?.thresholds &&
+			(isNow ? hasAlertLevels(nowAlerts) : hasLevelLine(shownLevels ?? undefined))
+	);
 	// A Chart's saved line is dropped once it can't be shown or edited: the type has no
 	// thresholds, or the main layer isn't a pollutant with levels.
 	$effect(() => {
@@ -1262,7 +1267,7 @@
 			{@attach scrollFocusable}
 		>
 			<ShowAs types={showAs} value={plain.type} onchange={setType} />
-			{#if type?.optionsLabel && type.thresholds && (isNow ? hasAlertLevels(nowAlerts) : hasLevelLine(shownLevels))}
+			{#if showTypeOptions && type?.optionsLabel}
 				<TypeOptions label={type.optionsLabel()}>
 					{#if isNow}
 						<!-- A now type's alert levels, one per pollutant (chosen in Air quality). -->

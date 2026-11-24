@@ -3297,9 +3297,27 @@ describe("a type's own options", () => {
 	test("no More options; What has no Alert level", async () => {
 		const { host } = await show(nowDraft("current-conditions"));
 		expect(page.getByRole("button", { name: "More options" }).elements()).toHaveLength(0);
+		const chart = await show(monitorsDraft(["m1"]));
+		expect(page.getByRole("button", { name: "More options" }).elements()).toHaveLength(0);
+		chart.host.remove();
 		expect(
 			page.getByTestId("get-data-choices").getByRole("combobox", { name: "Alert level" }).elements()
 		).toHaveLength(0);
+		host.remove();
+	});
+
+	test("a scale that can't load still shows the options section, with Retry", async () => {
+		fake.metadata = fixtureMetadata({
+			catalog: async () => CATALOG,
+			levels: async () => {
+				throw new Error("offline");
+			}
+		});
+		makeClient();
+		const { host } = await show(monitorsDraft(["m1"]));
+		await expect.element(optionsHeading("Chart options")).toBeVisible();
+		await expect.element(column().getByText(m.get_data_levels_unavailable())).toBeVisible();
+		await expect.element(column().getByRole("button", { name: m.get_data_retry() })).toBeVisible();
 		host.remove();
 	});
 
