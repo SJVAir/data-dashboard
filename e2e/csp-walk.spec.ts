@@ -5,18 +5,12 @@
  * the policy (where Firefox reports a worker's) or a worker's violation (Chromium, over CDP) fails
  * it too. The walk's routes (the Map's monitors among them) are the fixture's defaults.
  */
-import type { CspViolation } from "./fixtures";
 import { expect, test } from "./fixtures";
 import { maria } from "./helpers";
-import { runWalk, watchCspConsole, watchWorkerCsp } from "./csp-walk";
+import { redactUrls, runWalk, violationLine, watchCspConsole, watchWorkerCsp } from "./csp-walk";
 
 // Live links need an account.
 test.use({ account: maria, reducedMotion: "reduce" });
-
-/** A violation as a failure line: the step it happened in, the directive, what, and where. */
-function line(step: string, v: CspViolation): string {
-	return `${step}: ${v.directive} ${v.blockedURI} (${v.sourceFile})`;
-}
 
 test("the walk raises no CSP violation", async ({ page, context, cspViolations }) => {
 	test.setTimeout(240_000);
@@ -30,7 +24,7 @@ test("the walk raises no CSP violation", async ({ page, context, cspViolations }
 		const fresh = cspViolations.slice(seen);
 		seen = cspViolations.length;
 		expect(
-			fresh.map((v) => line(step, v)),
+			fresh.map((v) => violationLine(step, v)),
 			"CSP violations"
 		).toEqual([]);
 	};
@@ -72,4 +66,18 @@ test("a worker's violation is caught", async ({ page, context, cspViolations }) 
 		.toBe(true);
 	// Expected here; clear it so the fixture's own check passes.
 	cspViolations.length = 0;
+});
+
+test("a recorded line never carries a URL's query", () => {
+	const url = "https://api.maptiler.com/x?key=SECRET";
+	const built = violationLine("step", {
+		directive: "connect-src",
+		blockedURI: url,
+		sourceFile: `${url}#frag`
+	});
+	expect(built).not.toContain("SECRET");
+	expect(built).toContain("https://api.maptiler.com/x");
+	expect(redactUrls(`Refused to connect to '${url}' because it violates CSP`)).not.toContain(
+		"SECRET"
+	);
 });

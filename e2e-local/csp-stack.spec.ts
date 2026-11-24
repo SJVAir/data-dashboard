@@ -7,7 +7,7 @@
  */
 import { expect, test, type Page } from "@playwright/test";
 import { watchCsp, type CspViolation } from "../e2e/fixtures";
-import { runWalk, watchCspConsole, watchWorkerCsp } from "../e2e/csp-walk";
+import { runWalk, violationLine, watchCspConsole, watchWorkerCsp } from "../e2e/csp-walk";
 
 const identifier = process.env.WORKSPACE_E2E_IDENTIFIER;
 const password = process.env.WORKSPACE_E2E_PASSWORD;
@@ -35,11 +35,6 @@ async function signIn(page: Page, origin: string): Promise<void> {
 		.first()
 		.click();
 	await page.waitForURL((url) => !url.pathname.startsWith("/account/login"));
-}
-
-/** A violation as a failure line: the step it happened in, the directive, what, and where. */
-function line(step: string, v: CspViolation): string {
-	return `${step}: ${v.directive} ${v.blockedURI} (${v.sourceFile})`;
 }
 
 test("the walk raises no CSP violation under the stack's enforced header", async ({
@@ -86,7 +81,7 @@ test("the walk raises no CSP violation under the stack's enforced header", async
 		const fresh = violations.slice(seen);
 		seen = violations.length;
 		summary.push(`${name}: violations ${fresh.length}`);
-		return fresh.map((v) => line(name, v));
+		return fresh.map((v) => violationLine(name, v));
 	};
 	const found: string[] = [];
 	await runWalk(page, "stack", (name) => {

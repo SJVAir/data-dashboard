@@ -445,6 +445,22 @@ export const WALK: readonly WalkStep[] = [
 	}
 ];
 
+/**
+ * `text` with every query string and fragment removed (up to the next whitespace, quote or
+ * bracket), so a recorded line never carries a key (MapTiler's `?key=…`) from a blocked URL.
+ */
+export function redactUrls(text: string): string {
+	return text.replace(/[?#][^\s"'`)>\]]*/g, "");
+}
+
+/** A violation as a failure line: the step, the directive, what was blocked and where, redacted. */
+export function violationLine(
+	step: string,
+	v: { directive: string; blockedURI: string; sourceFile: string }
+): string {
+	return redactUrls(`${step}: ${v.directive} ${v.blockedURI} (${v.sourceFile})`);
+}
+
 /** Chromium and WebKit say "Content Security Policy"; Firefox says "Content-Security-Policy". */
 const CSP_TEXT = /Content[- ]Security[- ]Policy/i;
 
@@ -460,7 +476,8 @@ export function watchCspConsole(
 ): void {
 	const record = (message: ConsoleMessage) => {
 		const text = message.text();
-		if (CSP_TEXT.test(text)) into.push(`${step()}: ${text} (${message.location().url})`);
+		if (CSP_TEXT.test(text))
+			into.push(redactUrls(`${step()}: ${text} (${message.location().url})`));
 	};
 	const watchPage = (page: Page) => {
 		page.on("console", record);
@@ -526,9 +543,9 @@ export async function watchWorkerCsp(
 			const source = csp.sourceCodeLocation
 				? `${csp.sourceCodeLocation.url}:${csp.sourceCodeLocation.lineNumber + 1}`
 				: "";
-			into.push(`${step()}: worker ${csp.violatedDirective} ${blocked} (${source})`);
+			into.push(redactUrls(`${step()}: worker ${csp.violatedDirective} ${blocked} (${source})`));
 		} else if (method === "Log.entryAdded" && params?.entry && CSP_TEXT.test(params.entry.text)) {
-			into.push(`${step()}: worker ${params.entry.text} (${params.entry.url ?? ""})`);
+			into.push(redactUrls(`${step()}: worker ${params.entry.text} (${params.entry.url ?? ""})`));
 		}
 	});
 	await cdp.send("Target.setAutoAttach", {
