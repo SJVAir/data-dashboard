@@ -1325,13 +1325,23 @@ describe("the starter's copy, made after the person moved on", () => {
 
 	it("a kept starter's copy doesn't take over the fresh starter the person is editing at /", async () => {
 		const answer = holdTypes();
-		const { app } = await setup();
+		// `setup` holds a claim, as Get data does while mounted: the types swap keeps its starter.
+		const { platform, app, release } = await setup();
 		// Get data holds the starter it opened (nothing current there); the types then swap it.
 		const kept = (await app.sessions.get(STARTER_ID))!;
 		answer();
 		await app.starterTypesReady();
 		const fresh = (await app.sessions.get(STARTER_ID))!;
 		expect(fresh).not.toBe(kept);
+		// The fresh one's copy is held back after the kept one's, so the moment between them shows.
+		const commit = platform.documents.commit.bind(platform.documents);
+		let calls = 0;
+		let letThrough!: () => void;
+		const held = new Promise<void>((resolve) => (letThrough = resolve));
+		vi.spyOn(platform.documents, "commit").mockImplementation(async (...args) => {
+			if (++calls === 2) await held;
+			return commit(...args);
+		});
 		// Get data's Save hands the kept one off; meanwhile the person edits the fresh one at /.
 		kept.apply(rename);
 		app.current = { session: fresh, isStarter: true };
@@ -1339,10 +1349,18 @@ describe("the starter's copy, made after the person moved on", () => {
 		const keptCopy = await kept.handoff;
 		expect(keptCopy).not.toBeNull();
 		expect(app.current.session).not.toBe(keptCopy);
-		// The fresh one's own hand-off still lands where it shows.
+		// Kept (not discarded by the swap): its copy stores the edit.
+		await keptCopy!.flush();
+		expect((await stored(platform, keptCopy!.doc.id)).name).toBe("Mine");
+		// The fresh one, still handing off, is still the starter.
+		expect(fresh.handingOff).toBe(true);
+		expect(await app.sessions.get(STARTER_ID, { remember: false })).toBe(fresh);
+		letThrough();
+		// Its own hand-off still lands where it shows.
 		const freshCopy = await fresh.handoff;
 		expect(app.current).toEqual({ session: freshCopy, isStarter: false });
 		expect(freshCopy!.doc.name).toBe("Theirs");
+		release();
 	});
 
 	it("the starter still shown: the copy takes its place", async () => {
