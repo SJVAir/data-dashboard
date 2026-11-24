@@ -38,6 +38,12 @@ export type DocumentSessionOptions = {
 	 */
 	onBeforeFirstEdit?: (change: Change | null) => Promise<DocumentSession | null>;
 	/**
+	 * With `onBeforeFirstEdit`: each later queued edit, as the session that took the first one
+	 * (`successor`) gets it (the starter fills its Map's monitor types into a change made before
+	 * they arrived). The hook adapts the first edit itself.
+	 */
+	adaptHandedOff?: (change: Change, successor: DocumentSession) => Change;
+	/**
 	 * Storage holds a document or log entry from a newer format than this app knows (another
 	 * tab runs a newer version). The session suspends itself right after.
 	 */
@@ -132,6 +138,7 @@ export class DocumentSession {
 	#unsubscribe: () => void = () => {};
 	#stopActivity: () => void = () => {};
 	#onBeforeFirstEdit: DocumentSessionOptions["onBeforeFirstEdit"];
+	#adaptHandedOff: DocumentSessionOptions["adaptHandedOff"];
 	#handoff: Promise<DocumentSession | null> | null = null;
 	#successor: DocumentSession | null = null;
 	/**
@@ -169,6 +176,7 @@ export class DocumentSession {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		this.#now = opts.now ?? (() => new Date());
 		this.#onBeforeFirstEdit = opts.onBeforeFirstEdit;
+		this.#adaptHandedOff = opts.adaptHandedOff;
 		this.#channel = opts.channel ?? null;
 		this.#chain = opts.chain ?? migrations;
 		this.#generation = opts.platform.reset.generation();
@@ -707,7 +715,8 @@ export class DocumentSession {
 				this.#successor = successor;
 				this.status = "saved";
 				this.#settleJournal();
-				for (const change of rest) successor.apply(change);
+				const adapt = this.#adaptHandedOff;
+				for (const change of rest) successor.apply(adapt ? adapt(change, successor) : change);
 				// Suspended during the hand-off: the copy must not save either.
 				if (this.#stopped) successor.suspend();
 				return successor;

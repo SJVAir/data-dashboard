@@ -5,7 +5,6 @@
 	import { addFromDraft, addTargets, landedIn } from "$lib/get-data/add";
 	import DiscardDialog from "$lib/get-data/DiscardDialog.svelte";
 	import { flushDraft, loadDraft, type Draft } from "$lib/get-data/draft.svelte";
-	import { tickTypesIfNone } from "$lib/get-data/map";
 	import { draftChanged, editDraft, saveEdit } from "$lib/get-data/edit";
 	import GetDataView from "$lib/get-data/GetDataView.svelte";
 	import { cancelPlan, parseGetDataMode } from "$lib/get-data/mode";
@@ -16,7 +15,6 @@
 	import { LAST_OPENED_KEY, useApp } from "$lib/store/app.svelte";
 	import type { DocumentSession } from "$lib/store/document-session.svelte";
 	import { HandOffSchema, type HandOff } from "$lib/widgets/map/hand-off";
-	import { MAP_TYPE } from "$lib/widgets/map/options";
 	import { dataTypes } from "$lib/widgets/registry";
 	import { navigate, p, route } from "../router";
 
@@ -33,6 +31,9 @@
 	// This page may hold the starter (Edit data on it, or Add to it): one the types swap replaces
 	// meanwhile stays usable while mounted.
 	onDestroy(app.claimStarter());
+	/** Left (unmounted): a Save still waiting for the starter's copy doesn't navigate. */
+	let gone = false;
+	onDestroy(() => (gone = true));
 
 	const mode = $derived(parseGetDataMode(route.params));
 	/**
@@ -104,7 +105,8 @@
 		leaving = false;
 		if (at.kind === "edit") {
 			// Edit data starts from the widget each time. Opened untracked: opening the starter reads
-			// the catalog's types, and their arrival mustn't reopen it (that would reset the draft).
+			// the catalog's types (and its place and the reset count), and a change to them mustn't
+			// reopen it (that would reset the draft).
 			void untrack(() => openDashboard(at.dashboardId))
 				.catch((error) => {
 					// Storage failed: the "not here" message stands, and the failure is reported.
@@ -264,19 +266,6 @@
 
 	let saving = $state(false);
 
-	/**
-	 * The starter's Map, changed: `draft` with the catalog's monitor types (awaited) ticked when the
-	 * person ticked none and searched no monitors, as its copy has them (spec decision 18). An
-	 * unchanged draft stays as it is, so it saves nothing (no copy).
-	 */
-	async function withStarterTypes(draft: Draft): Promise<Draft> {
-		if (draft.type !== MAP_TYPE || !baseline || !draftChanged(baseline, draft)) return draft;
-		const types = await app.starterTypesReady();
-		const data = $state.snapshot(draft.data);
-		tickTypesIfNone(data, types);
-		return { ...draft, data };
-	}
-
 	/** Save changes (nothing to apply when unchanged), then back to the widget on its dashboard. */
 	async function save(draft: Draft): Promise<void> {
 		const session = editing;
@@ -285,13 +274,8 @@
 		saving = true;
 		let landed: Awaited<ReturnType<typeof landedIn>>;
 		try {
-			const saved = mode.dashboardId === STARTER_ID ? await withStarterTypes(draft) : draft;
-			// Another widget, or another page, meanwhile: this save is dropped.
-			if (editing !== session) {
-				saving = false;
-				return;
-			}
-			saveEdit(session, widgetId, saved);
+			// On the starter before the types arrive, its hand-off ticks them into the copy's Map.
+			saveEdit(session, widgetId, draft);
 			landed = await landedIn(session);
 		} catch (error) {
 			report(error, { operation: "get-data-save" });
@@ -299,6 +283,9 @@
 			saving = false;
 			return;
 		}
+		// The person went elsewhere while the starter's copy was made (it waits for the types): the
+		// edit is saved, and they stay where they went.
+		if (gone) return;
 		requestFocus({ kind: "title", id: widgetId });
 		try {
 			if (

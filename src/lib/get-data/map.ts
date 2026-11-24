@@ -20,6 +20,7 @@ import {
 	PESTICIDE_USE,
 	mapOptions,
 	pollutantLayer,
+	tickTypesIfNone,
 	useFigureOf,
 	type MapOptions
 } from "$lib/widgets/map/options";
@@ -352,6 +353,9 @@ function mapRange(
 	};
 }
 
+// Lives with the Map's options (the starter's hand-off uses it too).
+export { tickTypesIfNone };
+
 /**
  * A draft becoming a Map with no monitors of its own (no ticked types, no searched monitors) is a
  * new Map: its air-quality layer ticks every monitor type (`everyMonitorType`, spec decision 8). A
@@ -359,16 +363,6 @@ function mapRange(
  */
 export function tickEveryTypeIfNone(data: WidgetDataConfig, catalog: CatalogEntry[]): void {
 	tickTypesIfNone(data, everyMonitorType(catalog));
-}
-
-/**
- * `data`'s air-quality layer ticks `types` when it has neither searched monitors nor ticks (the
- * person set neither). Nothing is ticked when `types` is empty.
- */
-export function tickTypesIfNone(data: WidgetDataConfig, types: readonly string[]): void {
-	const layer = data.layers.find((l) => l.dataset === AIR_QUALITY && l.entryType);
-	if (!layer || layer.monitors?.length || layer.monitorTypes?.length) return;
-	if (types.length > 0) layer.monitorTypes = [...types];
 }
 
 /**

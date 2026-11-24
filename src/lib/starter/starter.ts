@@ -1,3 +1,4 @@
+import type { Change } from "$lib/changes/types";
 import type { DashboardSummary } from "$lib/documents/names";
 import { MONTH_CALENDAR_TYPE } from "$lib/calendars/types";
 import type { ChosenPlace } from "$lib/data/schema";
@@ -16,7 +17,13 @@ import { CURRENT_TYPE } from "$lib/widgets/current";
 import { DEFAULT_LAYER, DEFAULT_PLACE, DEFAULT_RANGE } from "$lib/widgets/defaults";
 import { areasOnly } from "$lib/places/replace";
 import { FORECAST_TYPE } from "$lib/widgets/forecast";
-import { HMS_FIRE, HMS_SMOKE, MAP_TYPE } from "$lib/widgets/map/options";
+import {
+	HMS_FIRE,
+	HMS_SMOKE,
+	MAP_TYPE,
+	setsNoMonitors,
+	tickTypesIfNone
+} from "$lib/widgets/map/options";
 import { OUTSIDE_TYPE } from "$lib/widgets/outside";
 import { resolveDefaultPlace } from "./resolve";
 
@@ -216,6 +223,8 @@ export function starterSession(opts: StarterSessionOptions): DocumentSession {
 	const { onNeedsReload, onCleared, onEdit } = opts;
 	// A tab that missed "Clear my data" mustn't store a copy afterwards.
 	const generation = platform.reset.generation();
+	/** The types the copy was built with. */
+	let copyTypes: readonly string[] = [];
 	return new DocumentSession({
 		platform,
 		space,
@@ -231,6 +240,7 @@ export function starterSession(opts: StarterSessionOptions): DocumentSession {
 				return null;
 			}
 			const types = await opts.typesReady();
+			copyTypes = types;
 			if (platform.reset.generation() !== generation) {
 				onCleared?.();
 				return null;
@@ -261,12 +271,30 @@ export function starterSession(opts: StarterSessionOptions): DocumentSession {
 				onCleared,
 				onEdit
 			});
-			if (change) copy.apply(change);
+			if (change) copy.apply(withStarterTypes(change, copy.doc, types));
 			opts.onCopied?.(copy);
 			// Not awaited: edits queued on the starter during the hand-off must reach the copy
 			// before any edit made on it directly, now that it's current.
 			void copy.flush();
 			return copy;
-		}
+		},
+		adaptHandedOff: (change, copy) => withStarterTypes(change, copy.doc, copyTypes)
 	});
+}
+
+/**
+ * `change` as the starter's copy (`doc`, built with `types`) takes it. A `setWidgetData` on a Map
+ * made from the shown starter while the types loaded carries its data without them (neither
+ * searched monitors nor ticked types, before or after): the copy gets that data with `types`
+ * ticked, as its Map has them. A Map whose monitors or types the person set keeps exactly theirs;
+ * any other change is returned as is.
+ */
+export function withStarterTypes(change: Change, doc: Dashboard, types: readonly string[]): Change {
+	if (change.op !== "setWidgetData" || types.length === 0) return change;
+	const widget = doc.body.widgets.find((w) => w.id === change.target.widgetId);
+	if ((change.type?.to ?? widget?.type) !== MAP_TYPE) return change;
+	if (!setsNoMonitors(change.from) || !setsNoMonitors(change.to)) return change;
+	const to = structuredClone(change.to);
+	tickTypesIfNone(to, types);
+	return { ...change, to };
 }

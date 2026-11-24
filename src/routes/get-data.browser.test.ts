@@ -432,6 +432,32 @@ test("Edit data on the starter's Map saved before the types arrive waits for the
 	}
 });
 
+test("Edit data on the starter's Map saved, then left before the types arrive: saved, and the page stays where it went", async () => {
+	const { app, platform, answer, restore } = await starterEditAt("map", ["purpleair"]);
+	try {
+		await chooseLastWeek();
+		await saveButton().click();
+		// Saved (shown on the starter at once); the copy waits for the types.
+		await page.getByRole("link", { name: "Dashboards" }).click();
+		await page.getByRole("button", { name: "Discard" }).click();
+		await expect.poll(() => location.pathname).toBe("/workspace/dashboards");
+		answer();
+		await expect.poll(async () => (await platform.documents.list(app.space)).length).toBe(1);
+		const copy = (await app.sessions.get(app.index.items[0]?.id ?? ""))!;
+		await copy.flush();
+		const map = copy.doc.body.widgets.find((w) => w.type === "map")!;
+		expect(map.data.layers.find((l) => l.dataset === "air-quality")?.monitorTypes).toEqual([
+			"purpleair"
+		]);
+		lastWeek(map);
+		// Nothing pulled the person to the copy's dashboard.
+		await new Promise((resolve) => setTimeout(resolve, 200));
+		expect(location.pathname).toBe("/workspace/dashboards");
+	} finally {
+		restore();
+	}
+});
+
 test("Edit data on the starter's Map with no types in the catalog ticks none", async () => {
 	const { answer, restore, savedWidget } = await starterEditAt("map", []);
 	try {

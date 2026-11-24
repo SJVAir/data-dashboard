@@ -28,6 +28,10 @@ import { MAP_TYPE } from "$lib/widgets/map/options";
 import { dashboardActions } from "$lib/actions/dashboard";
 import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 import { takeAfterMenuClose } from "$lib/components/menu/menu-state.svelte";
+import type { DocumentSession } from "$lib/store/document-session.svelte";
+import { pickedData } from "$lib/places/apply";
+import { marksChange } from "$lib/widgets/map/marks";
+import { changeTileOptions } from "$lib/widgets/shared/tile-options.svelte";
 
 // Sharing's navigation and dialogs aren't used here (and the router needs a page).
 vi.mock("../../router", () => ({ navigate: vi.fn() }));
@@ -1054,5 +1058,137 @@ describe("the starter's monitor types", () => {
 		await run(app, "new-from-starter");
 		expectFromStarter(await newest(platform), DEFAULT_PLACE, DEFAULT_PLACE, null);
 		expect(app.current.session).toBe(starter);
+	});
+});
+
+describe("a Map edit on the starter while the types load", () => {
+	const rename = { op: "setField", target: { path: "name" }, from: null, to: "Mine" } as const;
+	const mapOf = (session: DocumentSession) =>
+		session.doc.body.widgets.find((w) => w.type === MAP_TYPE)!;
+	const airOf = (doc: Dashboard) =>
+		doc.body.widgets
+			.find((w) => w.type === MAP_TYPE)!
+			.data.layers.find((l) => l.dataset === "air-quality")!;
+
+	/** Each way the Map's data is rewritten from the shown (type-less) starter. */
+	const edits: Array<[string, (starter: DocumentSession) => Promise<void>]> = [
+		[
+			"a tile option",
+			async (starter) => {
+				const ctx = { mode: "edit" as const, session: () => starter };
+				const map = mapOf(starter);
+				changeTileOptions(ctx, map, { ...map.options, basemap: "dark" }, ["basemap"]);
+			}
+		],
+		[
+			"a mark",
+			async (starter) => {
+				starter.apply(marksChange(mapOf(starter), ["m1"])!);
+			}
+		],
+		[
+			"its place",
+			async (starter) => {
+				const map = mapOf(starter);
+				const next = await pickedData(map.data, [TULARE], {
+					liveLink: false,
+					regionOf: async () => null
+				});
+				starter.apply({
+					op: "setWidgetData",
+					target: { widgetId: map.id },
+					from: map.data,
+					to: next!.data
+				});
+			}
+		]
+	];
+
+	for (const [name, edit] of edits) {
+		for (const first of [true, false]) {
+			it(`${name}, as the ${first ? "first edit" : "edit after another"}: the copy's Map keeps the types`, async () => {
+				const answer = holdTypes();
+				const { platform, app } = await setup();
+				const starter = await showStarter(app);
+				expect(airOf(starter.doc)).not.toHaveProperty("monitorTypes");
+				if (!first) starter.apply(rename);
+				await edit(starter);
+				answer();
+				await vi.waitFor(() => expect(app.current.isStarter).toBe(false));
+				const copy = app.current.session!;
+				await copy.flush();
+				const doc = await stored(platform, copy.doc.id);
+				expect(airOf(doc).monitorTypes).toEqual(TYPES);
+				expect(DashboardSchema.safeParse(doc).success).toBe(true);
+			});
+		}
+	}
+
+	it("the edit itself reaches the copy", async () => {
+		const answer = holdTypes();
+		const { platform, app } = await setup();
+		const starter = await showStarter(app);
+		const map = mapOf(starter);
+		starter.apply(marksChange(map, ["m1"])!);
+		answer();
+		await vi.waitFor(() => expect(app.current.isStarter).toBe(false));
+		const copy = app.current.session!;
+		await copy.flush();
+		const saved = (await stored(platform, copy.doc.id)).body.widgets.find((w) => w.id === map.id)!;
+		expect(saved.options).toMatchObject({ marks: ["m1"] });
+	});
+
+	const setByPerson: Array<[string, { monitorTypes?: string[]; monitors?: string[] }]> = [
+		["ticked types", { monitorTypes: ["airnow"] }],
+		["searched monitors", { monitors: ["m1"] }]
+	];
+	for (const [name, set] of setByPerson) {
+		it(`a Map whose ${name} the person set keeps exactly theirs`, async () => {
+			const answer = holdTypes();
+			const { platform, app } = await setup();
+			const starter = await showStarter(app);
+			const map = mapOf(starter);
+			const to = structuredClone(map.data);
+			const layer = to.layers.find((l) => l.dataset === "air-quality")!;
+			Object.assign(layer, set);
+			starter.apply({ op: "setWidgetData", target: { widgetId: map.id }, from: map.data, to });
+			answer();
+			await vi.waitFor(() => expect(app.current.isStarter).toBe(false));
+			const copy = app.current.session!;
+			await copy.flush();
+			const air = airOf(await stored(platform, copy.doc.id));
+			expect(air.monitorTypes).toEqual(set.monitorTypes);
+			expect(air.monitors).toEqual(set.monitors);
+		});
+	}
+
+	it("no types in the catalog: nothing is ticked", async () => {
+		const answer = holdTypes();
+		const { platform, app } = await setup();
+		const starter = await showStarter(app);
+		starter.apply(marksChange(mapOf(starter), ["m1"])!);
+		answer([]);
+		await vi.waitFor(() => expect(app.current.isStarter).toBe(false));
+		const copy = app.current.session!;
+		await copy.flush();
+		expect(airOf(await stored(platform, copy.doc.id))).not.toHaveProperty("monitorTypes");
+	});
+
+	it("another widget's data is left as it is", async () => {
+		const answer = holdTypes();
+		const { platform, app } = await setup();
+		const starter = await showStarter(app);
+		const chart = starter.doc.body.widgets.find((w) => w.type === "chart")!;
+		const to = structuredClone(chart.data);
+		to.place = TULARE;
+		starter.apply({ op: "setWidgetData", target: { widgetId: chart.id }, from: chart.data, to });
+		answer();
+		await vi.waitFor(() => expect(app.current.isStarter).toBe(false));
+		const copy = app.current.session!;
+		await copy.flush();
+		const saved = (await stored(platform, copy.doc.id)).body.widgets.find(
+			(w) => w.id === chart.id
+		)!;
+		expect(saved.data).toEqual(to);
 	});
 });
