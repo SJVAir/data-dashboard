@@ -2308,6 +2308,12 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   search width and the brand-blue `--primary`, but npm `next` stays `5.0.0-beta.2`. Why: nothing
   needs it yet; mobile stays on beta.2. **Revisit when** the next phone test, a mobile re-pin, or
   the parity review needs a published build.
+- **monitor-map 5.0 on phones: the legend covers the EV station popup, and Reset leaves a monitor
+  tooltip open.** _Deferred 2026-11-24 (the user: publish `@sjvair/monitor-map` `5.0.0-beta.3`
+  first, fix before 5.0.0)._ Both show in the parity comparison on the phone (`compare-5.0.html`,
+  2026-11-15 and 2026-11-24 runs); neither is traced yet to monitor-map or map-sdk. Why deferred:
+  beta.3 unblocks mobile's re-pin and the user's iOS test. **Revisit before** `@sjvair/monitor-map`
+  `5.0.0` final: trace each, fix it in the package that owns it, and recheck on the phone.
 - **map-sdk: arriving townships go clear for 3–6 frames on a block's first visit.** _Deferred
   2026-11-20 (the user; found by the scripted lens check on `@sjvair/map-sdk` `0.1.0-beta.22`)._ On
   the first visit to a block (5 of 30 moves per run, 32–77 ms), map-sdk first draws the sections
