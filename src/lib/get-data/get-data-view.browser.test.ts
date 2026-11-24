@@ -3091,6 +3091,13 @@ describe("What sections start closed", () => {
 		for (const draft of drafts) {
 			const { screen, host } = await show(draft);
 			await expectAllClosed();
+			// Closed, the main section still shows what's picked under its name (a Forecast strip
+			// picks no pollutant).
+			if (draft.type !== "forecast-strip") {
+				await expect
+					.poll(() => page.getByRole("button", { name: AIR }).element().textContent)
+					.toContain("PM2.5");
+			}
 			screen.unmount();
 			host.remove();
 		}

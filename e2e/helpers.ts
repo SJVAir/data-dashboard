@@ -269,6 +269,9 @@ export async function expectNoViolations(page: Page): Promise<void> {
 	expect(results.violations).toEqual([]);
 }
 
+/** The Air quality section's trigger name (not Air quality forecasts). */
+export const AIR_QUALITY_SECTION = /^Air quality(?! forecasts)/i;
+
 /**
  * Opens a Get data accordion section (What or Data resolution) by its name, when it's closed:
  * the trigger is a button inside a heading.

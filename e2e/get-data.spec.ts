@@ -7,6 +7,7 @@ import { readFile } from "node:fs/promises";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import {
+	AIR_QUALITY_SECTION,
 	CHART_TITLE,
 	DASHBOARD_URL,
 	STARTER_TITLES,
@@ -185,7 +186,7 @@ test("adds a temperature-only chart", async ({ page }) => {
 	await expect(page.getByRole("heading", GET_DATA)).toBeVisible();
 	await openSection(page, /^Weather/);
 	await page.getByRole("checkbox", { name: "Temperature", exact: true }).check();
-	await openSection(page, /^Air quality(?! forecasts)/i);
+	await openSection(page, AIR_QUALITY_SECTION);
 	await page.getByRole("radio", { name: "None" }).check();
 	await expect(page.getByRole("radio", { name: "None" })).toBeChecked();
 	// The last number layer can be unchecked too (a widget may hold nothing); it stays on here.
@@ -522,7 +523,7 @@ test("Show as keeps the ticked monitor types from a Map to a Chart, and a calend
 	await page.clock.install({ time: "2026-11-15T12:00:00-08:00" });
 	await page.goto("data");
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
-	await openSection(page, /^Air quality(?! forecasts)/i);
+	await openSection(page, AIR_QUALITY_SECTION);
 	const purple = page.getByRole("checkbox", { name: "PurpleAir" });
 	// A new Chart starts with none ticked; a new Map with every type (decision 8).
 	await expect(purple).not.toBeChecked();
@@ -543,6 +544,7 @@ test("Show as keeps the ticked monitor types from a Map to a Chart, and a calend
 		)
 	).toBeVisible();
 	await expect(page.getByTestId("where-summary")).toHaveText("Fresno County");
+	await openSection(page, AIR_QUALITY_SECTION);
 	await expect(page.getByRole("checkbox", { name: "PurpleAir" })).toHaveCount(0);
 });
 
@@ -553,7 +555,7 @@ test("a Chart of Fresno County with PurpleAir ticked asks once per period for th
 	await page.goto("data");
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
 
-	await openSection(page, /^Air quality(?! forecasts)/i);
+	await openSection(page, AIR_QUALITY_SECTION);
 	const asked: URL[] = [];
 	page.on("request", (r) => {
 		const url = new URL(r.url());

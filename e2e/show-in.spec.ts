@@ -9,6 +9,7 @@
 import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import {
+	AIR_QUALITY_SECTION,
 	DASHBOARD_URL,
 	STARTER_TITLES,
 	addToButton,
@@ -17,6 +18,7 @@ import {
 	maria,
 	nav,
 	openPicker,
+	openSection,
 	openSharedDoc,
 	widgetMenuItem,
 	widgetTitles
@@ -159,6 +161,7 @@ test.describe("from a Map's marks", () => {
 		// The Map's range.
 		await expect(page.getByTestId("resolved-range")).toHaveText("Nov 9 – 11, 2026");
 		// The three marks are the Chart's searched monitors, listed in Air quality.
+		await openSection(page, AIR_QUALITY_SECTION);
 		const searched = page.getByRole("list", { name: "Chosen monitors" }).getByRole("listitem");
 		await expect(searched).toHaveCount(3);
 		await expect(searched.filter({ hasText: "Fresno - Drummond Street" })).toHaveCount(1);
