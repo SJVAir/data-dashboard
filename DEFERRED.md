@@ -2737,7 +2737,8 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   Map (5.3 s and 8.7 s). The local stack's saved dashboard had 10.35 s. Compressing the uploads or
   loading the Map later doesn't fix it; a smaller first chunk, or painting the Note before the
   rest of the app runs, might. Numbers and the chain's timings:
-  `docs/reference/lighthouse-2026-11-23.md`. **Revisit at** go-live.
+  `docs/reference/lighthouse-2026-11-23.md`. **Revisit** shortly after launch (the user,
+  2026-11-23: launch doesn't wait for it; it was "at go-live").
 
 - **Additional widget types.** _Deferred 2026-09-23 (IDEA.md Q8)._ Brainstormed but not in
   the first-release widget set (see `ARCHITECTURE.md` → "Widget catalog"). **Revisit
@@ -3393,8 +3394,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   mode may intercept Enter and the arrows before they reach it. A mitigation is in (a click
   with `detail` 0 on the title bar acts like Enter), but no real screen reader has been tried.
   On 2026-11-02 the user chose to merge `layout` into `main` first and do this check later
-  (the touch check had passed). **Revisit before** Release 1 goes live (step 6) or beta testers
-  get the dashboard, whichever comes first, or sooner when the user has time: a hand check with
+  (the touch check had passed). **Revisit** shortly after launch (the user, 2026-11-23:
+  launch doesn't wait for it; it was "before Release 1 goes live or beta testers get the
+  dashboard"), or sooner when the user has time: a hand check with
   NVDA (and JAWS if available) on Windows and VoiceOver on macOS/iOS, also covering the Move ▸
   and Size ▸ submenus (#18), their announcements, and the taskbar. _Widened 2026-11-03 (design
   pass Task 19):_ also check that announcements and toasts made while a dialog is open are read

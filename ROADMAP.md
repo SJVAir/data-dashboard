@@ -256,7 +256,8 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
   verification flow; login and registration by either; a neutral 13+ age confirmation;
   optional `full_name`; a site privacy policy page; the server "remember me"
   checkbox. Phone flows keep working for
-  mobile. It lands before sign-in-dependent features ship.
+  mobile. It follows shortly after launch: Release 1 launches with phone-only accounts (the
+  user, 2026-11-23).
 - **Parallel track: server-backed documents** (sjvair.com + sdk-js + django-resticus,
   decided 2026-09-24). **First, the CSRF fix** in django-resticus (with the SDK header and
   sjvair.com page updates), before any cookie-based saves. Merging to resticus `develop`
