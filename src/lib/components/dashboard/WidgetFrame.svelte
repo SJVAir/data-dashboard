@@ -598,7 +598,8 @@
 			);
 			// A closing menu takes focus as the pointer leaves the item just clicked (bits-ui
 			// focuses the menu; Move by mouse), then drops it to the page as it goes: it comes
-			// back here. A press or key drops the request, and this with it.
+			// back here. A press, a key, a screen reader's activation, or the browser's Back or
+			// Forward drops the request, and this with it.
 			const off = on(document, "focusin", (event) => {
 				const menu = (event.target as Element).closest?.("[role=menu]");
 				if (menu?.getAttribute("data-state") === "closed") element.focus();

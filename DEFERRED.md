@@ -2715,8 +2715,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     starter doc is built twice** (T5-m3). **The tie test doesn't assert two candidates remain**
     (T5-m4: add `expect(placesToReplace(...)).toHaveLength(2)`). **Fix with** the next change to
     `src/lib/actions/dashboard.ts` or its tests.
-  - **A comment at `WidgetFrame.svelte` (about line 585) omits Back and Forward** (T6-m3). **Fix
-    with** the next change to `WidgetFrame.svelte`.
   - **The setter path could discard a just-kept starter if the current one is another kept
     starter** (T7-m2). Unreachable today. **Revisit with** the next change to the starter claims
     in `src/lib/store/app.svelte.ts`.
