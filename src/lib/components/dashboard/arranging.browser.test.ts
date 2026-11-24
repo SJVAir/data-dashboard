@@ -17,6 +17,13 @@ import App from "../../../App.svelte";
 import Harness from "./test-harness/Harness.svelte";
 import { animationsSettled } from "../../../test/animations";
 import { stubStarterTypes } from "./test-harness/stub-starter-types";
+import { loadMonitorTypes } from "$lib/widgets/map/start";
+
+// The real loader unless a test holds the catalog's answer.
+vi.mock("$lib/widgets/map/start", async (importOriginal) => {
+	const original = await importOriginal<typeof import("$lib/widgets/map/start")>();
+	return { ...original, loadMonitorTypes: vi.fn(original.loadMonitorTypes) };
+});
 
 const originalUrl = location.href;
 let removeUndo: (() => void) | null = null;
@@ -1388,6 +1395,31 @@ test("Move ▸ Right from the ⋯ menu on the starter closes the menu and keeps 
 	await menuItem("Move").click();
 	await menuItem("Right").click();
 	await expectHandedOff(app, starter);
+});
+
+test("Move ▸ Right on the starter keeps focus while the monitor types are still loading", async () => {
+	// The first edit's hand-off waits for the types: the menu closes long before the copy shows.
+	let answer!: (types: string[]) => void;
+	const held = new Promise<string[]>((resolve) => (answer = resolve));
+	vi.mocked(loadMonitorTypes).mockImplementation(() => held);
+	try {
+		const { app, starter } = await starterApp();
+		await page
+			.getByTestId("widget-starter-2")
+			.getByRole("button", { name: /^Actions for/ })
+			.click();
+		await menuItem("Move").click();
+		await menuItem("Right").click();
+		await expect.poll(() => document.querySelectorAll("[role=menu]").length).toBe(0);
+		expect(app.current.session).toBe(starter);
+		answer(["a"]);
+		await expectHandedOff(app, starter);
+	} finally {
+		vi.mocked(loadMonitorTypes).mockReset();
+		const { loadMonitorTypes: real } =
+			await vi.importActual<typeof import("$lib/widgets/map/start")>("$lib/widgets/map/start");
+		vi.mocked(loadMonitorTypes).mockImplementation(real);
+	}
 });
 
 /** Focus moves down the open submenu until it's on `name`. */

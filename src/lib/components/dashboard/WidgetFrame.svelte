@@ -574,6 +574,14 @@
 		if (request.kind !== "title" && request.kind !== "added") return;
 		const kind = request.kind;
 		untrack(() => {
+			// The starter is handing off to its copy (its first edit, which may wait for the
+			// catalog): the copy's page replaces this one, so focus here meanwhile but leave the
+			// request for the copy's frame, or focus is lost with this one.
+			const { session, isStarter } = app.current;
+			if (isStarter && session?.edited) {
+				bar!.focus();
+				return;
+			}
 			if (!takeFocus({ kind, id: widget.id })) return;
 			bar!.focus();
 			if (kind === "added") {
