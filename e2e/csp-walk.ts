@@ -9,7 +9,13 @@
  * Imports only Playwright and the route list (never `./fixtures` or a fixture server), since the
  * stack run imports it too.
  */
-import { expect, type BrowserContext, type Locator, type Page } from "@playwright/test";
+import {
+	expect,
+	type BrowserContext,
+	type ConsoleMessage,
+	type Locator,
+	type Page
+} from "@playwright/test";
 
 /** Where the walk runs: the E2E fakes, or the local sjvair.com stack. */
 export type WalkTarget = "fakes" | "stack";
@@ -147,6 +153,61 @@ async function expectDataPortal(page: Page): Promise<void> {
 	await expect(page.getByRole("heading", DATA_PORTAL)).toBeVisible();
 }
 
+/**
+ * Whether a widget's body has loaded its code and data. `el` is a dashboard widget's frame or the
+ * Data Portal's preview; either holds its title first and its body second. The body is empty
+ * until its code is asked for, then shows a skeleton (`data-skeleton`) while the code loads, and
+ * a "Loading…" status while its data does.
+ */
+function bodyLoaded(el: Element): boolean {
+	const body = el.children[1];
+	if (!body || body.childElementCount === 0) return false;
+	if (body.querySelector("[data-skeleton]")) return false;
+	return ![...body.querySelectorAll("[role=status]")].some((status) =>
+		/^Loading…?$/.test((status.textContent ?? "").trim())
+	);
+}
+
+/** Scrolls `container` (a widget frame or the preview) into view and waits for its body to load. */
+async function expectBodyLoaded(container: Locator, what: string): Promise<void> {
+	await container.scrollIntoViewIfNeeded();
+	await expect
+		.poll(() => container.evaluate(bodyLoaded), { message: `${what} loaded`, timeout: 20_000 })
+		.toBe(true);
+}
+
+/**
+ * Brings every widget on the page into view in turn and waits for each one's code (each type's
+ * lazy chunk: uPlot for a Chart, the calendar, MapLibre, `marked`) and data, so no lazy part is
+ * skipped because it sat below the fold.
+ */
+async function expectWidgetsLoaded(page: Page): Promise<void> {
+	const frames = page.getByRole("main").locator("[data-testid^=widget-]");
+	await expect(frames.first()).toBeVisible();
+	const count = await frames.count();
+	for (let i = 0; i < count; i++)
+		await expectBodyLoaded(frames.nth(i), `widget ${i + 1} of ${count}`);
+}
+
+/** The Data Portal's preview, once its widget has loaded. */
+async function expectPreviewLoaded(page: Page): Promise<void> {
+	await expectBodyLoaded(page.getByTestId("get-data-preview"), "the Data Portal preview");
+}
+
+/** Picks each Show as choice in turn, waiting for its preview, and ends on `last`. */
+async function previewEachType(page: Page, last: string): Promise<void> {
+	await expectPreviewLoaded(page);
+	const choices = page.getByTestId("get-data-preview-column").getByRole("radio");
+	const count = await choices.count();
+	for (let i = 0; i < count; i++) {
+		if (!(await choices.nth(i).isChecked())) await choices.nth(i).check();
+		await expectPreviewLoaded(page);
+	}
+	const end = page.getByRole("radio", { name: last, exact: true });
+	if (!(await end.isChecked())) await end.check();
+	await expectPreviewLoaded(page);
+}
+
 /** The Map's feature list (its List button shows only while focused). */
 async function openFeatureList(map: Locator): Promise<Locator> {
 	const list = map.getByRole("listbox", { name: "Features on the map" });
@@ -189,6 +250,7 @@ export const WALK: readonly WalkStep[] = [
 			state.mapTitle = await readMapTitle(page);
 			await expectMapDrawn(page, state.mapTitle);
 			await expectNoteRendered(page);
+			await expectWidgetsLoaded(page);
 		}
 	},
 	{
@@ -222,8 +284,11 @@ export const WALK: readonly WalkStep[] = [
 			await expect(page.getByRole("dialog", { name: "Rename dashboard" })).toBeVisible();
 			await escapeDialogs(page);
 
-			// The place picker (after a "which place" question when there's a tie).
+			// The place picker (the starter's copy has one place, so no "which place" question).
 			await dashboardMenuItem(page, "Duplicate for another place…");
+			await expect(
+				page.getByRole("dialog").getByRole("combobox", { name: "Search for a place" })
+			).toBeVisible();
 			await escapeDialogs(page);
 
 			await dashboardMenuItem(page, "Share…");
@@ -274,6 +339,8 @@ export const WALK: readonly WalkStep[] = [
 			await expect(makeNew.or(widgetTitles(page).first())).toBeVisible();
 			if (await makeNew.isVisible()) await makeNew.click();
 			await expect(page).toHaveURL(DASHBOARD_URL);
+			// The imported copy, not the dashboard it was shared from.
+			expect(page.url()).not.toBe(need(state.dashboardUrl, "dashboard"));
 			await expect(widgetTitles(page).first()).toBeVisible();
 		}
 	},
@@ -285,6 +352,7 @@ export const WALK: readonly WalkStep[] = [
 			await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 			const title = await readMapTitle(page);
 			await expectMapDrawn(page, title);
+			await expectWidgetsLoaded(page);
 		}
 	},
 	{
@@ -296,11 +364,12 @@ export const WALK: readonly WalkStep[] = [
 			await page.goto(`${need(state.dashboardUrl, "dashboard")}/widgets/new`);
 			await expect(page).toHaveURL(NEW_WIDGET_URL);
 			await expectDataPortal(page);
-			await page.getByRole("radio", { name: "Data table" }).check();
-			await page.getByRole("radio", { name: "Chart" }).check();
+			// Every Show as choice's preview (a Table, a Chart, …), ending on the Chart.
+			await previewEachType(page, "Chart");
 			await page.getByRole("button", { name: /^Add to (?!another dashboard$)/ }).click();
 			await expect(page).toHaveURL(need(state.dashboardUrl, "dashboard"));
 			await expect(widgetTitles(page)).toHaveCount(before + 1);
+			await expectWidgetsLoaded(page);
 		}
 	},
 	{
@@ -310,6 +379,7 @@ export const WALK: readonly WalkStep[] = [
 			await widgetMenuItem(page, need(state.mapTitle, "Map title"), "Open in Data Portal");
 			await expect(page).toHaveURL(EDIT_URL);
 			await expectDataPortal(page);
+			await expectPreviewLoaded(page);
 			await page.goBack();
 			await backToDashboard(page, state);
 		}
@@ -319,6 +389,7 @@ export const WALK: readonly WalkStep[] = [
 		async run(page) {
 			await page.goto("./data");
 			await expectDataPortal(page);
+			await expectPreviewLoaded(page);
 		}
 	},
 	{
@@ -351,6 +422,7 @@ export const WALK: readonly WalkStep[] = [
 				await widgetMenuItem(page, title, item);
 				await expect(page).toHaveURL(NEW_WIDGET_URL);
 				await expectDataPortal(page);
+				await expectPreviewLoaded(page);
 				await page.goBack();
 				await backToDashboard(page, state);
 			}
@@ -373,22 +445,97 @@ export const WALK: readonly WalkStep[] = [
 	}
 ];
 
+/** Chromium and WebKit say "Content Security Policy"; Firefox says "Content-Security-Policy". */
+const CSP_TEXT = /Content[- ]Security[- ]Policy/i;
+
 /**
  * Records console messages that mention the Content Security Policy, from `context`'s pages and
- * their workers (some engines report a blocked worker or font only there).
+ * their workers (some engines report a blocked worker or font only there), each as
+ * `{step}: {text} ({source})`, `step` read when the message comes.
  */
-export function watchCspConsole(context: BrowserContext, into: string[]): void {
-	// Chromium and WebKit say "Content Security Policy"; Firefox says "Content-Security-Policy".
-	const csp = /Content[- ]Security[- ]Policy/i;
-	const record = (text: string) => {
-		if (csp.test(text)) into.push(text);
+export function watchCspConsole(
+	context: BrowserContext,
+	into: string[],
+	step: () => string = () => ""
+): void {
+	const record = (message: ConsoleMessage) => {
+		const text = message.text();
+		if (CSP_TEXT.test(text)) into.push(`${step()}: ${text} (${message.location().url})`);
 	};
 	const watchPage = (page: Page) => {
-		page.on("console", (message) => record(message.text()));
-		page.on("worker", (worker) => worker.on("console", (message) => record(message.text())));
+		page.on("console", record);
+		page.on("worker", (worker) => worker.on("console", record));
 	};
 	context.pages().forEach(watchPage);
 	context.on("page", watchPage);
+}
+
+/** A message from a worker's CDP session (`Target.receivedMessageFromTarget`). */
+type WorkerMessage = {
+	method?: string;
+	params?: {
+		issue?: {
+			code: string;
+			details?: {
+				contentSecurityPolicyIssueDetails?: {
+					blockedURL?: string;
+					violatedDirective: string;
+					contentSecurityPolicyViolationType: string;
+					sourceCodeLocation?: { url: string; lineNumber: number };
+				};
+			};
+		};
+		entry?: { text: string; url?: string };
+	};
+};
+
+/**
+ * Chromium only (elsewhere it does nothing): records the CSP violations of `page`'s workers. A
+ * worker's `securitypolicyviolation` fires on the worker's own global, so the page's listener
+ * never sees it, and Playwright drops a worker's log entries. So this attaches to each worker over
+ * CDP (`Target.setAutoAttach`, holding it until it's watched), enables `Audits` and `Log` there,
+ * and records each `ContentSecurityPolicyIssue` (the directive, the blocked URL, the source) and
+ * each CSP log entry, as `{step}: …`. The policy itself is untouched.
+ */
+export async function watchWorkerCsp(
+	context: BrowserContext,
+	page: Page,
+	into: string[],
+	step: () => string = () => ""
+): Promise<void> {
+	if (context.browser()?.browserType().name() !== "chromium") return;
+	const cdp = await context.newCDPSession(page);
+	let id = 0;
+	cdp.on("Target.attachedToTarget", ({ sessionId }) => {
+		void (async () => {
+			for (const method of ["Audits.enable", "Log.enable", "Runtime.runIfWaitingForDebugger"]) {
+				const message = JSON.stringify({ id: ++id, method });
+				await cdp.send("Target.sendMessageToTarget", { sessionId, message }).catch(() => {});
+			}
+		})();
+	});
+	cdp.on("Target.receivedMessageFromTarget", ({ message }) => {
+		const { method, params } = JSON.parse(message) as WorkerMessage;
+		const csp = params?.issue?.details?.contentSecurityPolicyIssueDetails;
+		if (
+			method === "Audits.issueAdded" &&
+			params?.issue?.code === "ContentSecurityPolicyIssue" &&
+			csp
+		) {
+			const blocked = csp.blockedURL ?? csp.contentSecurityPolicyViolationType;
+			const source = csp.sourceCodeLocation
+				? `${csp.sourceCodeLocation.url}:${csp.sourceCodeLocation.lineNumber + 1}`
+				: "";
+			into.push(`${step()}: worker ${csp.violatedDirective} ${blocked} (${source})`);
+		} else if (method === "Log.entryAdded" && params?.entry && CSP_TEXT.test(params.entry.text)) {
+			into.push(`${step()}: worker ${params.entry.text} (${params.entry.url ?? ""})`);
+		}
+	});
+	await cdp.send("Target.setAutoAttach", {
+		autoAttach: true,
+		waitForDebuggerOnStart: true,
+		flatten: false
+	});
 }
 
 /**
