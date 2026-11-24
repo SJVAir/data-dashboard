@@ -1154,6 +1154,44 @@
 				{/if}
 			{/snippet}
 
+			{#if !nowOnly}
+				<section class="flex flex-col gap-2" aria-labelledby="{uid}-when">
+					<h2 id="{uid}-when" class="text-primary text-sm font-semibold">{m.get_data_when()}</h2>
+					{#if type}
+						<!-- A type with `now` (the Map) passes no range for Now. -->
+						<WhenControl
+							{type}
+							value={type.now ? plain.data.dateRange : range}
+							{now}
+							{resolution}
+							{resolutionFor}
+							onchange={setRange}
+						/>
+					{/if}
+					<!-- Always mounted, so a new note is announced. -->
+					<p
+						role="status"
+						class={["text-muted-foreground text-xs", !widenedNote && "sr-only"]}
+						data-testid="range-widened-note"
+					>
+						{widenedNote ?? ""}
+					</p>
+				</section>
+			{/if}
+
+			<section class="flex flex-col gap-2" aria-labelledby="{uid}-where">
+				<h2 id="{uid}-where" class="text-primary text-sm font-semibold">{m.get_data_where()}</h2>
+				<WhereControl
+					{picks}
+					max={placeLimit(type)}
+					offer={areasOnly(plain.type) ? "areas" : "where"}
+					purpose={wherePurpose(plain.data, known)}
+					emptyText={whereEmptyText}
+					clearable={placeLimit(type) !== 1}
+					onchange={setPlaces}
+				/>
+			</section>
+
 			<section class="flex flex-col gap-2" aria-labelledby="{uid}-what">
 				<h2 id="{uid}-what" class="text-primary text-sm font-semibold">{m.get_data_what()}</h2>
 				{#if !known || !type}
@@ -1210,44 +1248,6 @@
 						/>
 					{/if}
 				{/if}
-			</section>
-
-			{#if !nowOnly}
-				<section class="flex flex-col gap-2" aria-labelledby="{uid}-when">
-					<h2 id="{uid}-when" class="text-primary text-sm font-semibold">{m.get_data_when()}</h2>
-					{#if type}
-						<!-- A type with `now` (the Map) passes no range for Now. -->
-						<WhenControl
-							{type}
-							value={type.now ? plain.data.dateRange : range}
-							{now}
-							{resolution}
-							{resolutionFor}
-							onchange={setRange}
-						/>
-					{/if}
-					<!-- Always mounted, so a new note is announced. -->
-					<p
-						role="status"
-						class={["text-muted-foreground text-xs", !widenedNote && "sr-only"]}
-						data-testid="range-widened-note"
-					>
-						{widenedNote ?? ""}
-					</p>
-				</section>
-			{/if}
-
-			<section class="flex flex-col gap-2" aria-labelledby="{uid}-where">
-				<h2 id="{uid}-where" class="text-primary text-sm font-semibold">{m.get_data_where()}</h2>
-				<WhereControl
-					{picks}
-					max={placeLimit(type)}
-					offer={areasOnly(plain.type) ? "areas" : "where"}
-					purpose={wherePurpose(plain.data, known)}
-					emptyText={whereEmptyText}
-					clearable={placeLimit(type) !== 1}
-					onchange={setPlaces}
-				/>
 			</section>
 
 			{#if choices}

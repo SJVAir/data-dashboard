@@ -419,6 +419,11 @@ async function openSection(name: string | RegExp) {
 	await expect.element(trigger).toHaveAttribute("aria-expanded", "true");
 }
 
+/** Opens Data resolution (it starts closed), as a person would. */
+async function openResolution() {
+	await openSection(/^Data resolution/);
+}
+
 const AIR = /^Air quality(?! forecasts)/i;
 const USE = /^Pesticide Use/;
 const NOTICES = /^Pesticide Spray Notices/;
@@ -627,6 +632,7 @@ test("Data resolution hides for a pinned type; Every measurement is disabled ove
 	const draft = monitorsDraft(["m1"]);
 	draft.data.dateRange = { kind: "trailing", amount: 90, unit: "day" };
 	const { host } = await show(draft);
+	await openResolution();
 	const raw = page.getByRole("radio", { name: m.get_data_resolution_raw() });
 	await expect.element(raw).toBeDisabled();
 	await expect.element(raw).toHaveAccessibleDescription(m.get_data_resolution_too_many());
@@ -640,7 +646,9 @@ test("Data resolution hides for a pinned type; Every measurement is disabled ove
 		await show(draft);
 		await openSection(AIR);
 		await expect.element(page.getByRole("radio", { name: "PM2.5" })).toBeVisible();
-		expect(page.getByRole("heading", { name: m.get_data_resolution() }).elements()).toHaveLength(0);
+		expect(
+			page.getByRole("heading", { name: new RegExp(`^${m.get_data_resolution()}`) }).elements()
+		).toHaveLength(0);
 		expect(page.getByRole("radio", { name: "Automatic" }).elements()).toHaveLength(0);
 	} finally {
 		delete chartType.resolution;
@@ -649,7 +657,7 @@ test("Data resolution hides for a pinned type; Every measurement is disabled ove
 
 test("Data resolution is its own section after What, with a help button; the line is in More options", async () => {
 	const { host } = await show(monitorsDraft(["m1"]));
-	const heading = page.getByRole("heading", { name: m.get_data_resolution(), exact: true });
+	const heading = page.getByRole("heading", { name: /^Data resolution/ });
 	await expect.element(heading).toBeVisible();
 	expect(m.get_data_resolution()).toBe("Data resolution");
 	// After What, and not inside More options (visible without opening it).
@@ -659,6 +667,7 @@ test("Data resolution is its own section after What, with a help button; the lin
 	).toBeTruthy();
 	const more = page.getByRole("button", { name: "More options" });
 	expect(more.element().closest("[data-state]")?.contains(heading.element())).toBe(false);
+	await openResolution();
 	await expect.element(page.getByRole("radio", { name: "Automatic" })).toBeVisible();
 	// The help button sits beside the group's name, not inside it.
 	await expect
@@ -736,6 +745,7 @@ test("adding pesticide use on Automatic says Automatic moved to Monthly; removin
 		.toHaveTextContent(
 			"Automatic data resolution is now Monthly: Pesticide Use is reported by month."
 		);
+	await openResolution();
 	await expect.element(page.getByRole("radio", { name: "Automatic" })).toBeChecked();
 	// The finer levels are greyed, naming the dataset.
 	const daily = page.getByRole("radio", { name: "Daily" });
@@ -806,12 +816,59 @@ test("keyboard: the date list, accordion and Show as work without a mouse", asyn
 	await expect.element(current).toBeChecked();
 });
 
-test("get data view: What comes before When and Where", async () => {
-	await show();
-	const heading = (name: string) => page.getByRole("heading", { name, level: 2 }).element();
-	const [what, when, where] = [heading("What"), heading("When"), heading("Where")];
-	expect(what.compareDocumentPosition(when) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-	expect(when.compareDocumentPosition(where) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+test("the left column reads When, Where, What, Data resolution", async () => {
+	await show(monitorsDraft(["m1"]));
+	await expect.element(page.getByRole("heading", { name: /^Data resolution/ })).toBeVisible();
+	// The left column's own headings (More options, in the same column, comes after them).
+	const names = page
+		.getByRole("heading", { level: 2 })
+		.elements()
+		.map((el) => el.textContent?.trim() ?? "");
+	expect(names.slice(0, 4)).toEqual([
+		"When",
+		"Where",
+		"What",
+		expect.stringMatching(/^Data resolution/)
+	]);
+});
+
+test("Data resolution starts closed and names its choice", async () => {
+	const draft = monitorsDraft(["m1"]);
+	draft.data.dateRange = { kind: "trailing", amount: 7, unit: "day" };
+	await show(draft);
+	const trigger = page.getByRole("button", { name: /^Data resolution/ });
+	await expect.element(trigger).toHaveAttribute("aria-expanded", "false");
+	await expect.poll(() => trigger.element().textContent).toContain("Automatic");
+	await openResolution();
+	await page.getByRole("radio", { name: "Hourly" }).click();
+	await trigger.click();
+	await animationsSettled(document.body);
+	await expect.element(trigger).toHaveAttribute("aria-expanded", "false");
+	await expect.poll(() => trigger.element().textContent).toContain("Hourly");
+});
+
+test("a blocked choice shows under the closed name, and the note is announced while closed", async () => {
+	const draft = monitorsDraft(["m1"]);
+	draft.data.dateRange = { kind: "trailing", amount: 7, unit: "day" };
+	await show(draft);
+	await openResolution();
+	await page.getByRole("radio", { name: m.get_data_resolution_raw() }).click();
+	await chooseDates("Last 90 days");
+	const trigger = page.getByRole("button", { name: /^Data resolution/ });
+	await trigger.click();
+	await animationsSettled(document.body);
+	await expect.element(trigger).toHaveAttribute("aria-expanded", "false");
+	await expect
+		.poll(() => trigger.element().textContent)
+		.toContain(m.get_data_resolution_too_many());
+	const note = page.getByTestId("resolution-note");
+	await expect.element(note).toHaveAttribute("role", "status");
+	expect(
+		trigger
+			.element()
+			.closest("[data-accordion-root], [data-accordion-item]")
+			?.contains(note.element())
+	).toBe(false);
 });
 
 test("get data view: the Map and the Chart render the same What", async () => {
@@ -1064,6 +1121,7 @@ test("choosing Hourly stores the data's resolution: 'hour'; Automatic stores non
 	const draft = monitorsDraft(["m1"]);
 	draft.data.dateRange = { kind: "trailing", amount: 7, unit: "day" };
 	const { current } = await show(draft);
+	await openResolution();
 	await page.getByRole("radio", { name: "Hourly" }).click();
 	expect((await current()).data.resolution).toBe("hour");
 	await page.getByRole("radio", { name: "Automatic" }).click();
@@ -1164,6 +1222,7 @@ test("a chosen level the new range can't serve stays, blocked, and Add waits", a
 	const draft = monitorsDraft(["m1"]);
 	draft.data.dateRange = { kind: "trailing", amount: 7, unit: "day" };
 	const { current } = await show(draft);
+	await openResolution();
 	const raw = page.getByRole("radio", { name: m.get_data_resolution_raw() });
 	await raw.click();
 	expect((await current()).data.resolution).toBe("raw");
@@ -1187,6 +1246,7 @@ test("a stored level outside the levels (a quarter, untrusted) blocks Add with i
 	const add = page.getByRole("button", { name: "Add to Home" });
 	await expect.element(add).toBeDisabled();
 	await expect.element(add).toHaveAccessibleDescription(m.get_data_resolution_unknown_blocked());
+	await openResolution();
 	await page.getByRole("radio", { name: "Automatic" }).click();
 	await expect.element(add).toBeEnabled();
 	expect((await current()).data).not.toHaveProperty("resolution");
@@ -1197,6 +1257,7 @@ test("a draft carrying a dataset that doesn't line up (untrusted) blocks Add, na
 	draft.data.resolution = "day";
 	draft.data.layers.push({ dataset: "pesticide-use", entryType: "pounds-applied" });
 	const { current } = await show(draft);
+	await openResolution();
 	const daily = page.getByRole("radio", { name: "Daily" });
 	await expect.element(daily).toBeChecked();
 	await expect.element(daily).toHaveAccessibleDescription("Pesticide Use isn't reported daily");
@@ -1243,6 +1304,7 @@ test("at Daily, pesticide use is greyed: it's reported by month", async () => {
 		.toHaveAccessibleDescription(
 			"Reported by month. Set the data resolution to Monthly to add it."
 		);
+	await openResolution();
 	await page.getByRole("radio", { name: "Monthly" }).click();
 	await expect.element(addUse).toBeEnabled();
 });
@@ -1282,6 +1344,7 @@ test("with weather chosen, Every measurement says weather has no individual meas
 	const draft = withLayers(["m1"], TEMPERATURE);
 	draft.data.dateRange = { kind: "trailing", amount: 2, unit: "day" };
 	await show(draft);
+	await openResolution();
 	const raw = page.getByRole("radio", { name: m.get_data_resolution_raw() });
 	await expect.element(raw).toBeDisabled();
 	await expect.element(raw).toHaveAccessibleDescription("Weather has no individual measurements");
@@ -1315,6 +1378,7 @@ test("Show as greys the Map at Hourly, and a calendar at Monthly", async () => {
 	const map = page.getByRole("radio", { name: "Map" });
 	await expect.element(map).toBeDisabled();
 	await expect.element(map).toHaveAccessibleDescription(m.get_data_map_resolution());
+	await openResolution();
 	await page.getByRole("radio", { name: "Monthly" }).click();
 	await expect.element(map).toBeEnabled();
 	const calendar = page.getByRole("radio", { name: "Month calendar" });
@@ -1733,7 +1797,7 @@ describe("now widgets", () => {
 		await expect.element(dates).toHaveTextContent(m.getdata_when_now());
 		await expect.element(page.getByTestId("resolved-range")).not.toBeInTheDocument();
 		await expect
-			.element(page.getByRole("heading", { name: m.get_data_resolution(), exact: true }))
+			.element(page.getByRole("heading", { name: /^Data resolution/ }))
 			.not.toBeInTheDocument();
 		await dates.click();
 		await expect
@@ -1752,9 +1816,8 @@ describe("now widgets", () => {
 		await animationsSettled(document.body);
 		await expect.element(dates).toHaveTextContent("Last 7 days");
 		// With a range, the Map offers Daily, Monthly and Yearly only.
-		await expect
-			.element(page.getByRole("heading", { name: m.get_data_resolution(), exact: true }))
-			.toBeVisible();
+		await expect.element(page.getByRole("heading", { name: /^Data resolution/ })).toBeVisible();
+		await openResolution();
 		const levels = page
 			.getByRole("group", { name: m.get_data_resolution(), exact: true })
 			.getByRole("radio")
@@ -1787,6 +1850,7 @@ describe("now widgets", () => {
 		await expect.element(smoke).toBeEnabled();
 		await chooseDates("Last 7 days");
 		await expect.element(use).toBeEnabled();
+		await openResolution();
 		await page.getByRole("radio", { name: "Monthly" }).click();
 		await expect.element(smoke).toBeDisabled();
 		await expect

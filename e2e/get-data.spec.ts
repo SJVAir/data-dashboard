@@ -478,9 +478,9 @@ test("on two columns the left column scrolls under the top nav; the preview and 
 	await page.goto("data");
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
 	const column = page.getByRole("group", { name: "What, When and Where" });
-	// What comes first, then When and Where, then Data resolution and More options.
+	// When and Where come first, then What, then Data resolution and More options.
 	const headings = column.getByRole("heading", { level: 2 });
-	await expect(headings).toHaveText(["What", "When", "Where", "Data resolution", /^More options/]);
+	await expect(headings).toHaveText(["When", "Where", "What", /^Data resolution/, /^More options/]);
 	// Open every section the Chart shows, so the column is taller than the screen.
 	const closed = column.locator("[data-what-section] h3 button[aria-expanded=false]:enabled");
 	while ((await closed.count()) > 0) await closed.first().click();
