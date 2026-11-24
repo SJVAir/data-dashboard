@@ -2737,11 +2737,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     review's fixes added beside it: nothing observable changes when the page rightly stays);
     **`air-quality-section.browser.test.ts` (about line 58) has an implicit any that
     `npm run check` misses** (T8-m5, pre-existing). **Fix with** the next change to each file.
-  - **The walk's Sign out step relies on seeing "Saved in this browser" before it opens Sign
-    out.** If nothing is unsynced, the menu item signs out at once. Abort the logout request
-    during the step so a wrong precondition fails it instead (on the local stack it would only
-    sign the test user out). **Fix with** the next change to `e2e/csp-walk.ts` or before go-live
-    day's rerun.
 - **The startup chain keeps LCP over 2.5 s on a throttled phone.** _Deferred 2026-11-23 (step 6
   spec 1, the Lighthouse check; the user: revisit at go-live)._ The LCP element is the welcome
   Note's text. It waits for the app chunk (188 KB gzipped) to download and run its startup

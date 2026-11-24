@@ -287,6 +287,10 @@ const isDocumentsApi = (url: URL) => url.pathname.includes("/api/2.0/documents/"
 /** Whether `url` is the session account (the walk answers it signed out, on the fakes only). */
 const isAccountApi = (url: URL) => url.pathname.endsWith("/api/2.0/account/");
 
+/** Whether `url` is the site's logout (`POST /account/logout/`), which the walk never lets through. */
+const isLogout = (url: URL) =>
+	/(^|\/)account\/logout\/$/.test(url.pathname) && !url.pathname.includes("/api/");
+
 export const WALK: readonly WalkStep[] = [
 	{
 		// The starter in a fresh context (no storage). The stack reaches it signed in, through
@@ -563,10 +567,17 @@ export const WALK: readonly WalkStep[] = [
 	{
 		// Sign out with a change not yet in the account asks first (closed with Cancel, never
 		// signed out): the documents API is held back while the dashboard is renamed, so the
-		// change stays in this browser, then let through again.
+		// change stays in this browser, then let through again. The logout is held back too: if
+		// the item signed out at once (nothing unsynced after all), the step fails instead of
+		// signing the test user out.
 		name: "sign-out-dialog",
 		async run(page, state) {
 			await backToDashboard(page, state);
+			let logouts = 0;
+			await page.route(isLogout, (route) => {
+				logouts++;
+				return route.abort("blockedbyclient");
+			});
 			await page.route(isDocumentsApi, (route) => route.abort("internetdisconnected"));
 			try {
 				await dashboardMenuItem(page, "Rename dashboard…");
@@ -585,8 +596,10 @@ export const WALK: readonly WalkStep[] = [
 				await asking.getByRole("button", { name: "Cancel", exact: true }).click();
 				await expect(asking).toBeHidden();
 				await expect(accountButton(page)).toBeVisible();
+				expect(logouts, "logout requests (the walk must never sign out)").toBe(0);
 			} finally {
 				await page.unroute(isDocumentsApi);
+				await page.unroute(isLogout);
 			}
 		}
 	},
