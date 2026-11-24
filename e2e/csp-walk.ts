@@ -40,6 +40,12 @@ export type WalkState = {
 /** One named step: opens one route or lazy part and waits for its content. */
 export type WalkStep = {
 	name: string;
+	/**
+	 * The router's route keys (`src/router.ts`) it navigates to, each checked as it runs. Their
+	 * union is `WALK_ROUTES` (`csp-walk.spec.ts` checks), which a browser test checks against
+	 * the router, so a route no step visits fails.
+	 */
+	routes: readonly string[];
 	/** The targets it runs on (omitted: both). */
 	on?: WalkTarget[];
 	run(page: Page, state: WalkState): Promise<void>;
@@ -290,6 +296,7 @@ export const WALK: readonly WalkStep[] = [
 		// The starter in a fresh context (no storage). The stack reaches it signed in, through
 		// New from starter, since a signed-in `/` opens one of the account's dashboards.
 		name: "starter-first-visit",
+		routes: ["/"],
 		on: ["fakes"],
 		async run(page) {
 			await page.goto("./");
@@ -301,6 +308,7 @@ export const WALK: readonly WalkStep[] = [
 	},
 	{
 		name: "dashboard-list",
+		routes: ["/dashboards"],
 		async run(page) {
 			await page.goto("./dashboards");
 			await expect(
@@ -310,6 +318,7 @@ export const WALK: readonly WalkStep[] = [
 	},
 	{
 		name: "new-from-starter",
+		routes: ["/dashboards/:id"],
 		async run(page, state) {
 			await page.getByRole("button", { name: "New from starter", exact: true }).click();
 			await expect(page).toHaveURL(DASHBOARD_URL);
@@ -322,6 +331,7 @@ export const WALK: readonly WalkStep[] = [
 	},
 	{
 		name: "fullscreen",
+		routes: [],
 		async run(page, state) {
 			const title = need(state.mapTitle, "Map title");
 			await widgetMenuItem(page, title, "Fullscreen");
@@ -335,6 +345,7 @@ export const WALK: readonly WalkStep[] = [
 	{
 		// The Notes editor (Lexical), opened and closed without a change.
 		name: "notes-editor",
+		routes: [],
 		async run(page) {
 			await widgetMenuItem(page, NOTE, "Edit note");
 			const editor = page.getByRole("dialog", { name: "Edit note" });
@@ -346,6 +357,7 @@ export const WALK: readonly WalkStep[] = [
 		// The dashboard menu's dialogs, each opened and closed (nothing confirmed); Export saves a
 		// file. Sign-in links leave the app, so they aren't a step.
 		name: "dashboard-dialogs",
+		routes: [],
 		async run(page) {
 			await dashboardMenuItem(page, "Rename dashboard…");
 			await expect(page.getByRole("dialog", { name: "Rename dashboard" })).toBeVisible();
@@ -374,6 +386,7 @@ export const WALK: readonly WalkStep[] = [
 		// Restore an earlier version (it only lists them), then Help's privacy page and Clear my
 		// data from it: each opened and closed, nothing restored or cleared.
 		name: "menu-dialogs",
+		routes: [],
 		async run(page) {
 			await dashboardMenuItem(page, "Restore an earlier version…");
 			const restore = page.getByRole("dialog", { name: "Restore an earlier version" });
@@ -395,6 +408,7 @@ export const WALK: readonly WalkStep[] = [
 	{
 		// A copy link and a live link (the dashboard is saved to the account first).
 		name: "share-link",
+		routes: [],
 		async run(page, state) {
 			await expect(
 				page.getByRole("navigation", { name: "Main" }).getByText("Saved to your account", {
@@ -417,6 +431,7 @@ export const WALK: readonly WalkStep[] = [
 		// With no fragment the page goes home; a copy link imports a copy (a new one, since this
 		// browser already has the dashboard).
 		name: "import-page",
+		routes: ["/import", "/dashboards/:id"],
 		async run(page, state) {
 			await page.goto("./import");
 			await expect(page).not.toHaveURL(/\/import$/);
@@ -442,6 +457,7 @@ export const WALK: readonly WalkStep[] = [
 	},
 	{
 		name: "shared-page",
+		routes: ["/shared/:token"],
 		async run(page, state) {
 			await page.goto(need(state.liveLink, "live link"));
 			await expect(page).toHaveURL(SHARED_URL);
@@ -454,6 +470,7 @@ export const WALK: readonly WalkStep[] = [
 	{
 		// Get data for a new widget: a Table, then a Chart, added to the dashboard.
 		name: "data-portal-new",
+		routes: ["/dashboards/:id/widgets/new"],
 		async run(page, state) {
 			await backToDashboard(page, state);
 			const before = await widgetTitles(page).count();
@@ -470,6 +487,7 @@ export const WALK: readonly WalkStep[] = [
 	},
 	{
 		name: "data-portal-edit",
+		routes: ["/dashboards/:id/widgets/:widgetId/edit"],
 		async run(page, state) {
 			await backToDashboard(page, state);
 			await widgetMenuItem(page, need(state.mapTitle, "Map title"), "Open in Data Portal");
@@ -483,6 +501,7 @@ export const WALK: readonly WalkStep[] = [
 	{
 		// A calendar's Download data (CSV): the file is asked for, then thrown away.
 		name: "csv-download",
+		routes: [],
 		async run(page, state) {
 			await backToDashboard(page, state);
 			const { title } = await firstCalendar(page);
@@ -494,6 +513,7 @@ export const WALK: readonly WalkStep[] = [
 	{
 		// A day picked on a calendar, then "Open these days in a chart" (a new Chart).
 		name: "open-in-chart",
+		routes: [],
 		async run(page, state) {
 			await backToDashboard(page, state);
 			const { frame, title } = await firstCalendar(page);
@@ -508,6 +528,7 @@ export const WALK: readonly WalkStep[] = [
 	},
 	{
 		name: "data-page",
+		routes: ["/data"],
 		async run(page) {
 			await page.goto("./data");
 			await expectDataPortal(page);
@@ -519,6 +540,7 @@ export const WALK: readonly WalkStep[] = [
 		// Show in a chart and Show in a table. With no WebGL there's no map to mark on, so the
 		// items never show: the step opens the Map's menu only (its log line says so).
 		name: "show-in",
+		routes: [],
 		async run(page, state) {
 			await backToDashboard(page, state);
 			const title = need(state.mapTitle, "Map title");
@@ -553,6 +575,7 @@ export const WALK: readonly WalkStep[] = [
 	{
 		// Trimmed and unknown paths redirect: to the dashboard, or home.
 		name: "trimmed-paths",
+		routes: ["/dashboards/:id/widgets", "/shared"],
 		async run(page, state) {
 			const dashboard = need(state.dashboardUrl, "dashboard");
 			await page.goto(`${dashboard}/widgets`);
@@ -573,6 +596,7 @@ export const WALK: readonly WalkStep[] = [
 		// watch must have attached to a worker meanwhile (Playwright's other engines show no
 		// attach; the step still runs there).
 		name: "downsample-worker",
+		routes: ["/import", "/dashboards/:id/widgets/:widgetId/edit"],
 		on: ["fakes"],
 		async run(page) {
 			const before = workerAttaches.count;
@@ -638,6 +662,7 @@ export const WALK: readonly WalkStep[] = [
 		// the item signed out at once (nothing unsynced after all), the step fails instead of
 		// signing the test user out.
 		name: "sign-out-dialog",
+		routes: [],
 		async run(page, state) {
 			await backToDashboard(page, state);
 			let logouts = 0;
@@ -676,6 +701,7 @@ export const WALK: readonly WalkStep[] = [
 		// dashboard made in this browser; signed in again, the app offers to move it into the
 		// account ("Keep in this browser": nothing moved).
 		name: "move-to-account",
+		routes: ["/dashboards"],
 		on: ["fakes"],
 		async run(page) {
 			await page.route(isAccountApi, (route) =>
@@ -829,11 +855,29 @@ export async function runWalk(
 	onStep: (name: string) => void
 ): Promise<WalkState> {
 	const state: WalkState = {};
+	// The pages each step navigated to (loads and the router's in-page moves alike).
+	let visited: string[] = [];
+	page.on("framenavigated", (frame) => {
+		if (frame === page.mainFrame()) visited.push(new URL(frame.url()).pathname);
+	});
 	for (const step of WALK) {
 		if (step.on && !step.on.includes(target)) continue;
 		onStep(step.name);
+		visited = [];
 		await step.run(page, state);
 		await page.waitForLoadState("networkidle");
+		for (const route of step.routes) {
+			expect(
+				visited.some((path) => routePattern(route).test(path)),
+				`${step.name} visits ${route} (it went to ${visited.join(", ") || "nothing"})`
+			).toBe(true);
+		}
 	}
 	return state;
+}
+
+/** A route key (`/dashboards/:id`) as the path it matches under `/workspace`. */
+export function routePattern(route: string): RegExp {
+	const path = route.replace(/:[^/]+/g, "[^/]+").replace(/\/$/, "");
+	return new RegExp(`^/workspace${path}/?$`);
 }

@@ -7,7 +7,16 @@
  */
 import { expect, test } from "./fixtures";
 import { maria } from "./helpers";
-import { redactUrls, runWalk, violationLine, watchCspConsole, watchWorkerCsp } from "./csp-walk";
+import {
+	WALK,
+	redactUrls,
+	routePattern,
+	runWalk,
+	violationLine,
+	watchCspConsole,
+	watchWorkerCsp
+} from "./csp-walk";
+import { WALK_ROUTES } from "./csp-walk-routes";
 
 // Live links need an account.
 test.use({ account: maria, reducedMotion: "reduce" });
@@ -84,4 +93,24 @@ test("a recorded line never carries a URL's query", () => {
 	expect(redactUrls(`Refused to connect to '${url}' because it violates CSP`)).not.toContain(
 		"SECRET"
 	);
+});
+
+test("the steps' routes are exactly WALK_ROUTES, which the router's routes are checked against", () => {
+	// `src/csp-walk-routes.browser.test.ts` checks WALK_ROUTES against the router; this ties it to
+	// the steps, and the walk checks each step really goes where it says.
+	const covered = new Set(WALK.flatMap((step) => step.routes));
+	expect([...covered].sort()).toEqual([...WALK_ROUTES].sort());
+});
+
+test("a route key matches its own paths only", () => {
+	expect(routePattern("/").test("/workspace/")).toBe(true);
+	expect(routePattern("/").test("/workspace/data")).toBe(false);
+	expect(routePattern("/dashboards/:id").test("/workspace/dashboards/abc")).toBe(true);
+	expect(routePattern("/dashboards/:id").test("/workspace/dashboards/abc/widgets")).toBe(false);
+	expect(routePattern("/shared").test("/workspace/shared/tok")).toBe(false);
+	expect(
+		routePattern("/dashboards/:id/widgets/:widgetId/edit").test(
+			"/workspace/dashboards/a/widgets/new"
+		)
+	).toBe(false);
 });
