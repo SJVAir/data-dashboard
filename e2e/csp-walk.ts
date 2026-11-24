@@ -618,6 +618,9 @@ export const WALK: readonly WalkStep[] = [
 			);
 			await expect(page).toHaveURL(DASHBOARD_URL);
 			await expectWidgetsLoaded(page);
+			// Read the title once the types have filled it in: before that it says only "Chart", and
+			// the actions button is named after whichever title shows when it's looked for.
+			await expect(widgetTitles(page).first()).toHaveText(/^PM10 · /);
 			const title = (await widgetTitles(page).first().textContent())!.trim();
 			await widgetMenuItem(page, title, "Open in Data Portal");
 			await expect(page).toHaveURL(EDIT_URL);
