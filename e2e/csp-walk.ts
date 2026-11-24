@@ -170,9 +170,21 @@ function bodyLoaded(el: Element): boolean {
 
 /** Scrolls `container` (a widget frame or the preview) into view and waits for its body to load. */
 async function expectBodyLoaded(container: Locator, what: string): Promise<void> {
-	await container.scrollIntoViewIfNeeded();
+	// The locator is resolved afresh on every poll: the preview remounts between Show as choices,
+	// so an element found earlier can be gone (detached) by the time it's scrolled or read.
 	await expect
-		.poll(() => container.evaluate(bodyLoaded), { message: `${what} loaded`, timeout: 20_000 })
+		.poll(
+			async () => {
+				try {
+					await container.scrollIntoViewIfNeeded({ timeout: 2_000 });
+					return await container.evaluate(bodyLoaded, undefined, { timeout: 2_000 });
+				} catch {
+					// Detached, or not there yet: try again on the next poll.
+					return false;
+				}
+			},
+			{ message: `${what} loaded`, timeout: 20_000 }
+		)
 		.toBe(true);
 }
 
