@@ -533,7 +533,7 @@ string`) now get the union return type. The mobile app passes a string token, so
     user's yes), mobile's `release/5.0.0` moves from `5.0.0-beta.2` and `@sjvair/sdk`
     `5.0.0-beta.10` to that beta and `@sjvair/sdk` `5.0.0-beta.17` (monitor-map's SDK peer range
     stays `^5.0.0-beta.10`, so the SDK move is mobile's choice). The coordinator writes its prompt.
-    **Revisit when** `5.0.0-beta.3` is published.
+    `5.0.0-beta.3` was published 2026-11-24 (on `@sjvair/map-sdk` `0.1.0-beta.23`), so this is due.
   - **Mobile 5.0.0 on the day, after `develop` is deployed** (the user, 2026-11-09). Each step
     needs the user's own yes; none is done earlier. Mobile's 5.0 work waits on its
     `release/5.0.0` branch (`main` stays on 4.x for hotfixes):
@@ -2301,11 +2301,12 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   BAMs is wanted on the map or the dashboard. monitor-map 5.0 goes live showing "BAM 1022" in its
   Monitors menu where 4.3 shows "SJVAir" (the user, 2026-11-13, in monitor-map's shared-toolbar
   spec): a known difference from 4.3 for the parity review.
-- **`@sjvair/monitor-map` `5.0.0-beta.3` (with map-sdk `0.1.0-beta.15`, #135).** _Deferred
-  2026-11-15 (the user: "beta.3 later")._ `release/5.0.0` beaecf8 has the beta.15 re-pin, the phone
-  search width and the brand-blue `--primary`, but npm `next` stays `5.0.0-beta.2`. Why: nothing
-  needs it yet; mobile stays on beta.2. **Revisit when** the next phone test, a mobile re-pin, or
-  the parity review needs a published build.
+- **monitor-map 5.0 on phones: the legend covers the EV station popup, and Reset leaves a monitor
+  tooltip open.** _Deferred 2026-11-24 (the user: publish `@sjvair/monitor-map` `5.0.0-beta.3`
+  first, fix before 5.0.0)._ Both show in the parity comparison on the phone (`compare-5.0.html`,
+  2026-11-15 and 2026-11-24 runs); neither is traced yet to monitor-map or map-sdk. Why deferred:
+  beta.3 unblocks mobile's re-pin and the user's iOS test. **Revisit before** `@sjvair/monitor-map`
+  `5.0.0` final: trace each, fix it in the package that owns it, and recheck on the phone.
 - **map-sdk: arriving townships go clear for 3–6 frames on a block's first visit.** _Deferred
   2026-11-20 (the user; found by the scripted lens check on `@sjvair/map-sdk` `0.1.0-beta.22`)._ On
   the first visit to a block (5 of 30 moves per run, 32–77 ms), map-sdk first draws the sections
@@ -2316,13 +2317,13 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   that only touch. Fix in map-sdk: hide a township only once its whole block has loaded. Short
   and not urgent. **Revisit with** the next `@sjvair/map-sdk` beta that step 6 needs (spec 7 stayed
   on `0.1.0-beta.22`);
-  check it with `.superpowers/lens-check/` in map-sdk.
+  check it with `.superpowers/lens-check/` in map-sdk. Fixed in `@sjvair/map-sdk` `0.1.0-beta.23` (map-sdk #40) for hosts that pass `shapesLens`'s `childrenLoaded`; this entry closes when step 6 spec 3's re-pin (Task 8) lands it in the dashboard.
 - **map-sdk: a township the lens leaves goes clear for 1 frame.** _Deferred 2026-11-20 (the user;
   found by the same check)._ New in `0.1.0-beta.21`/`beta.22` from map-sdk #38: a leaving
   township's sections are gone from the drawn tiles, but it shows again only at `sourcedata` or
   `idle`, a frame later (8–14 of 30 moves per run; `0.1.0-beta.19` didn't do this). Fix in
   map-sdk: show it again on the same frame its sections go. **Revisit with** the next
-  `@sjvair/map-sdk` beta that step 6 needs, with the entry above.
+  `@sjvair/map-sdk` beta that step 6 needs, with the entry above. Fixed in `@sjvair/map-sdk` `0.1.0-beta.23` (map-sdk #40); closes with the same re-pin.
 - **The Monthly and Yearly legend line takes its units from the catalog.** _Deferred 2026-11-20
   (step 5 spec 6b, Task 11 review)._ map-sdk's own "(units)" line reads the monitors meta's scale
   units, while the Monthly or Yearly figure line that replaces it ("µg/m³ · Average of 24-hour
