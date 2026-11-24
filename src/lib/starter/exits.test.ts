@@ -679,23 +679,41 @@ describe("the starter's monitor types", () => {
 		expect(mapTypes(starter.doc)).toBeUndefined();
 	});
 
-	it("a failed load resolves with none", async () => {
-		vi.mocked(loadMonitorTypes).mockRejectedValueOnce(new Error("no"));
+	it("a failed load resolves with none, and isn't kept", async () => {
+		vi.mocked(loadMonitorTypes).mockRejectedValue(new Error("no"));
 		const { app } = await setup();
 		await showStarter(app);
 		await expect(app.starterTypesReady()).resolves.toEqual([]);
-		expect(app.starterTypes).toEqual([]);
+		expect(app.starterTypes).toBeNull();
 	});
 
-	it("catalog unavailable", async () => {
+	it("a late catalog: the next exit asks again and stores the types", async () => {
 		vi.mocked(loadMonitorTypes).mockResolvedValueOnce([]);
+		const { platform, app } = await setup();
+		await showStarter(app);
+		// The first load (started by the starter) gave none.
+		await vi.waitFor(() => expect(loadMonitorTypes).toHaveBeenCalledOnce());
+		await vi.mocked(loadMonitorTypes).mock.results[0].value;
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(app.starterTypes).toBeNull();
+		await run(app, "new-from-starter");
+		expectFromStarter(await newest(platform), DEFAULT_PLACE);
+		expect(loadMonitorTypes).toHaveBeenCalledTimes(2);
+		expect(app.starterTypes).toEqual(TYPES);
+		// The shown starter has them too.
+		await vi.waitFor(() => expect(mapTypes(app.current.session!.doc)).toEqual(TYPES));
+	});
+
+	it("catalog unavailable each time: the exit stores none, without waiting on it", async () => {
+		vi.mocked(loadMonitorTypes).mockResolvedValue([]);
 		const { platform, app } = await setup();
 		const starter = await showStarter(app);
 		await app.starterTypesReady();
-		expect(app.starterTypes).toEqual([]);
+		expect(app.starterTypes).toBeNull();
 		// Nothing to swap in.
 		expect(app.current.session).toBe(starter);
 		await run(app, "new-from-starter");
 		expectFromStarter(await newest(platform), DEFAULT_PLACE, DEFAULT_PLACE, null);
+		expect(app.current.session).toBe(starter);
 	});
 });

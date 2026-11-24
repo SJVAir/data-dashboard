@@ -72,14 +72,14 @@ export type AppContext = {
 	 */
 	starterArea: ChosenPlace | null;
 	/**
-	 * The catalog's monitor types, which the starter's Map ticks: `null` until loaded (`[]` when
-	 * the catalog couldn't be loaded). Metadata, not a preference: loaded once per app and kept
-	 * through "Clear my data".
+	 * The catalog's monitor types, which the starter's Map ticks: `null` until loaded (and while
+	 * the catalog couldn't be loaded, or was late: the next ask tries again). Metadata, not a
+	 * preference: loaded once per app and kept through "Clear my data".
 	 */
 	starterTypes: readonly string[] | null;
 	/**
-	 * Starts loading `starterTypes` (once per app) and resolves to them; never rejects. Every
-	 * exit from the starter awaits it, so its copy's Map has them.
+	 * Starts loading `starterTypes` (once per app, unless a load gave none) and resolves to them;
+	 * never rejects. Every exit from the starter awaits it, so its copy's Map has them.
 	 */
 	starterTypesReady(): Promise<readonly string[]>;
 	/**
@@ -491,10 +491,17 @@ class App implements AppContext {
 	}
 
 	starterTypesReady(): Promise<readonly string[]> {
-		this.#typesLoad ??= loadMonitorTypes()
+		if (this.#typesLoad) return this.#typesLoad;
+		const load: Promise<readonly string[]> = loadMonitorTypes()
 			// It never rejects; were it to, the starter's first edit would wait forever.
 			.catch((): string[] => [])
 			.then((types) => {
+				// None (the catalog failed or was late): not kept, so the next ask tries again, as
+				// a new Map does on every add.
+				if (types.length === 0) {
+					if (this.#typesLoad === load) this.#typesLoad = null;
+					return types;
+				}
 				try {
 					this.#typesArrived(types);
 				} catch (error) {
@@ -502,7 +509,8 @@ class App implements AppContext {
 				}
 				return types;
 			});
-		return this.#typesLoad;
+		this.#typesLoad = load;
+		return load;
 	}
 
 	/**
@@ -512,7 +520,7 @@ class App implements AppContext {
 	 */
 	#typesArrived(types: readonly string[]): void {
 		this.starterTypes = types;
-		if (this.#closed || types.length === 0) return;
+		if (this.#closed) return;
 		const starter = this.#live.get(STARTER_ID);
 		if (!starter || this.#handedOff()) return;
 		this.#replaceStarter(starter, this.current.session !== starter);
