@@ -18,7 +18,8 @@ import { LAST_OPENED_KEY, initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { DEFAULT_PLACE } from "$lib/widgets/defaults";
 import { writeSelection } from "$lib/widgets/calendars/shared/write-selection";
-import { placeRegion } from "$lib/data";
+import { getMetadata, placeRegion } from "$lib/data";
+import { report } from "$lib/safety/report";
 import { STARTER_AREA_KEY, STARTER_PLACE_KEY, saveStarterPlace } from "./place.svelte";
 import { STARTER_ID } from "./starter";
 import { barChange } from "$lib/places/replace";
@@ -44,6 +45,12 @@ vi.mock("$lib/data", async (importOriginal) => ({
 	...(await importOriginal<typeof import("$lib/data")>()),
 	placeRegion: vi.fn(async () => ({ type: "zipcode", code: "93721" }))
 }));
+
+// Reports as usual, counted.
+vi.mock("$lib/safety/report", async (importOriginal) => {
+	const original = await importOriginal<typeof import("$lib/safety/report")>();
+	return { ...original, report: vi.fn(original.report) };
+});
 
 // The catalog's monitor types, as loaded (a test controls when they arrive). The app asks
 // `loadMonitorTypesResult`, which answers with `loadMonitorTypes`' types (never a failure) unless a
@@ -949,20 +956,42 @@ describe("the starter's monitor types", () => {
 		expect(app.starterTypes).toBeNull();
 	});
 
-	it("a failed catalog is asked once per app", async () => {
-		vi.mocked(loadMonitorTypesResult).mockResolvedValue({ types: [], failed: true });
-		const { platform, app } = await setup(ZIP);
-		const starter = await showStarter(app);
-		await run(app, "new-from-starter");
-		expectFromStarter(await newest(platform), ZIP, DEFAULT_PLACE, null);
-		starter.apply(rename);
-		await vi.waitFor(() => expect(app.current.isStarter).toBe(false));
-		await app.current.session!.flush();
-		expect(loadMonitorTypesResult).toHaveBeenCalledOnce();
-		expect(app.starterTypes).toBeNull();
-		expect(await app.starterTypesReady()).toEqual([]);
-		expect(loadMonitorTypesResult).toHaveBeenCalledOnce();
-	});
+	// A catalog that throws (reported once) or that the server can't give ("unavailable", as an
+	// outage answers; not reported): either is kept as none for the page.
+	for (const [outage, reports] of [
+		["throws", 1],
+		["is unavailable", 0]
+	] as const) {
+		it(`a failed catalog is asked once per app: it ${outage}`, async () => {
+			const actual =
+				await vi.importActual<typeof import("$lib/widgets/map/start")>("$lib/widgets/map/start");
+			vi.mocked(loadMonitorTypesResult).mockImplementation(actual.loadMonitorTypesResult);
+			const catalog = vi
+				.spyOn(getMetadata(), "catalog")
+				.mockImplementation(async () =>
+					outage === "throws" ? Promise.reject(new Error("down")) : "unavailable"
+				);
+			vi.mocked(report).mockClear();
+			try {
+				const { platform, app } = await setup(ZIP);
+				const starter = await showStarter(app);
+				await run(app, "new-from-starter");
+				expectFromStarter(await newest(platform), ZIP, DEFAULT_PLACE, null);
+				starter.apply(rename);
+				await vi.waitFor(() => expect(app.current.isStarter).toBe(false));
+				await app.current.session!.flush();
+				expect(app.starterTypes).toBeNull();
+				expect(await app.starterTypesReady()).toEqual([]);
+				expect(loadMonitorTypesResult).toHaveBeenCalledOnce();
+				expect(catalog).toHaveBeenCalledOnce();
+				expect(
+					vi.mocked(report).mock.calls.filter(([e]) => e instanceof Error && e.message === "down")
+				).toHaveLength(reports);
+			} finally {
+				catalog.mockRestore();
+			}
+		});
+	}
 
 	it("a late catalog: the next exit asks again and stores the types", async () => {
 		vi.mocked(loadMonitorTypes).mockResolvedValueOnce([]);
