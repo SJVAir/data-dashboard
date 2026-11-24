@@ -6,8 +6,10 @@
  * monitor ids): each finds things by role and the app's own English labels, and reads what it
  * needs (the Map's title, the dashboard's address, the share links) from the page.
  *
- * Imports only Playwright and the route list (never `./fixtures` or a fixture server), since the
- * stack run imports it too.
+ * Imports only Playwright, lz-string (to build a link the way the app does) and the route list
+ * (never `./fixtures` or a fixture server), since the stack run imports it too. One fakes-only step
+ * names fixture data (the downsample worker's raw-only PM10 monitor), since nothing on the stack is
+ * known to reach that worker.
  */
 import {
 	expect,
@@ -16,6 +18,7 @@ import {
 	type Locator,
 	type Page
 } from "@playwright/test";
+import LZString from "lz-string";
 
 /** Where the walk runs: the E2E fakes, or the local sjvair.com stack. */
 export type WalkTarget = "fakes" | "stack";
@@ -565,6 +568,67 @@ export const WALK: readonly WalkStep[] = [
 		}
 	},
 	{
+		// The fakes only: the downsample worker (an inline `blob:` worker) starts only for an
+		// air-quality type offered at raw resolution alone, downsampled to the Chart's resolution.
+		// The fixtures' PM10 is one; nothing on the stack is known to be. A Chart of one monitor's
+		// PM10 over 30 days, opened from a copy link, then in the Data Portal. On Chromium the CDP
+		// watch must have attached to a worker meanwhile (Playwright's other engines show no
+		// attach; the step still runs there).
+		name: "downsample-worker",
+		on: ["fakes"],
+		async run(page) {
+			const before = workerAttaches.count;
+			const doc = {
+				kind: "dashboard",
+				schemaVersion: 1,
+				id: "csp-walk-downsample",
+				name: "Downsampled",
+				body: {
+					widgets: [
+						{
+							id: "w0",
+							type: "chart",
+							title: null,
+							rect: { x: 0, y: 0, w: 6, h: 6 },
+							data: {
+								dateRange: { kind: "trailing", amount: 30, unit: "day" },
+								layers: [
+									{
+										dataset: "air-quality",
+										entryType: "pm100",
+										monitors: ["4Mb0j33kTnS0qzeE4iDGWw"]
+									}
+								]
+							}
+						}
+					]
+				}
+			};
+			const envelope = {
+				format: "sjvair-workspace",
+				type: "document",
+				formatVersion: 1,
+				exportedAt: new Date().toISOString(),
+				documents: [doc]
+			};
+			await page.goto(
+				`import#1.${LZString.compressToEncodedURIComponent(JSON.stringify(envelope))}`
+			);
+			await expect(page).toHaveURL(DASHBOARD_URL);
+			await expectWidgetsLoaded(page);
+			const title = (await widgetTitles(page).first().textContent())!.trim();
+			await widgetMenuItem(page, title, "Open in Data Portal");
+			await expect(page).toHaveURL(EDIT_URL);
+			await expectDataPortal(page);
+			await expectPreviewLoaded(page);
+			if (page.context().browser()?.browserType().name() === "chromium") {
+				expect(workerAttaches.count, "workers attached (the downsample worker)").toBeGreaterThan(
+					before
+				);
+			}
+		}
+	},
+	{
 		// Sign out with a change not yet in the account asks first (closed with Cancel, never
 		// signed out): the documents API is held back while the dashboard is renamed, so the
 		// change stays in this browser, then let through again. The logout is held back too: if
@@ -707,6 +771,9 @@ type WorkerMessage = {
  * and records each `ContentSecurityPolicyIssue` (the directive, the blocked URL, the source) and
  * each CSP log entry, as `{step}: …`. The policy itself is untouched.
  */
+/** Workers `watchWorkerCsp` has attached to so far (Chromium only; 0 elsewhere). */
+export const workerAttaches = { count: 0 };
+
 export async function watchWorkerCsp(
 	context: BrowserContext,
 	page: Page,
@@ -717,6 +784,7 @@ export async function watchWorkerCsp(
 	const cdp = await context.newCDPSession(page);
 	let id = 0;
 	cdp.on("Target.attachedToTarget", ({ sessionId }) => {
+		workerAttaches.count++;
 		void (async () => {
 			for (const method of ["Audits.enable", "Log.enable", "Runtime.runIfWaitingForDebugger"]) {
 				const message = JSON.stringify({ id: ++id, method });
