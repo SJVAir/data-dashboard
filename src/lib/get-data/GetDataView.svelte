@@ -413,8 +413,8 @@
 	 * Why a dataset (`candidate`, its layers) can't be chosen, or undefined: on a Map on Now,
 	 * pesticide use (Now has no resolution); with a specific resolution, a dataset that isn't
 	 * reported at it; on Automatic, one that shares no level with those chosen (less `without`, the
-	 * layer it would replace, and any that already don't line up). A pinned type (a calendar) and
-	 * the Map's levels count as Automatic within them. Greyed, never hidden.
+	 * layer it would replace, and any that already don't line up). A pinned type (a calendar) checks
+	 * against its level; the Map's levels count as Automatic within them. Greyed, never hidden.
 	 */
 	function datasetReason(candidate: Layer[], without?: Layer): string | undefined {
 		if (!known) return undefined;
@@ -437,10 +437,14 @@
 			chosen,
 			catalog: known,
 			place: placeKind,
-			resolution: pinned ? undefined : (plain.data.resolution as DataLevel | undefined),
+			resolution: pinned
+				? (type?.resolution as DataLevel | undefined)
+				: (plain.data.resolution as DataLevel | undefined),
 			within: isMap ? MAP_LEVELS : LEVELS
 		});
-		return block ? datasetBlockText(block) : undefined;
+		return block
+			? datasetBlockText(block, pinned && type ? { type: type.label() } : undefined)
+			: undefined;
 	}
 	/** The Map's place-less datasets' reasons (smoke and fire go together). */
 	const mapBlocks = $derived(

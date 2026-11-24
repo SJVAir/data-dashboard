@@ -1818,11 +1818,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   catalog's label, which is title case. Why: labels come from the metadata (never rewritten in the
   dashboard), so a sentence-case label is a server catalog change. **Revisit when** the server
   catalog's labels are next edited, or with a copy review.
-- **A pinned calendar's lone dataset isn't greyed in What.** _Deferred 2026-11-19 (step 5 spec 6a,
-  final review)._ A calendar (pinned to Daily) with one dataset that doesn't offer Daily isn't
-  greyed in Get data's What section; the type block ("Show as") catches it instead, so it can't
-  be saved. Why: the person is still told, just in another place. **Revisit when** Get data's
-  What section is next reworked, or someone is confused by it.
 - **The Data table's notes aren't `role="status"`.** _Deferred 2026-11-19 (step 5 spec 6a, final
   review)._ The notes under a Data table (a layer that doesn't line up, a failed overlay) aren't
   announced when they appear. Why: graded minor; they sit just above the table, so a screen

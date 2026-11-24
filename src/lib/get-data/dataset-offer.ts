@@ -9,7 +9,7 @@ import type { CatalogEntry } from "$lib/data/metadata";
 import type { DateRangeSpec, Layer } from "$lib/data/schema";
 import { daysInMonth } from "$lib/format/calendar";
 import { m } from "$lib/paraglide/messages.js";
-import { LEVEL_BY, LEVEL_LABEL } from "./level-phrases";
+import { LEVEL_BY, LEVEL_LABEL, LEVEL_LOWER } from "./level-phrases";
 
 /** Why a dataset can't be chosen at the widget's data resolution. */
 export type DatasetBlock =
@@ -61,10 +61,20 @@ export function datasetBlock(args: {
 	return by ? { kind: "no-common", by } : null;
 }
 
-/** A dataset block's reason, shown beside the greyed choice. */
-export function datasetBlockText(block: DatasetBlock): string {
+/**
+ * A dataset block's reason, shown beside the greyed choice. A `pinned` type (a calendar) names
+ * itself: it, not the data resolution, sets the level.
+ */
+export function datasetBlockText(block: DatasetBlock, pinned?: { type: string }): string {
 	if (block.kind === "no-common") {
 		return m.get_data_dataset_no_common({ by: LEVEL_BY[block.by]() });
+	}
+	if (pinned) {
+		return m.get_data_dataset_not_offered_pinned({
+			by: LEVEL_BY[block.suggest](),
+			type: pinned.type,
+			level: LEVEL_LOWER[block.at]()
+		});
 	}
 	const level = LEVEL_LABEL[block.suggest]();
 	return block.at === "raw"

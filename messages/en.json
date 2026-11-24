@@ -1218,6 +1218,7 @@
 	"get_data_resolution_by_raw": "as individual measurements",
 	"get_data_resolution_not_offered_raw": "{dataset} has no individual measurements",
 	"get_data_dataset_not_offered": "Reported {by}. Set the data resolution to {level} to add it.",
+	"get_data_dataset_not_offered_pinned": "Reported {by}, but {type} shows {level} data.",
 	"get_data_dataset_not_offered_raw": "Has no individual measurements. Set the data resolution to {level} to add it.",
 	"get_data_dataset_no_common": "Can't line up with the datasets you chose: it's reported {by}.",
 	"get_data_dataset_not_on_now": "Reported {by}, so it isn't shown on Now. Choose dates to add it.",

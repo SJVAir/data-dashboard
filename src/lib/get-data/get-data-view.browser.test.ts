@@ -3049,6 +3049,26 @@ describe("calendar types", () => {
 		await expect.element(page.getByText(/Month calendar:/).first()).toBeInTheDocument();
 	});
 
+	test("a calendar greys a dataset not offered daily, with its reason", async () => {
+		const sparse = {
+			...FIXTURE_CATALOG[0].entryTypes[0],
+			id: "pm10",
+			label: "PM10",
+			resolutions: ["month" as const]
+		};
+		const air = { ...CATALOG[0], entryTypes: [...CATALOG[0].entryTypes, sparse] };
+		fake.metadata = fixtureMetadata({ catalog: async () => [air, ...CATALOG.slice(1)] });
+		makeClient();
+		await show(monthDraft());
+		await openSection(AIR);
+		const radio = page.getByRole("radio", { name: "PM10" });
+		await expect.element(radio).toBeDisabled();
+		await expect
+			.element(radio)
+			.toHaveAccessibleDescription("Reported by month, but Month calendar shows daily data.");
+		await expect.element(page.getByRole("radio", { name: "PM2.5" })).toBeChecked();
+	});
+
 	test("leaving a calendar drops its day selection and says so", async () => {
 		const { current } = await show(monthDraft());
 		await page.getByRole("radio", { name: "Chart" }).click();
