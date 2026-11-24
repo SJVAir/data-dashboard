@@ -268,3 +268,13 @@ export async function expectNoViolations(page: Page): Promise<void> {
 	const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
 	expect(results.violations).toEqual([]);
 }
+
+/**
+ * Opens a Get data accordion section (What or Data resolution) by its name, when it's closed:
+ * the trigger is a button inside a heading.
+ */
+export async function openSection(page: Page, name: string | RegExp): Promise<void> {
+	const trigger = page.getByRole("heading").getByRole("button", { name });
+	if ((await trigger.getAttribute("aria-expanded")) === "false") await trigger.click();
+	await expect(trigger).toHaveAttribute("aria-expanded", "true");
+}

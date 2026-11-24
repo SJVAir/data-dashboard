@@ -15,6 +15,7 @@ import {
 	expectSaved,
 	makeOwnCopy,
 	nav,
+	openSection,
 	shareLinkFor,
 	titleBar,
 	widgetMenuItem,
@@ -95,7 +96,7 @@ test("Edit data → Save changes, Undo restores", async ({ page }) => {
 test("Download CSV from the draft has overlay rows", async ({ page }) => {
 	await page.goto("data");
 	await expect(page.getByRole("heading", GET_DATA)).toBeVisible();
-	await page.getByRole("button", { name: /^Air Quality Forecasts/ }).click();
+	await openSection(page, /^Air Quality Forecasts/);
 	await page.getByRole("checkbox", { name: "Burn Status" }).check();
 	// The Chart draws burn status as day bands, named in its legend.
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
@@ -139,11 +140,6 @@ test("Add widget → Chart on the starter makes a copy", async ({ page }) => {
 	await page.getByRole("menuitem", { name: "New from starter" }).click();
 	await expect(widgetTitles(page)).toHaveText(STARTER_TITLES);
 });
-
-/** Opens a Get data section (Weather, Pesticide Use, …) by its heading. */
-async function openSection(page: Page, name: RegExp): Promise<void> {
-	await page.getByRole("button", { name }).click();
-}
 
 test("adds PM2.5 with a weather strip and a filtered pesticide strip", async ({ page }) => {
 	await makeOwnCopy(page);
@@ -189,6 +185,7 @@ test("adds a temperature-only chart", async ({ page }) => {
 	await expect(page.getByRole("heading", GET_DATA)).toBeVisible();
 	await openSection(page, /^Weather/);
 	await page.getByRole("checkbox", { name: "Temperature", exact: true }).check();
+	await openSection(page, /^Air quality(?! forecasts)/i);
 	await page.getByRole("radio", { name: "None" }).check();
 	await expect(page.getByRole("radio", { name: "None" })).toBeChecked();
 	// The last number layer can be unchecked too (a widget may hold nothing); it stays on here.
@@ -525,6 +522,7 @@ test("Show as keeps the ticked monitor types from a Map to a Chart, and a calend
 	await page.clock.install({ time: "2026-11-15T12:00:00-08:00" });
 	await page.goto("data");
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
+	await openSection(page, /^Air quality(?! forecasts)/i);
 	const purple = page.getByRole("checkbox", { name: "PurpleAir" });
 	// A new Chart starts with none ticked; a new Map with every type (decision 8).
 	await expect(purple).not.toBeChecked();
@@ -555,6 +553,7 @@ test("a Chart of Fresno County with PurpleAir ticked asks once per period for th
 	await page.goto("data");
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
 
+	await openSection(page, /^Air quality(?! forecasts)/i);
 	const asked: URL[] = [];
 	page.on("request", (r) => {
 		const url = new URL(r.url());

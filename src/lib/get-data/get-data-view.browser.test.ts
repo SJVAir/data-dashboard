@@ -405,6 +405,29 @@ async function drawn(host: HTMLElement) {
 		.not.toBeNull();
 }
 
+/**
+ * Opens a What section by its name, as a person would; one already open is left alone. Every
+ * section starts closed.
+ */
+async function openSection(name: string | RegExp) {
+	const trigger = page.getByRole("button", { name });
+	await expect.element(trigger).toBeVisible();
+	if (trigger.element().getAttribute("aria-expanded") === "false") {
+		await trigger.click();
+		await animationsSettled(document.body);
+	}
+	await expect.element(trigger).toHaveAttribute("aria-expanded", "true");
+}
+
+const AIR = /^Air quality(?! forecasts)/i;
+const USE = /^Pesticide Use/;
+const NOTICES = /^Pesticide Spray Notices/;
+const SCHOOLS = /^Schools/;
+const CHILD = /^Child care/;
+const SMOKE = new RegExp(`^${m.get_data_smoke_and_fire()}`);
+const FILL = new RegExp(`^${m.getdata_map_fill()}`);
+const GONE = new RegExp(`^${m.getdata_map_locations_gone()}`);
+
 async function chooseDates(name: string) {
 	await page.getByRole("button", { name: /^Dates/ }).click();
 	await page.getByRole("option", { name }).click();
@@ -425,6 +448,7 @@ describe.each([
 		await expect
 			.element(page.getByRole("button", { name: /^Dates/ }))
 			.toHaveTextContent("Last 30 days");
+		await openSection(AIR);
 		await expect.element(page.getByRole("radio", { name: "PM2.5" })).toBeChecked();
 		await drawn(host);
 		await expect
@@ -501,6 +525,7 @@ test("an entry type its adapter doesn't overlay isn't offered; one already chose
 	fake.metadata = fixtureMetadata({ catalog: async () => [air, CATALOG[1]] });
 	makeClient();
 	const fresh = await show(monitorsDraft(["m1"]));
+	await openSection(AIR);
 	await expect.element(page.getByRole("radio", { name: "PM2.5" })).toBeChecked();
 	expect(page.getByRole("checkbox", { name: "Humidity" }).elements()).toHaveLength(0);
 	fresh.screen.unmount();
@@ -509,6 +534,7 @@ test("an entry type its adapter doesn't overlay isn't offered; one already chose
 	const saved = monitorsDraft(["m1"]);
 	saved.data.layers.push({ dataset: "air-quality", entryType: "humidity" });
 	const { current } = await show(saved);
+	await openSection(AIR);
 	const box = page.getByRole("checkbox", { name: "Humidity" });
 	await expect.element(box).toBeChecked();
 	await box.click();
@@ -612,6 +638,7 @@ test("Data resolution hides for a pinned type; Every measurement is disabled ove
 	chartType.resolution = "day";
 	try {
 		await show(draft);
+		await openSection(AIR);
 		await expect.element(page.getByRole("radio", { name: "PM2.5" })).toBeVisible();
 		expect(page.getByRole("heading", { name: m.get_data_resolution() }).elements()).toHaveLength(0);
 		expect(page.getByRole("radio", { name: "Automatic" }).elements()).toHaveLength(0);
@@ -656,6 +683,7 @@ test("Air quality's monitor types and searched monitors edit the draft's air-qua
 	fake.metadata = fixtureMetadata({ catalog: async () => [air, ...CATALOG.slice(1)] });
 	makeClient();
 	const { host, latest } = await show(monitorsDraft(["m-pa"]));
+	await openSection(AIR);
 	await page.getByRole("checkbox", { name: "BAM 1022" }).click();
 	expect(latest().data.layers[0]).toEqual({
 		dataset: "air-quality",
@@ -679,6 +707,7 @@ test("a Forecast strip searches one monitor, saved on its forecasts layer; it re
 		}
 	});
 	const choose = page.getByRole("button", { name: m.get_data_monitors_choose() });
+	await openSection(AIR);
 	await choose.click();
 	const search = page.getByRole("dialog", { name: m.get_data_monitors_dialog_title_single() });
 	await expect.element(search).toBeVisible();
@@ -849,6 +878,7 @@ test("get data view: keyboard focus stays in the column after removing a monitor
 	await show(monitorsDraft(["m-pa", "m-bam"]));
 	const remove = (name: string) =>
 		page.getByRole("button", { name: m.get_data_monitors_remove_label({ name }) });
+	await openSection(AIR);
 	await expect.element(remove("BAM")).toBeInTheDocument();
 	(remove("Purple Air").element() as HTMLElement).focus();
 	await userEvent.keyboard("{Enter}");
@@ -866,6 +896,7 @@ test("get data view: None is never disabled", async () => {
 		// The Map's Fill regions by has a None of its own.
 		const scope = type === "map" ? page.getByRole("group", { name: "Air quality" }) : page;
 		const none = scope.getByRole("radio", { name: "None" });
+		await openSection(AIR);
 		await expect.element(none).toBeEnabled();
 		expect(none.element().getAttribute("aria-describedby")).toBeNull();
 		await none.click();
@@ -968,6 +999,7 @@ test("get data view: the Map offers radios, one pollutant", async () => {
 	const { current } = await show(areasDraft(["06019"], { type: "map" }));
 	const group = page.getByRole("group", { name: "Air quality" });
 	const radios = group.getByRole("radio");
+	await openSection(AIR);
 	await expect.element(group.getByRole("radio", { name: "PM2.5" })).toBeChecked();
 	expect(radios.elements().map((r) => r.closest("label")?.textContent?.trim())).toEqual([
 		m.get_data_none(),
@@ -991,6 +1023,7 @@ test("get data view: a pollutant the catalog doesn't know is replaced or removed
 		const scope = () => (type === "map" ? page.getByRole("group", { name: "Air quality" }) : page);
 		let shown = await show(unknown());
 		// It's the pollutant chosen: None isn't checked.
+		await openSection(AIR);
 		await expect.element(scope().getByRole("radio", { name: "None" })).not.toBeChecked();
 		await scope().getByRole("radio", { name: "PM2.5" }).click();
 		expect((await shown.current()).data.layers).toEqual([
@@ -999,6 +1032,7 @@ test("get data view: a pollutant the catalog doesn't know is replaced or removed
 		shown.screen.unmount();
 		shown.host.remove();
 		shown = await show(unknown());
+		await openSection(AIR);
 		await scope().getByRole("radio", { name: "None" }).click();
 		await expect.element(scope().getByRole("radio", { name: "None" })).toBeChecked();
 		expect((await shown.current()).data.layers).toEqual([]);
@@ -1010,6 +1044,7 @@ test("get data view: a pollutant the catalog doesn't know is replaced or removed
 test("the pollutant radios switch the pollutant; overlays follow the main layer", async () => {
 	const { current } = await show(monitorsDraft(["m1"], {}, ["burn-status"]));
 	const pm25 = page.getByRole("radio", { name: "PM2.5" });
+	await openSection(AIR);
 	await pm25.click();
 	await expect.element(pm25).toBeChecked();
 	(pm25.element() as HTMLElement).focus();
@@ -1359,15 +1394,11 @@ function withAreaLayers(codes: string[], ...rest: Draft["data"]["layers"]): Draf
 const TEMPERATURE = { dataset: "weather", entryType: "temperature" };
 const POUNDS = { dataset: "pesticide-use", entryType: "pounds-applied" };
 
-async function openSection(name: RegExp) {
-	await page.getByRole("button", { name }).click();
-	await animationsSettled(document.body);
-}
-
 test("a temperature-only chart can be added", async () => {
 	const { current } = await show(areasDraft(["06019"]));
 	await openSection(/^Weather/);
 	await page.getByRole("checkbox", { name: "Temperature", exact: true }).click();
+	await openSection(AIR);
 	await page.getByRole("radio", { name: "None" }).click();
 	expect((await current()).data.layers).toEqual([{ ...TEMPERATURE }]);
 	expect((await current()).data.place).toEqual({ kind: "region", type: "county", code: "06019" });
@@ -1381,6 +1412,7 @@ test("a temperature-only chart can be added", async () => {
 test("choosing None for Air Quality keeps the places", async () => {
 	const { current } = await show(withAreaLayers(["a1", "a2"], { ...TEMPERATURE }));
 	const where = { kind: "regions", ids: ["county:a1", "county:a2"] };
+	await openSection(AIR);
 	await page.getByRole("radio", { name: "None" }).click();
 	await expect.element(page.getByRole("radio", { name: "None" })).toBeChecked();
 	// The Where names its own places, whatever the layers.
@@ -1398,6 +1430,7 @@ test("choosing None for Air Quality keeps the places", async () => {
 
 test("choosing None keeps the searched monitors, with no pollutant (decision 31)", async () => {
 	const { current } = await show(withLayers(["m1", "m2"], { ...TEMPERATURE }));
+	await openSection(AIR);
 	await page.getByRole("radio", { name: "None" }).click();
 	await expect.element(page.getByRole("radio", { name: "None" })).toBeChecked();
 	expect((await current()).data.layers).toEqual([
@@ -1616,6 +1649,7 @@ describe("now widgets", () => {
 		// The pollutants on offer in Air quality as checkboxes (PM10 isn't available; no None), and
 		// the alert level at its default.
 		const pollutant = page.getByRole("group", { name: "Air quality" });
+		await openSection(AIR);
 		await expect.element(pollutant.getByRole("checkbox", { name: "PM2.5" })).toBeChecked();
 		await expect.element(pollutant.getByRole("checkbox", { name: "Ozone" })).toBeVisible();
 		await expect.element(pollutant.getByRole("checkbox", { name: "PM10" })).not.toBeInTheDocument();
@@ -1741,6 +1775,7 @@ describe("now widgets", () => {
 			}
 		});
 		const use = page.getByRole("switch", { name: m.getdata_map_use_switch() });
+		await openSection(USE);
 		await expect.element(use).toBeDisabled();
 		await expect
 			.element(use)
@@ -1748,6 +1783,7 @@ describe("now widgets", () => {
 				"Reported by month, so it isn't shown on Now. Choose dates to add it."
 			);
 		const smoke = page.getByRole("checkbox", { name: m.get_data_smoke_and_fire() });
+		await openSection(SMOKE);
 		await expect.element(smoke).toBeEnabled();
 		await chooseDates("Last 7 days");
 		await expect.element(use).toBeEnabled();
@@ -1757,6 +1793,7 @@ describe("now widgets", () => {
 			.element(smoke)
 			.toHaveAccessibleDescription("Reported by day. Set the data resolution to Daily to add it.");
 		const notices = page.getByRole("switch", { name: m.getdata_map_notices_switch() });
+		await openSection(NOTICES);
 		await expect.element(notices).toBeDisabled();
 		await use.click();
 		expect((await current()).data.layers.slice(1)).toEqual([{ dataset: "pesticide-use" }]);
@@ -1786,6 +1823,7 @@ describe("now widgets", () => {
 	test("turns smoke and fire on and off together", async () => {
 		const { current, host } = await show(monitorsDraft(["m1"], { type: "map" }));
 		const smoke = page.getByRole("checkbox", { name: m.get_data_smoke_and_fire() });
+		await openSection(SMOKE);
 		await expect.element(smoke).not.toBeChecked();
 		await animationsSettled(host);
 		const what = host.querySelector("[aria-labelledby$=-what]")!;
@@ -1807,6 +1845,7 @@ describe("now widgets", () => {
 		await expect
 			.element(page.getByRole("heading", { name: "Pesticide Spray Notices" }))
 			.toBeVisible();
+		await openSection(NOTICES);
 		await expect.element(page.getByText("Notices of intent to spray.")).toBeVisible();
 		const notices = page.getByRole("switch", { name: m.getdata_map_notices_switch() });
 		await expect.element(notices).not.toBeChecked();
@@ -1835,6 +1874,7 @@ describe("now widgets", () => {
 				]
 			}
 		});
+		await openSection(NOTICES);
 		await expect.element(page.getByText(skipped)).toBeVisible();
 		// Only the commodity: the chemical applies.
 		expect(
@@ -1859,6 +1899,7 @@ describe("now widgets", () => {
 		const { current, host } = await show(monitorsDraft(["m1"], { type: "map" }));
 		await expect.element(page.getByRole("heading", { name: "Pesticide Use" })).toBeVisible();
 		const use = page.getByRole("switch", { name: m.getdata_map_use_switch() });
+		await openSection(USE);
 		await expect.element(use).not.toBeChecked();
 		await use.click();
 		await expect.element(use).toBeChecked();
@@ -1881,6 +1922,7 @@ describe("now widgets", () => {
 		};
 		const { current } = await show(monitorsDraft(["m1"], { type: "map" }));
 		const use = page.getByRole("switch", { name: m.getdata_map_use_switch() });
+		await openSection(USE);
 		await expect.element(page.getByText(m.getdata_map_use_years_unavailable())).toBeVisible();
 		await expect.element(use).toBeDisabled();
 		await expect.element(use).toHaveAccessibleDescription(m.getdata_map_use_years_unavailable());
@@ -1898,6 +1940,7 @@ describe("now widgets", () => {
 		fake.pesticideMeta = async () => ({ ...PESTICIDE_META, years: [] });
 		await show(monitorsDraft(["m1"], { type: "map" }));
 		const use = page.getByRole("switch", { name: m.getdata_map_use_switch() });
+		await openSection(USE);
 		await expect.element(page.getByText(m.getdata_map_use_no_years())).toBeVisible();
 		await expect.element(use).toBeDisabled();
 		expect(page.getByRole("button", { name: m.get_data_retry() }).query()).toBeNull();
@@ -1917,6 +1960,8 @@ describe("now widgets", () => {
 		// Notices (by day) and use (by month) never line up, and use isn't shown on Now: only a link
 		// can carry both, and it can't be added as it is.
 		await expect.element(page.getByRole("button", { name: "Add to Home" })).toBeDisabled();
+		await openSection(USE);
+		await openSection(NOTICES);
 		const group = page.getByRole("group", { name: m.getdata_map_pesticide_filters() });
 		await expect.element(group).toBeVisible();
 		expect(group.all()).toHaveLength(1);
@@ -1998,10 +2043,12 @@ describe("now widgets", () => {
 		chart.data.layers.push({ dataset: "hms-smoke", entryType: "smoke-density" });
 		const { current } = await show(chart);
 		await page.getByRole("radio", { name: "Map" }).click();
+		await openSection(SMOKE);
 		await expect
 			.element(page.getByRole("checkbox", { name: m.get_data_smoke_and_fire() }))
 			.toBeChecked();
 		await expect.element(page.getByText(m.get_data_overlays_left_out())).not.toBeInTheDocument();
+		await openSection(AIR);
 		await page.getByRole("radio", { name: "Ozone" }).click();
 		await page.getByRole("radio", { name: "Chart" }).click();
 		await expect.element(page.getByRole("radio", { name: "Chart" })).toBeChecked();
@@ -2026,6 +2073,7 @@ describe("now widgets", () => {
 			},
 			options: { marks: ["m1"] }
 		});
+		await openSection(AIR);
 		await expect.element(page.getByRole("radio", { name: "Ozone" })).toBeChecked();
 		await page.getByRole("radio", { name: "Current conditions" }).click();
 		await expect.element(page.getByText(m.get_data_marks_left_out())).toBeVisible();
@@ -2114,7 +2162,9 @@ describe("now widgets", () => {
 			},
 			context: new Map([[APP_CONTEXT_KEY, app]])
 		});
+		await openSection(AIR);
 		await page.getByRole("radio", { name: "Ozone" }).click();
+		await openSection(SMOKE);
 		await page.getByRole("checkbox", { name: m.get_data_smoke_and_fire() }).click();
 		await page.getByRole("button", { name: "Save changes" }).click();
 		const saved = session.doc.body.widgets[0];
@@ -2146,6 +2196,7 @@ describe("now widgets", () => {
 				type("zipcode", "ZIP code", "ZIP codes")
 			];
 			const { current } = await show(monitorsDraft(["m1"], { type: "map" }));
+			await openSection(FILL);
 			const none = fillGroup().getByRole("radio", { name: m.getdata_map_fill_none() });
 			await expect.element(none).toBeChecked();
 			await expect.element(fillGroup().getByRole("radio", { name: "Counties" })).toBeVisible();
@@ -2165,11 +2216,13 @@ describe("now widgets", () => {
 			const { current } = await show(
 				monitorsDraft(["m1"], { type: "map", options: { fill: "zipcode" } })
 			);
+			await openSection(FILL);
 			await expect.element(fillGroup().getByRole("radio", { name: "ZIP codes" })).toBeChecked();
 			await page.getByRole("radio", { name: "Chart" }).click();
 			await expect.element(page.getByText(m.getdata_note_fill_dropped())).toBeVisible();
 			expect((await current()).options).toBeUndefined();
 			await page.getByRole("radio", { name: "Map" }).click();
+			await openSection(FILL);
 			await expect
 				.element(fillGroup().getByRole("radio", { name: m.getdata_map_fill_none() }))
 				.toBeChecked();
@@ -2182,6 +2235,7 @@ describe("now widgets", () => {
 			const { current } = await show(
 				monitorsDraft(["m1"], { type: "map", options: { fill: "zipcode" } })
 			);
+			await openSection(FILL);
 			await expect
 				.element(fillGroup().getByRole("radio", { name: m.getdata_map_fill_none() }))
 				.toBeVisible();
@@ -2202,6 +2256,9 @@ describe("now widgets", () => {
 			const schools = host.querySelector<HTMLElement>("[data-what-section='locations:school']");
 			const care = host.querySelector<HTMLElement>("[data-what-section='locations:child_care']");
 			await expect.element(page.getByRole("button", { name: "Schools" })).toBeEnabled();
+			await openSection(SCHOOLS);
+			await openSection(CHILD);
+			await openSection(AIR);
 			await expect.element(box("Public school")).toBeVisible();
 			expect(schools?.textContent).toContain("Private school");
 			expect(care?.querySelectorAll("input[type=checkbox]")).toHaveLength(1);
@@ -2230,6 +2287,8 @@ describe("now widgets", () => {
 			draft.options = { hiddenLocationGroups: ["child_care"] };
 			const { current } = await show(draft);
 			const hidden = async () => mapOptions(await current()).hiddenLocationGroups;
+			await openSection(SCHOOLS);
+			await openSection(CHILD);
 			await box("Public school").click();
 			expect(await hidden()).toEqual(["child_care"]);
 			await box("Child care").click();
@@ -2257,6 +2316,7 @@ describe("now widgets", () => {
 			setPlatform(platform);
 			const { current, host } = await show(draft);
 			const gone = box("gone_type");
+			await openSection(GONE);
 			await expect.element(gone).toBeChecked();
 			await expect.element(gone).toBeEnabled();
 			await expect.element(gone).toHaveAccessibleDescription(m.getdata_map_location_type_gone());
@@ -2287,10 +2347,12 @@ describe("now widgets", () => {
 			const { host } = await show(monitorsDraft(["m1"], { type: "map" }));
 			await expect.poll(() => platform.errors.reports.length).toBeGreaterThan(0);
 			expect(host.querySelectorAll("[data-what-section^='locations']")).toHaveLength(0);
+			await openSection(AIR);
 			await expect.element(none()).toBeEnabled();
 			failing = false;
 			await page.getByRole("radio", { name: "Chart" }).click();
 			await page.getByRole("radio", { name: "Map" }).click();
+			await openSection(SCHOOLS);
 			await expect.element(box("Public school")).toBeVisible();
 		});
 
@@ -2303,6 +2365,7 @@ describe("now widgets", () => {
 
 		test("Show as a Chart names the ticked groups it leaves out, from the meta", async () => {
 			const { current } = await show(childCareMap());
+			await openSection(CHILD);
 			await expect.element(box("Child care")).toBeChecked();
 			await page.getByRole("radio", { name: "Chart" }).click();
 			await expect
@@ -2409,6 +2472,7 @@ describe("now widgets", () => {
 		makeClient();
 		const { current } = await show({ ...currentDraft([{ level: "unhealthy" }]), type: "outside" });
 		await expect.element(alert()).toHaveValue("unhealthy");
+		await openSection(AIR);
 		await page.getByRole("radio", { name: "Ozone" }).click();
 		// "unhealthy" isn't on the ozone scale: its default, with no note (the person chose).
 		await expect.element(alert()).toHaveValue("usg-o3");
@@ -2477,6 +2541,7 @@ describe("now widgets", () => {
 		const { current } = await show(areasDraft(["a1"]));
 		await page.getByRole("radio", { name: "Can we go outside?" }).click();
 		const group = page.getByRole("group", { name: "Air quality" });
+		await openSection(AIR);
 		await expect.element(group.getByRole("radio", { name: "Ozone" })).toBeVisible();
 		expect(
 			group
@@ -2499,6 +2564,7 @@ describe("now widgets", () => {
 		await page.getByRole("radio", { name: "Can we go outside?" }).click();
 		// The note in Air quality, and the preview widget's own state.
 		await expect.poll(() => document.querySelectorAll("[data-no-guidelines]").length).toBe(1);
+		await openSection(AIR);
 		await expect.element(page.getByText(m.outside_no_guideline_pollutants()).first()).toBeVisible();
 		await expect.element(page.getByRole("radio", { name: "Can we go outside?" })).toBeChecked();
 		expect((await current()).type).toBe("outside");
@@ -2595,6 +2661,7 @@ describe("now widgets", () => {
 			const { current } = await show(
 				currentDraft([{ level: "unhealthy-sensitive", entryType: "pm25" }])
 			);
+			await openSection(AIR);
 			await expect.element(aq().getByRole("checkbox", { name: "PM2.5" })).toBeChecked();
 			await expect.element(aq().getByRole("checkbox", { name: "Ozone" })).not.toBeChecked();
 			await aq().getByRole("checkbox", { name: "Ozone" }).click();
@@ -2620,6 +2687,7 @@ describe("now widgets", () => {
 		test("unticking PM2.5 drops its alert level and keeps the searched monitor", async () => {
 			const { current } = await show(both());
 			await expect.element(forPm25()).toHaveValue("unhealthy");
+			await openSection(AIR);
 			await aq().getByRole("checkbox", { name: "PM2.5" }).click();
 			await expect.element(forPm25()).not.toBeInTheDocument();
 			// One pollutant left: its control reads as a single one does.
@@ -2635,6 +2703,7 @@ describe("now widgets", () => {
 
 		test("re-ticking PM2.5 puts it back first, in the offered order, holding the monitor", async () => {
 			const { current } = await show(both());
+			await openSection(AIR);
 			await aq().getByRole("checkbox", { name: "PM2.5" }).click();
 			await expect.element(forPm25()).not.toBeInTheDocument();
 			await aq().getByRole("checkbox", { name: "PM2.5" }).click();
@@ -2652,6 +2721,7 @@ describe("now widgets", () => {
 
 		test("unticking every pollutant leaves the checkboxes enabled and blocks Add", async () => {
 			const { latest, host } = await show(both());
+			await openSection(AIR);
 			await aq().getByRole("checkbox", { name: "PM2.5" }).click();
 			await aq().getByRole("checkbox", { name: "Ozone" }).click();
 			const add = page.getByRole("button", { name: "Add to Home" });
@@ -2698,6 +2768,7 @@ describe("now widgets", () => {
 		test("a newly ticked pollutant whose scale fails gets its default once Retry loads it", async () => {
 			ozoneFails.on = true;
 			const { current } = await show(currentDraft([{ level: "unhealthy", entryType: "pm25" }]));
+			await openSection(AIR);
 			await aq().getByRole("checkbox", { name: "Ozone" }).click();
 			await expect.element(page.getByText(m.get_data_levels_unavailable())).toBeVisible();
 			expect((await current()).thresholds).toEqual([{ level: "unhealthy", entryType: "pm25" }]);
@@ -2767,6 +2838,7 @@ describe("now widgets", () => {
 		failing = false;
 		await page.getByRole("radio", { name: "Chart" }).click();
 		await page.getByRole("radio", { name: "Can we go outside?" }).click();
+		await openSection(AIR);
 		await expect
 			.element(
 				page.getByRole("group", { name: "Air quality" }).getByRole("radio", { name: "Ozone" })
@@ -2777,6 +2849,7 @@ describe("now widgets", () => {
 	test("a Chart's What keeps its pollutant radios with None", async () => {
 		await show(monitorsDraft(["m1"]));
 		const group = page.getByRole("group", { name: "Air quality" });
+		await openSection(AIR);
 		await expect.element(group.getByRole("radio", { name: "None" })).toBeVisible();
 		await expect.element(group.getByRole("radio", { name: "PM2.5" })).toBeChecked();
 		expect(group.getByRole("checkbox", { name: "PM2.5" }).elements()).toHaveLength(0);
@@ -2855,6 +2928,7 @@ test("Threshold line is hidden for a non-pollutant main layer, and the saved one
 	);
 	await openSection(/^Weather/);
 	await page.getByRole("checkbox", { name: "Temperature", exact: true }).click();
+	await openSection(AIR);
 	await page.getByRole("radio", { name: "None" }).click();
 	// More options holds only the line, so it goes with it.
 	await expect.element(page.getByRole("button", { name: "More options" })).not.toBeInTheDocument();
@@ -2970,5 +3044,102 @@ describe("calendar types", () => {
 		const { current } = await show(rangedMonth(daysAgo(2), daysAgo(1)));
 		await chooseDates("Last 90 days");
 		expect((await current()).data.timeSubRange).toEqual({ start: daysAgo(2), end: daysAgo(1) });
+	});
+});
+
+describe("What sections start closed", () => {
+	const triggers = () => [
+		...document.querySelectorAll<HTMLElement>("[data-what-section] button[aria-expanded]")
+	];
+	const expectAllClosed = async () => {
+		await expect.poll(() => triggers().length).toBeGreaterThan(0);
+		expect(triggers().filter((t) => t.getAttribute("aria-expanded") !== "false")).toEqual([]);
+	};
+	const closed = (name: string | RegExp) =>
+		expect.element(page.getByRole("button", { name })).toHaveAttribute("aria-expanded", "false");
+
+	test("every What section starts closed", async () => {
+		const drafts: Draft[] = [
+			monitorsDraft(["m1"]),
+			monitorsDraft(["m1"], { type: "map" }),
+			monitorsDraft(["m1"], {
+				type: "map",
+				data: {
+					dateRange: { kind: "trailing", amount: 7, unit: "day" },
+					layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }]
+				}
+			}),
+			{
+				type: "current-conditions",
+				data: { layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }] }
+			},
+			{
+				type: "forecast-strip",
+				data: {
+					place: { kind: "region", type: "county", code: "06019" },
+					layers: [{ dataset: "forecasts" }]
+				}
+			},
+			{
+				type: "calendar-month",
+				data: {
+					dateRange: { kind: "to-date", unit: "month" },
+					layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }]
+				}
+			}
+		];
+		for (const draft of drafts) {
+			const { screen, host } = await show(draft);
+			await expectAllClosed();
+			screen.unmount();
+			host.remove();
+		}
+	});
+
+	test("a closed main section still names what's picked", async () => {
+		await show(monitorsDraft(["m1"]));
+		await expectAllClosed();
+		await expect
+			.poll(() => page.getByRole("button", { name: AIR }).element().textContent)
+			.toContain("PM2.5");
+	});
+
+	test("Edit data starts closed too", async () => {
+		const widget: WidgetInstance = {
+			id: "w1",
+			type: "map",
+			title: null,
+			rect: { x: 0, y: 0, w: 6, h: 6 },
+			data: { layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }] }
+		};
+		await show(editDraft(widget));
+		await expectAllClosed();
+	});
+
+	test("a section the person opened stays open across a type change; a greyed one closes", async () => {
+		await show(monitorsDraft(["m1"]));
+		await openSection(/^Weather/);
+		await page.getByRole("radio", { name: "Map" }).click();
+		// The Map greys Weather: it closes.
+		await expect.element(page.getByRole("button", { name: /^Weather/ })).toBeDisabled();
+		await closed(/^Weather/);
+		await page.getByRole("radio", { name: "Chart" }).click();
+		// Back on a Chart it stays closed: nothing opens by itself.
+		await closed(/^Weather/);
+		await openSection(AIR);
+		await page.getByRole("radio", { name: "Data table" }).click();
+		await expect.element(page.getByRole("radio", { name: "Data table" })).toBeChecked();
+		await expect
+			.element(page.getByRole("button", { name: AIR }))
+			.toHaveAttribute("aria-expanded", "true");
+	});
+
+	test("a section listed later arrives closed", async () => {
+		await show(monitorsDraft(["m1"], { type: "map" }));
+		// The location groups resolve after the catalog.
+		await expect.element(page.getByRole("button", { name: SCHOOLS })).toBeVisible();
+		await closed(SCHOOLS);
+		await closed(CHILD);
+		await expectAllClosed();
 	});
 });
