@@ -2688,6 +2688,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     (T1-m3). **Revisit with** the next change to the ESLint zod rule.
   - **Violations after a watched context closes can be lost** (T1-m4). Inherent to the watch.
     **Revisit if** a violation is ever seen to slip through.
+  - **A step's route check can be met by the step before it** (fix wave 3 review, minor 2). The
+    walk records the page's navigations from the moment a step starts, so a redirect the previous
+    step set off that lands late (after its network went idle) counts for the next step. If the
+    next step claims that route and never goes there itself, the check passes when it shouldn't.
+    It can only pass wrongly, never fail wrongly, and needs a late redirect onto exactly the route
+    the next step claims, which is unlikely, so it's left. **Revisit with** the next change to the walk's route
+    checks (for example, wait for the URL to settle before a step starts, or count only
+    navigations the step itself started).
   - **The stack run has data needs:** the show-in step needs at least one monitor row, the
     share-link step needs sync, and the csv-download step needs the first calendar to have data
     (T2-m6; failures say so). **`previewEachType` times out if a Show as
