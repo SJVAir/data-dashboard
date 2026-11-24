@@ -40,3 +40,9 @@ test("a request made while handling a keydown survives that keydown", () => {
 		expect(pendingFocusTarget()).toBeNull();
 	}
 });
+
+test("a browser Back drops a pending request", () => {
+	requestFocus({ kind: "title", id: "w" });
+	window.dispatchEvent(new PopStateEvent("popstate"));
+	expect(pendingFocusTarget()).toBeNull();
+});

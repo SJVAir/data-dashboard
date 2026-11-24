@@ -18,8 +18,8 @@ export function requestFocus(target: FocusTarget): void {
 	listen();
 }
 
-// The user's next press or key means they took over: an unconsumed request is dropped, so it
-// can't pull focus later. Installed only while a request is pending.
+// The user's next press or key, or a browser Back or Forward, means they took over: an unconsumed
+// request is dropped, so it can't pull focus later. Installed only while a request is pending.
 let listening = false;
 
 function drop(): void {
@@ -32,6 +32,7 @@ function listen(): void {
 	listening = true;
 	window.addEventListener("pointerdown", drop, true);
 	window.addEventListener("keydown", drop, true);
+	window.addEventListener("popstate", drop);
 }
 
 function unlisten(): void {
@@ -39,6 +40,7 @@ function unlisten(): void {
 	listening = false;
 	window.removeEventListener("pointerdown", drop, true);
 	window.removeEventListener("keydown", drop, true);
+	window.removeEventListener("popstate", drop);
 }
 
 /** True (and clears the request) if it matches the target. */

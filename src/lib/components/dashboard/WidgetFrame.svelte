@@ -573,15 +573,22 @@
 		if (!bar || request?.id !== widget.id) return;
 		if (request.kind !== "title" && request.kind !== "added") return;
 		const kind = request.kind;
+		const element = bar;
+		// The starter is handing off to its copy (its first edit, which may wait for the catalog):
+		// the copy's page replaces this one, so focus here meanwhile but leave the request for the
+		// copy's frame, or focus is lost with this one.
+		const handingOff = untrack(() => app.current.isStarter && !!app.current.session?.handingOff);
+		if (handingOff) {
+			element.focus();
+			// A closing menu takes focus as the pointer leaves the item just clicked (bits-ui
+			// focuses the menu; Move by mouse), then drops it to the page as it goes: it comes
+			// back here. A press or key drops the request, and this with it.
+			return on(document, "focusin", (event) => {
+				const menu = (event.target as Element).closest?.("[role=menu]");
+				if (menu?.getAttribute("data-state") === "closed") element.focus();
+			});
+		}
 		untrack(() => {
-			// The starter is handing off to its copy (its first edit, which may wait for the
-			// catalog): the copy's page replaces this one, so focus here meanwhile but leave the
-			// request for the copy's frame, or focus is lost with this one.
-			const { session, isStarter } = app.current;
-			if (isStarter && session?.edited) {
-				bar!.focus();
-				return;
-			}
 			if (!takeFocus({ kind, id: widget.id })) return;
 			bar!.focus();
 			if (kind === "added") {
