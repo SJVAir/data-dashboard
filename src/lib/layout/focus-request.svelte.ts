@@ -18,8 +18,8 @@ export function requestFocus(target: FocusTarget): void {
 	listen();
 }
 
-// The user's next press or key, a screen reader's activation (a click with no pointer behind it,
-// `detail` 0, which comes with neither), or a browser Back or Forward, means they took over: an
+// The user's next press or key, a screen reader's activation (a trusted click with no pointer
+// behind it, `detail` 0, which comes with neither), or a browser Back or Forward, means they took over: an
 // unconsumed request is dropped, so it can't pull focus later. Installed only while a request is
 // pending.
 let listening = false;
@@ -29,8 +29,16 @@ function drop(): void {
 	unlisten();
 }
 
+/**
+ * A screen reader's activation: a click with no pointer behind it (`detail` 0), and trusted (the
+ * app's own `.click()` on a download link or a file input is untrusted, and isn't the person's).
+ */
+export function isAssistiveActivation(event: Pick<MouseEvent, "isTrusted" | "detail">): boolean {
+	return event.isTrusted && event.detail === 0;
+}
+
 function dropOnActivation(event: MouseEvent): void {
-	if (event.detail === 0) drop();
+	if (isAssistiveActivation(event)) drop();
 }
 
 function listen(): void {

@@ -589,9 +589,13 @@
 			let active = true;
 			// The hand-off failed (no copy): the starter stays, so this frame takes the request now,
 			// not at the next press or key.
-			void handoff.then((copy) => {
-				if (active && !copy) handOffFailed++;
-			});
+			void handoff.then(
+				(copy) => {
+					if (active && !copy) handOffFailed++;
+				},
+				// The session reports its own failure; this frame adds nothing to it.
+				() => {}
+			);
 			// A closing menu takes focus as the pointer leaves the item just clicked (bits-ui
 			// focuses the menu; Move by mouse), then drops it to the page as it goes: it comes
 			// back here. A press or key drops the request, and this with it.
