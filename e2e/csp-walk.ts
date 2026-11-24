@@ -578,6 +578,8 @@ export const WALK: readonly WalkStep[] = [
 		on: ["fakes"],
 		async run(page) {
 			const before = workerAttaches.count;
+			// The document and the link's envelope are written out here (the walk can't import the
+			// app's code): update `schemaVersion` and `formatVersion` with the share format.
 			const doc = {
 				kind: "dashboard",
 				schemaVersion: 1,
