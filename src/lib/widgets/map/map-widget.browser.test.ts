@@ -2915,6 +2915,9 @@ test("a Yearly Map draws each year's figure from the yearly summaries", async ()
 test("the current month is drawn so far, not final, and polls hourly until its row is final", async () => {
 	rated();
 	vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"], shouldAdvanceTime: true });
+	// Ten past the hour: summaries poll at :55, so a start just before it would see two polls in
+	// the 61 minutes below.
+	vi.setSystemTime(tenPastTheHour());
 	try {
 		nowClient = createNowClient({ activity: { visible: () => true, onChange: () => () => {} } });
 		vi.mocked(getNowClient).mockReturnValue(nowClient);
@@ -2940,6 +2943,9 @@ test("the current month is drawn so far, not final, and polls hourly until its r
 test("the current month before its first nightly row draws no data, the usual way, and keeps polling", async () => {
 	rated();
 	vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"], shouldAdvanceTime: true });
+	// Ten past the hour: summaries poll at :55, so a start just before it would see two polls in
+	// the 61 minutes below.
+	vi.setSystemTime(tenPastTheHour());
 	try {
 		nowClient = createNowClient({ activity: { visible: () => true, onChange: () => () => {} } });
 		vi.mocked(getNowClient).mockReturnValue(nowClient);
@@ -2961,6 +2967,13 @@ test("the current month before its first nightly row draws no data, the usual wa
 		vi.useRealTimers();
 	}
 });
+
+/** Now, moved to ten minutes past the hour (the same day and hour). */
+function tenPastTheHour(): Date {
+	const at = new Date();
+	at.setMinutes(10, 0, 0);
+	return at;
+}
 
 /** A Map of `region` at `resolution` over `range`, with `options`. */
 function periodMap(
@@ -3092,6 +3105,9 @@ test("at Daily, smoke, fire and spray notices draw with their rows and no note",
 test("refresh: a final past day isn't asked for again; one not final is, hourly", async () => {
 	rated();
 	vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"], shouldAdvanceTime: true });
+	// Ten past the hour: summaries poll at :55, so a start just before it would see two polls in
+	// the 61 minutes below.
+	vi.setSystemTime(tenPastTheHour());
 	try {
 		nowClient = createNowClient({ activity: { visible: () => true, onChange: () => () => {} } });
 		vi.mocked(getNowClient).mockReturnValue(nowClient);
