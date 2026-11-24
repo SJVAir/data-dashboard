@@ -97,7 +97,7 @@ async function chooseMenuItem(page: Page, current: string, item: string) {
 
 test("a link copied from the Share dialog opens as a copy in a new browser", async ({
 	page,
-	browser,
+	newWatchedContext,
 	context
 }) => {
 	// Only Chromium has clipboard permissions to grant; the others allow writes on a click.
@@ -111,7 +111,7 @@ test("a link copied from the Share dialog opens as a copy in a new browser", asy
 	await dialog.getByRole("button", { name: "Copy link" }).click();
 	await expect(dialog.getByRole("status").filter({ hasText: "Link copied" })).toBeVisible();
 
-	const other = await browser.newContext();
+	const other = await newWatchedContext();
 	try {
 		const otherPage = await other.newPage();
 		await otherPage.goto(shared);

@@ -1,4 +1,4 @@
-import type { Browser, Page } from "@playwright/test";
+import type { BrowserContext, BrowserContextOptions, Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import { DASHBOARD_URL, dashboardHeading, makeOwnCopy, widgetTitles } from "./helpers";
 
@@ -32,17 +32,22 @@ async function importFile(page: Page, path: string): Promise<void> {
 	await (await chooser).setFiles(path);
 }
 
-async function freshPage(browser: Browser): Promise<{ page: Page; close: () => Promise<void> }> {
-	const context = await browser.newContext({ reducedMotion: "reduce" });
+async function freshPage(
+	newWatchedContext: (options?: BrowserContextOptions) => Promise<BrowserContext>
+): Promise<{ page: Page; close: () => Promise<void> }> {
+	const context = await newWatchedContext({ reducedMotion: "reduce" });
 	return { page: await context.newPage(), close: () => context.close() };
 }
 
-test("backup, delete everything, restore brings the same ids back", async ({ page, browser }) => {
+test("backup, delete everything, restore brings the same ids back", async ({
+	page,
+	newWatchedContext
+}) => {
 	const urls = await makeTwoDashboards(page);
 	const path = test.info().outputPath("backup.json");
 	await downloadBackup(page, path);
 
-	const other = await freshPage(browser);
+	const other = await freshPage(newWatchedContext);
 	try {
 		await importFile(other.page, path);
 		await expect(other.page).toHaveURL(/\/workspace\/dashboards\/?$/);
@@ -62,12 +67,12 @@ test("backup, delete everything, restore brings the same ids back", async ({ pag
 	}
 });
 
-test("restoring twice keeps everything as it is", async ({ page, browser }) => {
+test("restoring twice keeps everything as it is", async ({ page, newWatchedContext }) => {
 	await makeTwoDashboards(page);
 	const path = test.info().outputPath("backup.json");
 	await downloadBackup(page, path);
 
-	const other = await freshPage(browser);
+	const other = await freshPage(newWatchedContext);
 	try {
 		await importFile(other.page, path);
 		await expect(other.page.getByText("Restored 2 dashboards.")).toBeVisible();
