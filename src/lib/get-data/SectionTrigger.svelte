@@ -25,7 +25,10 @@
 <Accordion.Header {level}>
 	<Accordion.Trigger
 		aria-describedby={reasonId}
-		class="enabled:hover:bg-secondary disabled:text-muted-foreground flex min-h-8 w-full items-center gap-2 rounded-(--radius-control) px-2 py-1 text-left text-sm font-medium [&[data-state=open]>svg]:rotate-180"
+		class={[
+			"enabled:hover:bg-secondary disabled:text-muted-foreground flex min-h-8 w-full items-center gap-2 rounded-(--radius-control) px-2 py-1 text-left text-sm [&[data-state=open]>svg]:rotate-180",
+			level === 2 ? "text-primary font-semibold" : "font-medium"
+		]}
 	>
 		<span class="flex min-w-0 flex-1 flex-col">
 			<span>{label}</span>

@@ -27,6 +27,13 @@
 	const uid = $props.id();
 
 	const checkedChoice = $derived(choices.find((c) => c.level === value));
+	let open = $state<string[]>([]);
+	/** What's wrong with the chosen level, under the closed name (the open list says it itself). */
+	const warning = $derived.by(() => {
+		if (open.includes("resolution")) return undefined;
+		if (!(value in LABEL)) return m.get_data_resolution_unknown_blocked();
+		return checkedChoice?.blocked ? reason(checkedChoice) : undefined;
+	});
 
 	const LABEL: Record<ResolutionChoice["level"], () => string> = {
 		auto: () => m.get_data_resolution_auto(),
@@ -51,16 +58,16 @@
 </script>
 
 <div class="flex flex-col gap-2">
-	<Accordion.Root type="multiple" class="flex flex-col">
+	<Accordion.Root type="multiple" bind:value={open} class="flex flex-col">
 		<Accordion.Item value="resolution" class="flex flex-col gap-1">
 			<!-- The help button sits beside the header, outside the trigger. -->
 			<div class="flex items-center gap-1">
-				<div class="[&_h2]:text-primary min-w-0 flex-1 [&_h2]:font-semibold">
+				<div class="min-w-0 flex-1">
 					<SectionTrigger
 						level={2}
 						label={m.get_data_resolution()}
-						detail={LABEL[value]?.()}
-						warning={checkedChoice?.blocked ? reason(checkedChoice) : undefined}
+						detail={value in LABEL ? LABEL[value]() : undefined}
+						{warning}
 					/>
 				</div>
 				<Toggletip label={m.get_data_resolution_help_label()} text={m.get_data_resolution_help()} />

@@ -655,7 +655,7 @@ test("Data resolution hides for a pinned type; Every measurement is disabled ove
 	}
 });
 
-test("Data resolution is its own section after What, with a help button; the line is in More options", async () => {
+test("Data resolution is its own section after What, with a help button", async () => {
 	const { host } = await show(monitorsDraft(["m1"]));
 	const heading = page.getByRole("heading", { name: /^Data resolution/ });
 	await expect.element(heading).toBeVisible();
@@ -816,15 +816,20 @@ test("keyboard: the date list, accordion and Show as work without a mouse", asyn
 	await expect.element(current).toBeChecked();
 });
 
-test("the left column reads When, Where, What, Data resolution", async () => {
-	await show(monitorsDraft(["m1"]));
-	await expect.element(page.getByRole("heading", { name: /^Data resolution/ })).toBeVisible();
-	// The left column's own headings (More options, in the same column, comes after them).
-	const names = page
+/** The h2 texts in the choices column (the left column), in order. */
+function leftColumnHeadings(): string[] {
+	return page
+		.getByTestId("get-data-choices")
 		.getByRole("heading", { level: 2 })
 		.elements()
 		.map((el) => el.textContent?.trim() ?? "");
-	expect(names.slice(0, 4)).toEqual([
+}
+
+test("the left column reads When, Where, What, Data resolution", async () => {
+	await show(monitorsDraft(["m1"]));
+	await expect.element(page.getByRole("heading", { name: /^Data resolution/ })).toBeVisible();
+	// More options, in the same column, comes after them.
+	expect(leftColumnHeadings().slice(0, 4)).toEqual([
 		"When",
 		"Where",
 		"What",
@@ -1784,6 +1789,19 @@ describe("now widgets", () => {
 			.element(page.getByRole("button", { name: /^Dates/ }))
 			.toHaveTextContent(m.getdata_preset_last_7_days());
 		expect((await current()).data.dateRange).toEqual({ kind: "trailing", amount: 7, unit: "day" });
+	});
+
+	test("Current conditions reads Where, What; the Map on Now reads When, Where, What, with no Data resolution", async () => {
+		const first = await show(currentDraft());
+		await expect.element(page.getByRole("heading", { name: "Where", level: 2 })).toBeVisible();
+		expect(leftColumnHeadings()).toEqual(["Where", "What"]);
+		first.host.remove();
+		await show({
+			type: "map",
+			data: { layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }] }
+		});
+		await expect.element(page.getByRole("heading", { name: "Where", level: 2 })).toBeVisible();
+		expect(leftColumnHeadings()).toEqual(["When", "Where", "What"]);
 	});
 
 	test("a Map's When offers Now and the date methods; Data resolution only with a range", async () => {
