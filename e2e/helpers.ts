@@ -63,6 +63,18 @@ export const CHART_TITLE = "PM2.5 · Fresno County · Last 30 days";
 /** The starter's welcome Note's title. */
 export const NOTE = "Note";
 
+/**
+ * Whether the page's browser can make a WebGL context. Firefox in Playwright's container has none,
+ * so a Map there shows no map region (only its frame and title): a test asserts the region only
+ * where this is true, and everything else regardless.
+ */
+export function hasWebGL(page: Page): Promise<boolean> {
+	return page.evaluate(() => {
+		const canvas = document.createElement("canvas");
+		return !!(canvas.getContext("webgl2") ?? canvas.getContext("webgl"));
+	});
+}
+
 /** The starter's Map's generated title: its pollutant in Fresno County. */
 export const MAP_TITLE = "PM2.5 map · Fresno County";
 

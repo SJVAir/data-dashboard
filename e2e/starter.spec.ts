@@ -12,6 +12,7 @@ import {
 	CHART_TITLE,
 	DASHBOARD_URL,
 	NOTE,
+	hasWebGL,
 	STARTER_TITLES,
 	expectNoViolations,
 	expectSaved,
@@ -141,11 +142,13 @@ test.describe("the starter's Map", () => {
 
 	test("Change place moves the Map", async ({ page }) => {
 		await page.goto("./");
-		await expect(starterMap(page)).toBeVisible();
+		const webgl = await hasWebGL(page);
+		await expect(widgetTitles(page)).toHaveText(STARTER_TITLES);
+		if (webgl) await expect(starterMap(page)).toBeVisible();
 		await changeBarPlace(page, "Tulare County");
 		await expect(widgetTitles(page)).toHaveText(TULARE_TITLES);
 		await expect(widgetTitles(page).nth(4)).toHaveText("PM2.5 map · Tulare County");
-		await expect(starterMap(page, "Tulare County")).toBeVisible();
+		if (webgl) await expect(starterMap(page, "Tulare County")).toBeVisible();
 	});
 
 	test("the first edit's copy keeps the Map's monitor types", async ({ page }) => {
@@ -169,7 +172,9 @@ test.describe("the starter's Map", () => {
 		// Below the fold, its code waits until it's scrolled near.
 		await titleBar(page, "Map").scrollIntoViewIfNeeded();
 		await expect(widgetTitles(page)).toHaveText(STARTER_TITLES);
-		const map = starterMap(page);
+		// The widget's frame, which a browser with no WebGL shows too (it has no map region).
+		const map = page.getByTestId("widget-starter-5");
+		if (await hasWebGL(page)) await expect(starterMap(page)).toBeVisible();
 		await expect(map).toBeVisible();
 		const frame = (await map.boundingBox())!;
 		expect(frame.width).toBeGreaterThan(390 * 0.85);
@@ -410,7 +415,7 @@ for (const colorScheme of ["light", "dark"] as const) {
 					// Scrolled near, the Map loads and takes its full title; checked again with it.
 					await titleBar(page, "Map").scrollIntoViewIfNeeded();
 					await expect(widgetTitles(page)).toHaveText(STARTER_TITLES);
-					await expect(starterMap(page)).toBeVisible();
+					if (await hasWebGL(page)) await expect(starterMap(page)).toBeVisible();
 					await expectNoViolations(page);
 					// The welcome Note grows to fit its text on a phone (WCAG reflow): none of it is
 					// hidden behind a scroll inside the Note.
