@@ -46,3 +46,21 @@ test("a browser Back drops a pending request", () => {
 	window.dispatchEvent(new PopStateEvent("popstate"));
 	expect(pendingFocusTarget()).toBeNull();
 });
+
+test("a screen reader's activation (a click with no pointer behind it) drops a pending request", () => {
+	requestFocus({ kind: "title", id: "s" });
+	document.body.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 0 }));
+	expect(pendingFocusTarget()).toBeNull();
+});
+
+test("a request made while handling a screen reader's activation survives it", () => {
+	const button = document.createElement("button");
+	document.body.append(button);
+	button.addEventListener("click", () => requestFocus({ kind: "title", id: "r" }));
+	try {
+		button.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 0 }));
+		expect(pendingFocusTarget()).toEqual({ kind: "title", id: "r" });
+	} finally {
+		button.remove();
+	}
+});

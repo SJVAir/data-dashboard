@@ -2725,11 +2725,8 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     starter doc is built twice** (T5-m3). **The tie test doesn't assert two candidates remain**
     (T5-m4: add `expect(placesToReplace(...)).toHaveLength(2)`). **Fix with** the next change to
     `src/lib/actions/dashboard.ts` or its tests.
-  - **A request pending when the hand-off fails isn't re-evaluated until the next press
-    or key** (T6-m2: `handingOff` is read untracked in `WidgetFrame.svelte`). **A comment at
-    `WidgetFrame.svelte` (about line 585) omits Back and Forward** (T6-m3). **Screen-reader
-    synthetic activation doesn't drop a pending request** (T6-m4, pre-existing). **Fix with** the
-    next change to `WidgetFrame.svelte`.
+  - **A comment at `WidgetFrame.svelte` (about line 585) omits Back and Forward** (T6-m3). **Fix
+    with** the next change to `WidgetFrame.svelte`.
   - **The setter path could discard a just-kept starter if the current one is another kept
     starter** (T7-m2). Unreachable today. **Revisit with** the next change to the starter claims
     in `src/lib/store/app.svelte.ts`.

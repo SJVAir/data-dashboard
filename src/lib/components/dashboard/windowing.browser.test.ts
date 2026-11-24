@@ -354,6 +354,32 @@ test("after a failed hand-off, a focus request on the starter focuses the title 
 	expect(pendingFocusTarget()).toBeNull();
 });
 
+test("a focus request pending when the hand-off fails is taken then, with no press or key", async () => {
+	const answer = holdTypes();
+	const platform = createMemoryPlatform();
+	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	stubStarterTypes();
+	history.replaceState(null, "", "/workspace/");
+	await render(App, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await expect.element(page.getByTestId("widget-starter-2")).toBeVisible();
+	const starter = app.current.session!;
+	starter.apply({ op: "setField", target: { path: "name" }, from: null, to: "Mine" });
+	requestFocus({ kind: "title", id: "starter-2" });
+	await settle();
+	// Left for the copy's frame while the hand-off waits for the types.
+	expect(starter.handingOff).toBe(true);
+	expect(pendingFocusTarget()).toEqual({ kind: "title", id: "starter-2" });
+	// The copy can't be stored, so the hand-off fails and the starter stays.
+	vi.spyOn(platform.documents, "commit").mockRejectedValueOnce(new Error("no storage"));
+	answer();
+	await expect.poll(() => starter.status).toBe("error");
+	expect(app.current.session).toBe(starter);
+	await expect.poll(() => pendingFocusTarget()).toBeNull();
+	expect(document.activeElement).toBe(
+		page.getByTestId("widget-starter-2").getByRole("group").element()
+	);
+});
+
 test("moving a starter widget from the ⋯ menu by mouse while the types load keeps focus on its title bar", async () => {
 	const answer = holdTypes();
 	const app = await starterApp("/workspace/");
