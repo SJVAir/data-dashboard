@@ -218,10 +218,11 @@ set. One copy of zod is installed. So the app is still clean only because `$lib/
       frame reads) is false again, so the next focus request is taken by the starter's frame.
     - Moving a starter widget from the ⋯ menu by mouse during the wait keeps focus on that
       widget's title bar (not `<body>`) until the copy shows, as the keyboard path does.
-17. **During a catalog outage** the starter asks once per page: a failed or late load is kept
-    (an empty list) for the page's life, so later exits and starter builds don't wait again and
-    only one failure report is sent; a reload asks again **(my call)**. A new Map's add keeps its
-    own ask, unchanged.
+17. **During a catalog outage** the starter asks once per page: a failed load (an error, which
+    is reported) is kept as an empty list for the page's life, so later exits and starter builds
+    don't wait again and only one failure report is sent; a reload asks again. A late load (no
+    answer in `CATALOG_WAIT_MS`) is still asked again by the next exit, as today, so a slow
+    connection still gets its types **(my call)**. A new Map's add keeps its own ask, unchanged.
 18. **Edit data opened on the starter's Map before the types arrive** stores the catalog's types:
     saving waits for the types and fills them into a Map layer whose types the person didn't
     set, the same as the hand-off does **(my call: the builder picks the exact point, the draft
