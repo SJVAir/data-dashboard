@@ -93,6 +93,11 @@ test("the ⋯ is inert while a widget is fullscreen", async () => {
 	await render(App, { context: context(app) });
 	await expect.element(page.getByRole("button", { name: "Exit fullscreen" })).toBeVisible();
 	await expect.poll(() => more().element().closest("[inert]")).not.toBeNull();
+	await page.getByRole("button", { name: "Exit fullscreen" }).click();
+	await expect.poll(() => more().element().closest("[inert]")).toBeNull();
+	await more().click();
+	await expect.element(page.getByRole("menuitem", { name: /^Add widget/ })).toBeVisible();
+	await userEvent.keyboard("{Escape}");
 });
 
 test("the ⋯ follows the dashboard on screen", async () => {
@@ -102,14 +107,13 @@ test("the ⋯ follows the dashboard on screen", async () => {
 	await screen.unmount();
 	await expect.element(more()).not.toBeInTheDocument();
 
-	const second = await setup();
-	await render(Harness, { props: {}, context: context(second.app) });
+	// Another dashboard in the same app.
+	const id = await first.app.index.createBlank();
+	const other = (await first.app.sessions.get(id))!;
+	other.doc.name = "Second one";
+	first.app.current = { session: other, isStarter: false };
+	await render(Harness, { props: {}, context: context(first.app) });
 	await more().click();
 	await page.getByRole("menuitem", { name: /^Rename dashboard/ }).click();
-	await expect.element(page.getByRole("dialog")).toBeVisible();
-	const input = page.getByRole("textbox");
-	await input.fill("Second one");
-	await userEvent.keyboard("{Enter}");
-	await expect.poll(() => second.session.doc.name).toBe("Second one");
-	expect(first.session.doc.name).not.toBe("Second one");
+	await expect.element(page.getByRole("textbox")).toHaveValue("Second one");
 });

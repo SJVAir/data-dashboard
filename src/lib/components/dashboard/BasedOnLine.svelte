@@ -35,7 +35,7 @@
 </script>
 
 {#if line}
-	<p data-testid="based-on" class="text-muted-foreground min-w-0 truncate text-sm" {inert}>
+	<p data-testid="based-on" class="text-muted-foreground text-sm" {inert}>
 		{line}
 	</p>
 {/if}
