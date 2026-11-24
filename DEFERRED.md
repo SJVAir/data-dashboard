@@ -97,7 +97,8 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   (Foundations spec 5a, final review)._ The app's `securitypolicyviolation` listener starts
   only after the platform (IndexedDB) is ready, so violations during the bootstrap are missed
   in the app's own reports; the CSP header's `report-uri` still covers them. **Revisit if**
-  the violation reports show gaps.
+  the violation reports show gaps. _Looked at in step 6 spec 2:_ the CSP check sees bootstrap
+  violations in the browser; the app's own reports still miss them.
 - **WebKit and a failed chunk after reload.** _Deferred 2026-10-26 (Foundations spec 5a,
   final review)._ In the E2E suite, once Playwright's WebKit fails to import the app chunk
   (a routed 404 or abort, even with `no-store`), a reload or a fresh navigation in the same
@@ -106,6 +107,23 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   refreshes the entry files and reloads. Unknown whether real Safari does the same after a
   real 404 (a page loading mid-deploy). **Revisit in** the beta preview: check a reload in
   Safari after a missing chunk; if it stays broken, retry the import under a new URL.
+- **The SDK builds its zod schemas when its modules load.** _Deferred 2026-11-23 (step 6 spec 2,
+  decision 1)._ `@sjvair/sdk` `5.0.0-beta.17` imports zod itself and builds `z.object` schemas
+  at load (checked 2026-11-23: `node_modules/@sjvair/sdk/lib/meta/schemas/scale.js` does
+  `import * as z from "zod"` and builds `z.object` at the top level; the same holds for the
+  schema modules of `account`, `calenviroscreen`, `calheatscore`, `collocation_sites`,
+  `forecasts`, `hms`, `meta`, `monitors`, `pesticides` and `regions`). There is one copy of zod
+  in `node_modules` (4.6.7), so `$lib/zod`'s `z.config({ jitless: true })` applies to the SDK's
+  schemas too. zod 4.6.7 reads `allowsEval.value` when an object schema is created
+  (`node_modules/zod/v4/core/schemas.js`) and runs its `new Function` probe unless `jitless` is
+  already set (`node_modules/zod/v4/core/util.js`, `allowsEval`). So the app is clean only
+  because `$lib/zod` runs before the SDK's schema modules, the import order `$lib/zod` itself
+  says not to rely on. **Why we leave it (option A):** the CSP check in CI fails every test on a
+  reorder, so a regression can't merge unseen. **Why not B or C:** building the schemas lazily
+  (B) touches about 40 modules and changes exports in a beta right before launch; setting
+  `jitless` inside the SDK (C) makes a library change a global zod setting for the mobile app
+  and monitor-map too. **Revisit:** after launch; when sdk-js next works on its schemas; or when
+  the CSP check reports the probe.
 - **Check the built app for zod eval violations before go-live.** _Deferred 2026-10-26 (Foundations
   spec 5a, final fix-wave review); reworded as a go-live check 2026-11-11 (the user)._ **Before
   go-live**, check the built app for `script-src` eval violations from zod on every route,
@@ -130,12 +148,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   **Revisit:** before go-live (listed under "Production deploy of sjvair.com `develop` → `main`"
   below); when the E2E CSP fixture reports the probe; or when someone next works on the SDK's
   schemas.
-- **Gaps in the E2E CSP checks.** _Deferred 2026-10-26 (Foundations spec 5a, final fix-wave
-  review)._ The ESLint rule bans only the exact `"zod"` import, not `zod/*` subpaths or dynamic
-  `import("zod")` (add `patterns: ["zod/*"]`). The CSP fixture doesn't cover contexts made with
-  `browser.newContext()` (the sharing and backup specs). And `e2e/csp.spec.ts`'s "eval is blocked"
-  self-test injects an inline script, so it proves the checker works but not that eval is caught.
-  **Revisit when** touching the E2E fixtures or the zod wrapper.
 - **Spec 5a polish.** _Deferred 2026-10-26 (Foundations spec 5a, final review)._ Small
   follow-ups, none blocking. **Revisit when** next touching each file:
   - The `/workspace` base path is written in four places and `https://www.sjvair.com` in two;

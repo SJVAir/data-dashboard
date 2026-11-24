@@ -283,4 +283,11 @@ set. One copy of zod is installed. So the app is still clean only because `$lib/
 
 ## Build calls
 
-(Filled in while building.)
+- **Sign-in links are dropped from the walk.** They leave the app (to sjvair.com's own pages), so
+  the walk has nothing to check there.
+- **The stack's starter is reached through New from starter,** not by opening the root route.
+- **Decision 19's save sites already store `null`.** `normalizeName` in
+  `src/lib/documents/schema.ts` returns `null` for an empty or whitespace-only name, so the
+  places that save a typed title need no change.
+- **Decision 17 is refined:** a late catalog (no answer in `CATALOG_WAIT_MS`) is still asked
+  again by the next exit; only a failed load is kept as an empty list for the page's life.
