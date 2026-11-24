@@ -14,7 +14,8 @@ import { chartType } from "$lib/widgets/chart";
 import { showInDraft } from "$lib/widgets/map/show-in";
 import { ADDED_HIGHLIGHT_MS } from "$lib/layout/focus-request.svelte";
 import { createMemoryPlatform } from "$lib/platform/memory";
-import { blankDashboard, STARTER_ID } from "$lib/starter/starter";
+import { blankDashboard, STARTER_ID, starterTemplate } from "$lib/starter/starter";
+import { getMetadata } from "$lib/data";
 import { APP_CONTEXT_KEY, LAST_OPENED_KEY, initApp, type AppContext } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import App from "../App.svelte";
@@ -320,6 +321,47 @@ test("a pre-spec widget opens unchanged; Save changes with no changes applies no
 	await expect.poll(() => focusedIn(frame)).toBe(true);
 	// Editing never writes the Get data draft.
 	expect(await platform.preferences.get(app.space, DRAFT_KEY)).toBeUndefined();
+});
+
+// Passes without Get data's starter claim today: the edit effect tracks `starterTypes` (through
+// opening the starter) and reopens the fresh one when they arrive. Once it stops tracking, the
+// claim keeps the starter it opened usable.
+test("Edit data on the starter while the types load: the copy it saves keeps saving", async () => {
+	const platform = createMemoryPlatform();
+	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	// The catalog answers when the test says, with monitor types for the starter's Map.
+	let answer!: () => void;
+	const held = new Promise<void>((resolve) => (answer = resolve));
+	const catalog = vi.spyOn(getMetadata(), "catalog").mockImplementation(async () => {
+		await held;
+		return FIXTURE_CATALOG.map((d) =>
+			d.id === "air-quality" ? { ...d, monitorTypes: ["purpleair"] } : d
+		);
+	});
+	try {
+		const chart = starterTemplate().body.widgets.findIndex((w) => w.type === "chart");
+		const widgetId = `starter-${chart + 1}`;
+		await navigate("/dashboards/:id/widgets/:widgetId/edit", {
+			params: { id: STARTER_ID, widgetId }
+		});
+		await render(App, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+		await expect.element(saveButton()).toBeVisible();
+		// The types arrive while Edit data holds the starter (nothing is current here).
+		answer();
+		await expect.poll(() => app.starterTypes).not.toBeNull();
+		await page.getByRole("radio", { name: "Data table" }).click();
+		await saveButton().click();
+		await expect.poll(() => app.current.session?.doc.copiedFrom).toBe(STARTER_ID);
+		const copy = app.current.session!;
+		await copy.flush();
+		// A later edit on the copy is stored.
+		copy.apply({ op: "setField", target: { path: "name" }, from: null, to: "Mine" });
+		await copy.flush();
+		const stored = (await platform.documents.get(app.space, copy.doc.id)) as Dashboard;
+		expect(stored.name).toBe("Mine");
+	} finally {
+		catalog.mockRestore();
+	}
 });
 
 test("Save changes applies one undo step and focuses the widget's title", async () => {

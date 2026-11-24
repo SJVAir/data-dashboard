@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, untrack } from "svelte";
+	import { onDestroy, onMount, untrack } from "svelte";
 	import { toast } from "svelte-sonner";
 	import { blockNavigation } from "sv-router";
 	import { addFromDraft, addTargets, landedIn } from "$lib/get-data/add";
@@ -28,6 +28,9 @@
 	// No dashboard is open here: undo, redo and the preview's widget actions never reach one (as
 	// on the dashboards list).
 	app.current = { session: null, isStarter: false };
+	// This page may hold the starter (Edit data on it, or Add to it): one the types swap replaces
+	// meanwhile stays usable while mounted.
+	onDestroy(app.claimStarter());
 
 	const mode = $derived(parseGetDataMode(route.params));
 	/**
