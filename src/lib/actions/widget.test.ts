@@ -11,7 +11,7 @@ import type { SpaceId } from "$lib/platform/types";
 import type { AppContext } from "$lib/store/app.svelte";
 import { DocumentSession } from "$lib/store/document-session.svelte";
 import { isDisabled, type MenuItem } from "./types";
-import { placeItems, widgetActions } from "./widget";
+import { hasTypedTitle, placeItems, widgetActions, widgetTitle } from "./widget";
 import { placePicker, requested } from "$lib/components/dialogs/lazy.svelte";
 import { takeAfterMenuClose } from "$lib/components/menu/menu-state.svelte";
 import { registerWidgetType } from "$lib/widgets/registry";
@@ -284,5 +284,19 @@ describe("Edit data", () => {
 	it("not on a read-only dashboard, nor for a Placeholder", async () => {
 		expect(editItem((await setup([typed("chart")], 12, true)).app)).toBeUndefined();
 		expect(editItem((await setup([typed("placeholder")])).app)).toBeUndefined();
+	});
+});
+
+describe("widgetTitle", () => {
+	it("an empty or blank title shows the generated one", () => {
+		const base = widget("a", { x: 0, y: 0, w: 6, h: 4 });
+		const generated = widgetTitle(base);
+		expect(generated).not.toBe("");
+		for (const title of ["", "  "]) {
+			expect(hasTypedTitle({ ...base, title })).toBe(false);
+			expect(widgetTitle({ ...base, title })).toBe(generated);
+		}
+		expect(hasTypedTitle({ ...base, title: "Mine" })).toBe(true);
+		expect(widgetTitle({ ...base, title: "Mine" })).toBe("Mine");
 	});
 });

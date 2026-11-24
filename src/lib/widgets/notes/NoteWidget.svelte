@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { getContext } from "svelte";
+	import { hasTypedTitle } from "$lib/actions/widget";
 	import type { WidgetInstance } from "$lib/documents/schema";
 	import { noteMarkdown } from "$lib/notes/messages";
 	import { toNoteBlocks } from "$lib/notes/markdown";
@@ -68,7 +69,7 @@
 	data-fullscreen={fullscreen}
 	tabindex="0"
 	role="region"
-	aria-label={widget.title ?? m.widget_note_title()}
+	aria-label={hasTypedTitle(widget) ? widget.title! : m.widget_note_title()}
 	{ondblclick}
 >
 	<div class="flex flex-col gap-2" {@attach measure}>

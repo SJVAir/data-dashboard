@@ -63,9 +63,14 @@ function generated(widget: WidgetInstance): string {
 	);
 }
 
+/** The person typed a title: an empty or blank one (only an incoming document has one) names nothing. */
+export function hasTypedTitle(widget: WidgetInstance): boolean {
+	return widget.title != null && widget.title.trim() !== "";
+}
+
 /** A widget's display title: its own, else its generated one. */
 export function widgetTitle(widget: WidgetInstance): string {
-	return widget.title ?? generated(widget);
+	return hasTypedTitle(widget) ? widget.title! : generated(widget);
 }
 
 /** The editable current session and the widget in it, read when an action runs. */
