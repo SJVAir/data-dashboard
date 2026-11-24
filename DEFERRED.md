@@ -2666,28 +2666,11 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     `src/lib/widgets/map/start.ts`.
   - **A weak copies-length assertion in a starter test.** (T2-a.) It would pass with the wrong
     count. **Fix with** the next change to `starter.test.ts`.
-  - **A kept starter session can leak its `pagehide` and `pageshow` listeners.** (T3-a.) When the
-    app keeps an opened starter that was replaced (its first edit hands off, so the new one is
-    never tracked), or a caller other than Home makes the old one current and the place then
-    changes. Reachable through Home too: open `/`, then leave for `/dashboards` or the Data Portal
-    (both set no dashboard current) before the catalog answers; the replaced starter is kept and
-    never discarded, so its listeners stay for the page's life. Harmless in practice (it's
-    unedited, so there's nothing to journal) and only during the catalog wait. **Revisit if**
-    session leaks show up, or with the next change to the app's starter handling.
-  - **Two starter negatives wait a fixed 10 ms** ("New from starter", "an edited starter isn't
-    swapped"). (T3-b.) **Replace with** a wait on a signal with the next change to those tests.
-  - **No test that Export of an ordinary dashboard doesn't start the catalog load.** (T3-c.)
-    **Add with** the next change to Export or `starterTypesReady`.
-  - **"Duplicate for another place" from the starter, during the types wait, can use a stale
-    `from`.** (T3-d.) If an edit changed the bar's place meanwhile, nothing is replaced. A narrow
-    window. **Revisit on** a report, or with the next change to that path.
   - **The starter Map E2E skips Firefox entirely** (T4-a), though its geometry checks don't need
     WebGL. **Revisit with** the next change to `e2e/starter.spec.ts`: run the geometry part on all
     three engines.
   - **The starter Map's full-width check is "more than 85% of main"** (T4-b), which is loose.
     **Tighten with** the next change to that test.
-  - **A local `app` shadows the module's `app()` in the Map hand-off browser test** (T4-c).
-    **Rename with** the next change to `map-widget.browser.test.ts`.
   - **A nit in the Lighthouse script** (T5-a): `signedInProfile`'s doc comment sits above the
     `SignInFailure` class, and the header comment has a line over 100 columns. **Fix with** the
     next change to `e2e/lighthouse/`.
@@ -2701,47 +2684,68 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **A generated Map title joins its notes two ways** (T6b-a): the generated branch uses
     `sentence_join`, the typed-title branch `map_label_marks_hidden`, so the two could drift.
     **Revisit with** the next change to `map-title.svelte.ts`.
-  - **An empty typed Map title gives an empty widget title and no map region label** (T6b-b). The
-    schema allows `""`, and the typed branch treats it as typed. Pre-existing, not from this spec.
-    **Revisit with** the next change to widget titles or the schema.
   - **A default-zone E2E flake: "Show as Chart from a Map with schools notes them left out"**
     (T6b-c). It flaked in a default-zone run and passed when run alone (twice). **Revisit if** it
     fails again in CI.
-  - **The starter's first edit stays invisible while the types load.** `onBeforeFirstEdit` now
-    waits for `typesReady()` before the copy is committed, and a starter session doesn't apply
-    queued edits to its own document. Before this spec that wait was one commit; now it can be up
-    to `CATALOG_WAIT_MS` if someone edits within the first seconds on a slow connection. Decision 11
-    accepts the wait. **Revisit when** people report it, or at the first usability testing.
-  - **Export of the starter during the types wait ignores an edit made meanwhile.** `targetOf`
-    exports `starterDashboard(...)` after `await app.starterTypesReady()` even if the starter's
-    hand-off started meanwhile (Duplicate handles this through `duplicateSource`; Export doesn't).
-    A narrow window; the exported file lacks the edit. **Revisit when** people report it, or at the
-    first usability testing.
-  - **No component-level test that the types swap keeps focus and fullscreen** (decision 10: it
-    must not cost the person anything). The unit test checks the widget ids; the guarantee comes
-    from `DashboardGrid` keying, which a later refactor could break silently. **Revisit when**
-    people report it, or at the first usability testing.
-  - **A pending focus request survives a browser Back pressed mid-hand-off** until a frame with the
-    same widget id mounts (the focus store's existing behaviour). A starter frame handing off to
-    its copy now leaves its request pending for the copy, so the window is longer while the types
-    load. **Revisit when** people report it, or with the next focus-store change.
-  - **After a failed hand-off, the starter's `edited` stays true**, so later focus requests on that
-    starter only focus its title bar and stay pending until the next input. A failed hand-off is
-    rare (the copy couldn't be stored) and the bar still gets focus. **Revisit when** people report
-    it, or with the next focus-store change.
-  - **Moving a starter widget from the ⋯ menu by mouse while the types load leaves focus on
-    `<body>` until the copy shows** (the closing Move submenu takes it). A key press in that time
-    drops the pending request. Parked: mouse-only, and only during a slow catalog; the keyboard
-    path keeps focus on the title bar. **Revisit if** keyboard or screen-reader users report it,
-    or with the next focus-store or menu change.
-  - **During a catalog outage, every exit and every starter build asks for the types again.**
-    Each exit can wait the full `CATALOG_WAIT_MS` again, and each failure (not a timeout) sends
-    another error report. Parked: outages are rare, and it matches how a new Map asks on every
-    add. **Revisit if** error reports show repeats, or with the next change to the types load.
-  - **Edit data opened on the starter's Map before the types arrive saves no types.** Its draft
-    starts from the type-less widget, so saving it stores a Map with no monitor types. Very narrow
-    (seconds after a first visit). **Revisit when** people report it, or at the first usability
-    testing.
+- **WebKit's worker CSP violations aren't seen by the check.** _Deferred 2026-11-23 (step 6 spec 2,
+  ruling T2-b)._ Playwright's WebKit exposes no worker CSP event and no worker console message, so
+  the CSP walk can't see a violation raised inside a worker there. Workers are covered on Chromium
+  (through CDP Audits) and on Firefox (through the console). The worker self-test in
+  `e2e/csp.spec.ts` is `test.fixme` on WebKit. A WebKit-only violation would go unseen; the Map's
+  worker code is the same across engines. **Revisit if** Playwright's WebKit exposes worker CSP
+  events, or if a code path that runs only in WebKit workers appears.
+- **Step 6 spec 2 review leftovers.** _Deferred 2026-11-23 (step 6 spec 2, per-task reviews)._
+  Small things the reviews let stay:
+  - **The eval self-test's predicate is a little loose** (T1-m1): any `script-src*` violation whose
+    sample is "eval". **Tighten with** the next change to `e2e/csp.spec.ts`.
+  - **A redundant `{ auto: false }`** (T1-m2) in `e2e/fixtures.ts`. **Remove with** the next change
+    to that file.
+  - **The zod-import-ban test may be slow, and a template-literal `import(`zod`)` isn't caught**
+    (T1-m3). **Revisit with** the next change to the ESLint zod rule.
+  - **Violations after a watched context closes can be lost** (T1-m4). Inherent to the watch.
+    **Revisit if** a violation is ever seen to slip through.
+  - **The walk's place-picker step waits for any dialog,** not the picker's search box (T2-m2);
+    **the import-page step may end on the original dashboard URL, not the copy** (T2-m3). **Fix
+    with** the next change to `e2e/csp-walk.ts`.
+  - **`WALK_ROUTES` is a hand list, not tied to the steps** (T2-m4, plan-mandated), **and the
+    body-loaded check assumes the widget body is the frame's second child** (T2-m7). **Fix with**
+    the next change to `e2e/csp-walk-routes.ts` or `e2e/csp-walk.ts`.
+  - **`hasWebGL` is duplicated from `helpers.ts`** (T2-m5, justified). **Merge with** the next
+    change to either.
+  - **The stack run has data needs:** the show-in step needs at least one monitor row, and the
+    share-link step needs sync (T2-m6; failures say so). **`previewEachType` times out if a Show as
+    choice renders no preview or is disabled** (T2-m8). **Failed CDP sends are swallowed silently**
+    (T2-m9). **A worker started from inside another worker isn't watched** (T2-m10). **Revisit
+    with** the next change to the walk or the stack run.
+  - **Sign-in and header-check violations are labeled with the first walk step** (T3-m1), **the
+    per-step summary prints only if the walk completes** (T3-m2), **and Sentry is detected by
+    hostname only, so a same-origin tunnel wouldn't be seen** (T3-m3). **Fix with** the next
+    change to the stack run.
+  - **Stale comments** in `src/lib/store/document-session.svelte.ts` (about lines 35 and 794, and
+    in `arrangeBy`) (T4-m1). **A read-only `arrangeBy` no longer closes the menu** (T4-m2).
+    **Fix with** the next change to `document-session.svelte.ts`.
+  - **Export after a failed hand-off adds no toast of its own** (T5-m2); the starter's save error
+    from step 6 spec 2 task 4 shows. **`duplicateSource`'s `doc` is null for the starter, so the
+    starter doc is built twice** (T5-m3). **The tie test doesn't assert two candidates remain**
+    (T5-m4: add `expect(placesToReplace(...)).toHaveLength(2)`). **Fix with** the next change to
+    `src/lib/actions/dashboard.ts` or its tests.
+  - **The mouse-Move test can pass vacuously** (T6-m1: it doesn't assert the closed-menu bounce
+    happened). **A request pending when the hand-off fails isn't re-evaluated until the next press
+    or key** (T6-m2: `handingOff` is read untracked in `WidgetFrame.svelte`). **A comment at
+    `WidgetFrame.svelte` (about line 585) omits Back and Forward** (T6-m3). **Screen-reader
+    synthetic activation doesn't drop a pending request** (T6-m4, pre-existing). **Fix with** the
+    next change to `WidgetFrame.svelte`.
+  - **The setter path could discard a just-kept starter if the current one is another kept
+    starter** (T7-m2). Unreachable today. **Revisit with** the next change to the starter claims
+    in `src/lib/store/app.svelte.ts`.
+  - **Edit data on the starter: `starterPlace` and `resetCount` dependencies are untracked**
+    (T8-m2, likely unreachable); **the lastWeek date assertion in `get-data.browser.test.ts` (about
+    line 392) is weak** (T8-m3); **a new test uses a `setTimeout(200)` negative check** (T8-m8);
+    **`adaptHandedOff` doesn't cover edits forwarded after the copy takes over** (T8-m9, safe
+    today); **`air-quality-section.browser.test.ts` (about line 58) has an implicit any that
+    `npm run check` misses** (T8-m5, pre-existing). **Fix with** the next change to each file.
+  - **`hasTypedTitle` could be a type guard** (T9-m1), to drop the `widget.title!` assertions.
+    **Do with** the next change to `src/lib/actions/widget.ts`.
 - **The startup chain keeps LCP over 2.5 s on a throttled phone.** _Deferred 2026-11-23 (step 6
   spec 1, the Lighthouse check; the user: revisit at go-live)._ The LCP element is the welcome
   Note's text. It waits for the app chunk (188 KB gzipped) to download and run its startup

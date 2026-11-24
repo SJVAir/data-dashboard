@@ -291,3 +291,23 @@ set. One copy of zod is installed. So the app is still clean only because `$lib/
   places that save a typed title need no change.
 - **Decision 17 is refined:** a late catalog (no answer in `CATALOG_WAIT_MS`) is still asked
   again by the next exit; only a failed load is kept as an empty list for the page's life.
+- **The walk's CSP watch uses CDP, not `report-uri` (T2-a).** The preview's header stays the
+  contract's. CDP covers Chromium (workers too); Firefox is read from the console.
+- **WebKit surfaces no worker CSP violation (T2-b).** The worker self-test is `test.fixme` on
+  WebKit; the gap is in `DEFERRED.md`.
+- **Firefox's console text is hyphenated,** so the console regex is `/Content[- ]Security[- ]Policy/i`.
+- **"Edit data" is "Open in Data Portal" in the app.** There is no not-found page: unknown paths
+  go home.
+- **Duplicate for another place (T5-a):** it uses `from` if present, else the single remaining
+  place, else makes no copy and shows a toast.
+- **A catalog that answers "unavailable" counts as failed (T7-a),** because `metadata.ts` swallows
+  fetch errors and decision 17 would otherwise never fire. A timeout is its own result and isn't
+  failed. A real outage answers "unavailable", which was never reported, and still isn't.
+- **Home and Get data claim the starter while mounted (T7-b, T7-c).** The starter is kept only
+  while something claims it and is discarded when the last claim is released
+  (`releaseStarter`, decision 15).
+- **Types are filled in the starter's hand-off (T8-b),** for every queued `setWidgetData` on a
+  type-less Map layer (a `DocumentSession` adapt hook). This replaces filling at Save (T8-a): Edit
+  data's Save no longer waits for the types.
+- **The empty typed title rule (decision 19) goes through `hasTypedTitle`** in
+  `src/lib/actions/widget.ts`, used by the Map and Note widgets.
