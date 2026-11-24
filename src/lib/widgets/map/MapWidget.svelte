@@ -876,7 +876,9 @@
 			savedFill ? fillInfo?.plural : undefined
 		])
 	);
-	const title = $derived(widget.title ?? generatedTitle(widget.id));
+	/** The person typed a title (the schema allows an empty one, which names nothing). */
+	const typed = $derived(widget.title != null);
+	const title = $derived(typed ? widget.title : generatedTitle(widget.id));
 
 	const noteLinesOf = new MapNoteLines(
 		{
@@ -947,14 +949,17 @@
 			? m.sentence_join({ first: figureLabel, second: hiddenText })
 			: figureLabel || hiddenText || undefined
 	);
-	/** The map's accessible name, which also says which marks aren't shown and why. */
-	const mapLabel = $derived(
-		!title
-			? undefined
-			: hiddenText
-				? m.map_label_marks_hidden({ title, notes: hiddenText })
-				: m.map_label({ title })
-	);
+	/**
+	 * The map's accessible name, which also says which marks aren't shown and why. A generated
+	 * title already names the map; a typed one gets "map" after it.
+	 */
+	const mapLabel = $derived.by(() => {
+		if (!title) return undefined;
+		if (!typed) return hiddenText ? m.sentence_join({ first: title, second: hiddenText }) : title;
+		return hiddenText
+			? m.map_label_marks_hidden({ title, notes: hiddenText })
+			: m.map_label({ title });
+	});
 
 	/** Why the places can't all be shown, over a map that still draws. */
 	const note = $derived.by<QueryState | null>(() => {

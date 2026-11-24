@@ -33,6 +33,7 @@
 		"test:sync-stack": "SYNC_STACK=1 vitest run --project unit src/lib/sync/remote-stack.test.ts",
 		"test:embedding": "playwright test -c playwright.local.config.ts --project=embedding",
 		"test:e2e:podman": "bash scripts/e2e-podman.sh",
+		"perf:lighthouse": "playwright test -c playwright.lighthouse.config.ts",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint ."
 	},

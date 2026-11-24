@@ -44,6 +44,7 @@ import { formatNumber, pacificDay, todayPacific } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";
 import { setPlatform } from "$lib/platform";
 import { createMemoryPlatform, type MemoryPlatform } from "$lib/platform/memory";
+import { STARTER_ID } from "$lib/starter/starter";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
 import { DocumentSession } from "$lib/store/document-session.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
@@ -877,24 +878,31 @@ test("refits when entering fullscreen", async () => {
 	expect(fakeMaps.made).toHaveLength(1);
 });
 
+test("a typed title gets map after it in the map's name", async () => {
+	const typed = { ...mapWidget(region("019")), title: "Smog watch" };
+	await show(typed);
+	const map = await madeMap();
+	await expect.poll(() => map.view.label).toBe(m.map_label({ title: "Smog watch" }));
+});
+
 test("title for one place and several", async () => {
 	const one = mapWidget(region("019"));
 	const first = await show(one);
-	await expect.poll(() => generatedTitle(one.id)).toBe("PM2.5 · Fresno County");
+	await expect.poll(() => generatedTitle(one.id)).toBe("PM2.5 map · Fresno County");
 	const map = await madeMap();
-	await expect.poll(() => map.view.label).toBe(m.map_label({ title: "PM2.5 · Fresno County" }));
+	await expect.poll(() => map.view.label).toBe("PM2.5 map · Fresno County");
 	await first.unmount();
 
 	const point = mapWidget({ place: { kind: "point", lat: 36.7, lon: -119.8 } });
 	const shared = await show(point, "shared");
-	await expect.poll(() => generatedTitle(point.id)).toBe("PM2.5 · ZIP 93721 (shared location)");
+	await expect.poll(() => generatedTitle(point.id)).toBe("PM2.5 map · ZIP 93721 (shared location)");
 	await shared.unmount();
 
 	const several = mapWidget({
 		selection: { kind: "regions", ids: ["county:019", "county:029", "county:107"] }
 	});
 	await show(several);
-	await expect.poll(() => generatedTitle(several.id)).toBe("PM2.5 · 3 places");
+	await expect.poll(() => generatedTitle(several.id)).toBe("PM2.5 map · 3 places");
 });
 
 /** A query client that counts its subscriptions (each a data request). */
@@ -933,10 +941,13 @@ test("a Map with no pollutant is titled by what it shows and its area, with no d
 	namedRegions();
 	const smoke = noPollutant(region("019"), [{ dataset: "hms-smoke" }, { dataset: "hms-fire" }]);
 	const first = await show(smoke);
-	const title = `${m.get_data_smoke_and_fire()} · Fresno County`;
+	const title = m.widget_map_title_generated_place({
+		shows: m.get_data_smoke_and_fire(),
+		place: "Fresno County"
+	});
 	await expect.poll(() => generatedTitle(smoke.id)).toBe(title);
 	const map = await madeMap();
-	await expect.poll(() => map.view.label).toBe(m.map_label({ title }));
+	await expect.poll(() => map.view.label).toBe(title);
 	// The area is named by lookup: no PM2.5 (or any) data is asked for to name it.
 	expect(counting.inputs).toEqual([]);
 	await first.unmount();
@@ -950,16 +961,20 @@ test("a Map with no pollutant is titled by what it shows and its area, with no d
 	await show(several);
 	await expect
 		.poll(() => generatedTitle(several.id))
-		.toBe("Spray Notices, Pesticide Use, and ZIP Codes");
+		.toBe(m.widget_map_title_generated({ shows: "Spray Notices, Pesticide Use, and ZIP Codes" }));
 });
 
 test("a Map with no pollutant whose area can't be named is titled by what it shows", async () => {
 	namedRegions(true);
 	const smoke = noPollutant(region("019"), [{ dataset: "hms-smoke" }, { dataset: "hms-fire" }]);
 	await show(smoke);
-	await expect.poll(() => generatedTitle(smoke.id)).toBe(m.get_data_smoke_and_fire());
+	await expect
+		.poll(() => generatedTitle(smoke.id))
+		.toBe(m.widget_map_title_generated({ shows: m.get_data_smoke_and_fire() }));
 	const map = await madeMap();
-	await expect.poll(() => map.view.label).toBe(m.map_label({ title: m.get_data_smoke_and_fire() }));
+	await expect
+		.poll(() => map.view.label)
+		.toBe(m.widget_map_title_generated({ shows: m.get_data_smoke_and_fire() }));
 });
 
 test("a Map with no pollutant names a point by its region, for the viewer", async () => {
@@ -970,19 +985,24 @@ test("a Map with no pollutant names a point by its region, for the viewer", asyn
 	await show(point, "shared");
 	await expect
 		.poll(() => generatedTitle(point.id))
-		.toBe(`${m.get_data_smoke_and_fire()} · ZIP 93721 (shared location)`);
+		.toBe(
+			m.widget_map_title_generated_place({
+				shows: m.get_data_smoke_and_fire(),
+				place: "ZIP 93721 (shared location)"
+			})
+		);
 });
 
 test("a pollutant Map of several searched monitors and no Where counts them", async () => {
 	const widget = mapWidget({ monitors: ["a", "b", "c"], monitorTypes: [] });
 	await show(widget);
-	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 · 3 places");
+	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 map · 3 places");
 });
 
 test("a Map with a pollutant and no Where is titled by its pollutant alone", async () => {
 	const widget = mapWidget({});
 	await show(widget);
-	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5");
+	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 map");
 });
 
 test("shows unavailable with no key", async () => {
@@ -1214,7 +1234,7 @@ test("draws a spec 1 ozone tile as ozone", async () => {
 		dataset: "air-quality",
 		entryType: "o3"
 	});
-	await expect.poll(() => generatedTitle(widget.id)).toBe("Ozone · Fresno County");
+	await expect.poll(() => generatedTitle(widget.id)).toBe("Ozone map · Fresno County");
 });
 
 test("draws the Map's pollutant, and switches when it changes", async () => {
@@ -1558,14 +1578,39 @@ test("keeps marks when the pollutant changes, and counts the hidden ones", async
 	expect(frame.querySelector("[data-map-marks-hidden]")!.getAttribute("role")).toBe("status");
 	await expect
 		.poll(() => map.view.label)
-		.toBe(
-			m.map_label_marks_hidden({ title: "Ozone · Fresno County", notes: reasonLine("pollutant") })
-		);
+		.toBe(m.sentence_join({ first: "Ozone map · Fresno County", second: reasonLine("pollutant") }));
 	expect(marksOf()).toEqual(["a", "b"]);
 	expect(map.getSelection("monitors")).toEqual({ kind: "monitors", ids: ["a", "b"] });
 	session.undo();
 	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
 	await expect.poll(hiddenNote).toBe("");
+});
+
+test("a typed title with a hidden-marks reason: its name is the title, map, then the reason", async () => {
+	await listedMonitors();
+	vi.mocked(getMonitors).mockImplementation(
+		async (type) => (type === "o3" ? [reading("b")] : [reading("a"), reading("b")]) as never
+	);
+	const widget: WidgetInstance = {
+		...mapWidget({}),
+		title: "Smog watch",
+		data: layers(region("019")),
+		options: { marks: ["a", "b"] }
+	};
+	await showLive(widget);
+	const map = await madeMap();
+	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+	const session = app().current.session!;
+	session.apply({
+		op: "setWidgetData",
+		target: { widgetId: widget.id },
+		from: session.doc.body.widgets[0].data,
+		to: layers({ ...region("019"), entryType: "o3" })
+	});
+	await expect.poll(hiddenNote).toBe(reasonLine("pollutant"));
+	await expect
+		.poll(() => map.view.label)
+		.toBe(m.map_label_marks_hidden({ title: "Smog watch", notes: reasonLine("pollutant") }));
 });
 
 test("gives each reason its own line, in order, in the list note and the map's name", async () => {
@@ -1589,7 +1634,7 @@ test("gives each reason its own line, in order, in the list note and the map's n
 	});
 	await expect
 		.poll(() => map.view.label)
-		.toBe(m.map_label_marks_hidden({ title: "Ozone · Fresno County", notes }));
+		.toBe(m.sentence_join({ first: "Ozone map · Fresno County", second: notes }));
 	expect((map.view.featureList as { note?: string }).note).toBe(notes);
 });
 
@@ -1710,35 +1755,39 @@ test("a widget not in the session's document (a shared view) takes no marks", as
 
 test("hands a mark on the starter off to its copy", async () => {
 	vi.mocked(getMonitors).mockResolvedValue([reading("a")] as never);
-	const widget = mapWidget(region("019"));
-	// The stored dashboard stands in for the starter's copy.
-	const copy = await openSession(widget);
-	const handedOff: unknown[] = [];
-	const starter = new DocumentSession({
-		platform,
-		space: app().space,
-		tabId: "t3",
-		doc: { ...copy.doc, id: "starter" },
-		onBeforeFirstEdit: async (change) => {
-			handedOff.push(change);
-			copy.apply(change!);
-			app().current = { session: copy, isStarter: false };
-			return copy;
-		}
-	});
-	app().current = { session: starter, isStarter: true };
+	// The real starter: its Map widget, in the app's own starter session.
+	platform = createMemoryPlatform();
+	setPlatform(platform);
+	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	shownApp = app;
+	// The catalog's monitor types, which the starter's Map ticks.
+	vi.mocked(getMetadata).mockReturnValue(
+		fixtureMetadata({
+			catalog: async () =>
+				CATALOG.map((d) => (d.id === "air-quality" ? { ...d, monitorTypes: [...EVERY_TYPE] } : d))
+		})
+	);
+	// The monitor types arrive and replace the shown starter, so take the session after them.
+	await app.starterTypesReady();
+	const starter = (await app.sessions.get(STARTER_ID, { remember: false }))!;
+	app.current = { session: starter, isStarter: true };
+	const widget = starter.doc.body.widgets.find((w) => w.type === "map")!;
 	await render(MapWidget, {
 		target: frame,
 		props: { widget },
-		context: new Map<unknown, unknown>([[APP_CONTEXT_KEY, app()]])
+		context: new Map<unknown, unknown>([[APP_CONTEXT_KEY, app]])
 	});
 	const map = await madeMap();
 	await expect.poll(() => drawn(map)).toEqual(["a"]);
 	map.shiftClick("monitors", monitor("a"));
-	await expect.poll(() => handedOff.length).toBe(1);
-	await expect.poll(() => mapOptions(copy.doc.body.widgets[0]).marks).toEqual(["a"]);
-	expect(mapOptions(starter.doc.body.widgets[0]).marks).toBeUndefined();
-	expect(app().current.session).toBe(copy);
+	// The first edit stores a copy of the starter and moves the session to it.
+	await expect.poll(() => app.current.isStarter).toBe(false);
+	const copy = app.current.session!;
+	expect(copy).not.toBe(starter);
+	const copied = copy.doc.body.widgets.find((w) => w.type === "map")!;
+	expect(copied.data.layers[0].monitorTypes).toEqual(EVERY_TYPE);
+	await expect.poll(() => mapOptions(copied).marks).toEqual(["a"]);
+	expect(mapOptions(starter.doc.body.widgets.find((w) => w.type === "map")!).marks).toBeUndefined();
 });
 
 /** Shows `widget` in the grid's editing context (where the Map offers Show in). */

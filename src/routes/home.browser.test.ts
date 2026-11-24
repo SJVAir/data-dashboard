@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { render } from "vitest-browser-svelte";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { APP_CONTEXT_KEY, initApp } from "$lib/store/app.svelte";
@@ -6,7 +6,22 @@ import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { saveFields } from "$lib/sync/merge";
 import { accountApp } from "$lib/sync/test-app";
 import { ACCOUNT, makeDoc } from "$lib/sync/test-support";
+import { STARTER_ID } from "$lib/starter/starter";
+import type { DocumentSession } from "$lib/store/document-session.svelte";
+import { loadMonitorTypes } from "$lib/widgets/map/start";
+import { MAP_TYPE } from "$lib/widgets/map/options";
 import Home from "./Home.svelte";
+
+// The catalog's monitor types, answered when a test says (none by default).
+vi.mock("$lib/widgets/map/start", async (importOriginal) => ({
+	...(await importOriginal<typeof import("$lib/widgets/map/start")>()),
+	loadMonitorTypes: vi.fn()
+}));
+
+beforeEach(() => {
+	vi.mocked(loadMonitorTypes).mockReset();
+	vi.mocked(loadMonitorTypes).mockImplementation(async () => []);
+});
 
 const originalUrl = location.href;
 afterEach(() => {
@@ -53,4 +68,33 @@ test("Home moves on from an unedited starter when the first dashboards arrive", 
 	} finally {
 		worker.stop();
 	}
+});
+
+test("Home shows the starter with the monitor types that arrived as it opened", async () => {
+	const TYPES = ["purpleair", "airnow"];
+	let answer!: (types: string[]) => void;
+	vi.mocked(loadMonitorTypes).mockImplementationOnce(
+		() => new Promise<string[]>((resolve) => (answer = resolve))
+	);
+	const app = await initApp(createMemoryPlatform(), { channel: createMemoryTabHub().channel() });
+	// The types arrive after the starter opened, before Home makes it current.
+	const get = app.sessions.get;
+	let opened: DocumentSession | null = null;
+	let discard: ReturnType<typeof vi.spyOn> | null = null;
+	app.sessions.get = async (id, opts) => {
+		const session = await get(id, opts);
+		if (id === STARTER_ID && !opened && session) {
+			opened = session;
+			discard = vi.spyOn(session, "discard");
+			answer(TYPES);
+			await app.starterTypesReady();
+		}
+		return session;
+	};
+	await render(Home, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await expect.poll(() => app.current.isStarter && app.current.session !== opened).toBe(true);
+	const map = app.current.session!.doc.body.widgets.find((w) => w.type === MAP_TYPE)!;
+	expect(map.data.layers.find((l) => l.monitorTypes)?.monitorTypes).toEqual(TYPES);
+	expect(opened).not.toBeNull();
+	expect(discard).toHaveBeenCalled();
 });

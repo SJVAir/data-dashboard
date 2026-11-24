@@ -67,7 +67,14 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   the fixed-name `app.js`/`app.css` after a deploy (spec 5a's reload button re-fetches them
   with `cache: "reload"` first); a page loading mid-deploy can hit a missing chunk (the reload
   bar covers it). **Revisit together with** monitor-map's upload, or when the low-end device
-  check shows slow loads.
+  check shows slow loads. _Looked at in step 6 spec 1, 2026-11-23: **on hold, the user's call
+  (2026-11-23).** Lighthouse (`docs/reference/lighthouse-2026-11-23.md`; mobile preset, DevTools
+  throttling, median of 3) shows what it costs. On the E2E fakes, a first visit with the Map
+  fetched up front: compressed LCP 5.37 s, FCP 3.80 s, 765 KB of script; uncompressed LCP 9.14 s,
+  FCP 6.79 s, 2,580 KB of script. After the Map's code waits until its frame nears the screen: LCP
+  5.39 s compressed against 8.63 s uncompressed, FCP 3.88 s against 6.76 s, script 326 KB against
+  978 KB. On the local stack (uncompressed, as S3 serves it), a saved dashboard with a Map had LCP
+  10.35 s and median TBT 224 ms. The trigger stays at go-live._
 - **Testing cross-origin static serving before the preview.** _Deferred 2026-10-26 (the
   user, Foundations spec 5a and the hosting track)._ Locally, the dashboard's static files are
   served from the page's own origin, as monitor-map's are; nothing stands in for S3. So
@@ -295,7 +302,8 @@ string`) now get the union return type. The mobile app passes a string token, so
     in `src/lib/store/app.svelte.ts`, so Ctrl+Z there could reach that new copy. Very narrow
     timing. **Revisit on a report, or when the hand-off is next changed.** _Looked at in step 4
     spec 6, 2026-11-10: unchanged; Share on the starter now also uses the hand-off (through
-    `copyStarter`), so there is one more caller, with the same timing window._
+    `copyStarter`), so there is one more caller, with the same timing window._ _Looked at in step 6 spec 1, 2026-11-23: unchanged; the hand-off now
+    waits for the monitor types first, but `onCopied` is the same code and the same window._
   - **`?widget=` stays in the address bar when a fullscreen shared dashboard becomes
     unavailable.** _Deferred 2026-11-02 (sync spec 3, while building)._ Nothing shows; it is
     harmless. **Revisit with** any URL-state cleanup.
@@ -923,7 +931,8 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   first edits: replay a `starter` record into a version-0 copy whose `copiedFrom` is the
   starter. _Looked at in step 4 spec 6, 2026-11-10: unchanged; the hand-off is the same code,
   though Share on the starter now hands off too (through `copyStarter`), a second way to start
-  it._
+  it._ _Looked at in step 6 spec 1, 2026-11-23: unchanged; the hand-off now waits for the monitor
+  types first, which doesn't change when the copy is stored or journalled._
 - **A starter replay can take a live tab's journal record.** _Deferred 2026-10-25
   (Foundations spec 3, task 7 review)._ `replayPending` replays every other tab's `starter`
   journal record, including one from a tab that is still open (hidden mid-hand-off, or whose
@@ -932,13 +941,16 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   duplicate starter copies, or with server sync. _Looked at in sync spec 2, 2026-11-02: still
   deferred._ Sync dedupes nothing extra here; an account space would sync a duplicate copy as
   two dashboards, which the person can delete or restore. _Looked at in step 4 spec 6,
-  2026-11-10: unchanged; Share on the starter's hand-off adds one more way to hit it._
+  2026-11-10: unchanged; Share on the starter's hand-off adds one more way to hit it._ _Looked at in step 6 spec 1,
+  2026-11-23: unchanged; the hand-off waiting for the monitor types doesn't change what a journal
+  record is or who replays it._
 - **Another tab's starter shows a new chosen place only after reload.** _Deferred 2026-11-10
   (step 4 spec 6, Task 4)._ The starter's chosen place is a per-space preference, read when the
   app opens (and after "Clear my data"); preferences have no change event, so a starter already
   open in another tab keeps the place it opened with until that tab reloads (its first edit's
   copy keeps that place too). **Revisit if** people notice, or when preferences gain a change
-  event.
+  event. _Looked at in step 6 spec 1, 2026-11-23: unchanged. The monitor types aren't a
+  preference; each tab loads them from the catalog itself._
 - **Link decompression has no output limit.** _Deferred 2026-10-25 (Foundations spec 3,
   Task 8 review)._ `lz-string` can't cap its output, so a hostile 64,000-character link
   fragment can expand to a very large transient string before the post-decompression size
@@ -1171,6 +1183,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   account menu's link to the account page.
 
 ## Map & selection
+
+- **An off-screen Map's title reads "Map" until its code loads.** _Deferred 2026-11-23 (step 6
+  spec 1, Task 6)._ A Map's code now loads only once its frame is within 200 px of the screen,
+  takes focus, or is fullscreen. Until then its title bar reads the type label "Map": it still
+  names the widget, and it gets its full title ("PM2.5 map · Fresno County") once it loads. Why: the
+  generated title is worked out in the Map's lazy module (`map-title.svelte.ts`), and moving it out
+  would split the title from the module. **Revisit when** people using screen readers report it,
+  or when a Map title change touches `map-title.svelte.ts` anyway.
 
 - **Every measurement (raw) for ticked monitor types.** _Deferred 2026-11-21 (step 5 spec 7a, Task
   5)._ A ticked-type monitor set is fetched through the bulk monitor summaries, which have no raw
@@ -2420,7 +2440,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   **Revisit when** a step 4 widget has internal state (zoom, scrub position) that is visibly
   lost on the starter's first edit. _Looked at in step 4 spec 6, 2026-11-10: this may now apply.
   The real starter has a chart (with zoom) and a month calendar (with a selection), so an edit
-  made in fullscreen resets them once. Not measured or reported; revisit if anyone notices._
+  made in fullscreen resets them once. Not measured or reported; revisit if anyone notices._ _Looked at in step 6 spec 1, 2026-11-23: the starter now also swaps to
+  a fresh starter when the monitor types arrive. The widget ids stay the same, so fullscreen and
+  open dialogs keep their target, and it swaps only an unedited starter (never one that has begun
+  its hand-off). The reset on the first edit's move to the copy is unchanged._
 - **Widget state when another tab minimizes or restores a fullscreen widget.** _Deferred
   2026-10-29 (spec 2b)._ The widget stays fullscreen, and focus moves back into it, but it moves
   between its grid frame and the frame a minimized fullscreen widget gets, so it's mounted again
@@ -2497,17 +2520,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   applies to every widget, not just the Map. Ideas: a toast after the change ("Moved 5 widgets
   to Tulare County. 1 kept its own places.", with Undo), or a "Dashboard place" tag on widgets
   that follow the bar. Why deferred: it's a dashboard-wide design question, outside the Map
-  widget. **Revisit at** the first usability testing or the step 6 starter review, whichever
-  comes first.
+  widget. **Revisit at** the first usability testing. _Changed 2026-11-23 (the user, step 6 spec 1): the
+  step 6 starter review no longer counts. In the starter every widget with a place, the Map
+  included, follows the bar, so the starter can't show the gap._
 - **"Duplicate for another place…" in the dashboards list always shows.** _Deferred 2026-11-10
   (step 4 spec 6, Task 8)._ The list's rows don't have their documents loaded when the menu is
   built, so the item can't tell whether the dashboard has a place to replace; when it has none, a
   toast says so after the click (it is hidden on the open dashboard). **Revisit if** people find
   it confusing; the fix is a replaceable-place flag on `DashboardSummary`.
-- **The Map joins the starter in step 6.** _Deferred 2026-11-10 (step 4 spec 6)._ It goes in as
-  a full-width row under the "now" row, pushing the chart and calendar down; the hour × weekday
-  heatmap's old slot stays empty until then (the year calendar does not take it). **Revisit
-  when** step 6 adds the Map widget.
 - **More Note formatting.** _Deferred 2026-11-10 (step 4 spec 6)._ Notes allow paragraphs, one
   heading level, bold, italic, bulleted and numbered lists and links. Images, tables, code,
   quotes and more heading levels show as plain text; images would also need CSP and privacy work
@@ -2567,11 +2587,13 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     which ends the address there); it shows as typed, as text. Hostnames can't hold `_`, so no
     real address is affected. **Revisit if** one turns up.
   - **Change place on the starter drops the pick if the hand-off fails.** The session already
-    shows its save error and the edits stay queued. **Revisit on** a report.
+    shows its save error and the edits stay queued. **Revisit on** a report. _Looked at in step 6
+    spec 1, 2026-11-23: unchanged; the hand-off waits for the monitor types (which never fail the
+    wait: an empty list stands in) before it stores anything._
   - **A thrown hand-off on Share gives two failure signals** (the save status and a toast). Only
     on a storage failure. **Revisit if** it happens outside storage failures.
   - **Double-clicking Share opens the dialog twice** (one copy is made). Harmless. **Revisit
-    with** the next Share dialog change.
+    with** the next Share dialog change. _Looked at in step 6 spec 1, 2026-11-23: unchanged._
   - **"Duplicate for another place…" edge cases:** a pick that resolves to `default-place` closes
     silently (unreachable: the picker never offers it), and picking the same place makes a plain
     copy with no feedback (still a correct copy). **Revisit if** someone is confused by either.
@@ -2619,16 +2641,104 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **Monitor-place tiles each fetch the whole Valley's current list** under their own key and
     filter client-side (`data/monitors.ts`); keying by entry type would share one request.
     **Revisit when** a dashboard has several monitor-place maps, or in a performance pass.
-  - **Test gaps kept:** the starter hand-off test uses a hand-built session (the real starter
-    holds no Map widget, and adding one is itself the first edit that hands off, so the test
-    can't start from a starter holding a Map until a starter preset has one). **Add with** the
-    next change to it.
   - **Small behaviours kept:** `serverScale` falls back to the monitors meta for unknown datasets
     (guard on air-quality); `mapMetadata.entryType` reads the catalog only (no scale fallback);
     `monitorsUnavailable` is written inside a now-client fetch; the HMS cache key's date is fixed
     when resolved (harmless: the fetch asks for the server's today); the raw "air-quality" id is
     the fallback section label without a catalog; the e2e point test has a 3 s hard sleep
     (MapTiler's metrics timer). **Fix with** the next change to each.
+- **Step 6 spec 1 review leftovers.** _Deferred 2026-11-23 (step 6 spec 1, per-task reviews)._
+  Small things the reviews let stay:
+  - **A late-catalog test doesn't assert the failure report isn't sent on a timeout.** (T1-a: the
+    monitor types loader's late-catalog case.) **Add with** the next change to
+    `src/lib/widgets/map/start.ts`.
+  - **A weak copies-length assertion in a starter test.** (T2-a.) It would pass with the wrong
+    count. **Fix with** the next change to `starter.test.ts`.
+  - **A kept starter session can leak its `pagehide` and `pageshow` listeners.** (T3-a.) When the
+    app keeps an opened starter that was replaced (its first edit hands off, so the new one is
+    never tracked), or a caller other than Home makes the old one current and the place then
+    changes. Reachable through Home too: open `/`, then leave for `/dashboards` or the Data Portal
+    (both set no dashboard current) before the catalog answers; the replaced starter is kept and
+    never discarded, so its listeners stay for the page's life. Harmless in practice (it's
+    unedited, so there's nothing to journal) and only during the catalog wait. **Revisit if**
+    session leaks show up, or with the next change to the app's starter handling.
+  - **Two starter negatives wait a fixed 10 ms** ("New from starter", "an edited starter isn't
+    swapped"). (T3-b.) **Replace with** a wait on a signal with the next change to those tests.
+  - **No test that Export of an ordinary dashboard doesn't start the catalog load.** (T3-c.)
+    **Add with** the next change to Export or `starterTypesReady`.
+  - **"Duplicate for another place" from the starter, during the types wait, can use a stale
+    `from`.** (T3-d.) If an edit changed the bar's place meanwhile, nothing is replaced. A narrow
+    window. **Revisit on** a report, or with the next change to that path.
+  - **The starter Map E2E skips Firefox entirely** (T4-a), though its geometry checks don't need
+    WebGL. **Revisit with** the next change to `e2e/starter.spec.ts`: run the geometry part on all
+    three engines.
+  - **The starter Map's full-width check is "more than 85% of main"** (T4-b), which is loose.
+    **Tighten with** the next change to that test.
+  - **A local `app` shadows the module's `app()` in the Map hand-off browser test** (T4-c).
+    **Rename with** the next change to `map-widget.browser.test.ts`.
+  - **A nit in the Lighthouse script** (T5-a): `signedInProfile`'s doc comment sits above the
+    `SignInFailure` class, and the header comment has a line over 100 columns. **Fix with** the
+    next change to `e2e/lighthouse/`.
+  - **The load-when-near test never unregisters its fake types** (T6-a). **Fix with** the next
+    change to `load-when-near.browser.test.ts`.
+  - **`OnScreen` observes the implicit root, not `root: document`** (T6-b), so a dashboard
+    embedded in an iframe would clip the 200 px margin that starts a Map's code loading. No iframe
+    embed is planned. **Revisit if** an iframe embed is planned.
+  - **A phone test reads the Map's title at a fixed index** (T6-c: `PHONE_TITLES` relies on
+    `MAP_INDEX` being 4). **Fix with** the next change to the starter's layout or that test.
+  - **A generated Map title joins its notes two ways** (T6b-a): the generated branch uses
+    `sentence_join`, the typed-title branch `map_label_marks_hidden`, so the two could drift.
+    **Revisit with** the next change to `map-title.svelte.ts`.
+  - **An empty typed Map title gives an empty widget title and no map region label** (T6b-b). The
+    schema allows `""`, and the typed branch treats it as typed. Pre-existing, not from this spec.
+    **Revisit with** the next change to widget titles or the schema.
+  - **A default-zone E2E flake: "Show as Chart from a Map with schools notes them left out"**
+    (T6b-c). It flaked in a default-zone run and passed when run alone (twice). **Revisit if** it
+    fails again in CI.
+  - **The starter's first edit stays invisible while the types load.** `onBeforeFirstEdit` now
+    waits for `typesReady()` before the copy is committed, and a starter session doesn't apply
+    queued edits to its own document. Before this spec that wait was one commit; now it can be up
+    to `CATALOG_WAIT_MS` if someone edits within the first seconds on a slow connection. Decision 11
+    accepts the wait. **Revisit when** people report it, or at the first usability testing.
+  - **Export of the starter during the types wait ignores an edit made meanwhile.** `targetOf`
+    exports `starterDashboard(...)` after `await app.starterTypesReady()` even if the starter's
+    hand-off started meanwhile (Duplicate handles this through `duplicateSource`; Export doesn't).
+    A narrow window; the exported file lacks the edit. **Revisit when** people report it, or at the
+    first usability testing.
+  - **No component-level test that the types swap keeps focus and fullscreen** (decision 10: it
+    must not cost the person anything). The unit test checks the widget ids; the guarantee comes
+    from `DashboardGrid` keying, which a later refactor could break silently. **Revisit when**
+    people report it, or at the first usability testing.
+  - **A pending focus request survives a browser Back pressed mid-hand-off** until a frame with the
+    same widget id mounts (the focus store's existing behaviour). A starter frame handing off to
+    its copy now leaves its request pending for the copy, so the window is longer while the types
+    load. **Revisit when** people report it, or with the next focus-store change.
+  - **After a failed hand-off, the starter's `edited` stays true**, so later focus requests on that
+    starter only focus its title bar and stay pending until the next input. A failed hand-off is
+    rare (the copy couldn't be stored) and the bar still gets focus. **Revisit when** people report
+    it, or with the next focus-store change.
+  - **Moving a starter widget from the ⋯ menu by mouse while the types load leaves focus on
+    `<body>` until the copy shows** (the closing Move submenu takes it). A key press in that time
+    drops the pending request. Parked: mouse-only, and only during a slow catalog; the keyboard
+    path keeps focus on the title bar. **Revisit if** keyboard or screen-reader users report it,
+    or with the next focus-store or menu change.
+  - **During a catalog outage, every exit and every starter build asks for the types again.**
+    Each exit can wait the full `CATALOG_WAIT_MS` again, and each failure (not a timeout) sends
+    another error report. Parked: outages are rare, and it matches how a new Map asks on every
+    add. **Revisit if** error reports show repeats, or with the next change to the types load.
+  - **Edit data opened on the starter's Map before the types arrive saves no types.** Its draft
+    starts from the type-less widget, so saving it stores a Map with no monitor types. Very narrow
+    (seconds after a first visit). **Revisit when** people report it, or at the first usability
+    testing.
+- **The startup chain keeps LCP over 2.5 s on a throttled phone.** _Deferred 2026-11-23 (step 6
+  spec 1, the Lighthouse check; the user: revisit at go-live)._ The LCP element is the welcome
+  Note's text. It waits for the app chunk (188 KB gzipped) to download and run its startup
+  tasks, so LCP is 5.4 s with gzip and 8.6 s uncompressed on the fakes, and the same without the
+  Map (5.3 s and 8.7 s). The local stack's saved dashboard had 10.35 s. Compressing the uploads or
+  loading the Map later doesn't fix it; a smaller first chunk, or painting the Note before the
+  rest of the app runs, might. Numbers and the chain's timings:
+  `docs/reference/lighthouse-2026-11-23.md`. **Revisit at** go-live.
+
 - **Additional widget types.** _Deferred 2026-09-23 (IDEA.md Q8)._ Brainstormed but not in
   the first-release widget set (see `ARCHITECTURE.md` → "Widget catalog"). **Revisit
   when** the first-release widgets ship, or a specific audience asks for one. The list:
@@ -3272,7 +3382,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   style, layout, or painting, and the reference value is tied to one machine and Chromium
   version. **Revisit with** the low-end Chromebook check before go-live, if CI flakes again, or
   when a Playwright upgrade moves the reference timing (re-measure it as the spec's comment
-  says).
+  says). _Looked at in step 6 spec 1, 2026-11-23: Lighthouse measures page loads, not dragging, so
+  it says nothing about this. The starter's TBT (the main thread's blocking time while it loads)
+  is 116–152 ms on the throttled profile, under the 200 ms mark, and 224 ms on the local stack's
+  saved dashboard. Still open for the real Chromebook._
 - **Pen long-press still opens the context menu.** _Deferred 2026-10-28 (step 2, spec 2a)._ Only
   touch is blocked. **Revisit if** pen users report it.
 - **Screen-reader check of keyboard arranging (NVDA/JAWS browse mode, VoiceOver).** _Deferred
@@ -3446,7 +3559,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   switch to scale with counter-scaled content. _Noted 2026-11-11 (step 5 spec 1): the Map waits
   for `ancestorAnimationsSettled` before it refits, but MapLibre's own `ResizeObserver` still
   re-renders on every frame of the 200 ms animation. Accepted for now. **Revisit if** jank shows
-  on low-end devices._
+  on low-end devices. _Looked at in step 6 spec 1, 2026-11-23: the starter now holds a Map, but
+  Lighthouse doesn't resize widgets, so the check doesn't show it. The starter's TBT is
+  116–152 ms. Still open for the real Chromebook._
 - **A selected widget taller than a phone's screen.** _Deferred 2026-11-03 (design pass, Task 20
   review)._ During a touch selection the widget's body is `touch-action: none`, so the page
   can't be scrolled by touching the widget, and Done (centered in the body) may be off-screen.

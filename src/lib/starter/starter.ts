@@ -16,6 +16,7 @@ import { CURRENT_TYPE } from "$lib/widgets/current";
 import { DEFAULT_LAYER, DEFAULT_PLACE, DEFAULT_RANGE } from "$lib/widgets/defaults";
 import { areasOnly } from "$lib/places/replace";
 import { FORECAST_TYPE } from "$lib/widgets/forecast";
+import { HMS_FIRE, HMS_SMOKE, MAP_TYPE } from "$lib/widgets/map/options";
 import { OUTSIDE_TYPE } from "$lib/widgets/outside";
 import { resolveDefaultPlace } from "./resolve";
 
@@ -30,7 +31,8 @@ const PM25 = { place: TEMPLATE_PLACE, layers: [DEFAULT_LAYER] };
 /**
  * The starter's widgets, in reading order, with each widget's data as Get data stores it for the
  * type (PM2.5; `starter.test.ts` checks they match). Rows of the 12-column grid: the welcome Note;
- * the "now" row, as tall as "Can we go outside?" fits; then the chart and the month calendar.
+ * the "now" row, as tall as "Can we go outside?" fits; the Map; then the chart and the month
+ * calendar. The Map's monitor types aren't here: `starterDashboard` ticks the catalog's.
  */
 function starterWidgets(): Omit<WidgetInstance, "id" | "title">[] {
 	return [
@@ -48,13 +50,25 @@ function starterWidgets(): Omit<WidgetInstance, "id" | "title">[] {
 			data: { place: TEMPLATE_PLACE, layers: [{ dataset: "forecasts" }] }
 		},
 		{
+			type: MAP_TYPE,
+			rect: { x: 0, y: 9, w: 12, h: 7 },
+			data: {
+				place: TEMPLATE_PLACE,
+				layers: [
+					{ dataset: DEFAULT_LAYER.dataset, entryType: DEFAULT_LAYER.entryType },
+					{ dataset: HMS_SMOKE },
+					{ dataset: HMS_FIRE }
+				]
+			}
+		},
+		{
 			type: CHART_TYPE,
-			rect: { x: 0, y: 9, w: 8, h: 6 },
+			rect: { x: 0, y: 16, w: 8, h: 6 },
 			data: { dateRange: DEFAULT_RANGE, ...PM25 }
 		},
 		{
 			type: MONTH_CALENDAR_TYPE,
-			rect: { x: 8, y: 9, w: 4, h: 6 },
+			rect: { x: 8, y: 16, w: 4, h: 6 },
 			data: { dateRange: { kind: "to-date", unit: "month" }, ...PM25 }
 		}
 	];
@@ -95,14 +109,26 @@ export function starterAreaFor(place: ChosenPlace, area?: ChosenPlace | null): C
 
 /**
  * The starter at `place` (the space's chosen place), with its "Change place" bar; its Chart (and
- * any Table) at `starterAreaFor(place, area)`. Never stored.
+ * any Table) at `starterAreaFor(place, area)`, and its Map's air-quality layer ticking `types` (the
+ * catalog's monitor types; none ticked when empty). Never stored.
  */
-export function starterDashboard(place: ChosenPlace, area?: ChosenPlace | null): Dashboard {
+export function starterDashboard(
+	place: ChosenPlace,
+	area: ChosenPlace | null | undefined,
+	types: readonly string[]
+): Dashboard {
 	const doc = resolveDefaultPlace(starterTemplate(), place);
 	const forAreas = starterAreaFor(place, area);
 	for (const widget of doc.body.widgets) {
 		if (areasOnly(widget.type) && widget.data.place) {
 			widget.data.place = structuredClone(forAreas);
+		}
+	}
+	if (types.length > 0) {
+		for (const widget of doc.body.widgets) {
+			if (widget.type !== MAP_TYPE) continue;
+			const layer = widget.data.layers.find((l) => l.dataset === DEFAULT_LAYER.dataset);
+			if (layer) layer.monitorTypes = [...types];
 		}
 	}
 	doc.body.placeBar = { place: structuredClone(place) };
@@ -126,8 +152,13 @@ function freshCopy(source: Dashboard, now: Date, copiedFrom?: string): Dashboard
 }
 
 /** The starter at `place`, as a new document of this person's own. */
-export function copyOfStarter(now: Date, place: ChosenPlace, area?: ChosenPlace | null): Dashboard {
-	return freshCopy(starterDashboard(place, area), now, STARTER_ID);
+export function copyOfStarter(
+	now: Date,
+	place: ChosenPlace,
+	area: ChosenPlace | null | undefined,
+	types: readonly string[]
+): Dashboard {
+	return freshCopy(starterDashboard(place, area, types), now, STARTER_ID);
 }
 
 export function blankDashboard(now: Date): Dashboard {
@@ -167,6 +198,10 @@ export type StarterSessionOptions = {
 	place: ChosenPlace;
 	/** The region its Chart shows when `place` is a school or point (`starterAreaFor`). */
 	area?: ChosenPlace | null;
+	/** The monitor types the shown starter's Map ticks (the catalog's, loaded when it was built). */
+	types: readonly string[];
+	/** The catalog's monitor types, awaited by the first edit before it stores the copy. */
+	typesReady: () => Promise<readonly string[]>;
 	/** Called once the copy is stored, holding the first edit (if one started the hand-off). */
 	onCopied?: (copy: DocumentSession) => void;
 } & Pick<DocumentSessionOptions, "onNeedsReload" | "onCleared" | "onEdit">;
@@ -189,13 +224,18 @@ export function starterSession(opts: StarterSessionOptions): DocumentSession {
 		now,
 		onNeedsReload,
 		onCleared,
-		doc: starterDashboard(place, opts.area),
+		doc: starterDashboard(place, opts.area, opts.types),
 		onBeforeFirstEdit: async (change) => {
 			if (platform.reset.generation() !== generation) {
 				onCleared?.();
 				return null;
 			}
-			const doc = copyOfStarter(now(), place, opts.area);
+			const types = await opts.typesReady();
+			if (platform.reset.generation() !== generation) {
+				onCleared?.();
+				return null;
+			}
+			const doc = copyOfStarter(now(), place, opts.area, types);
 			// Storage doesn't validate: a copy that would hold `default-place` fails here instead.
 			// The throw fails the hand-off, so the starter's session shows the save error
 			// (`errorKind: "unavailable"`) and its edits stay queued.

@@ -170,6 +170,33 @@
 	let more = $state<HTMLButtonElement | null>(null);
 	let bar = $state<HTMLDivElement | null>(null);
 	let section = $state<HTMLElement | null>(null);
+	// A `loadWhenNear` type's code (the Map's) waits until the frame is within 200 px of the
+	// screen, focus moves into it, or it's fullscreen (D20). Once asked for, it stays.
+	let near = $state(false);
+	const ready = $derived(
+		near ||
+			fullscreen ||
+			!type?.loadWhenNear ||
+			typeof IntersectionObserver === "undefined" ||
+			!!loadedWidget(type)
+	);
+	$effect(() => {
+		if (fullscreen) near = true;
+	});
+	$effect(() => {
+		const t = type;
+		if (ready || !section || !t) return;
+		const observer = new IntersectionObserver(
+			(entries) => {
+				// Near, or another frame has loaded the code meanwhile.
+				if (loadedWidget(t) || entries.some((entry) => entry.isIntersecting)) near = true;
+			},
+			// This document's viewport, also inside an iframe (whose edge would clip the margin).
+			{ root: document, rootMargin: "200px" }
+		);
+		observer.observe(section);
+		return () => observer.disconnect();
+	});
 	// `aria-description` (ARIA 1.3) isn't in Svelte's attribute types yet, so it's spread.
 	const hint = $derived({ "aria-description": m.layout_title_bar_hint() });
 	/** Arranging is offered: not in fullscreen, and not in view mode. */
@@ -311,6 +338,7 @@
 
 	function onfocusin(): void {
 		held = true;
+		near = true;
 	}
 
 	function onfocusout(event: FocusEvent): void {
@@ -546,6 +574,14 @@
 		if (request.kind !== "title" && request.kind !== "added") return;
 		const kind = request.kind;
 		untrack(() => {
+			// The starter is handing off to its copy (its first edit, which may wait for the
+			// catalog): the copy's page replaces this one, so focus here meanwhile but leave the
+			// request for the copy's frame, or focus is lost with this one.
+			const { session, isStarter } = app.current;
+			if (isStarter && session?.edited) {
+				bar!.focus();
+				return;
+			}
 			if (!takeFocus({ kind, id: widget.id })) return;
 			bar!.focus();
 			if (kind === "added") {
@@ -706,7 +742,10 @@
 		{#snippet body(mod: WidgetModule)}
 			<mod.component {widget} {fullscreen} />
 		{/snippet}
-		{#if type}
+		{#if type && !ready}
+			<!-- Not near the screen yet: the pending state it shows while code loads. -->
+			<WidgetSkeleton />
+		{:else if type}
 			{@const loaded = loadedWidget(type)}
 			{#if loaded}
 				{@render body(loaded)}

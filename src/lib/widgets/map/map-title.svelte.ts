@@ -105,7 +105,9 @@ export function syncMapTitle(input: MapTitleInput, viewer: PlaceViewer): void {
 		const titled = (place: string | null | undefined) =>
 			setGeneratedTitle(
 				input.widgetId,
-				place ? m.label_join({ first: label, second: place }) : label
+				place
+					? m.widget_map_title_generated_place({ shows: label, place })
+					: m.widget_map_title_generated({ shows: label })
 			);
 		if (count > 1) {
 			titled(m.get_data_places_count({ count: formatNumber(count), countValue: count }));

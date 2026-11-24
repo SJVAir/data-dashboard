@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const types = vi.hoisted(() => ({
 	catalog: async (): Promise<unknown> => [
@@ -11,7 +11,8 @@ vi.mock("$lib/safety/report", () => ({ report: vi.fn() }));
 import type { ChosenPlace } from "$lib/data/schema";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { DEFAULT_LAYER, DEFAULT_PLACE } from "../defaults";
-import { CATALOG_WAIT_MS, mapStartData, mapStartDataWithTypes } from "./start";
+import { report } from "$lib/safety/report";
+import { CATALOG_WAIT_MS, loadMonitorTypes, mapStartData, mapStartDataWithTypes } from "./start";
 
 const TULARE: ChosenPlace = { kind: "region", type: "county", code: "06107" };
 const KERN: ChosenPlace = { kind: "region", type: "county", code: "06029" };
@@ -33,6 +34,43 @@ function doc(widgets: WidgetInstance[], bar?: ChosenPlace): Dashboard {
 		body: { widgets, ...(bar ? { placeBar: { place: bar } } : {}) }
 	} as unknown as Dashboard;
 }
+
+describe("loadMonitorTypes", () => {
+	const original = types.catalog;
+	afterEach(() => {
+		types.catalog = original;
+		vi.mocked(report).mockClear();
+	});
+
+	it("every air-quality monitor type from the catalog", async () => {
+		expect(await loadMonitorTypes()).toEqual(["airnow", "purpleair"]);
+	});
+
+	it("an unavailable catalog gives none", async () => {
+		types.catalog = async () => "unavailable";
+		expect(await loadMonitorTypes()).toEqual([]);
+	});
+
+	it("a late catalog gives none after CATALOG_WAIT_MS", async () => {
+		vi.useFakeTimers();
+		try {
+			types.catalog = () => new Promise(() => {});
+			const result = loadMonitorTypes();
+			await vi.advanceTimersByTimeAsync(CATALOG_WAIT_MS);
+			expect(await result).toEqual([]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("a failing catalog gives none and is reported", async () => {
+		types.catalog = async () => {
+			throw new Error("down");
+		};
+		expect(await loadMonitorTypes()).toEqual([]);
+		expect(report).toHaveBeenCalledTimes(1);
+	});
+});
 
 describe("mapStartDataWithTypes", () => {
 	it("new Map: every monitor type is ticked, from the catalog's air-quality monitor_types", async () => {

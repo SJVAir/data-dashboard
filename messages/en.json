@@ -1324,6 +1324,8 @@
 	"widget_edit_data": "Open in Data Portal",
 	"widget_current_title": "Current conditions",
 	"widget_map_title": "Map",
+	"widget_map_title_generated": "{shows} map",
+	"widget_map_title_generated_place": "{shows} map · {place}",
 	"map_unavailable_no_key": "Map unavailable",
 	"map_pin_your_location": "Your location",
 	"map_pin_shared_location": "Shared location",

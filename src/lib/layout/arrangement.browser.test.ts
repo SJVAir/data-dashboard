@@ -60,6 +60,8 @@ test("a second drop on the starter's page, after its copy took over, carries foc
 		space: "anonymous",
 		tabId: "tab-1",
 		place: defaultStarterPlace(),
+		types: [],
+		typesReady: async () => [],
 		onCopied: (copy) => (current = copy)
 	});
 	current = starter;

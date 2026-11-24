@@ -31,5 +31,7 @@ export const mapType: WidgetType = {
 	},
 	menu: (_ctx, env) => showInItems(env),
 	addable: async (doc) => ({ data: await mapStartDataWithTypes(doc) }),
-	load: () => import("./module")
+	load: () => import("./module"),
+	// The chunk is large and its evaluation a long task: an off-screen Map waits (D20).
+	loadWhenNear: true
 };

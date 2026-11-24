@@ -54,7 +54,10 @@ async function watchCsp(context: BrowserContext, violations: CspViolation[]): Pr
 }
 
 /** Answers `/api/…` from the fixture files, recording requests with none in `unmatched`. */
-async function routeApiFixtures(context: BrowserContext, unmatched: string[]): Promise<void> {
+export async function routeApiFixtures(
+	context: BrowserContext,
+	unmatched: string[]
+): Promise<void> {
 	await context.route("**/api/**", async (route) => {
 		const url = new URL(route.request().url());
 		const rest = url.pathname.slice(url.pathname.indexOf("/api/") + "/api/".length);
@@ -74,7 +77,7 @@ async function routeApiFixtures(context: BrowserContext, unmatched: string[]): P
  * server's shape, `place: null`, with the Fresno County fixture's months and years. A request
  * naming a place falls back to the fixture file.
  */
-async function routePesticideValley(context: BrowserContext): Promise<void> {
+export async function routePesticideValley(context: BrowserContext): Promise<void> {
 	await context.route(/\/api\/2\.0\/pesticides\/place\/(\?|$)/, async (route) => {
 		const url = new URL(route.request().url());
 		if (url.searchParams.has("region_type") || url.searchParams.has("monitor")) {
@@ -88,7 +91,7 @@ async function routePesticideValley(context: BrowserContext): Promise<void> {
 }
 
 /** The session account (`api/2.0/account/`) and the site's logout, which signs this context out. */
-async function routeAccount(
+export async function routeAccount(
 	context: BrowserContext,
 	initial: AccountUser | null
 ): Promise<AccountServer> {
