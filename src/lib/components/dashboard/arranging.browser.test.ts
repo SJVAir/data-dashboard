@@ -967,7 +967,7 @@ test("a touch long-press menu is cancelled on the title bar and handles, not the
 		el.dispatchEvent(event);
 		return event.defaultPrevented;
 	};
-	const body = frame("a").children[1];
+	const body = frame("a").querySelector("[data-widget-body]")!;
 	// A touch press comes first (it keeps the dashboard's own menu from opening).
 	const b = center(body);
 	touch(body, "pointerdown", b.x, b.y);
