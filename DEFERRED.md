@@ -124,30 +124,6 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   `jitless` inside the SDK (C) makes a library change a global zod setting for the mobile app
   and monitor-map too. **Revisit:** after launch; when sdk-js next works on its schemas; or when
   the CSP check reports the probe.
-- **Check the built app for zod eval violations before go-live.** _Deferred 2026-10-26 (Foundations
-  spec 5a, final fix-wave review); reworded as a go-live check 2026-11-11 (the user)._ **Before
-  go-live**, check the built app for `script-src` eval violations from zod on every route,
-  including the routes and contexts the E2E CSP fixture doesn't cover (see "Gaps in the E2E CSP
-  checks" below). If any appear, fix it in sdk-js (build its schemas lazily, or set `jitless`
-  there), not with an import-order workaround here.
-  **Why it's safe today:** the dashboard imports zod only through `$lib/zod`, which sets
-  `z.config({ jitless: true })`. `@sjvair/sdk` (`5.0.0-beta.8`) imports zod itself and builds
-  `z.object` schemas when its modules load (the root `schema.ts` and the schema modules of
-  `account`, `calenviroscreen`, `calheatscore`, `collocation_sites`, `forecasts`, `hms`, `meta`,
-  `monitors`, `pesticides` and `regions`; the documents schemas moved into `src/lib/api/documents/`
-  on 2026-11-11 and build under `$lib/zod`). Since step 4, the widgets load the SDK root in the
-  built app's initial bundle. There's only one copy of zod in `node_modules` (4.6.7), so the
-  `jitless` setting applies to the SDK's schemas too. zod 4.6.7 runs its `new Function` probe
-  when an object schema is created, unless `jitless` is already set
-  (`node_modules/zod/v4/core/util.js`, `allowsEval`). So the app is clean only because `$lib/zod`
-  runs before the SDK's schema modules, which is the import order that `$lib/zod` itself says not
-  to rely on. The E2E suite runs under the contract CSP and fails on any
-  `securitypolicyviolation` (`e2e/fixtures.ts`), and it passes. A one-off check on 2026-11-11 (the
-  built app in the E2E preview, every route in `src/router.ts` loaded fresh, on Chromium,
-  Firefox and WebKit) found no violations.
-  **Revisit:** before go-live (listed under "Production deploy of sjvair.com `develop` → `main`"
-  below); when the E2E CSP fixture reports the probe; or when someone next works on the SDK's
-  schemas.
 - **Spec 5a polish.** _Deferred 2026-10-26 (Foundations spec 5a, final review)._ Small
   follow-ups, none blocking. **Revisit when** next touching each file:
   - The `/workspace` base path is written in four places and `https://www.sjvair.com` in two;
@@ -576,8 +552,9 @@ string`) now get the union return type. The mobile app passes a string token, so
   - **MapTiler key** (step 5 spec 1, 2026-11-11): confirm `VITE_MAPTILER_KEY` reaches
     sjvair.com's Heroku build of the dashboard, and that the key's domain restriction covers
     `/workspace/`. Without it, every Map widget says the map is unavailable.
-  - **Dashboard CSP check, before:** check the built app for zod eval violations on every route
-    (see "Check the built app for zod eval violations before go-live" above).
+  - **Dashboard CSP check, before:** rerun the CSP check against the stack on go-live day (the
+    first run, 2026-11-23, found no violation: `docs/reference/csp-check-2026-11-23.md`, which has
+    the rerun command).
   - **Migrations at deploy:** `hms/0003_smoke_date_index` (sjvair.com #314), a plain `AddIndex` on
     `hms_smoke.date`; runs with `migrate`, quick on a small table; undo with `migrate hms 0002`.
     Nothing to run by hand.
@@ -2763,6 +2740,15 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     review's fixes added beside it: nothing observable changes when the page rightly stays);
     **`air-quality-section.browser.test.ts` (about line 58) has an implicit any that
     `npm run check` misses** (T8-m5, pre-existing). **Fix with** the next change to each file.
+  - **The walk's Sign out step relies on seeing "Saved in this browser" before it opens Sign
+    out.** If nothing is unsynced, the menu item signs out at once. Abort the logout request
+    during the step so a wrong precondition fails it instead (on the local stack it would only
+    sign the test user out). **Fix with** the next change to `e2e/csp-walk.ts` or before go-live
+    day's rerun.
+  - **`onCopied`'s second takes-over arm (`src/lib/store/app.svelte.ts`) lacks `&& !next.edited`.**
+    A Get data copy of the starter finishing while the person edits the fresh starter at `/`
+    takes over that page, and the fresh starter's copy is stored but not shown. Narrow. **Fix
+    with** the next change to the starter hand-off.
 - **The startup chain keeps LCP over 2.5 s on a throttled phone.** _Deferred 2026-11-23 (step 6
   spec 1, the Lighthouse check; the user: revisit at go-live)._ The LCP element is the welcome
   Note's text. It waits for the app chunk (188 KB gzipped) to download and run its startup
