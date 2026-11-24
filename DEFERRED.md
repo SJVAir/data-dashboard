@@ -3454,20 +3454,16 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   checks (sizes after layout, an animation), not wrong behaviour. **Revisit when** one fails in
   CI, or when touching the test: wait on the settled state (a poll on the final size, or the
   animation's end) instead of a fixed moment.
-- **Two arranging tests flake in CI under full-suite load.** _Noted 2026-11-22 (step 5 spec 7c,
-  Task 1)._ On `step-5-spec-7c-flake`, whose `ci.yml` ran `npm test` three times per run, each
-  failed in one pass and passed in the others:
-  - `src/lib/components/dashboard/arranging.browser.test.ts`, "a pointer resize animates the
-    frame's size as it snaps" ("expected +0 to be 1": likely the animation was over before the poll
-    saw it), in runs 45097726529 (before the menu fix), 45099109524 and 45099115463.
-  - The same file, "autoscroll asks for animation frames only while the pointer is in the edge
-    zone" ("expected 0 to be greater than 0": no frame was asked for in its 150 ms in the edge
-    zone), in run 45099112411.
-
-  Not fixed in spec 7c: neither involves menus or 7c's code; they're timing checks, likely
-  starved by the load. **Revisit when** either fails in CI again, or when touching that test: start the size
-  animation paused or long enough to be seen (as the keyboard-resize entry above suggests), and
-  wait on the autoscroll's first frame rather than counting frames in a fixed 150 ms.
+- **An arranging test flakes in CI under full-suite load.** _Noted 2026-11-22 (step 5 spec 7c,
+  Task 1)._ On `step-5-spec-7c-flake`, whose `ci.yml` ran `npm test` three times per run,
+  `src/lib/components/dashboard/arranging.browser.test.ts`, "autoscroll asks for animation frames
+  only while the pointer is in the edge zone" failed in one pass ("expected 0 to be greater than
+  0": no frame was asked for in its 150 ms in the edge zone), in run 45099112411. Not fixed in spec
+  7c: a timing check, likely starved by the load. **Revisit when** it fails in CI again, or when
+  touching that test: wait on the autoscroll's first frame rather than counting frames in a fixed
+  150 ms. _The same file's "a pointer resize animates the frame's size as it snaps" failed in CI
+  again on 2026-11-24 (step 6 spec 2) and was fixed: it counts size animations as they start
+  (`Element.prototype.animate`), not while they run._
 
 - **WebKit E2E runs at 1x, so it doesn't cover drawing at 2x.** _Noted 2026-11-22 (step 5,
   WebKit E2E fix)._ The WebKit project now sets `deviceScaleFactor: 1` (`playwright.config.ts`),
