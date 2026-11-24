@@ -2682,6 +2682,29 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   `e2e/csp-walk.spec.ts` is `test.fixme` on WebKit. A WebKit-only violation would go unseen; the Map's
   worker code is the same across engines. **Revisit if** Playwright's WebKit exposes worker CSP
   events, or if a code path that runs only in WebKit workers appears.
+- **Lazy parts the CSP walk doesn't open.** _Deferred 2026-11-23 (step 6 spec 2, final review
+  Important 3)._ The walk opens each widget type, the menus' dialogs, Help's privacy page and Clear
+  my data, Restore an earlier version, Sign out's question, a CSV download and a calendar's "Open
+  these days in a chart" on both targets, and Move to account on the fakes. Left out:
+  - **Which place** (`WhichPlaceDialog`): it asks only when a dashboard's widgets tie between places
+    and no widget shows the place bar's place, which a walk step can't make without fixture places.
+    On the fakes, `e2e/starter.spec.ts`'s tie test opens it under the contract CSP.
+  - **The threshold watcher** (`ThresholdWatcher`): it loads once a dashboard is watched, which
+    needs an alert level and the notifications permission. On the fakes, `e2e/thresholds.spec.ts`
+    loads it under the contract CSP.
+  - **The downsample worker** (`downsample-client.ts`, an inline `blob:` worker): it starts only
+    for a dataset offered at raw resolution alone (on the fakes, wind direction), and no walk step
+    shows one; no E2E test does either. Its CSP surface (a same-origin chunk and a `blob:` worker)
+    is the same as the Map's MapLibre workers, which the walk starts on every engine with WebGL.
+  - **Move to account on the stack:** it needs the stack's session signed out and back in (a
+    logout and a login), which the stack run doesn't do.
+  - **The placeholder widget** (an unknown or not-yet-loaded type's frame): nothing in the built
+    app shows it on purpose.
+
+  **Revisit if** one of these changes how it loads (a new chunk, a new worker or a new host), or
+  if a walk step can reach it without fixture data (the downsample worker: once the stack is known
+  to offer a raw-only dataset, a Data Portal step can pick it).
+
 - **Step 6 spec 2 review leftovers.** _Deferred 2026-11-23 (step 6 spec 2, per-task reviews)._
   Small things the reviews let stay:
   - **The eval self-test's predicate is a little loose** (T1-m1): any `script-src*` violation whose
@@ -2700,8 +2723,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     the next change to `e2e/csp-walk-routes.ts` or `e2e/csp-walk.ts`.
   - **`hasWebGL` is duplicated from `helpers.ts`** (T2-m5, justified). **Merge with** the next
     change to either.
-  - **The stack run has data needs:** the show-in step needs at least one monitor row, and the
-    share-link step needs sync (T2-m6; failures say so). **`previewEachType` times out if a Show as
+  - **The stack run has data needs:** the show-in step needs at least one monitor row, the
+    share-link step needs sync, and the csv-download step needs the first calendar to have data
+    (T2-m6; failures say so). **`previewEachType` times out if a Show as
     choice renders no preview or is disabled** (T2-m8). **Failed CDP sends are swallowed silently**
     (T2-m9). **A worker started from inside another worker isn't watched** (T2-m10). **Revisit
     with** the next change to the walk or the stack run.

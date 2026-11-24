@@ -1,6 +1,6 @@
 /**
- * The CSP walk: one list of steps that opens every route (`csp-walk-routes.ts`) and every lazy
- * part a person can open in the built app. `csp-walk.spec.ts` runs it on the E2E fakes under the
+ * The CSP walk: one list of steps that opens every route (`csp-walk-routes.ts`) and the lazy parts
+ * a person opens from them in the built app (the few it can't reach are listed in `DEFERRED.md`). `csp-walk.spec.ts` runs it on the E2E fakes under the
  * contract CSP; the local stack run (`e2e-local/`) runs the same steps against sjvair.com's real
  * enforced header, signed in, on real data. So no step names fixture data (titles, places,
  * monitor ids): each finds things by role and the app's own English labels, and reads what it
@@ -230,6 +230,30 @@ async function openFeatureList(map: Locator): Promise<Locator> {
 	return list;
 }
 
+/** The dashboard's first calendar (a widget with a day grid): its frame and title. */
+async function firstCalendar(page: Page): Promise<{ frame: Locator; title: string }> {
+	const frame = page
+		.getByRole("main")
+		.locator("[data-testid^=widget-]")
+		.filter({ has: page.getByRole("grid") })
+		.first();
+	await frame.scrollIntoViewIfNeeded();
+	await expectBodyLoaded(frame, "the calendar");
+	const title = (await frame.getByRole("heading", { level: 2 }).first().textContent())!.trim();
+	return { frame, title };
+}
+
+/** The account menu's button (signed in: "{initials}, account menu for {name}"). */
+function accountButton(page: Page): Locator {
+	return page.getByRole("button", { name: /account menu/i });
+}
+
+/** Whether `url` is the documents sync API (the walk holds it back to leave a change unsynced). */
+const isDocumentsApi = (url: URL) => url.pathname.includes("/api/2.0/documents/");
+
+/** Whether `url` is the session account (the walk answers it signed out, on the fakes only). */
+const isAccountApi = (url: URL) => url.pathname.endsWith("/api/2.0/account/");
+
 export const WALK: readonly WalkStep[] = [
 	{
 		// The starter in a fresh context (no storage). The stack reaches it signed in, through
@@ -317,6 +341,28 @@ export const WALK: readonly WalkStep[] = [
 		}
 	},
 	{
+		// Restore an earlier version (it only lists them), then Help's privacy page and Clear my
+		// data from it: each opened and closed, nothing restored or cleared.
+		name: "menu-dialogs",
+		async run(page) {
+			await dashboardMenuItem(page, "Restore an earlier version…");
+			const restore = page.getByRole("dialog", { name: "Restore an earlier version" });
+			await expect(restore).toBeVisible();
+			await escapeDialogs(page);
+
+			await page.getByRole("button", { name: "Help", exact: true }).click();
+			await page.getByRole("menuitem", { name: "Your data and privacy", exact: true }).click();
+			const privacy = page.getByRole("dialog", { name: "Your data and privacy" });
+			await expect(privacy).toBeVisible();
+			await privacy.getByRole("button", { name: "Clear my data…", exact: true }).click();
+			const clear = page.getByRole("dialog", { name: "Clear my data?" });
+			await expect(clear).toBeVisible();
+			// Never "Clear everything".
+			await clear.getByRole("button", { name: "Cancel", exact: true }).click();
+			await expect(page.getByRole("dialog")).toHaveCount(0);
+		}
+	},
+	{
 		// A copy link and a live link (the dashboard is saved to the account first).
 		name: "share-link",
 		async run(page, state) {
@@ -397,6 +443,32 @@ export const WALK: readonly WalkStep[] = [
 		}
 	},
 	{
+		// A calendar's Download data (CSV): the file is asked for, then thrown away.
+		name: "csv-download",
+		async run(page, state) {
+			await backToDashboard(page, state);
+			const { title } = await firstCalendar(page);
+			const download = page.waitForEvent("download");
+			await widgetMenuItem(page, title, "Download data (CSV)");
+			await (await download).cancel();
+		}
+	},
+	{
+		// A day picked on a calendar, then "Open these days in a chart" (a new Chart).
+		name: "open-in-chart",
+		async run(page, state) {
+			await backToDashboard(page, state);
+			const { frame, title } = await firstCalendar(page);
+			const day = frame.locator("[role=gridcell][data-date]").filter({ hasText: /\S/ }).first();
+			await day.click();
+			await expect(frame.locator("[role=gridcell][data-selected]").first()).toBeVisible();
+			const before = await widgetTitles(page).count();
+			await widgetMenuItem(page, title, "Open these days in a chart");
+			await expect(widgetTitles(page)).toHaveCount(before + 1);
+			await expectWidgetsLoaded(page);
+		}
+	},
+	{
 		name: "data-page",
 		async run(page) {
 			await page.goto("./data");
@@ -453,6 +525,67 @@ export const WALK: readonly WalkStep[] = [
 				await expect(page).not.toHaveURL(/\/(shared|no-such-page)$/);
 				await expect(widgetTitles(page).first()).toBeVisible();
 			}
+		}
+	},
+	{
+		// Sign out with a change not yet in the account asks first (closed with Cancel, never
+		// signed out): the documents API is held back while the dashboard is renamed, so the
+		// change stays in this browser, then let through again.
+		name: "sign-out-dialog",
+		async run(page, state) {
+			await backToDashboard(page, state);
+			await page.route(isDocumentsApi, (route) => route.abort("internetdisconnected"));
+			try {
+				await dashboardMenuItem(page, "Rename dashboard…");
+				const rename = page.getByRole("dialog", { name: "Rename dashboard" });
+				await rename.getByRole("textbox", { name: "Name" }).fill("CSP walk");
+				await rename.getByRole("button", { name: "Save", exact: true }).click();
+				const main = page.getByRole("navigation", { name: "Main" });
+				// Not in the account: only then can Sign out ask instead of signing out.
+				await expect(main.getByText("Saved in this browser", { exact: true })).toBeVisible();
+				await accountButton(page).click();
+				await page.getByRole("menuitem", { name: "Sign out", exact: true }).click();
+				const asking = page.getByRole("dialog", {
+					name: "Some changes aren't in your account yet"
+				});
+				await expect(asking).toBeVisible();
+				await asking.getByRole("button", { name: "Cancel", exact: true }).click();
+				await expect(asking).toBeHidden();
+				await expect(accountButton(page)).toBeVisible();
+			} finally {
+				await page.unroute(isDocumentsApi);
+			}
+		}
+	},
+	{
+		// The fakes only: the stack's session can't be signed out and back in without a logout and
+		// a login, which the stack run doesn't do. Signed out (the account answers 401), a
+		// dashboard made in this browser; signed in again, the app offers to move it into the
+		// account ("Keep in this browser": nothing moved).
+		name: "move-to-account",
+		on: ["fakes"],
+		async run(page) {
+			await page.route(isAccountApi, (route) =>
+				route.fulfill({
+					status: 401,
+					json: { detail: "Authentication credentials were not provided." }
+				})
+			);
+			try {
+				await page.goto("./dashboards");
+				await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+				await page.getByRole("button", { name: "New from starter", exact: true }).click();
+				await expect(page).toHaveURL(DASHBOARD_URL);
+				// Stored in this browser (the indicator says "Saved" signed out).
+				await expect(page.getByRole("button", { name: /^Saved/ })).toBeVisible();
+			} finally {
+				await page.unroute(isAccountApi);
+			}
+			await page.reload();
+			const offer = page.getByRole("dialog", { name: "Dashboards in this browser" });
+			await expect(offer).toBeVisible();
+			await offer.getByRole("button", { name: "Keep in this browser", exact: true }).click();
+			await expect(offer).toBeHidden();
 		}
 	}
 ];
