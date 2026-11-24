@@ -2709,6 +2709,19 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     must not cost the person anything). The unit test checks the widget ids; the guarantee comes
     from `DashboardGrid` keying, which a later refactor could break silently. **Revisit when**
     people report it, or at the first usability testing.
+  - **A pending focus request survives a browser Back pressed mid-hand-off** until a frame with the
+    same widget id mounts (the focus store's existing behaviour). A starter frame handing off to
+    its copy now leaves its request pending for the copy, so the window is longer while the types
+    load. **Revisit when** people report it, or with the next focus-store change.
+  - **After a failed hand-off, the starter's `edited` stays true**, so later focus requests on that
+    starter only focus its title bar and stay pending until the next input. A failed hand-off is
+    rare (the copy couldn't be stored) and the bar still gets focus. **Revisit when** people report
+    it, or with the next focus-store change.
+  - **Moving a starter widget from the ⋯ menu by mouse while the types load leaves focus on
+    `<body>` until the copy shows** (the closing Move submenu takes it). A key press in that time
+    drops the pending request. Parked: mouse-only, and only during a slow catalog; the keyboard
+    path keeps focus on the title bar. **Revisit if** keyboard or screen-reader users report it,
+    or with the next focus-store or menu change.
   - **During a catalog outage, every exit and every starter build asks for the types again.**
     Each exit can wait the full `CATALOG_WAIT_MS` again, and each failure (not a timeout) sends
     another error report. Parked: outages are rare, and it matches how a new Map asks on every

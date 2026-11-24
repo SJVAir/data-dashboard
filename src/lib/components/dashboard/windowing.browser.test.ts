@@ -316,6 +316,10 @@ test("a dialog's title focus request on the starter while the types load reaches
 	requestFocus({ kind: "title", id: "starter-2" });
 	await settle();
 	expect(app.current.session).toBe(starter);
+	// Meanwhile focus is on the starter's own title bar.
+	expect(document.activeElement).toBe(
+		page.getByTestId("widget-starter-2").getByRole("group").element()
+	);
 	answer();
 	await expect.poll(() => app.current.session).not.toBe(starter);
 	await expect

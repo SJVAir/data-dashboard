@@ -1422,6 +1422,40 @@ test("Move ▸ Right on the starter keeps focus while the monitor types are stil
 	}
 });
 
+test("Move ▸ Right by keyboard on the starter keeps focus while the monitor types are still loading", async () => {
+	let answer!: (types: string[]) => void;
+	const held = new Promise<string[]>((resolve) => (answer = resolve));
+	vi.mocked(loadMonitorTypes).mockImplementation(() => held);
+	try {
+		const { app, starter } = await starterApp();
+		const bar = page.getByTestId("widget-starter-2").getByRole("group").element() as HTMLElement;
+		bar.focus();
+		await press("{Shift>}{F10}{/Shift}");
+		await expect
+			.poll(() => !!document.querySelector("[role=menu]")?.contains(document.activeElement))
+			.toBe(true);
+		for (let i = 0; i < 8 && document.activeElement?.textContent?.trim() !== "Move"; i++) {
+			await press("{ArrowDown}");
+		}
+		await expect.element(menuItem("Move")).toHaveFocus();
+		await press("{ArrowRight}");
+		await expect.poll(() => document.querySelectorAll("[role=menu]").length).toBe(2);
+		await focusItem("Right");
+		await press("{Enter}");
+		await expect.poll(() => document.querySelectorAll("[role=menu]").length).toBe(0);
+		expect(app.current.session).toBe(starter);
+		// Meanwhile focus is on the starter's own title bar.
+		await expect.poll(() => document.activeElement).toBe(bar);
+		answer(["a"]);
+		await expectHandedOff(app, starter);
+	} finally {
+		vi.mocked(loadMonitorTypes).mockReset();
+		const { loadMonitorTypes: real } =
+			await vi.importActual<typeof import("$lib/widgets/map/start")>("$lib/widgets/map/start");
+		vi.mocked(loadMonitorTypes).mockImplementation(real);
+	}
+});
+
 /** Focus moves down the open submenu until it's on `name`. */
 async function focusItem(name: string) {
 	// The submenu opens before focus moves into it; an ArrowDown sent in between moves focus in
