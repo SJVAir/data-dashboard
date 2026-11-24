@@ -2688,8 +2688,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     (T1-m3). **Revisit with** the next change to the ESLint zod rule.
   - **Violations after a watched context closes can be lost** (T1-m4). Inherent to the watch.
     **Revisit if** a violation is ever seen to slip through.
-  - **`WALK_ROUTES` is a hand list, not tied to the steps** (T2-m4, plan-mandated), **and the
-    body-loaded check assumes the widget body is the frame's second child** (T2-m7). **Fix with**
+  - **`WALK_ROUTES` is a hand list, not tied to the steps** (T2-m4, plan-mandated). **Fix with**
     the next change to `e2e/csp-walk-routes.ts` or `e2e/csp-walk.ts`.
   - **The stack run has data needs:** the show-in step needs at least one monitor row, the
     share-link step needs sync, and the csv-download step needs the first calendar to have data

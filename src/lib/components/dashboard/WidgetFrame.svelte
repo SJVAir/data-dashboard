@@ -766,6 +766,7 @@
 	<div
 		bind:this={content}
 		class={["relative min-h-0 flex-1 p-(--card-padding)", selected && "touch-none"]}
+		data-widget-body
 	>
 		{#snippet body(mod: WidgetModule)}
 			<mod.component {widget} {fullscreen} />

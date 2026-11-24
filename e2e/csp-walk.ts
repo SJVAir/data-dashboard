@@ -149,12 +149,12 @@ async function expectDataPortal(page: Page): Promise<void> {
 
 /**
  * Whether a widget's body has loaded its code and data. `el` is a dashboard widget's frame or the
- * Data Portal's preview; either holds its title first and its body second. The body is empty
+ * Data Portal's preview; either marks its body `data-widget-body`. The body is empty
  * until its code is asked for, then shows a skeleton (`data-skeleton`) while the code loads, and
  * a "Loading…" status while its data does.
  */
 function bodyLoaded(el: Element): boolean {
-	const body = el.children[1];
+	const body = el.querySelector("[data-widget-body]");
 	if (!body || body.childElementCount === 0) return false;
 	if (body.querySelector("[data-skeleton]")) return false;
 	return ![...body.querySelectorAll("[role=status]")].some((status) =>
