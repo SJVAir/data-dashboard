@@ -6,8 +6,9 @@
  * monitor ids): each finds things by role and the app's own English labels, and reads what it
  * needs (the Map's title, the dashboard's address, the share links) from the page.
  *
- * Imports only Playwright, lz-string (to build a link the way the app does) and the route list
- * (never `./fixtures` or a fixture server), since the stack run imports it too. One fakes-only step
+ * Imports only Playwright, lz-string (to build a link the way the app does), `./helpers` (which
+ * holds no fixture data) and the route list (never `./fixtures` or a fixture server), since the
+ * stack run imports it too. One fakes-only step
  * names fixture data (the downsample worker's raw-only PM10 monitor), since nothing on the stack is
  * known to reach that worker.
  */
@@ -19,6 +20,7 @@ import {
 	type Page
 } from "@playwright/test";
 import LZString from "lz-string";
+import { hasWebGL } from "./helpers";
 
 /** Where the walk runs: the E2E fakes, or the local sjvair.com stack. */
 export type WalkTarget = "fakes" | "stack";
@@ -53,17 +55,6 @@ const MAP_TITLE = / map( · .+)?$/;
 /** The welcome Note's title, and the bold start of its text (rendered by `marked`). */
 const NOTE = "Note";
 const WELCOME = "Welcome to the SJVAir Dashboard.";
-
-/**
- * Whether the page's browser can make a WebGL context (copied from `helpers.ts`, which imports
- * fixture code). Without it a Map draws no map region, only its frame and title.
- */
-function hasWebGL(page: Page): Promise<boolean> {
-	return page.evaluate(() => {
-		const canvas = document.createElement("canvas");
-		return !!(canvas.getContext("webgl2") ?? canvas.getContext("webgl"));
-	});
-}
 
 function need<T>(value: T | undefined, what: string): T {
 	if (value === undefined) throw new Error(`The walk has no ${what} (an earlier step failed)`);
@@ -362,9 +353,8 @@ export const WALK: readonly WalkStep[] = [
 
 			// The place picker (the starter's copy has one place, so no "which place" question).
 			await dashboardMenuItem(page, "Duplicate for another place…");
-			await expect(
-				page.getByRole("dialog").getByRole("combobox", { name: "Search for a place" })
-			).toBeVisible();
+			const picker = page.getByRole("dialog", { name: /^Choose (a place|places)$/ });
+			await expect(picker.getByRole("combobox", { name: "Search for a place" })).toBeVisible();
 			await escapeDialogs(page);
 
 			await dashboardMenuItem(page, "Share…");
@@ -432,13 +422,21 @@ export const WALK: readonly WalkStep[] = [
 			await expect(page).not.toHaveURL(/\/import$/);
 			await expect(widgetTitles(page).first()).toBeVisible();
 
+			const source = need(state.dashboardUrl, "dashboard");
+			/** On a dashboard, and not the one the link was made from: the imported copy. */
+			const onCopy = (url: URL) => DASHBOARD_URL.test(url.href) && url.href !== source;
 			await page.goto(need(state.shareLink, "share link"));
-			const makeNew = page.getByRole("button", { name: "Make a new copy" });
-			await expect(makeNew.or(widgetTitles(page).first())).toBeVisible();
-			if (await makeNew.isVisible()) await makeNew.click();
-			await expect(page).toHaveURL(DASHBOARD_URL);
-			// The imported copy, not the dashboard it was shared from.
-			expect(page.url()).not.toBe(need(state.dashboardUrl, "dashboard"));
+			// This browser may already hold a copy of it: the app asks first.
+			const ask = page.getByRole("dialog", { name: "You already have a copy of this dashboard" });
+			await expect
+				.poll(async () => (await ask.isVisible()) || onCopy(new URL(page.url())), {
+					message: "the import asks, or opens a copy (not the source dashboard)"
+				})
+				.toBe(true);
+			if (await ask.isVisible()) {
+				await ask.getByRole("button", { name: "Make a new copy", exact: true }).click();
+			}
+			await expect(page).toHaveURL(onCopy);
 			await expect(widgetTitles(page).first()).toBeVisible();
 		}
 	},
