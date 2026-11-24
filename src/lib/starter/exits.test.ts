@@ -93,13 +93,18 @@ const POINT: ChosenPlace = { kind: "point", lat: 36.7378, lon: -119.7871 };
 const ZIP: ChosenPlace = { kind: "region", type: "zipcode", code: "93721" };
 const TULARE: ChosenPlace = { kind: "region", type: "county", code: "06107" };
 
-/** The app, with `place` saved as the starter's place first (none: unset). */
+/**
+ * The app, with `place` saved as the starter's place first (none: unset), and the starter claimed
+ * as Home claims it while mounted (`release` lets go, as Home's teardown does): these tests open the
+ * starter and show it after an await, as Home does.
+ */
 async function setup(place?: ChosenPlace) {
 	const platform = createMemoryPlatform();
 	setPlatform(platform);
 	if (place) await saveStarterPlace(platform, "anonymous", place);
 	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
-	return { platform, app };
+	const release = app.claimStarter();
+	return { platform, app, release };
 }
 
 async function stored(platform: ReturnType<typeof createMemoryPlatform>, id: string) {
@@ -600,11 +605,17 @@ describe("the starter's monitor types", () => {
 		starter.apply(rename);
 		expect(app.current.session!.doc.name).toBe("Mine");
 		expect(app.current.isStarter).toBe(true);
-		// Whatever a save would store, stored now.
+		// Its hand-off started, and waits for the types: nothing stored yet.
+		const handoff = starter.handoff!;
+		expect(handoff).not.toBeNull();
 		await starter.flush();
 		expect(await platform.documents.list("anonymous")).toEqual([]);
 		answer();
-		await vi.waitFor(() => expect(app.current.isStarter).toBe(false));
+		// The copy, stored after the types arrived, has them.
+		const copy = (await handoff)!;
+		await copy.flush();
+		expect(app.current.session).toBe(copy);
+		expectFromStarter(await stored(platform, copy.doc.id), DEFAULT_PLACE);
 	});
 
 	it("undo during the wait does nothing; after the copy, it reverts the edit", async () => {
@@ -711,28 +722,50 @@ describe("the starter's monitor types", () => {
 		expectFromStarter(await stored(platform, copy.doc.id), DEFAULT_PLACE);
 	});
 
-	it("a kept starter's listeners go once Home lets go of it", async () => {
+	it("a starter replaced after Home let go of it is discarded at once", async () => {
 		// The page's events (no window in Node): each session listens for pagehide and pageshow.
 		const page = new EventTarget();
 		vi.stubGlobal("window", page);
 		try {
 			const answer = holdTypes();
-			const { app } = await setup();
-			const kept = await showStarter(app);
-			// Left for /dashboards before the catalog answered: nothing is current.
+			const { app, release } = await setup();
+			// Home's order: opened and made current, then left for /dashboards (nothing current, and
+			// Home's teardown lets go) before the catalog answered.
+			const replaced = await showStarter(app);
 			app.current = { session: null, isStarter: false };
+			release();
+			const removed = vi.spyOn(page, "removeEventListener");
 			answer();
 			await app.starterTypesReady();
-			const fresh = (await app.sessions.get(STARTER_ID))!;
-			expect(fresh).not.toBe(kept);
-			const removed = vi.spyOn(page, "removeEventListener");
-			app.releaseStarter();
 			const types = removed.mock.calls.map(([type]) => type);
-			expect(types).toContain("pagehide");
-			expect(types).toContain("pageshow");
-			// Only the kept one: the fresh starter (the next open) still listens.
 			expect(types.filter((t) => t === "pagehide")).toHaveLength(1);
-			expect(await app.sessions.get(STARTER_ID)).toBe(fresh);
+			expect(types.filter((t) => t === "pageshow")).toHaveLength(1);
+			// The fresh starter (the next open) still listens.
+			const fresh = (await app.sessions.get(STARTER_ID))!;
+			expect(fresh).not.toBe(replaced);
+			expect(mapTypes(fresh.doc)).toEqual(TYPES);
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	});
+
+	it("a starter kept for claims goes when the last claim is released", async () => {
+		const page = new EventTarget();
+		vi.stubGlobal("window", page);
+		try {
+			const answer = holdTypes();
+			const { app, release } = await setup();
+			const other = app.claimStarter();
+			await app.sessions.get(STARTER_ID);
+			answer();
+			await app.starterTypesReady();
+			const removed = vi.spyOn(page, "removeEventListener");
+			release();
+			// Released twice: counted once.
+			release();
+			expect(removed).not.toHaveBeenCalled();
+			other();
+			expect(removed.mock.calls.filter(([t]) => t === "pagehide")).toHaveLength(1);
 		} finally {
 			vi.unstubAllGlobals();
 		}
@@ -948,7 +981,7 @@ describe("the starter's monitor types", () => {
 		expect(mapTypes(starter.doc)).toBeUndefined();
 	});
 
-	it("a failed load resolves with none, and isn't kept", async () => {
+	it("a failed load resolves with none, kept as none (starterTypes stays unset)", async () => {
 		vi.mocked(loadMonitorTypes).mockRejectedValue(new Error("no"));
 		const { app } = await setup();
 		await showStarter(app);

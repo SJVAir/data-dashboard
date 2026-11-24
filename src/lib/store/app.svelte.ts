@@ -72,22 +72,30 @@ export type AppContext = {
 	 */
 	starterArea: ChosenPlace | null;
 	/**
-	 * The catalog's monitor types, which the starter's Map ticks: `null` until loaded (and while
-	 * the catalog couldn't be loaded, or was late: the next ask tries again). Metadata, not a
-	 * preference: loaded once per app and kept through "Clear my data".
+	 * The catalog's monitor types, which the starter's Map ticks: `null` until loaded, and when a
+	 * load gave none (the catalog failed, or was late). Metadata, not a preference: loaded once per
+	 * app and kept through "Clear my data".
 	 */
 	starterTypes: readonly string[] | null;
 	/**
-	 * Starts loading `starterTypes` (once per app, unless a load gave none) and resolves to them;
-	 * never rejects. Every exit from the starter awaits it, so its copy's Map has them.
+	 * Starts loading `starterTypes` and resolves to them; never rejects. Asked once per app: a
+	 * failed catalog (it threw, or the server had none) is kept as none, with no second wait or
+	 * report; only a late one is asked again. Every exit from the starter awaits it, so its copy's
+	 * Map has them.
 	 */
 	starterTypesReady(): Promise<readonly string[]>;
 	/**
 	 * Discards every starter kept by a types swap (opened, maybe about to be shown) that can no
-	 * longer be: not current, its hand-off not started, and not the one the next open gives. Home
-	 * calls it once it shows a starter, and when it goes.
+	 * longer be: not current, its hand-off not started, and not the one the next open gives. Runs
+	 * when a dashboard is made current and when the last starter claim is released.
 	 */
 	releaseStarter(): void;
+	/**
+	 * Claims the starter for a page that may show it (Home, while mounted): a starter the types
+	 * swap replaces before it's shown is kept usable only while a claim is held (with none, it's
+	 * discarded at once). Returns the release; releasing the last claim runs `releaseStarter`.
+	 */
+	claimStarter(): () => void;
 	/**
 	 * The starter's "Change place": saves `place` as the space's chosen place and shows a fresh
 	 * starter there (every widget at once; no copy, no undo). A starter whose first edit already
@@ -167,6 +175,8 @@ class App implements AppContext {
 	#typesLoad: Promise<readonly string[]> | null = null;
 	/** Starters replaced while not shown, kept usable until `releaseStarter`. */
 	readonly #kept = new Set<DocumentSession>();
+	/** Pages that may show the starter (`claimStarter`). */
+	#claims = 0;
 	/** Counts starter place changes: a lookup answered after a newer change (or a reset) is stale. */
 	#starterChange = 0;
 	readonly index: DashboardIndex;
@@ -511,6 +521,17 @@ class App implements AppContext {
 		if (value.session) this.releaseStarter();
 	}
 
+	claimStarter(): () => void {
+		this.#claims++;
+		let released = false;
+		return () => {
+			if (released) return;
+			released = true;
+			this.#claims--;
+			if (this.#claims === 0) this.releaseStarter();
+		};
+	}
+
 	releaseStarter(): void {
 		if (this.#kept.size === 0) return;
 		// Called from effects (setting `current`): reading `current` here mustn't track it.
@@ -556,7 +577,9 @@ class App implements AppContext {
 		if (this.#closed) return;
 		const starter = this.#live.get(STARTER_ID);
 		if (!starter || this.#handedOff()) return;
-		this.#replaceStarter(starter, this.current.session !== starter);
+		// Not shown: kept only while a page that may show it holds a claim (Home, between opening
+		// it and making it current); with none, nothing can show it.
+		this.#replaceStarter(starter, this.current.session !== starter && this.#claims > 0);
 	}
 
 	async copyStarter(): Promise<DocumentSession | null> {
@@ -592,7 +615,9 @@ class App implements AppContext {
 				// The next visit to the starter gets a fresh one. One built when this one was kept
 				// (a types swap) goes too: it was never shown, and its listeners mustn't stay.
 				const next = this.#live.get(STARTER_ID);
-				if (next && next !== starter && next !== this.current.session) next.discard();
+				if (next && next !== starter && next !== this.current.session && !next.edited) {
+					next.discard();
+				}
 				this.#open.delete(STARTER_ID);
 				this.#live.delete(STARTER_ID);
 				this.#open.set(id, Promise.resolve(copy));

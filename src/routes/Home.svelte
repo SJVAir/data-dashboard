@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack } from "svelte";
+	import { onDestroy, untrack } from "svelte";
 	import { toast } from "svelte-sonner";
 	import DashboardGrid from "$lib/components/dashboard/DashboardGrid.svelte";
 	import { FULLSCREEN_PARAM, fullscreenId } from "$lib/layout/fullscreen";
@@ -11,6 +11,9 @@
 
 	const app = useApp();
 	const name = $derived(currentDashboardName(app));
+	// This page may show the starter: one the types swap replaces before it's shown stays usable
+	// while mounted (Home makes the one it opened current after an await).
+	onDestroy(app.claimStarter());
 	/** The starter's session while it's shown here. */
 	let starter: DocumentSession | null = null;
 
@@ -52,15 +55,11 @@
 				}
 				// The starter shown now (the types may have swapped it after the re-read).
 				starter = app.current.isStarter ? app.current.session : starter;
-				// Any other starter the types swap kept for this page can't be shown now.
-				app.releaseStarter();
 				// Edits a starter page left mid-hand-off (it went away) are handed off now.
 				void starter?.replayPending();
 			})();
 			return () => {
 				active = false;
-				// Leaving `/` (or resolving it again): a starter kept for this page goes.
-				app.releaseStarter();
 			};
 		});
 	});

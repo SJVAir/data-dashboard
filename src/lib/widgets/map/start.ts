@@ -60,7 +60,10 @@ export async function loadMonitorTypesResult(): Promise<{ types: string[]; faile
 	}
 }
 
-/** Every monitor type of the catalog; none when it can't be loaded or is late (`loadMonitorTypesResult`). */
+/**
+ * Every monitor type of the catalog; none when it can't be loaded or is late
+ * (`loadMonitorTypesResult`).
+ */
 export async function loadMonitorTypes(): Promise<string[]> {
 	return (await loadMonitorTypesResult()).types;
 }
