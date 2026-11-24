@@ -188,3 +188,24 @@ mode), Playwright.
 - [ ] DEFERRED: the five entries listed in the spec's "DEFERRED.md entries this spec touches". Remove "A pinned calendar's lone dataset…" only once Task 5 lands. Grep the listed terms and fix any wording this spec makes wrong.
 - [ ] TODO: step 6 spec 3 status.
 - [ ] Commit `"Docs: step 6 spec 3"` (by path).
+
+### Task 8: Re-pin `@sjvair/map-sdk` to `0.1.0-beta.23` (on hold until the coordinator says it's published)
+
+Added 2026-11-24 by the user through the coordinator. **Don't start until `0.1.0-beta.23` is
+published** (`npm view @sjvair/map-sdk versions` lists it). Runs before Task 6's full run if
+it's published in time, otherwise after it, followed by a second full run of the Map tests.
+
+**Files:**
+- Modify: `package.json`, `package-lock.json` (`"@sjvair/map-sdk": "0.1.0-beta.23"`, exact), `CLAUDE.md` (the Key Libraries row's version)
+- Modify: `src/lib/widgets/map/data/use-block.svelte.ts`, `src/lib/widgets/map/layers/UseLayers.svelte`, `src/lib/widgets/map/MapWidget.svelte`
+- Test: the use-block unit tests (`grep -rl "UseBlock" src/lib/widgets/map --include=*.test.ts`), plus any Map test that measures the options toolbar's child rows (they move about 5 px right in beta.23)
+
+**Interfaces:**
+- `UseBlock.childrenLoaded(refKey: string): boolean`: whether the current lens source holds every section of the township `refKey` names. It returns false for a section ref, for no lens, or for a lens of another key. The starting point is `.superpowers/sdd/2026-11-24-step-6-spec-3-ui-polish/childrenLoaded-patch.diff` (written for a check; replace its "LOCAL LENS-CHECK PATCH" comment with a real doc comment).
+- `UseLayers.svelte`: an optional prop `childrenLoaded?: (refKey: string) => boolean`, passed to `shapesLens` as its new optional `childrenLoaded`. `MapWidget` passes `(refKey) => data.useBlock.childrenLoaded(refKey)`.
+
+- [ ] **Step 1:** `npm install --save-exact @sjvair/map-sdk@0.1.0-beta.23`; check its d.ts has `childrenLoaded` on `shapesLens`'s options.
+- [ ] **Step 2: Write failing unit tests** for `childrenLoaded`: true for a township whose block is in the lens; false for a township outside it, for a section ref, with no lens, and for a lens of a stale key.
+- [ ] **Step 3: Implement** from the patch. Run the use-block tests and `npm run check`.
+- [ ] **Step 4:** Run the Map browser tests and E2E tests that touch the options toolbar or the Pesticide use layer, narrowed with `-t` / `-g`. Fix any test that measures child-row geometry or expects the dropdown to close on a label click (beta.23 keeps it open). Run `npm run build && npm run check:budget` and report the bundle size.
+- [ ] **Step 5:** Commit: `"Map: re-pin @sjvair/map-sdk 0.1.0-beta.23; Pesticide use passes childrenLoaded to the lens"`.
