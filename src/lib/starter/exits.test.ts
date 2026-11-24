@@ -1323,6 +1323,28 @@ describe("the starter's copy, made after the person moved on", () => {
 		expect(app.current.session).toBeNull();
 	});
 
+	it("a kept starter's copy doesn't take over the fresh starter the person is editing at /", async () => {
+		const answer = holdTypes();
+		const { app } = await setup();
+		// Get data holds the starter it opened (nothing current there); the types then swap it.
+		const kept = (await app.sessions.get(STARTER_ID))!;
+		answer();
+		await app.starterTypesReady();
+		const fresh = (await app.sessions.get(STARTER_ID))!;
+		expect(fresh).not.toBe(kept);
+		// Get data's Save hands the kept one off; meanwhile the person edits the fresh one at /.
+		kept.apply(rename);
+		app.current = { session: fresh, isStarter: true };
+		fresh.apply({ ...rename, to: "Theirs" });
+		const keptCopy = await kept.handoff;
+		expect(keptCopy).not.toBeNull();
+		expect(app.current.session).not.toBe(keptCopy);
+		// The fresh one's own hand-off still lands where it shows.
+		const freshCopy = await fresh.handoff;
+		expect(app.current).toEqual({ session: freshCopy, isStarter: false });
+		expect(freshCopy!.doc.name).toBe("Theirs");
+	});
+
 	it("the starter still shown: the copy takes its place", async () => {
 		const answer = holdTypes();
 		const { platform, app } = await setup();

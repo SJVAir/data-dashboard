@@ -616,11 +616,16 @@ class App implements AppContext {
 				// The copy takes the starter's place only where the starter is still shown (it, or the
 				// fresh one a types swap put in its place). A person who moved on during the types wait
 				// (another dashboard, the list, Get data, a shared page) stays there: the copy is stored
-				// and listed, and opens from its link.
+				// and listed, and opens from its link. A fresh one the person edited meanwhile has its
+				// own hand-off: it isn't taken over, and keeps its place as the starter.
 				const { session: shown, isStarter } = this.current;
-				const takesOver = shown === starter || (isStarter && !!next && shown === next);
-				this.#open.delete(STARTER_ID);
-				this.#live.delete(STARTER_ID);
+				const ownStarter = !!next && next !== starter && next.edited;
+				const takesOver =
+					shown === starter || (isStarter && !!next && shown === next && !next.edited);
+				if (!ownStarter) {
+					this.#open.delete(STARTER_ID);
+					this.#live.delete(STARTER_ID);
+				}
 				this.#open.set(id, Promise.resolve(copy));
 				this.#live.set(id, copy);
 				if (takesOver) {

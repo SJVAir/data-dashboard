@@ -2745,10 +2745,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     during the step so a wrong precondition fails it instead (on the local stack it would only
     sign the test user out). **Fix with** the next change to `e2e/csp-walk.ts` or before go-live
     day's rerun.
-  - **`onCopied`'s second takes-over arm (`src/lib/store/app.svelte.ts`) lacks `&& !next.edited`.**
-    A Get data copy of the starter finishing while the person edits the fresh starter at `/`
-    takes over that page, and the fresh starter's copy is stored but not shown. Narrow. **Fix
-    with** the next change to the starter hand-off.
 - **The startup chain keeps LCP over 2.5 s on a throttled phone.** _Deferred 2026-11-23 (step 6
   spec 1, the Lighthouse check; the user: revisit at go-live)._ The LCP element is the welcome
   Note's text. It waits for the app chunk (188 KB gzipped) to download and run its startup
