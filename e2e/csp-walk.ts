@@ -159,9 +159,11 @@ async function expectDataPortal(page: Page): Promise<void> {
  * until its code is asked for, then shows a skeleton (`data-skeleton`) while the code loads, and
  * a "Loading…" status while its data does.
  */
-function bodyLoaded(el: Element): boolean {
+function bodyLoaded(el: Element): boolean | "unmarked" {
 	const body = el.querySelector("[data-widget-body]");
-	if (!body || body.childElementCount === 0) return false;
+	// The frame or preview is there but marks no body: a build from before the mark.
+	if (!body) return "unmarked";
+	if (body.childElementCount === 0) return false;
 	if (body.querySelector("[data-skeleton]")) return false;
 	return ![...body.querySelectorAll("[role=status]")].some((status) =>
 		/^Loading…?$/.test((status.textContent ?? "").trim())
@@ -169,24 +171,32 @@ function bodyLoaded(el: Element): boolean {
 }
 
 /** Scrolls `container` (a widget frame or the preview) into view and waits for its body to load. */
-async function expectBodyLoaded(container: Locator, what: string): Promise<void> {
+export async function expectBodyLoaded(container: Locator, what: string): Promise<void> {
 	// The locator is resolved afresh on every poll: the preview remounts between Show as choices,
 	// so an element found earlier can be gone (detached) by the time it's scrolled or read.
+	let state = false as boolean | "unmarked";
 	await expect
 		.poll(
 			async () => {
 				try {
 					await container.scrollIntoViewIfNeeded({ timeout: 2_000 });
-					return await container.evaluate(bodyLoaded, undefined, { timeout: 2_000 });
+					state = await container.evaluate(bodyLoaded, undefined, { timeout: 2_000 });
 				} catch {
 					// Detached, or not there yet: try again on the next poll.
-					return false;
+					state = false;
 				}
+				return state;
 			},
 			{ message: `${what} loaded`, timeout: 20_000 }
 		)
-		.toBe(true);
+		.not.toBe(false);
+	// At once, not after the timeout: no wait can fix an older build.
+	if (state === "unmarked") throw new Error(UNMARKED_BUILD);
 }
+
+/** Why a widget body can't be found: the build under test is older than its mark. */
+export const UNMARKED_BUILD =
+	"This /workspace/ build predates data-widget-body (5f0e564): build from 5f0e564 or later.";
 
 /**
  * Brings every widget on the page into view in turn and waits for each one's code (each type's

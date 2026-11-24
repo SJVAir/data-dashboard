@@ -8,7 +8,9 @@
 import { expect, test } from "./fixtures";
 import { maria } from "./helpers";
 import {
+	UNMARKED_BUILD,
 	WALK,
+	expectBodyLoaded,
 	redactUrls,
 	routePattern,
 	runWalk,
@@ -113,4 +115,15 @@ test("a route key matches its own paths only", () => {
 			"/workspace/dashboards/a/widgets/new"
 		)
 	).toBe(false);
+});
+
+test("a build from before the body mark fails at once, saying so", async ({ page }) => {
+	// A frame as builds before 5f0e564 drew it: a title, then a body with no mark.
+	await page.setContent('<section id="frame"><div>Title</div><div><p>Loaded</p></div></section>');
+	const started = Date.now();
+	await expect(expectBodyLoaded(page.locator("#frame"), "the frame")).rejects.toThrow(
+		UNMARKED_BUILD
+	);
+	// Not after waiting out the 20 s poll.
+	expect(Date.now() - started).toBeLessThan(5_000);
 });
