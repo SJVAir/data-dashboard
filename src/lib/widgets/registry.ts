@@ -33,6 +33,8 @@ export type WidgetType = {
 	 */
 	now?: boolean;
 	thresholds: boolean;
+	/** The heading of the type's own settings in Get data ("Chart options"); none for a type with none. */
+	optionsLabel?: () => string;
 	analyzable: boolean;
 	/** Offers "Download data (CSV)". */
 	downloadable: boolean;

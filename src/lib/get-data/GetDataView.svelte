@@ -68,7 +68,8 @@
 	import ActionBar from "./ActionBar.svelte";
 	import type { AddTarget } from "./add";
 	import DataResolutionControl from "./DataResolutionControl.svelte";
-	import MoreOptions from "./MoreOptions.svelte";
+	import TypeOptions from "./TypeOptions.svelte";
+	import { hasAlertLevels, hasLevelLine } from "./type-options";
 	import { flushDraft, saveDraft, type Draft } from "./draft.svelte";
 	import type { GetDataMode } from "./mode";
 	import {
@@ -1239,14 +1240,6 @@
 							blocks: mapBlocks
 						}}
 					/>
-					{#if isNow && type.thresholds}
-						<!-- A now type's alert levels, one per pollutant (chosen in Air quality). -->
-						<NowControls
-							alerts={nowAlerts}
-							onthreshold={setThreshold}
-							onretry={(e) => void levelsOf(e)}
-						/>
-					{/if}
 				{/if}
 			</section>
 
@@ -1259,31 +1252,6 @@
 					onchange={setDetail}
 				/>
 			{/if}
-
-			{#if !isNow && type?.thresholds && shownLevels}
-				{#if type.resolution}
-					<!-- A type with a pinned resolution (a calendar): its level control stands alone. -->
-					<section>
-						<ThresholdLineControl
-							levels={shownLevels}
-							thresholds={plain.thresholds}
-							onthreshold={setLineThreshold}
-							onretry={() => void levelsOf(lineEntryType)}
-							marks={isCalendarType(plain.type)}
-						/>
-					</section>
-				{:else}
-					<MoreOptions>
-						<ThresholdLineControl
-							levels={shownLevels}
-							thresholds={plain.thresholds}
-							onthreshold={setLineThreshold}
-							onretry={() => void levelsOf(lineEntryType)}
-							marks={isCalendarType(plain.type)}
-						/>
-					</MoreOptions>
-				{/if}
-			{/if}
 		</div>
 
 		<div
@@ -1294,6 +1262,26 @@
 			{@attach scrollFocusable}
 		>
 			<ShowAs types={showAs} value={plain.type} onchange={setType} />
+			{#if type?.optionsLabel && type.thresholds && (isNow ? hasAlertLevels(nowAlerts) : hasLevelLine(shownLevels))}
+				<TypeOptions label={type.optionsLabel()}>
+					{#if isNow}
+						<!-- A now type's alert levels, one per pollutant (chosen in Air quality). -->
+						<NowControls
+							alerts={nowAlerts}
+							onthreshold={setThreshold}
+							onretry={(e) => void levelsOf(e)}
+						/>
+					{:else if shownLevels}
+						<ThresholdLineControl
+							levels={shownLevels}
+							thresholds={plain.thresholds}
+							onthreshold={setLineThreshold}
+							onretry={() => void levelsOf(lineEntryType)}
+							marks={isCalendarType(plain.type)}
+						/>
+					{/if}
+				</TypeOptions>
+			{/if}
 			{#if overlayFor}
 				<label class="flex flex-wrap items-center gap-2 text-sm">
 					<span class="font-medium">{m.get_data_overlay_for()}</span>

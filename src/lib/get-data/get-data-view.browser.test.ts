@@ -660,13 +660,11 @@ test("Data resolution is its own section after What, with a help button", async 
 	const heading = page.getByRole("heading", { name: /^Data resolution/ });
 	await expect.element(heading).toBeVisible();
 	expect(m.get_data_resolution()).toBe("Data resolution");
-	// After What, and not inside More options (visible without opening it).
+	// After What.
 	const what = page.getByRole("heading", { name: m.get_data_what(), exact: true }).element();
 	expect(
 		what.compareDocumentPosition(heading.element()) & Node.DOCUMENT_POSITION_FOLLOWING
 	).toBeTruthy();
-	const more = page.getByRole("button", { name: "More options" });
-	expect(more.element().closest("[data-state]")?.contains(heading.element())).toBe(false);
 	await openResolution();
 	await expect.element(page.getByRole("radio", { name: "Automatic" })).toBeVisible();
 	// The help button sits beside the group's name, not inside it.
@@ -679,10 +677,8 @@ test("Data resolution is its own section after What, with a help button", async 
 	await expect
 		.element(page.getByRole("status").filter({ hasText: m.get_data_resolution_help() }))
 		.toBeVisible();
-	// The threshold line control is what More options holds.
+	// The level line sits under Show as, always open.
 	const line = page.getByRole("combobox", { name: m.get_data_line_at_level() });
-	expect(line.elements()).toHaveLength(0);
-	await more.click();
 	await expect.element(line).toBeVisible();
 	host.remove();
 });
@@ -828,7 +824,6 @@ function leftColumnHeadings(): string[] {
 test("the left column reads When, Where, What, Data resolution", async () => {
 	await show(monitorsDraft(["m1"]));
 	await expect.element(page.getByRole("heading", { name: /^Data resolution/ })).toBeVisible();
-	// More options, in the same column, comes after them.
 	expect(leftColumnHeadings().slice(0, 4)).toEqual([
 		"When",
 		"Where",
@@ -2948,7 +2943,6 @@ describe("now widgets", () => {
 
 test("a Chart's Threshold line defaults to Off and saves the chosen level", async () => {
 	const { host, current } = await show(monitorsDraft(["m1"]));
-	await page.getByRole("button", { name: "More options" }).click();
 	const select = page.getByRole("combobox", { name: m.get_data_line_at_level() });
 	await expect.element(select).toBeVisible();
 	await expect.element(select).toHaveValue("");
@@ -2962,7 +2956,6 @@ test("a Chart's Threshold line defaults to Off and saves the chosen level", asyn
 
 test("a saved level the scale lacks shows Off and says so", async () => {
 	const { host } = await show(monitorsDraft(["m1"], { thresholds: [{ level: "gone" }] }));
-	await page.getByRole("button", { name: "More options" }).click();
 	const select = page.getByRole("combobox", { name: m.get_data_line_at_level() });
 	await expect.element(select).toHaveValue("");
 	await expect.element(page.getByText(m.chart_level_line_missing()).first()).toBeVisible();
@@ -3012,8 +3005,10 @@ test("Threshold line is hidden for a non-pollutant main layer, and the saved one
 	await page.getByRole("checkbox", { name: "Temperature", exact: true }).click();
 	await openSection(AIR);
 	await page.getByRole("radio", { name: "None" }).click();
-	// More options holds only the line, so it goes with it.
-	await expect.element(page.getByRole("button", { name: "More options" })).not.toBeInTheDocument();
+	// The options section holds only the line, so it goes with it.
+	await expect
+		.element(page.getByRole("heading", { name: "Chart options" }))
+		.not.toBeInTheDocument();
 	await expect
 		.element(page.getByRole("combobox", { name: m.get_data_line_at_level() }))
 		.not.toBeInTheDocument();
@@ -3230,5 +3225,93 @@ describe("What sections start closed", () => {
 		await closed(SCHOOLS);
 		await closed(CHILD);
 		await expectAllClosed();
+	});
+});
+
+describe("a type's own options", () => {
+	const column = () => page.getByTestId("get-data-preview-column");
+	const optionsHeading = (name: string) => column().getByRole("heading", { name, exact: true });
+
+	test("each type's options sit under Show as", async () => {
+		const month = monthCalendarDraft();
+		const cases: [Draft, string, string][] = [
+			[monitorsDraft(["m1"]), "Chart options", m.get_data_line_at_level()],
+			[month, "Calendar options", m.get_data_mark_days_at_level()],
+			[
+				{ ...month, type: "calendar-contribution" },
+				"Calendar options",
+				m.get_data_mark_days_at_level()
+			],
+			[nowDraft("current-conditions"), "Current conditions options", "Alert level"],
+			[nowDraft("outside"), "Alert levels", "Alert level"]
+		];
+		for (const [draft, heading, control] of cases) {
+			const { screen, host } = await show(draft);
+			await expect.element(optionsHeading(heading)).toBeVisible();
+			await expect.element(column().getByRole("combobox", { name: control })).toBeVisible();
+			screen.unmount();
+			host.remove();
+		}
+	});
+
+	test("no options heading when there's nothing to set", async () => {
+		const drafts: Draft[] = [
+			{ ...monitorsDraft(["m1"]), type: "data-table" },
+			{
+				type: "forecast-strip",
+				data: {
+					place: { kind: "region", type: "county", code: "06019" },
+					layers: [{ dataset: "forecasts" }]
+				}
+			},
+			areasDraft(["06019"], { type: "map" }),
+			withAreaLayers(["06019"], POUNDS)
+		];
+		for (const draft of drafts) {
+			const { screen, host } = await show(draft);
+			const names = column()
+				.getByRole("heading", { level: 2 })
+				.elements()
+				.map((el) => el.textContent?.trim() ?? "");
+			expect(names.filter((n) => /options$|^Alert levels$/.test(n))).toEqual([]);
+			screen.unmount();
+			host.remove();
+		}
+	});
+
+	test("Current conditions with no pollutant has no options, then PM2.5 gives one", async () => {
+		const { host } = await show({
+			type: "current-conditions",
+			data: { layers: [{ dataset: "air-quality", monitors: ["m1"] }] }
+		} as Draft);
+		expect(
+			column().getByRole("heading", { name: "Current conditions options" }).elements()
+		).toHaveLength(0);
+		await openSection(AIR);
+		await page.getByRole("checkbox", { name: "PM2.5" }).click();
+		await expect.element(optionsHeading("Current conditions options")).toBeVisible();
+		expect(column().getByRole("combobox", { name: "Alert level" }).elements()).toHaveLength(1);
+		host.remove();
+	});
+
+	test("no More options; What has no Alert level", async () => {
+		const { host } = await show(nowDraft("current-conditions"));
+		expect(page.getByRole("button", { name: "More options" }).elements()).toHaveLength(0);
+		expect(
+			page.getByTestId("get-data-choices").getByRole("combobox", { name: "Alert level" }).elements()
+		).toHaveLength(0);
+		host.remove();
+	});
+
+	const monthCalendarDraft = (): Draft => ({
+		type: "calendar-month",
+		data: {
+			dateRange: { kind: "to-date", unit: "month" },
+			layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }]
+		}
+	});
+	const nowDraft = (type: string): Draft => ({
+		type,
+		data: { layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }] }
 	});
 });

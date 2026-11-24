@@ -13,6 +13,7 @@ export const monthCalendarType: WidgetType = {
 	defaultSize: { w: 4, h: 6 },
 	time: "range",
 	thresholds: true,
+	optionsLabel: () => m.get_data_options_calendar(),
 	analyzable: true,
 	downloadable: true,
 	accepts: {
