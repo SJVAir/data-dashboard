@@ -6,6 +6,7 @@ import { m } from "$lib/paraglide/messages.js";
 import { platform } from "$lib/platform";
 import { updateReminderPrefs } from "$lib/safety/reminder";
 import { starterDashboard } from "$lib/starter/starter";
+import { starterSource } from "$lib/starter/source";
 import { currentDashboardName, type AppContext } from "$lib/store/app.svelte";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
 import { navigate } from "../../router";
@@ -52,10 +53,22 @@ async function targetOf(app: AppContext, id?: string): Promise<Target | null> {
 		const { session, isStarter } = app.current;
 		if (!session) return null;
 		if (isStarter) {
-			// The starter's Map has the catalog's monitor types, so they're loaded first.
-			const types = await app.starterTypesReady();
+			// The starter's Map has the catalog's monitor types, so they're loaded first; an edit
+			// made meanwhile is in the copy its hand-off makes, which is what's exported.
+			const source = await starterSource(app, session);
+			if (!source) return null;
+			if (source.kind === "copy") {
+				const copy = source.session;
+				return {
+					doc: copy.doc,
+					name: copy.doc.name ?? currentDashboardName(app) ?? "",
+					readOnly: !!copy.readOnly,
+					isStarter: false,
+					session: copy
+				};
+			}
 			return {
-				doc: starterDashboard(app.starterPlace, app.starterArea, types),
+				doc: starterDashboard(app.starterPlace, app.starterArea, source.types),
 				name: currentDashboardName(app) ?? "",
 				readOnly: false,
 				isStarter: true,

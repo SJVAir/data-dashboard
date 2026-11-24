@@ -21,6 +21,7 @@ import { writeSelection } from "$lib/widgets/calendars/shared/write-selection";
 import { placeRegion } from "$lib/data";
 import { STARTER_AREA_KEY, STARTER_PLACE_KEY, saveStarterPlace } from "./place.svelte";
 import { STARTER_ID } from "./starter";
+import { barChange } from "$lib/places/replace";
 import { loadMonitorTypes } from "$lib/widgets/map/start";
 import { MAP_TYPE } from "$lib/widgets/map/options";
 import { dashboardActions } from "$lib/actions/dashboard";
@@ -35,7 +36,9 @@ vi.mock("$lib/components/dialogs/lazy.svelte", () => ({
 	askWhichPlace: vi.fn()
 }));
 vi.mock("$lib/components/dialogs/RenameDialog.svelte", () => ({ openRename: vi.fn() }));
-vi.mock("svelte-sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
+vi.mock("svelte-sonner", () => ({
+	toast: Object.assign(vi.fn(), { error: vi.fn(), info: vi.fn() })
+}));
 // Any point is in ZIP 93721.
 vi.mock("$lib/data", async (importOriginal) => ({
 	...(await importOriginal<typeof import("$lib/data")>()),
@@ -738,6 +741,69 @@ describe("the starter's monitor types", () => {
 			expect(await platform.documents.list("anonymous")).toHaveLength(2);
 		});
 	}
+
+	it("Export during the wait exports the edit", async () => {
+		const answer = holdTypes();
+		const { platform, app } = await setup();
+		const starter = await showStarter(app);
+		const exporting = exportDashboard(app);
+		starter.apply(rename);
+		answer();
+		await exporting;
+		expect(platform.files.saved).toHaveLength(1);
+		const file = JSON.parse(platform.files.saved[0].contents) as { documents: Dashboard[] };
+		expect(file.documents[0].name).toBe("Mine");
+		await vi.waitFor(() => expect(app.current.isStarter).toBe(false));
+		expect(file.documents[0].id).toBe(app.current.session!.doc.id);
+	});
+
+	describe("Duplicate for another place during the wait", () => {
+		/** Asks for the copy (the place picker opens), returns what picks the new place. */
+		async function ask() {
+			const answer = holdTypes();
+			const { platform, app } = await setup();
+			const starter = await showStarter(app);
+			vi.mocked(openPlacePicker).mockClear();
+			vi.mocked(toast.info).mockClear();
+			await run(app, "duplicate-for-another-place");
+			await vi.waitFor(() => expect(openPlacePicker).toHaveBeenCalled());
+			const { pick } = vi.mocked(openPlacePicker).mock.calls[0][0] as {
+				pick: (p: ChosenPlace) => void;
+			};
+			return { platform, app, starter, answer, pick };
+		}
+
+		it("after an edit moved the bar's place, replaces the place it copies", async () => {
+			const { platform, starter, answer, pick } = await ask();
+			starter.apply(barChange(starter.doc, ZIP, { others: false })!);
+			pick(TULARE);
+			answer();
+			await vi.waitFor(async () =>
+				expect(await platform.documents.list("anonymous")).toHaveLength(2)
+			);
+			const docs = (await platform.documents.list("anonymous")) as Dashboard[];
+			const duplicate = docs.find((d) => d.copiedFrom !== STARTER_ID)!;
+			expect(duplicate.body.placeBar).toEqual({ place: TULARE });
+		});
+
+		it("after an edit removed every place, makes no copy and says so", async () => {
+			const { platform, starter, answer, pick } = await ask();
+			const { name, body } = starter.doc;
+			starter.apply({
+				op: "replaceDocument",
+				target: {},
+				from: { name, body },
+				to: { name, body: { ...body, widgets: [], placeBar: undefined } }
+			});
+			pick(TULARE);
+			answer();
+			await vi.waitFor(() =>
+				expect(toast.info).toHaveBeenCalledWith(m.dashboard_duplicate_no_single_place())
+			);
+			await new Promise((resolve) => setTimeout(resolve, 10));
+			expect(await platform.documents.list("anonymous")).toHaveLength(1);
+		});
+	});
 
 	it("loads once per app, kept through Clear my data", async () => {
 		const { app } = await setup();

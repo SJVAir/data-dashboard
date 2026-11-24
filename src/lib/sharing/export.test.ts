@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { exportDashboard } from "./actions";
+import { loadMonitorTypes } from "$lib/widgets/map/start";
+import { setPlatform } from "$lib/platform";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { initApp } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
@@ -13,6 +16,13 @@ import {
 } from "./export";
 import { makeDoc, widget } from "./fixtures.test-util";
 import { parseIncoming, parseLinkFragment } from "./incoming";
+
+vi.mock("../../router", () => ({ navigate: vi.fn() }));
+vi.mock("$lib/components/dialogs/lazy.svelte", () => ({ openShare: vi.fn() }));
+vi.mock("$lib/widgets/map/start", async (importOriginal) => ({
+	...(await importOriginal<typeof import("$lib/widgets/map/start")>()),
+	loadMonitorTypes: vi.fn(async () => ["purpleair"])
+}));
 
 const now = new Date("2026-10-25T12:00:00Z");
 
@@ -132,5 +142,16 @@ describe("export", () => {
 		const stored = JSON.parse(await backupJson(platform, app.space, now));
 		expect(stored.documents.find((d: { id: string }) => d.id === id).name).toBeNull();
 		session.discard();
+	});
+
+	it("Export of an ordinary dashboard doesn't start the catalog load", async () => {
+		const platform = createMemoryPlatform();
+		setPlatform(platform);
+		const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+		const id = await app.index.createBlank();
+		vi.mocked(loadMonitorTypes).mockClear();
+		await exportDashboard(app, id);
+		expect(platform.files.saved).toHaveLength(1);
+		expect(loadMonitorTypes).not.toHaveBeenCalled();
 	});
 });
