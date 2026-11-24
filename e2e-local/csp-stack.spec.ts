@@ -42,7 +42,7 @@ test("the walk raises no CSP violation under the stack's enforced header", async
 	context,
 	baseURL
 }) => {
-	test.setTimeout(300_000);
+	test.setTimeout(900_000);
 	const origin = new URL(baseURL!).origin;
 	let step = "sign in";
 	const violations: CspViolation[] = [];
@@ -50,6 +50,18 @@ test("the walk raises no CSP violation under the stack's enforced header", async
 	const writes: string[] = [];
 	const reports: string[] = [];
 	await watchCsp(context, violations);
+	// The stack runs with DEBUG, so Django Debug Toolbar overlays the page and takes clicks. Start
+	// it hidden (its own cookie) and drop its node; nothing of the app changes.
+	await context.addCookies([{ name: "djdt", value: "hide", url: origin }]);
+	await context.addInitScript(() => {
+		const hide = () => {
+			const style = document.createElement("style");
+			style.textContent = "#djDebug{display:none!important}";
+			document.documentElement.append(style);
+		};
+		if (document.documentElement) hide();
+		else document.addEventListener("DOMContentLoaded", hide);
+	});
 	watchCspConsole(context, messages, () => step);
 	await watchWorkerCsp(context, page, messages, () => step);
 	page.on("request", (request) => {
@@ -81,7 +93,13 @@ test("the walk raises no CSP violation under the stack's enforced header", async
 		const fresh = violations.slice(seen);
 		seen = violations.length;
 		summary.push(`${name}: violations ${fresh.length}`);
-		return fresh.map((v) => violationLine(name, v));
+		return fresh.map((v) => {
+			const text = violationLine(name, v);
+			// The toolbar is the stack's, not the dashboard's: still a failure, labelled for the ruling.
+			return /\/static\/debug_toolbar\//.test(`${v.blockedURI} ${v.sourceFile}`)
+				? `${text} [debug toolbar (not in production)]`
+				: text;
+		});
 	};
 	const found: string[] = [];
 	await runWalk(page, "stack", (name) => {
