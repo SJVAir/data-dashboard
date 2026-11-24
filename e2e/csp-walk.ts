@@ -578,10 +578,12 @@ export const WALK: readonly WalkStep[] = [
 				await expect(page).toHaveURL(DASHBOARD_URL);
 				// Stored in this browser (the indicator says "Saved" signed out).
 				await expect(page.getByRole("button", { name: /^Saved/ })).toBeVisible();
+				// Nothing in flight when the page goes (a request cut off mid-answer fails the fakes).
+				await page.waitForLoadState("networkidle");
 			} finally {
 				await page.unroute(isAccountApi);
 			}
-			await page.reload();
+			await page.goto("./dashboards");
 			const offer = page.getByRole("dialog", { name: "Dashboards in this browser" });
 			await expect(offer).toBeVisible();
 			await offer.getByRole("button", { name: "Keep in this browser", exact: true }).click();
