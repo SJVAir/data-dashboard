@@ -876,7 +876,9 @@
 			savedFill ? fillInfo?.plural : undefined
 		])
 	);
-	const title = $derived(widget.title ?? generatedTitle(widget.id));
+	/** The person typed a title (the schema allows an empty one, which names nothing). */
+	const typed = $derived(widget.title != null);
+	const title = $derived(typed ? widget.title : generatedTitle(widget.id));
 
 	const noteLinesOf = new MapNoteLines(
 		{
@@ -953,8 +955,7 @@
 	 */
 	const mapLabel = $derived.by(() => {
 		if (!title) return undefined;
-		if (widget.title === null || widget.title === undefined)
-			return hiddenText ? m.sentence_join({ first: title, second: hiddenText }) : title;
+		if (!typed) return hiddenText ? m.sentence_join({ first: title, second: hiddenText }) : title;
 		return hiddenText
 			? m.map_label_marks_hidden({ title, notes: hiddenText })
 			: m.map_label({ title });

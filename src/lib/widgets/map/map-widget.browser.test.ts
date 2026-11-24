@@ -878,7 +878,7 @@ test("refits when entering fullscreen", async () => {
 	expect(fakeMaps.made).toHaveLength(1);
 });
 
-test("a typed title gets map after it in the map's name; a generated one is the name as it is", async () => {
+test("a typed title gets map after it in the map's name", async () => {
 	const typed = { ...mapWidget(region("019")), title: "Smog watch" };
 	await show(typed);
 	const map = await madeMap();
@@ -1584,6 +1584,33 @@ test("keeps marks when the pollutant changes, and counts the hidden ones", async
 	session.undo();
 	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
 	await expect.poll(hiddenNote).toBe("");
+});
+
+test("a typed title with a hidden-marks reason: its name is the title, map, then the reason", async () => {
+	await listedMonitors();
+	vi.mocked(getMonitors).mockImplementation(
+		async (type) => (type === "o3" ? [reading("b")] : [reading("a"), reading("b")]) as never
+	);
+	const widget: WidgetInstance = {
+		...mapWidget({}),
+		title: "Smog watch",
+		data: layers(region("019")),
+		options: { marks: ["a", "b"] }
+	};
+	await showLive(widget);
+	const map = await madeMap();
+	await expect.poll(() => drawn(map)).toEqual(["a", "b"]);
+	const session = app().current.session!;
+	session.apply({
+		op: "setWidgetData",
+		target: { widgetId: widget.id },
+		from: session.doc.body.widgets[0].data,
+		to: layers({ ...region("019"), entryType: "o3" })
+	});
+	await expect.poll(hiddenNote).toBe(reasonLine("pollutant"));
+	await expect
+		.poll(() => map.view.label)
+		.toBe(m.map_label_marks_hidden({ title: "Smog watch", notes: reasonLine("pollutant") }));
 });
 
 test("gives each reason its own line, in order, in the list note and the map's name", async () => {

@@ -86,8 +86,7 @@ const ZOOMED_VIEW = "PM2.5: 1 Good";
 
 /** The map of the widget titled `title` (its region, which holds the GL map and its UI). */
 function mapOf(page: Page, title: string): Locator {
-	const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-	return page.getByRole("region", { name: new RegExp(`^${escaped}( map)?$`) });
+	return page.getByRole("region", { name: title, exact: true });
 }
 
 /**
@@ -1025,7 +1024,7 @@ test.describe("with ozone and smoke and fire in the metadata", () => {
 		await openSharedDoc(page, wideDoc([{ dataset: "hms-smoke" }, { dataset: "hms-fire" }]));
 		await expect(widgetTitles(page)).toHaveText([FRESNO_MAP]);
 		// Named after its title, which follows its pollutant.
-		const map = page.getByRole("region", { name: / · Fresno County$/ });
+		const map = page.getByRole("region", { name: FRESNO_MAP, exact: true });
 		await expect(inView(map)).toHaveText(FRESNO_VIEW);
 		const toolbar = toolbarOf(map);
 		const fireAndSmoke = toolbar.getByRole("checkbox", { name: "Fire & Smoke", exact: true });
@@ -1591,7 +1590,7 @@ test.describe("a Map's spray notices", () => {
 			noticesDoc({ chemical: "gs65e", commodity: NOTICE_COMMODITY.id, category: ["fumigant"] })
 		);
 		// A day with no monitor figures adds its note to the map's name.
-		const map = page.getByRole("region", { name: /^PM2\.5 map · Fresno County/ });
+		const map = page.getByRole("region", { name: /^PM2\.5 map · Fresno County(?:\.|$)/ });
 		await expect(daySlider(page)).toHaveAttribute("aria-valuetext", "Now");
 		let list = await featureList(map);
 		await expect(list.getByRole("option", { name: NOW_SECTION })).toHaveCount(1);
@@ -1807,7 +1806,7 @@ test.describe("a Map's pesticide use", () => {
 	 * month"), so it's found by the start of its name.
 	 */
 	function useMapOf(page: Page): Locator {
-		return page.getByRole("region", { name: /^PM2\.5 map · Fresno County\b/ });
+		return page.getByRole("region", { name: /^PM2\.5 map · Fresno County(?:\.|$)/ });
 	}
 
 	/** The map, once its townships are drawn (the middle one in its feature list). */
@@ -2249,7 +2248,9 @@ test.describe("schools and child care", () => {
 		page
 	}) => {
 		await openSharedDoc(page, rooseveltDoc);
-		const map = page.getByRole("region", { name: /\bmap\b/ }).first();
+		const map = page
+			.getByRole("region", { name: "PM2.5 map · ZIP 93702 (Roosevelt High)", exact: true })
+			.first();
 		const list = await featureList(map);
 		// The site's own row (the focus pin gives way to it), named with its type.
 		await expect(list.getByRole("option", { name: /^Roosevelt High\b/ })).toHaveCount(1);
@@ -2274,7 +2275,7 @@ test.describe("schools and child care", () => {
 			]
 		};
 		await openSharedDoc(page, valleyDoc);
-		const map = page.getByRole("region", { name: /map$/ }).first();
+		const map = page.getByRole("region", { name: "PM2.5 map", exact: true }).first();
 		await expect(
 			legendOf(map).getByRole("heading", { level: 3, name: "Child care", exact: true })
 		).toBeVisible();
