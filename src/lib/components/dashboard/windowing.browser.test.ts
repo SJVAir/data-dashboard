@@ -385,13 +385,10 @@ test("moving a starter widget from the ⋯ menu by mouse while the types load ke
 	const app = await starterApp("/workspace/");
 	const starter = app.current.session!;
 	const bar = () => page.getByTestId("widget-starter-2").getByRole("group").element();
-	await page
-		.getByTestId("widget-starter-2")
-		.getByRole("button", { name: /^Actions for/ })
-		.click();
-	await page.getByRole("menuitem", { name: "Move", exact: true }).click();
 	// Where focus goes from here: the bounce this test is about must happen, or it proves nothing.
-	const focused: Array<{ closedMenu: boolean; bar: boolean }> = [];
+	// Whether the closing submenu takes focus depends on timing, so the move is tried again (up to
+	// three times) until it does.
+	let focused: Array<{ closedMenu: boolean; bar: boolean }> = [];
 	const record = (event: FocusEvent) => {
 		const target = event.target as Element;
 		focused.push({
@@ -399,17 +396,29 @@ test("moving a starter widget from the ⋯ menu by mouse while the types load ke
 			bar: target === bar()
 		});
 	};
-	document.addEventListener("focusin", record);
-	// The click edits at once (shown on the starter), and the closing submenu takes focus as the
-	// pointer leaves its item, then drops it to the page as it goes.
-	await page.getByRole("menuitem", { name: "Right", exact: true }).click();
-	// The pointer moves on, as a person's does (under load the item may not have moved from under it).
-	await userEvent.hover(page.getByTestId("widget-starter-1").getByRole("group"));
-	await expect.element(page.getByRole("menu")).not.toBeInTheDocument();
-	await settle();
-	document.removeEventListener("focusin", record);
-	const bounced = focused.findIndex((f) => f.closedMenu);
-	expect(bounced).toBeGreaterThanOrEqual(0);
+	let bounced = -1;
+	for (let attempt = 0; attempt < 3 && bounced < 0; attempt++) {
+		focused = [];
+		await page
+			.getByTestId("widget-starter-2")
+			.getByRole("button", { name: /^Actions for/ })
+			.click();
+		await page.getByRole("menuitem", { name: "Move", exact: true }).click();
+		document.addEventListener("focusin", record);
+		// The click edits at once (shown on the starter), and the closing submenu takes focus as
+		// the pointer leaves its item, then drops it to the page as it goes.
+		// Right, then back Left on a retry, so the item is never disabled at an edge.
+		const direction = attempt % 2 === 0 ? "Right" : "Left";
+		await page.getByRole("menuitem", { name: direction, exact: true }).click();
+		// The pointer moves on, as a person's does (under load the item may not have moved from
+		// under it).
+		await userEvent.hover(page.getByTestId("widget-starter-1").getByRole("group"));
+		await expect.element(page.getByRole("menu")).not.toBeInTheDocument();
+		await settle();
+		document.removeEventListener("focusin", record);
+		bounced = focused.findIndex((f) => f.closedMenu);
+	}
+	expect(bounced, "the closing menu took focus in one of three tries").toBeGreaterThanOrEqual(0);
 	expect(focused.slice(bounced + 1).some((f) => f.bar)).toBe(true);
 	expect(app.current.session).toBe(starter);
 	expect(document.activeElement).toBe(bar());
