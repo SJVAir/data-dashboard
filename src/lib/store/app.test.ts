@@ -34,8 +34,9 @@ async function signedInApp() {
 	const identity = createMemoryIdentity({ state: "signed-in", user: user(ACCOUNT) });
 	const platform = createMemoryPlatform({ identity });
 	server.fake = createFakeRemote({ accountId: ACCOUNT });
-	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
-	return { platform, app, fake: server.fake, identity };
+	const hub = createMemoryTabHub();
+	const app = await initApp(platform, { channel: hub.channel(), tabId: "t1" });
+	return { platform, app, fake: server.fake, identity, hub };
 }
 
 /** A dashboard never uploaded (no sync record), so unsynced. */
@@ -360,7 +361,7 @@ describe("initApp", () => {
 	});
 
 	it("close stores every open session's edits, then stops listening and syncing", async () => {
-		const { platform, app, fake } = await signedInApp();
+		const { platform, app, fake, hub } = await signedInApp();
 		const id = await app.index.createBlank();
 		const session = (await app.sessions.get(id))!;
 		await vi.waitFor(() => expect(fake.requests).toContain(`save ${id}`));
@@ -381,14 +382,20 @@ describe("initApp", () => {
 			doc: { ...doc, id: "elsewhere", version: 0 },
 			entries: []
 		});
-		app.channel.post({
+		const list = vi.spyOn(platform.documents, "list");
+		// Another tab's message; a third tab, listening after this app, has it once this app would.
+		const probe = vi.fn();
+		hub.channel().subscribe(probe);
+		hub.channel().post({
 			type: "committed",
 			space: SPACE,
 			docId: "elsewhere",
 			version: 0,
 			tabId: "x"
 		});
-		await new Promise((resolve) => setTimeout(resolve, 10));
+		await vi.waitFor(() => expect(probe).toHaveBeenCalled());
+		// A refresh would have asked for the list at once.
+		expect(list).not.toHaveBeenCalled();
 		expect(app.index.items.length).toBe(before);
 	});
 });

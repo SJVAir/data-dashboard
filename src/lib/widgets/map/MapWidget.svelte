@@ -13,6 +13,7 @@
 		type ShapesLens
 	} from "@sjvair/map-sdk";
 	import type { MonitorFeatureProperties, SpatialSelection } from "@sjvair/map-sdk/data";
+	import { hasTypedTitle } from "$lib/actions/widget";
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import { getMetadata } from "$lib/data";
@@ -876,9 +877,9 @@
 			savedFill ? fillInfo?.plural : undefined
 		])
 	);
-	/** The person typed a title (the schema allows an empty one, which names nothing). */
-	const typed = $derived(widget.title != null);
-	const title = $derived(typed ? widget.title : generatedTitle(widget.id));
+	/** The person typed a title (an empty or blank one names nothing). */
+	const typed = $derived(hasTypedTitle(widget));
+	const title = $derived(typed ? widget.title! : generatedTitle(widget.id));
 
 	const noteLinesOf = new MapNoteLines(
 		{

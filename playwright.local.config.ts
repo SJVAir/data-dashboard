@@ -17,6 +17,24 @@ export default defineConfig({
 			testDir: "e2e-local",
 			testMatch: "embedding.spec.ts",
 			use: { ...devices["Desktop Chrome"], baseURL: "http://localhost:8000/workspace/" }
+		},
+		{
+			name: "csp-stack-chromium",
+			testDir: "e2e-local",
+			testMatch: "csp-stack.spec.ts",
+			use: { ...devices["Desktop Chrome"], baseURL: "http://localhost:8000/workspace/" }
+		},
+		{
+			name: "csp-stack-firefox",
+			testDir: "e2e-local",
+			testMatch: "csp-stack.spec.ts",
+			use: { ...devices["Desktop Firefox"], baseURL: "http://localhost:8000/workspace/" }
+		},
+		{
+			name: "csp-stack-webkit",
+			testDir: "e2e-local",
+			testMatch: "csp-stack.spec.ts",
+			use: { ...devices["Desktop Safari"], baseURL: "http://localhost:8000/workspace/" }
 		}
 	]
 });

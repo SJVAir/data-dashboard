@@ -516,18 +516,18 @@ const editing = (): TileOptionsContext => ({ mode: "edit", session: () => app().
 async function openSession(widget: WidgetInstance) {
 	platform = createMemoryPlatform();
 	setPlatform(platform);
-	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
-	const id = await app.index.createBlank();
-	const stored = (await platform.documents.get(app.space, id)) as Dashboard;
-	await platform.documents.commit(app.space, {
+	const created = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	const id = await created.index.createBlank();
+	const stored = (await platform.documents.get(created.space, id)) as Dashboard;
+	await platform.documents.commit(created.space, {
 		docId: id,
 		baseVersion: stored.version,
 		doc: { ...stored, body: { widgets: [widget] } },
 		entries: []
 	});
-	const session = (await DocumentSession.open(platform, app.space, id, "t2"))!;
-	app.current = { session, isStarter: false };
-	shownApp = app;
+	const session = (await DocumentSession.open(platform, created.space, id, "t2"))!;
+	created.current = { session, isStarter: false };
+	shownApp = created;
 	return session;
 }
 
@@ -883,6 +883,14 @@ test("a typed title gets map after it in the map's name", async () => {
 	await show(typed);
 	const map = await madeMap();
 	await expect.poll(() => map.view.label).toBe(m.map_label({ title: "Smog watch" }));
+});
+
+test("a Map with an empty title keeps its map region label", async () => {
+	const empty = { ...mapWidget(region("019")), title: "" };
+	await show(empty);
+	const map = await madeMap();
+	await expect.poll(() => generatedTitle(empty.id)).toBe("PM2.5 map · Fresno County");
+	await expect.poll(() => map.view.label).toBe("PM2.5 map · Fresno County");
 });
 
 test("title for one place and several", async () => {
@@ -1784,8 +1792,11 @@ test("hands a mark on the starter off to its copy", async () => {
 	// The real starter: its Map widget, in the app's own starter session.
 	platform = createMemoryPlatform();
 	setPlatform(platform);
-	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
-	shownApp = app;
+	const starterApp = await initApp(platform, {
+		channel: createMemoryTabHub().channel(),
+		tabId: "t1"
+	});
+	shownApp = starterApp;
 	// The catalog's monitor types, which the starter's Map ticks.
 	vi.mocked(getMetadata).mockReturnValue(
 		fixtureMetadata({
@@ -1794,26 +1805,28 @@ test("hands a mark on the starter off to its copy", async () => {
 		})
 	);
 	// The monitor types arrive and replace the shown starter, so take the session after them.
-	await app.starterTypesReady();
-	const starter = (await app.sessions.get(STARTER_ID, { remember: false }))!;
-	app.current = { session: starter, isStarter: true };
+	await starterApp.starterTypesReady();
+	const starter = (await starterApp.sessions.get(STARTER_ID, { remember: false }))!;
+	starterApp.current = { session: starter, isStarter: true };
 	const widget = starter.doc.body.widgets.find((w) => w.type === "map")!;
 	await render(MapWidget, {
 		target: frame,
 		props: { widget },
-		context: new Map<unknown, unknown>([[APP_CONTEXT_KEY, app]])
+		context: new Map<unknown, unknown>([[APP_CONTEXT_KEY, starterApp]])
 	});
 	const map = await madeMap();
 	await expect.poll(() => drawn(map)).toEqual(["a"]);
 	map.shiftClick("monitors", monitor("a"));
 	// The first edit stores a copy of the starter and moves the session to it.
-	await expect.poll(() => app.current.isStarter).toBe(false);
-	const copy = app.current.session!;
+	await expect.poll(() => starterApp.current.isStarter).toBe(false);
+	const copy = starterApp.current.session!;
 	expect(copy).not.toBe(starter);
 	const copied = copy.doc.body.widgets.find((w) => w.type === "map")!;
 	expect(copied.data.layers[0].monitorTypes).toEqual(EVERY_TYPE);
 	await expect.poll(() => mapOptions(copied).marks).toEqual(["a"]);
-	expect(mapOptions(starter.doc.body.widgets.find((w) => w.type === "map")!).marks).toBeUndefined();
+	// The starter showed the mark at once (decision 12), but only the copy is stored.
+	expect(mapOptions(starter.doc.body.widgets.find((w) => w.type === "map")!).marks).toEqual(["a"]);
+	expect(await platform.documents.get("anonymous", STARTER_ID)).toBeUndefined();
 });
 
 /** Shows `widget` in the grid's editing context (where the Map offers Show in). */
@@ -2902,6 +2915,9 @@ test("a Yearly Map draws each year's figure from the yearly summaries", async ()
 test("the current month is drawn so far, not final, and polls hourly until its row is final", async () => {
 	rated();
 	vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"], shouldAdvanceTime: true });
+	// Ten past the hour: summaries poll at :55, so a start just before it would see two polls in
+	// the 61 minutes below.
+	vi.setSystemTime(tenPastTheHour());
 	try {
 		nowClient = createNowClient({ activity: { visible: () => true, onChange: () => () => {} } });
 		vi.mocked(getNowClient).mockReturnValue(nowClient);
@@ -2927,6 +2943,9 @@ test("the current month is drawn so far, not final, and polls hourly until its r
 test("the current month before its first nightly row draws no data, the usual way, and keeps polling", async () => {
 	rated();
 	vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"], shouldAdvanceTime: true });
+	// Ten past the hour: summaries poll at :55, so a start just before it would see two polls in
+	// the 61 minutes below.
+	vi.setSystemTime(tenPastTheHour());
 	try {
 		nowClient = createNowClient({ activity: { visible: () => true, onChange: () => () => {} } });
 		vi.mocked(getNowClient).mockReturnValue(nowClient);
@@ -2948,6 +2967,13 @@ test("the current month before its first nightly row draws no data, the usual wa
 		vi.useRealTimers();
 	}
 });
+
+/** Now, moved to ten minutes past the hour (the same day and hour). */
+function tenPastTheHour(): Date {
+	const at = new Date();
+	at.setMinutes(10, 0, 0);
+	return at;
+}
 
 /** A Map of `region` at `resolution` over `range`, with `options`. */
 function periodMap(
@@ -3079,6 +3105,9 @@ test("at Daily, smoke, fire and spray notices draw with their rows and no note",
 test("refresh: a final past day isn't asked for again; one not final is, hourly", async () => {
 	rated();
 	vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"], shouldAdvanceTime: true });
+	// Ten past the hour: summaries poll at :55, so a start just before it would see two polls in
+	// the 61 minutes below.
+	vi.setSystemTime(tenPastTheHour());
 	try {
 		nowClient = createNowClient({ activity: { visible: () => true, onChange: () => () => {} } });
 		vi.mocked(getNowClient).mockReturnValue(nowClient);

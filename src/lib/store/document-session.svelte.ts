@@ -32,11 +32,17 @@ export type DocumentSessionOptions = {
 	debounceMs?: number;
 	now?: () => Date;
 	/**
-	 * Called with the first edit instead of applying it here (the starter dashboard, which is
-	 * never stored), or with `null` from `handOff` (a copy with no edit, for sharing). It returns
-	 * the session that took the edit; later edits go there too.
+	 * Called with the first edit instead of storing it here (the starter dashboard, which is never
+	 * stored: the edit is only shown here meanwhile), or with `null` from `handOff` (a copy with no
+	 * edit, for sharing). It returns the session that took the edit; later edits go there too.
 	 */
 	onBeforeFirstEdit?: (change: Change | null) => Promise<DocumentSession | null>;
+	/**
+	 * With `onBeforeFirstEdit`: each later queued edit, and each edit applied here once handed off,
+	 * as the session that took the first one (`successor`) gets it (the starter fills its Map's
+	 * monitor types into a change made before they arrived). The hook adapts the first edit itself.
+	 */
+	adaptHandedOff?: (change: Change, successor: DocumentSession) => Change;
 	/**
 	 * Storage holds a document or log entry from a newer format than this app knows (another
 	 * tab runs a newer version). The session suspends itself right after.
@@ -132,11 +138,13 @@ export class DocumentSession {
 	#unsubscribe: () => void = () => {};
 	#stopActivity: () => void = () => {};
 	#onBeforeFirstEdit: DocumentSessionOptions["onBeforeFirstEdit"];
+	#adaptHandedOff: DocumentSessionOptions["adaptHandedOff"];
 	#handoff: Promise<DocumentSession | null> | null = null;
 	#successor: DocumentSession | null = null;
 	/**
 	 * Edits not yet taken by a hand-off, oldest first: the first goes through the hook. Kept
-	 * (and journaled) until a hand-off succeeds.
+	 * (and journaled) until a hand-off succeeds. `doc` shows them meanwhile; they're never
+	 * recorded or saved here (a starter's document is never stored).
 	 */
 	#queued: Change[] = [];
 
@@ -168,6 +176,7 @@ export class DocumentSession {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		this.#now = opts.now ?? (() => new Date());
 		this.#onBeforeFirstEdit = opts.onBeforeFirstEdit;
+		this.#adaptHandedOff = opts.adaptHandedOff;
 		this.#channel = opts.channel ?? null;
 		this.#chain = opts.chain ?? migrations;
 		this.#generation = opts.platform.reset.generation();
@@ -271,6 +280,11 @@ export class DocumentSession {
 		return this.#queued.length > 0 || this.#handoff !== null || this.#successor !== null;
 	}
 
+	/** A starter's hand-off to its copy is running: started, and not yet finished or failed. */
+	get handingOff(): boolean {
+		return this.#handoff !== null && this.#successor === null;
+	}
+
 	/**
 	 * A starter's hand-off to its copy, once its first edit started it: resolves the copy, or
 	 * `null` if it failed (the edits stay queued). `null` when no hand-off was started.
@@ -300,7 +314,9 @@ export class DocumentSession {
 	apply(change: Change): void {
 		if (this.readOnly) return;
 		if (this.#successor) {
-			this.#successor.apply(change);
+			// Made from what this one showed (an Undo toast's widget, say): adapted as the queue is.
+			const adapt = this.#adaptHandedOff;
+			this.#successor.apply(adapt ? adapt(change, this.#successor) : change);
 			return;
 		}
 		if (this.#onBeforeFirstEdit || this.#handoff) {
@@ -426,8 +442,8 @@ export class DocumentSession {
 			})
 			.sort((a, b) => a.record.writtenAt.localeCompare(b.record.writtenAt));
 		if (records.length === 0) return Promise.resolve();
+		// Shows the queued edits already; the replayed ones are shown with them.
 		let doc = this.doc;
-		for (const change of this.#queued) doc = applyChange(doc, change).doc;
 		for (const { tabId, record } of records) {
 			this.#replayed.push(tabId);
 			for (const change of this.#upgradeRecordChanges(record.changes, record.schemaVersion)) {
@@ -439,6 +455,7 @@ export class DocumentSession {
 				}
 			}
 		}
+		this.doc = doc;
 		if (this.#queued.length > 0 && !this.#handoff) this.#startHandoff();
 		return this.#handoff?.then(() => {}) ?? Promise.resolve();
 	}
@@ -665,8 +682,12 @@ export class DocumentSession {
 		this.#schedule();
 	}
 
-	/** Edits made while the hook runs (or after it failed) wait their turn in `#queued`. */
+	/**
+	 * Edits made while the hook runs (or after it failed) wait their turn in `#queued`, shown at
+	 * once (not an undo step, and not recorded: the copy stores them).
+	 */
 	#handOff(change: Change): void {
+		this.doc = applyChange(this.doc, change).doc;
 		this.#queued.push(change);
 		if (!this.#handoff) this.#startHandoff();
 	}
@@ -696,7 +717,8 @@ export class DocumentSession {
 				this.#successor = successor;
 				this.status = "saved";
 				this.#settleJournal();
-				for (const change of rest) successor.apply(change);
+				const adapt = this.#adaptHandedOff;
+				for (const change of rest) successor.apply(adapt ? adapt(change, successor) : change);
 				// Suspended during the hand-off: the copy must not save either.
 				if (this.#stopped) successor.suspend();
 				return successor;
@@ -780,7 +802,8 @@ export class DocumentSession {
 	 * hand-off), for a page that may be torn down next.
 	 */
 	#writeJournal(): void {
-		// Only one of the two is ever non-empty: a session that hands off applies nothing itself.
+		// Only one of the two is ever non-empty: a session that hands off only shows its edits (queued),
+		// never records them as its own.
 		const changes = [...this.#queued, ...this.#pending];
 		if (this.readOnly || this.#stopped || this.#successor || changes.length === 0) return;
 		if (this.#dataCleared()) return;

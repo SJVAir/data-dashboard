@@ -368,7 +368,9 @@ test.describe("signed in, with a live link", () => {
 		await expect(widgetTitles(page)).toHaveText([CHART_TITLE]);
 		await useMyLocation(page);
 		await expect(
-			page.getByText("This dashboard is shared by link, so your location is saved as ZIP 93721.")
+			page
+				.getByRole("region", { name: /Notifications/ })
+				.getByText("This dashboard is shared by link, so your location is saved as ZIP 93721.")
 		).toBeVisible();
 		await expect(widgetTitles(page)).toHaveText(["PM2.5 · ZIP 93721 · Last 30 days"]);
 	});
@@ -400,7 +402,9 @@ test.describe("signed in, with a live link", () => {
 		// Undo brings the point back for a moment; the dashboard saves its region again.
 		await nav(page).getByRole("button", { name: "Undo" }).click();
 		await expect(
-			page.getByText("This dashboard is shared by link, so your location is saved as ZIP 93721.")
+			page
+				.getByRole("region", { name: /Notifications/ })
+				.getByText("This dashboard is shared by link, so your location is saved as ZIP 93721.")
 		).toBeVisible();
 		await expect(widgetTitles(page)).toHaveText(["PM2.5 · ZIP 93721 · Last 30 days"]);
 		await expect.poll(async () => (await fake.shared(token)).version).toBeGreaterThan(linked);

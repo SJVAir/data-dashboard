@@ -1,5 +1,11 @@
 import { beforeEach, expect, test } from "vitest";
-import { pendingFocusTarget, requestFocus, takeFocus } from "./focus-request.svelte";
+import { userEvent } from "vitest/browser";
+import {
+	isAssistiveActivation,
+	pendingFocusTarget,
+	requestFocus,
+	takeFocus
+} from "./focus-request.svelte";
 
 // Start each test with no request: a press drops whatever is pending, whatever its target.
 beforeEach(() => {
@@ -38,5 +44,53 @@ test("a request made while handling a keydown survives that keydown", () => {
 		// The next key is the user's own, so it drops the request.
 		document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));
 		expect(pendingFocusTarget()).toBeNull();
+	}
+});
+
+test("a browser Back drops a pending request", () => {
+	requestFocus({ kind: "title", id: "w" });
+	window.dispatchEvent(new PopStateEvent("popstate"));
+	expect(pendingFocusTarget()).toBeNull();
+});
+
+// A test can't make a trusted click with no press or key behind it (a screen reader's activation):
+// what counts as one is checked on its own, and an untrusted click shows the app's own are left.
+test("a screen reader's activation is a trusted click with no pointer behind it", () => {
+	expect(isAssistiveActivation({ isTrusted: true, detail: 0 })).toBe(true);
+	expect(isAssistiveActivation({ isTrusted: true, detail: 1 })).toBe(false);
+	expect(isAssistiveActivation({ isTrusted: false, detail: 0 })).toBe(false);
+});
+
+test("the app's own click (a download link, a file input) leaves a pending request", () => {
+	const link = document.createElement("a");
+	link.href = "#";
+	link.addEventListener("click", (event) => event.preventDefault());
+	document.body.append(link);
+	try {
+		requestFocus({ kind: "title", id: "s" });
+		link.click();
+		expect(pendingFocusTarget()).toEqual({ kind: "title", id: "s" });
+	} finally {
+		link.remove();
+	}
+});
+
+test("a request made by a button's click survives the trusted, pointerless click that ran it", async () => {
+	// Enter on a button: a trusted keydown, then a trusted click with `detail` 0 (what a screen
+	// reader's activation is). The request the click's handler makes must outlive that click.
+	const button = document.createElement("button");
+	document.body.append(button);
+	const clicks: Array<{ isTrusted: boolean; detail: number }> = [];
+	button.addEventListener("click", (event) => {
+		clicks.push({ isTrusted: event.isTrusted, detail: event.detail });
+		requestFocus({ kind: "title", id: "r" });
+	});
+	try {
+		button.focus();
+		await userEvent.keyboard("{Enter}");
+		expect(clicks).toEqual([{ isTrusted: true, detail: 0 }]);
+		expect(pendingFocusTarget()).toEqual({ kind: "title", id: "r" });
+	} finally {
+		button.remove();
 	}
 });

@@ -120,6 +120,8 @@ speed before go-live: a school Chromebook on a slow connection has to get a usab
     Each stores the explicit list, the same as a new Map. With an empty list (no catalog), the
     copy has no types and its Map shows the existing "no monitors chosen" note with its "Edit
     data" action.
+    (Amended by step 6 spec 2, decision 12: edits made during the wait show at once; storing
+    still waits.)
 12. **"Clear my data" and a new chosen place keep the rule:** the types aren't per place, so a
     place change rebuilds the starter with the types already held. The types are not a stored
     preference (**my call**): they're re-read from the catalog each visit, since metadata is

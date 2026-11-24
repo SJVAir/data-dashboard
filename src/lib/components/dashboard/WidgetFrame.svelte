@@ -567,21 +567,49 @@
 	let addedTimer: ReturnType<typeof setTimeout> | undefined;
 	onDestroy(() => clearTimeout(addedTimer));
 
+	/** Bumped when a starter's hand-off fails, so a request it left pending is looked at again. */
+	let handOffFailed = $state(0);
+
 	// After a restore (or an add from Get data): focus the title bar and bring the widget into view.
 	$effect(() => {
+		void handOffFailed;
 		const request = pendingFocusTarget();
 		if (!bar || request?.id !== widget.id) return;
 		if (request.kind !== "title" && request.kind !== "added") return;
 		const kind = request.kind;
+		const element = bar;
+		// The starter is handing off to its copy (its first edit, which may wait for the catalog):
+		// the copy's page replaces this one, so focus here meanwhile but leave the request for the
+		// copy's frame, or focus is lost with this one.
+		const handoff = untrack(() =>
+			app.current.isStarter && app.current.session?.handingOff ? app.current.session.handoff : null
+		);
+		if (handoff) {
+			element.focus();
+			let active = true;
+			// The hand-off failed (no copy): the starter stays, so this frame takes the request now,
+			// not at the next press or key.
+			void handoff.then(
+				(copy) => {
+					if (active && !copy) handOffFailed++;
+				},
+				// The session reports its own failure; this frame adds nothing to it.
+				() => {}
+			);
+			// A closing menu takes focus as the pointer leaves the item just clicked (bits-ui
+			// focuses the menu; Move by mouse), then drops it to the page as it goes: it comes
+			// back here. A press, a key, a screen reader's activation, or the browser's Back or
+			// Forward drops the request, and this with it.
+			const off = on(document, "focusin", (event) => {
+				const menu = (event.target as Element).closest?.("[role=menu]");
+				if (menu?.getAttribute("data-state") === "closed") element.focus();
+			});
+			return () => {
+				active = false;
+				off();
+			};
+		}
 		untrack(() => {
-			// The starter is handing off to its copy (its first edit, which may wait for the
-			// catalog): the copy's page replaces this one, so focus here meanwhile but leave the
-			// request for the copy's frame, or focus is lost with this one.
-			const { session, isStarter } = app.current;
-			if (isStarter && session?.edited) {
-				bar!.focus();
-				return;
-			}
 			if (!takeFocus({ kind, id: widget.id })) return;
 			bar!.focus();
 			if (kind === "added") {
@@ -738,6 +766,7 @@
 	<div
 		bind:this={content}
 		class={["relative min-h-0 flex-1 p-(--card-padding)", selected && "touch-none"]}
+		data-widget-body
 	>
 		{#snippet body(mod: WidgetModule)}
 			<mod.component {widget} {fullscreen} />

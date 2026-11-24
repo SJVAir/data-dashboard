@@ -1074,7 +1074,17 @@ files, and server documents.
      review). Zod's compiled parser probes `new Function`, so every module imports `z` from
      `$lib/zod`, which sets `jitless` first (ESLint forbids importing `zod` directly). The
      preview server sends the CSP from `csp-hosts.json`, and an E2E fixture fails any test
-     whose page reports a violation.
+     whose page reports a violation. The ESLint ban covers `zod/*` subpaths and dynamic
+     `import("zod")` too.
+   - **One CSP walk** (step 6 spec 2, `e2e/csp-walk.ts`) opens every route and the lazy parts a
+     person reaches from them (each widget type, the Notes editor, the menus' dialogs, Help's
+     privacy page and Clear my data, Restore an earlier version, Sign out's question, a CSV
+     download, a calendar's "Open these days in a chart", Show in, share and import), and fails
+     on any violation. Move to account and the downsample worker (a raw-only fixture type, with
+     a worker attach asserted on Chromium) run on the fakes only. A few parts it can't reach
+     without fixture data or a browser permission (Which place, the threshold watcher) are listed
+     in `DEFERRED.md`; on the fakes, other E2E tests open them under the same CSP. It runs in the E2E suite on the fakes (so in CI), and against the local
+     stack's enforced header with `npm run test:csp-stack`, which is rerun on go-live day.
 4. **Unguessable share tokens:** at least 128 bits (`secrets.token_urlsafe(16)` or
    more), revocable.
 5. **Abuse limits** in the server-documents plan: per-user caps on document count and save

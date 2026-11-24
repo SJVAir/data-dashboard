@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack } from "svelte";
+	import { onDestroy, untrack } from "svelte";
 	import { toast } from "svelte-sonner";
 	import DashboardGrid from "$lib/components/dashboard/DashboardGrid.svelte";
 	import { FULLSCREEN_PARAM, fullscreenId } from "$lib/layout/fullscreen";
@@ -11,6 +11,9 @@
 
 	const app = useApp();
 	const name = $derived(currentDashboardName(app));
+	// This page may show the starter: one the types swap replaces before it's shown stays usable
+	// while mounted (Home makes the one it opened current after an await).
+	onDestroy(app.claimStarter());
 	/** The starter's session while it's shown here. */
 	let starter: DocumentSession | null = null;
 

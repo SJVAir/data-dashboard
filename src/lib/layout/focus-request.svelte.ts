@@ -18,8 +18,10 @@ export function requestFocus(target: FocusTarget): void {
 	listen();
 }
 
-// The user's next press or key means they took over: an unconsumed request is dropped, so it
-// can't pull focus later. Installed only while a request is pending.
+// The user's next press or key, a screen reader's activation (a trusted click with no pointer
+// behind it, `detail` 0, which comes with neither), or a browser Back or Forward, means they took over: an
+// unconsumed request is dropped, so it can't pull focus later. Installed only while a request is
+// pending.
 let listening = false;
 
 function drop(): void {
@@ -27,11 +29,25 @@ function drop(): void {
 	unlisten();
 }
 
+/**
+ * A screen reader's activation: a click with no pointer behind it (`detail` 0), and trusted (the
+ * app's own `.click()` on a download link or a file input is untrusted, and isn't the person's).
+ */
+export function isAssistiveActivation(event: Pick<MouseEvent, "isTrusted" | "detail">): boolean {
+	return event.isTrusted && event.detail === 0;
+}
+
+function dropOnActivation(event: MouseEvent): void {
+	if (isAssistiveActivation(event)) drop();
+}
+
 function listen(): void {
 	if (listening || typeof window === "undefined") return;
 	listening = true;
 	window.addEventListener("pointerdown", drop, true);
 	window.addEventListener("keydown", drop, true);
+	window.addEventListener("click", dropOnActivation, true);
+	window.addEventListener("popstate", drop);
 }
 
 function unlisten(): void {
@@ -39,6 +55,8 @@ function unlisten(): void {
 	listening = false;
 	window.removeEventListener("pointerdown", drop, true);
 	window.removeEventListener("keydown", drop, true);
+	window.removeEventListener("click", dropOnActivation, true);
+	window.removeEventListener("popstate", drop);
 }
 
 /** True (and clears the request) if it matches the target. */

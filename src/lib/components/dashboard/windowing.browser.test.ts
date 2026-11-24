@@ -26,7 +26,13 @@ const real = vi.hoisted(() => ({ load: null as null | (() => Promise<string[]>) 
 vi.mock("$lib/widgets/map/start", async (importOriginal) => {
 	const original = await importOriginal<typeof import("$lib/widgets/map/start")>();
 	real.load = original.loadMonitorTypes;
-	return { ...original, loadMonitorTypes: vi.fn(original.loadMonitorTypes) };
+	const loadMonitorTypes = vi.fn(original.loadMonitorTypes);
+	return {
+		...original,
+		loadMonitorTypes,
+		// The app asks this one; it answers with `loadMonitorTypes`' types.
+		loadMonitorTypesResult: vi.fn(async () => ({ types: await loadMonitorTypes(), failed: false }))
+	};
 });
 afterEach(() => vi.mocked(loadMonitorTypes).mockImplementation(real.load!));
 
@@ -326,6 +332,125 @@ test("a dialog's title focus request on the starter while the types load reaches
 		.poll(() => document.activeElement)
 		.toBe(page.getByTestId("widget-starter-2").getByRole("group").element());
 });
+
+test("after a failed hand-off, a focus request on the starter focuses the title bar and is taken", async () => {
+	const platform = createMemoryPlatform();
+	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	stubStarterTypes();
+	history.replaceState(null, "", "/workspace/");
+	await render(App, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await expect.element(page.getByTestId("widget-starter-1")).toBeVisible();
+	const starter = app.current.session!;
+	// The copy can't be stored, so the hand-off fails and the starter stays.
+	vi.spyOn(platform.documents, "commit").mockRejectedValueOnce(new Error("no storage"));
+	starter.apply({ op: "setField", target: { path: "name" }, from: null, to: "Mine" });
+	await expect.poll(() => starter.status).toBe("error");
+	expect(starter.handingOff).toBe(false);
+	expect(app.current.session).toBe(starter);
+	requestFocus({ kind: "title", id: "starter-2" });
+	await expect
+		.poll(() => document.activeElement)
+		.toBe(page.getByTestId("widget-starter-2").getByRole("group").element());
+	expect(pendingFocusTarget()).toBeNull();
+});
+
+test("a focus request pending when the hand-off fails is taken then, with no press or key", async () => {
+	const answer = holdTypes();
+	const platform = createMemoryPlatform();
+	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	stubStarterTypes();
+	history.replaceState(null, "", "/workspace/");
+	await render(App, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await expect.element(page.getByTestId("widget-starter-2")).toBeVisible();
+	const starter = app.current.session!;
+	starter.apply({ op: "setField", target: { path: "name" }, from: null, to: "Mine" });
+	requestFocus({ kind: "title", id: "starter-2" });
+	await settle();
+	// Left for the copy's frame while the hand-off waits for the types.
+	expect(starter.handingOff).toBe(true);
+	expect(pendingFocusTarget()).toEqual({ kind: "title", id: "starter-2" });
+	// The copy can't be stored, so the hand-off fails and the starter stays.
+	vi.spyOn(platform.documents, "commit").mockRejectedValueOnce(new Error("no storage"));
+	answer();
+	await expect.poll(() => starter.status).toBe("error");
+	expect(app.current.session).toBe(starter);
+	await expect.poll(() => pendingFocusTarget()).toBeNull();
+	expect(document.activeElement).toBe(
+		page.getByTestId("widget-starter-2").getByRole("group").element()
+	);
+});
+
+test("moving a starter widget from the ⋯ menu by mouse while the types load keeps focus on its title bar", async () => {
+	const answer = holdTypes();
+	const app = await starterApp("/workspace/");
+	const starter = app.current.session!;
+	const bar = () => page.getByTestId("widget-starter-2").getByRole("group").element();
+	// Where focus goes from here: the bounce this test is about must happen, or it proves nothing.
+	// Whether the closing submenu takes focus depends on timing, so the move is tried again (up to
+	// three times) until it does.
+	let focused: Array<{ closedMenu: boolean; bar: boolean }> = [];
+	const record = (event: FocusEvent) => {
+		const target = event.target as Element;
+		focused.push({
+			closedMenu: !!target.closest?.('[role="menu"][data-state="closed"]'),
+			bar: target === bar()
+		});
+	};
+	let bounced = -1;
+	for (let attempt = 0; attempt < 3 && bounced < 0; attempt++) {
+		focused = [];
+		await page
+			.getByTestId("widget-starter-2")
+			.getByRole("button", { name: /^Actions for/ })
+			.click();
+		await page.getByRole("menuitem", { name: "Move", exact: true }).click();
+		document.addEventListener("focusin", record);
+		// The click edits at once (shown on the starter), and the closing submenu takes focus as
+		// the pointer leaves its item, then drops it to the page as it goes.
+		// Right, then back Left on a retry, so the item is never disabled at an edge.
+		const direction = attempt % 2 === 0 ? "Right" : "Left";
+		await page.getByRole("menuitem", { name: direction, exact: true }).click();
+		// The pointer moves on, as a person's does (under load the item may not have moved from
+		// under it).
+		await userEvent.hover(page.getByTestId("widget-starter-1").getByRole("group"));
+		await expect.element(page.getByRole("menu")).not.toBeInTheDocument();
+		await settle();
+		document.removeEventListener("focusin", record);
+		bounced = focused.findIndex((f) => f.closedMenu);
+	}
+	expect(bounced, "the closing menu took focus in one of three tries").toBeGreaterThanOrEqual(0);
+	expect(focused.slice(bounced + 1).some((f) => f.bar)).toBe(true);
+	expect(app.current.session).toBe(starter);
+	expect(document.activeElement).toBe(bar());
+	answer();
+	await expect.poll(() => app.current.session).not.toBe(starter);
+	const copy = app.current.session!;
+	await expect.poll(() => location.pathname).toBe(`/workspace/dashboards/${copy.doc.id}`);
+	await expect.poll(() => document.activeElement).toBe(bar());
+});
+
+for (const fullscreen of [false, true]) {
+	test(`the types swap keeps focus${fullscreen ? " and fullscreen" : ""}`, async () => {
+		// The starter shown before the catalog answers is replaced by one with its types (spec 1
+		// decision 10), which must cost the person nothing: the same frames stay, so focus and
+		// fullscreen stay put.
+		const answer = holdTypes();
+		const app = await starterApp(fullscreen ? "/workspace/?widget=starter-2" : "/workspace/");
+		if (fullscreen) await expect.poll(() => isFullscreen("starter-2")).toBe(true);
+		const before = app.current.session!;
+		const bar = page.getByTestId("widget-starter-2").getByRole("group").element() as HTMLElement;
+		bar.focus();
+		expect(document.activeElement).toBe(bar);
+		answer();
+		await expect.poll(() => app.current.session).not.toBe(before);
+		expect(app.current.isStarter).toBe(true);
+		await settle();
+		expect(bar.isConnected).toBe(true);
+		expect(document.activeElement).toBe(bar);
+		expect(isFullscreen("starter-2")).toBe(fullscreen);
+		expect(location.search).toBe(fullscreen ? "?widget=starter-2" : "");
+	});
+}
 
 test("no Minimize on a read-only dashboard", async () => {
 	const { session } = await seed(halves());

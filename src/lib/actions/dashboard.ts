@@ -22,12 +22,14 @@ import {
 import { afterMenuClose } from "$lib/components/menu/menu-state.svelte";
 import type { ChosenPlace } from "$lib/data/schema";
 import { placesToReplace } from "$lib/places/replace";
+import { sameRef } from "$lib/places/types";
+import { starterSource } from "$lib/starter/source";
 import { listEarlierVersions, restoreEarlierVersion } from "$lib/safety/restore-version";
 import type { Change } from "$lib/changes/types";
-import type { WidgetInstance } from "$lib/documents/schema";
+import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { loadLazy } from "$lib/safety/lazy";
 import { m } from "$lib/paraglide/messages.js";
-import { STARTER_ID, type HomeTarget } from "$lib/starter/starter";
+import { STARTER_ID, starterDashboard, type HomeTarget } from "$lib/starter/starter";
 import { currentDashboardName, homeTarget, type AppContext } from "$lib/store/app.svelte";
 import type { DocumentSession } from "$lib/store/document-session.svelte";
 import { placeNewWidget } from "$lib/layout/items";
@@ -244,9 +246,22 @@ async function copyWithPlace(
 	const source = await duplicateSource(app, target);
 	if (!source) return;
 	const { id, isStarter, types } = source;
+	// The place may have changed since it was asked (an edit during the types wait): the copy
+	// replaces the place the document has now.
+	const places = placesToReplace(
+		source.doc ?? starterDashboard(app.starterPlace, app.starterArea, types)
+	);
+	// The place asked if it's still there, else the one place left; none, or several without it:
+	// no copy.
+	const replaced =
+		places.find((place) => sameRef(place, from)) ?? (places.length === 1 ? places[0] : null);
+	if (!replaced) {
+		toast.info(m.dashboard_duplicate_no_single_place());
+		return;
+	}
 	// The starter is built at its chosen place, the bar's place `from`.
 	const copyId = await app.index.duplicate(id, {
-		from,
+		from: replaced,
 		to,
 		...(isStarter ? { area: app.starterArea, types } : {})
 	});
@@ -259,24 +274,27 @@ async function copyWithPlace(
  * document). The starter's copy has the catalog's monitor types, so they're waited for; if the
  * starter's hand-off started meanwhile, its copy is duplicated instead, as any dashboard (the edit
  * is in it, and no second copy of the built-in one is stored). `null`: nothing to copy (the
- * hand-off failed).
+ * hand-off failed). `doc` is the stored document copied (not the starter's, which is built).
  */
 async function duplicateSource(
 	app: AppContext,
 	target: { session: DocumentSession; isStarter: boolean }
-): Promise<{ id: string; isStarter: boolean; types: readonly string[] } | null> {
+): Promise<{
+	id: string;
+	isStarter: boolean;
+	types: readonly string[];
+	doc: Dashboard | null;
+} | null> {
 	if (!target.isStarter) {
 		await target.session.flush();
-		return { id: target.session.doc.id, isStarter: false, types: [] };
+		return { id: target.session.doc.id, isStarter: false, types: [], doc: target.session.doc };
 	}
-	const types = await app.starterTypesReady();
-	// The starter shown now (the types may have replaced the unedited one).
-	const starter = app.current.isStarter ? (app.current.session ?? target.session) : target.session;
-	if (!starter.edited) return { id: STARTER_ID, isStarter: true, types };
-	const copy = await starter.handoff;
-	if (!copy) return null;
-	await copy.flush();
-	return { id: copy.doc.id, isStarter: false, types: [] };
+	const source = await starterSource(app, target.session);
+	if (!source) return null;
+	if (source.kind === "starter") {
+		return { id: STARTER_ID, isStarter: true, types: source.types, doc: null };
+	}
+	return { id: source.session.doc.id, isStarter: false, types: [], doc: source.session.doc };
 }
 
 /** Asks what to call a copy that was just opened (Duplicate and "Save mine as a copy"). */

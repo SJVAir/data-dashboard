@@ -12,7 +12,13 @@ import type { ChosenPlace } from "$lib/data/schema";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { DEFAULT_LAYER, DEFAULT_PLACE } from "../defaults";
 import { report } from "$lib/safety/report";
-import { CATALOG_WAIT_MS, loadMonitorTypes, mapStartData, mapStartDataWithTypes } from "./start";
+import {
+	CATALOG_WAIT_MS,
+	loadMonitorTypes,
+	loadMonitorTypesResult,
+	mapStartData,
+	mapStartDataWithTypes
+} from "./start";
 
 const TULARE: ChosenPlace = { kind: "region", type: "county", code: "06107" };
 const KERN: ChosenPlace = { kind: "region", type: "county", code: "06029" };
@@ -69,6 +75,48 @@ describe("loadMonitorTypes", () => {
 		};
 		expect(await loadMonitorTypes()).toEqual([]);
 		expect(report).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("loadMonitorTypesResult", () => {
+	const original = types.catalog;
+	afterEach(() => {
+		types.catalog = original;
+		vi.mocked(report).mockClear();
+	});
+
+	it("the catalog's types, not failed", async () => {
+		expect(await loadMonitorTypesResult()).toEqual({
+			types: ["airnow", "purpleair"],
+			failed: false
+		});
+	});
+
+	it("a failing catalog: failed, reported once", async () => {
+		types.catalog = async () => {
+			throw new Error("down");
+		};
+		expect(await loadMonitorTypesResult()).toEqual({ types: [], failed: true });
+		expect(report).toHaveBeenCalledTimes(1);
+	});
+
+	it("an unavailable catalog (the server's outage): failed, not reported", async () => {
+		types.catalog = async () => "unavailable";
+		expect(await loadMonitorTypesResult()).toEqual({ types: [], failed: true });
+		expect(report).not.toHaveBeenCalled();
+	});
+
+	it("a late catalog: none, not failed, not reported", async () => {
+		vi.useFakeTimers();
+		try {
+			types.catalog = () => new Promise(() => {});
+			const result = loadMonitorTypesResult();
+			await vi.advanceTimersByTimeAsync(CATALOG_WAIT_MS);
+			expect(await result).toEqual({ types: [], failed: false });
+			expect(report).not.toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });
 

@@ -97,7 +97,8 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   (Foundations spec 5a, final review)._ The app's `securitypolicyviolation` listener starts
   only after the platform (IndexedDB) is ready, so violations during the bootstrap are missed
   in the app's own reports; the CSP header's `report-uri` still covers them. **Revisit if**
-  the violation reports show gaps.
+  the violation reports show gaps. _Looked at in step 6 spec 2:_ the CSP check sees bootstrap
+  violations in the browser; the app's own reports still miss them.
 - **WebKit and a failed chunk after reload.** _Deferred 2026-10-26 (Foundations spec 5a,
   final review)._ In the E2E suite, once Playwright's WebKit fails to import the app chunk
   (a routed 404 or abort, even with `no-store`), a reload or a fresh navigation in the same
@@ -106,36 +107,23 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   refreshes the entry files and reloads. Unknown whether real Safari does the same after a
   real 404 (a page loading mid-deploy). **Revisit in** the beta preview: check a reload in
   Safari after a missing chunk; if it stays broken, retry the import under a new URL.
-- **Check the built app for zod eval violations before go-live.** _Deferred 2026-10-26 (Foundations
-  spec 5a, final fix-wave review); reworded as a go-live check 2026-11-11 (the user)._ **Before
-  go-live**, check the built app for `script-src` eval violations from zod on every route,
-  including the routes and contexts the E2E CSP fixture doesn't cover (see "Gaps in the E2E CSP
-  checks" below). If any appear, fix it in sdk-js (build its schemas lazily, or set `jitless`
-  there), not with an import-order workaround here.
-  **Why it's safe today:** the dashboard imports zod only through `$lib/zod`, which sets
-  `z.config({ jitless: true })`. `@sjvair/sdk` (`5.0.0-beta.8`) imports zod itself and builds
-  `z.object` schemas when its modules load (the root `schema.ts` and the schema modules of
-  `account`, `calenviroscreen`, `calheatscore`, `collocation_sites`, `forecasts`, `hms`, `meta`,
-  `monitors`, `pesticides` and `regions`; the documents schemas moved into `src/lib/api/documents/`
-  on 2026-11-11 and build under `$lib/zod`). Since step 4, the widgets load the SDK root in the
-  built app's initial bundle. There's only one copy of zod in `node_modules` (4.6.7), so the
-  `jitless` setting applies to the SDK's schemas too. zod 4.6.7 runs its `new Function` probe
-  when an object schema is created, unless `jitless` is already set
-  (`node_modules/zod/v4/core/util.js`, `allowsEval`). So the app is clean only because `$lib/zod`
-  runs before the SDK's schema modules, which is the import order that `$lib/zod` itself says not
-  to rely on. The E2E suite runs under the contract CSP and fails on any
-  `securitypolicyviolation` (`e2e/fixtures.ts`), and it passes. A one-off check on 2026-11-11 (the
-  built app in the E2E preview, every route in `src/router.ts` loaded fresh, on Chromium,
-  Firefox and WebKit) found no violations.
-  **Revisit:** before go-live (listed under "Production deploy of sjvair.com `develop` → `main`"
-  below); when the E2E CSP fixture reports the probe; or when someone next works on the SDK's
-  schemas.
-- **Gaps in the E2E CSP checks.** _Deferred 2026-10-26 (Foundations spec 5a, final fix-wave
-  review)._ The ESLint rule bans only the exact `"zod"` import, not `zod/*` subpaths or dynamic
-  `import("zod")` (add `patterns: ["zod/*"]`). The CSP fixture doesn't cover contexts made with
-  `browser.newContext()` (the sharing and backup specs). And `e2e/csp.spec.ts`'s "eval is blocked"
-  self-test injects an inline script, so it proves the checker works but not that eval is caught.
-  **Revisit when** touching the E2E fixtures or the zod wrapper.
+- **The SDK builds its zod schemas when its modules load.** _Deferred 2026-11-23 (step 6 spec 2,
+  decision 1)._ `@sjvair/sdk` `5.0.0-beta.17` imports zod itself and builds `z.object` schemas
+  at load (checked 2026-11-23: `node_modules/@sjvair/sdk/lib/meta/schemas/scale.js` does
+  `import * as z from "zod"` and builds `z.object` at the top level; the same holds for the
+  schema modules of `account`, `calenviroscreen`, `calheatscore`, `collocation_sites`,
+  `forecasts`, `hms`, `meta`, `monitors`, `pesticides` and `regions`). There is one copy of zod
+  in `node_modules` (4.6.7), so `$lib/zod`'s `z.config({ jitless: true })` applies to the SDK's
+  schemas too. zod 4.6.7 reads `allowsEval.value` when an object schema is created
+  (`node_modules/zod/v4/core/schemas.js`) and runs its `new Function` probe unless `jitless` is
+  already set (`node_modules/zod/v4/core/util.js`, `allowsEval`). So the app is clean only
+  because `$lib/zod` runs before the SDK's schema modules, the import order `$lib/zod` itself
+  says not to rely on. **Why we leave it (option A):** the CSP check in CI fails every test on a
+  reorder, so a regression can't merge unseen. **Why not B or C:** building the schemas lazily
+  (B) touches about 40 modules and changes exports in a beta right before launch; setting
+  `jitless` inside the SDK (C) makes a library change a global zod setting for the mobile app
+  and monitor-map too. **Revisit:** after launch; when sdk-js next works on its schemas; or when
+  the CSP check reports the probe.
 - **Spec 5a polish.** _Deferred 2026-10-26 (Foundations spec 5a, final review)._ Small
   follow-ups, none blocking. **Revisit when** next touching each file:
   - The `/workspace` base path is written in four places and `https://www.sjvair.com` in two;
@@ -297,13 +285,6 @@ string`) now get the union return type. The mobile app passes a string token, so
     same account.** _Deferred 2026-11-02 (sync spec 3, while building)._ A list answered just
     before the change can overwrite the newer state; it heals on the next poll (up to 60 s).
     **Revisit if** the dialog showing a stale link is reported.
-  - **The starter hand-off can set the current dashboard after the person has left for a shared
-    page.** _Deferred 2026-11-02 (sync spec 3, while building)._ This is the existing `onCopied`
-    in `src/lib/store/app.svelte.ts`, so Ctrl+Z there could reach that new copy. Very narrow
-    timing. **Revisit on a report, or when the hand-off is next changed.** _Looked at in step 4
-    spec 6, 2026-11-10: unchanged; Share on the starter now also uses the hand-off (through
-    `copyStarter`), so there is one more caller, with the same timing window._ _Looked at in step 6 spec 1, 2026-11-23: unchanged; the hand-off now
-    waits for the monitor types first, but `onCopied` is the same code and the same window._
   - **`?widget=` stays in the address bar when a fullscreen shared dashboard becomes
     unavailable.** _Deferred 2026-11-02 (sync spec 3, while building)._ Nothing shows; it is
     harmless. **Revisit with** any URL-state cleanup.
@@ -571,8 +552,9 @@ string`) now get the union return type. The mobile app passes a string token, so
   - **MapTiler key** (step 5 spec 1, 2026-11-11): confirm `VITE_MAPTILER_KEY` reaches
     sjvair.com's Heroku build of the dashboard, and that the key's domain restriction covers
     `/workspace/`. Without it, every Map widget says the map is unavailable.
-  - **Dashboard CSP check, before:** check the built app for zod eval violations on every route
-    (see "Check the built app for zod eval violations before go-live" above).
+  - **Dashboard CSP check, before:** rerun the CSP check against the stack on go-live day (the
+    first run, 2026-11-23, found no violation: `docs/reference/csp-check-2026-11-23.md`, which has
+    the rerun command).
   - **Migrations at deploy:** `hms/0003_smoke_date_index` (sjvair.com #314), a plain `AddIndex` on
     `hms_smoke.date`; runs with `migrate`, quick on a small table; undo with `migrate hms 0002`.
     Nothing to run by hand.
@@ -2649,33 +2631,11 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     (MapTiler's metrics timer). **Fix with** the next change to each.
 - **Step 6 spec 1 review leftovers.** _Deferred 2026-11-23 (step 6 spec 1, per-task reviews)._
   Small things the reviews let stay:
-  - **A late-catalog test doesn't assert the failure report isn't sent on a timeout.** (T1-a: the
-    monitor types loader's late-catalog case.) **Add with** the next change to
-    `src/lib/widgets/map/start.ts`.
-  - **A weak copies-length assertion in a starter test.** (T2-a.) It would pass with the wrong
-    count. **Fix with** the next change to `starter.test.ts`.
-  - **A kept starter session can leak its `pagehide` and `pageshow` listeners.** (T3-a.) When the
-    app keeps an opened starter that was replaced (its first edit hands off, so the new one is
-    never tracked), or a caller other than Home makes the old one current and the place then
-    changes. Reachable through Home too: open `/`, then leave for `/dashboards` or the Data Portal
-    (both set no dashboard current) before the catalog answers; the replaced starter is kept and
-    never discarded, so its listeners stay for the page's life. Harmless in practice (it's
-    unedited, so there's nothing to journal) and only during the catalog wait. **Revisit if**
-    session leaks show up, or with the next change to the app's starter handling.
-  - **Two starter negatives wait a fixed 10 ms** ("New from starter", "an edited starter isn't
-    swapped"). (T3-b.) **Replace with** a wait on a signal with the next change to those tests.
-  - **No test that Export of an ordinary dashboard doesn't start the catalog load.** (T3-c.)
-    **Add with** the next change to Export or `starterTypesReady`.
-  - **"Duplicate for another place" from the starter, during the types wait, can use a stale
-    `from`.** (T3-d.) If an edit changed the bar's place meanwhile, nothing is replaced. A narrow
-    window. **Revisit on** a report, or with the next change to that path.
   - **The starter Map E2E skips Firefox entirely** (T4-a), though its geometry checks don't need
     WebGL. **Revisit with** the next change to `e2e/starter.spec.ts`: run the geometry part on all
     three engines.
   - **The starter Map's full-width check is "more than 85% of main"** (T4-b), which is loose.
     **Tighten with** the next change to that test.
-  - **A local `app` shadows the module's `app()` in the Map hand-off browser test** (T4-c).
-    **Rename with** the next change to `map-widget.browser.test.ts`.
   - **A nit in the Lighthouse script** (T5-a): `signedInProfile`'s doc comment sits above the
     `SignInFailure` class, and the header comment has a line over 100 columns. **Fix with** the
     next change to `e2e/lighthouse/`.
@@ -2689,47 +2649,82 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **A generated Map title joins its notes two ways** (T6b-a): the generated branch uses
     `sentence_join`, the typed-title branch `map_label_marks_hidden`, so the two could drift.
     **Revisit with** the next change to `map-title.svelte.ts`.
-  - **An empty typed Map title gives an empty widget title and no map region label** (T6b-b). The
-    schema allows `""`, and the typed branch treats it as typed. Pre-existing, not from this spec.
-    **Revisit with** the next change to widget titles or the schema.
   - **A default-zone E2E flake: "Show as Chart from a Map with schools notes them left out"**
     (T6b-c). It flaked in a default-zone run and passed when run alone (twice). **Revisit if** it
     fails again in CI.
-  - **The starter's first edit stays invisible while the types load.** `onBeforeFirstEdit` now
-    waits for `typesReady()` before the copy is committed, and a starter session doesn't apply
-    queued edits to its own document. Before this spec that wait was one commit; now it can be up
-    to `CATALOG_WAIT_MS` if someone edits within the first seconds on a slow connection. Decision 11
-    accepts the wait. **Revisit when** people report it, or at the first usability testing.
-  - **Export of the starter during the types wait ignores an edit made meanwhile.** `targetOf`
-    exports `starterDashboard(...)` after `await app.starterTypesReady()` even if the starter's
-    hand-off started meanwhile (Duplicate handles this through `duplicateSource`; Export doesn't).
-    A narrow window; the exported file lacks the edit. **Revisit when** people report it, or at the
-    first usability testing.
-  - **No component-level test that the types swap keeps focus and fullscreen** (decision 10: it
-    must not cost the person anything). The unit test checks the widget ids; the guarantee comes
-    from `DashboardGrid` keying, which a later refactor could break silently. **Revisit when**
-    people report it, or at the first usability testing.
-  - **A pending focus request survives a browser Back pressed mid-hand-off** until a frame with the
-    same widget id mounts (the focus store's existing behaviour). A starter frame handing off to
-    its copy now leaves its request pending for the copy, so the window is longer while the types
-    load. **Revisit when** people report it, or with the next focus-store change.
-  - **After a failed hand-off, the starter's `edited` stays true**, so later focus requests on that
-    starter only focus its title bar and stay pending until the next input. A failed hand-off is
-    rare (the copy couldn't be stored) and the bar still gets focus. **Revisit when** people report
-    it, or with the next focus-store change.
-  - **Moving a starter widget from the ⋯ menu by mouse while the types load leaves focus on
-    `<body>` until the copy shows** (the closing Move submenu takes it). A key press in that time
-    drops the pending request. Parked: mouse-only, and only during a slow catalog; the keyboard
-    path keeps focus on the title bar. **Revisit if** keyboard or screen-reader users report it,
-    or with the next focus-store or menu change.
-  - **During a catalog outage, every exit and every starter build asks for the types again.**
-    Each exit can wait the full `CATALOG_WAIT_MS` again, and each failure (not a timeout) sends
-    another error report. Parked: outages are rare, and it matches how a new Map asks on every
-    add. **Revisit if** error reports show repeats, or with the next change to the types load.
-  - **Edit data opened on the starter's Map before the types arrive saves no types.** Its draft
-    starts from the type-less widget, so saving it stores a Map with no monitor types. Very narrow
-    (seconds after a first visit). **Revisit when** people report it, or at the first usability
-    testing.
+- **WebKit's worker CSP violations aren't seen by the check.** _Deferred 2026-11-23 (step 6 spec 2,
+  ruling T2-b)._ Playwright's WebKit exposes no worker CSP event and no worker console message, so
+  the CSP walk can't see a violation raised inside a worker there. Workers are covered on Chromium
+  (through CDP Audits) and on Firefox (through the console). The worker self-test in
+  `e2e/csp-walk.spec.ts` is `test.fixme` on WebKit. A WebKit-only violation would go unseen; the Map's
+  worker code is the same across engines. **Revisit if** Playwright's WebKit exposes worker CSP
+  events, or if a code path that runs only in WebKit workers appears.
+- **Lazy parts the CSP walk doesn't open.** _Deferred 2026-11-23 (step 6 spec 2, final review
+  Important 3)._ The walk opens each widget type, the menus' dialogs, Help's privacy page and Clear
+  my data, Restore an earlier version, Sign out's question, a CSV download and a calendar's "Open
+  these days in a chart" on both targets, and Move to account and the downsample worker (a raw-only
+  PM10 fixture) on the fakes. Left out:
+  - **Which place** (`WhichPlaceDialog`): it asks only when a dashboard's widgets tie between places
+    and no widget shows the place bar's place, which a walk step can't make without fixture places.
+    On the fakes, `e2e/starter.spec.ts`'s tie test opens it under the contract CSP.
+  - **The threshold watcher** (`ThresholdWatcher`): it loads once a dashboard is watched, which
+    needs an alert level and the notifications permission. On the fakes, `e2e/thresholds.spec.ts`
+    loads it under the contract CSP.
+  - **Move to account on the stack:** it needs the stack's session signed out and back in (a
+    logout and a login), which the stack run doesn't do.
+  - **The placeholder widget** (an unknown or not-yet-loaded type's frame): nothing in the built
+    app shows it on purpose.
+
+  **Revisit if** one of these changes how it loads (a new chunk, a new worker or a new host), or
+  if a walk step can reach it without fixture data.
+
+- **Step 6 spec 2 review leftovers.** _Deferred 2026-11-23 (step 6 spec 2, per-task reviews)._
+  Small things the reviews let stay:
+  - **The eval self-test's predicate is a little loose** (T1-m1): any `script-src*` violation whose
+    sample is "eval". **Tighten with** the next change to `e2e/csp.spec.ts`.
+  - **A redundant `{ auto: false }`** (T1-m2) in `e2e/fixtures.ts`. **Remove with** the next change
+    to that file.
+  - **The zod-import-ban test may be slow, and a template-literal `import(`zod`)` isn't caught**
+    (T1-m3). **Revisit with** the next change to the ESLint zod rule.
+  - **Violations after a watched context closes can be lost** (T1-m4). Inherent to the watch.
+    **Revisit if** a violation is ever seen to slip through.
+  - **A step's route check can be met by the step before it** (fix wave 3 review, minor 2). The
+    walk records the page's navigations from the moment a step starts, so a redirect the previous
+    step set off that lands late (after its network went idle) counts for the next step. If the
+    next step claims that route and never goes there itself, the check passes when it shouldn't.
+    It can only pass wrongly, never fail wrongly, and needs a late redirect onto exactly the route
+    the next step claims, which is unlikely, so it's left. **Revisit with** the next change to the walk's route
+    checks (for example, wait for the URL to settle before a step starts, or count only
+    navigations the step itself started).
+  - **The stack run has data needs:** the show-in step needs at least one monitor row, the
+    share-link step needs sync, and the csv-download step needs the first calendar to have data
+    (T2-m6; failures say so). **`previewEachType` times out if a Show as
+    choice renders no preview or is disabled** (T2-m8). **Failed CDP sends are swallowed silently**
+    (T2-m9). **A worker started from inside another worker isn't watched** (T2-m10). **Revisit
+    with** the next change to the walk or the stack run.
+  - **Sign-in and header-check violations are labeled with the first walk step** (T3-m1), **the
+    per-step summary prints only if the walk completes** (T3-m2), **and Sentry is detected by
+    hostname only, so a same-origin tunnel wouldn't be seen** (T3-m3). **Fix with** the next
+    change to the stack run.
+  - **A read-only `arrangeBy` no longer closes the menu** (T4-m2). Unreachable today: the Move and
+    Size items are disabled on a read-only dashboard. **Fix with** the next change to `arrangeBy`
+    in `src/lib/actions/widget.ts`. _Looked at in the final review's fixes, 2026-11-23: the stale
+    comments (T4-m1) were fixed there; this one left, being unreachable._
+  - **Export after a failed hand-off adds no toast of its own** (T5-m2); the starter's save error
+    from step 6 spec 2 task 4 shows. **`duplicateSource`'s `doc` is null for the starter, so the
+    starter doc is built twice** (T5-m3). **The tie test doesn't assert two candidates remain**
+    (T5-m4: add `expect(placesToReplace(...)).toHaveLength(2)`). **Fix with** the next change to
+    `src/lib/actions/dashboard.ts` or its tests.
+  - **The setter path could discard a just-kept starter if the current one is another kept
+    starter** (T7-m2). Unreachable today. **Revisit with** the next change to the starter claims
+    in `src/lib/store/app.svelte.ts`.
+  - **Edit data on the starter: `starterPlace` and `resetCount` dependencies are untracked**
+    (T8-m2, likely unreachable; _looked at in the final review's fixes, 2026-11-23, which changed
+    `GetData.svelte`'s Save: left, still unreachable_); **the Edit-data-on-the-starter tests that check the page stays
+    where the person went use a `setTimeout(200)` negative check** (T8-m8, and the two the final
+    review's fixes added beside it: nothing observable changes when the page rightly stays);
+    **`air-quality-section.browser.test.ts` (about line 58) has an implicit any that
+    `npm run check` misses** (T8-m5, pre-existing). **Fix with** the next change to each file.
 - **The startup chain keeps LCP over 2.5 s on a throttled phone.** _Deferred 2026-11-23 (step 6
   spec 1, the Lighthouse check; the user: revisit at go-live)._ The LCP element is the welcome
   Note's text. It waits for the app chunk (188 KB gzipped) to download and run its startup
@@ -3387,6 +3382,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   it says nothing about this. The starter's TBT (the main thread's blocking time while it loads)
   is 116–152 ms on the throttled profile, under the 200 ms mark, and 224 ms on the local stack's
   saved dashboard. Still open for the real Chromebook._
+  _Flaked again in CI on 2026-11-24 (step 6 spec 2, run 45470864704, Chromium; passed on rerun)._
 - **Pen long-press still opens the context menu.** _Deferred 2026-10-28 (step 2, spec 2a)._ Only
   touch is blocked. **Revisit if** pen users report it.
 - **Screen-reader check of keyboard arranging (NVDA/JAWS browse mode, VoiceOver).** _Deferred
@@ -3459,20 +3455,16 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   checks (sizes after layout, an animation), not wrong behaviour. **Revisit when** one fails in
   CI, or when touching the test: wait on the settled state (a poll on the final size, or the
   animation's end) instead of a fixed moment.
-- **Two arranging tests flake in CI under full-suite load.** _Noted 2026-11-22 (step 5 spec 7c,
-  Task 1)._ On `step-5-spec-7c-flake`, whose `ci.yml` ran `npm test` three times per run, each
-  failed in one pass and passed in the others:
-  - `src/lib/components/dashboard/arranging.browser.test.ts`, "a pointer resize animates the
-    frame's size as it snaps" ("expected +0 to be 1": likely the animation was over before the poll
-    saw it), in runs 45097726529 (before the menu fix), 45099109524 and 45099115463.
-  - The same file, "autoscroll asks for animation frames only while the pointer is in the edge
-    zone" ("expected 0 to be greater than 0": no frame was asked for in its 150 ms in the edge
-    zone), in run 45099112411.
-
-  Not fixed in spec 7c: neither involves menus or 7c's code; they're timing checks, likely
-  starved by the load. **Revisit when** either fails in CI again, or when touching that test: start the size
-  animation paused or long enough to be seen (as the keyboard-resize entry above suggests), and
-  wait on the autoscroll's first frame rather than counting frames in a fixed 150 ms.
+- **An arranging test flakes in CI under full-suite load.** _Noted 2026-11-22 (step 5 spec 7c,
+  Task 1)._ On `step-5-spec-7c-flake`, whose `ci.yml` ran `npm test` three times per run,
+  `src/lib/components/dashboard/arranging.browser.test.ts`, "autoscroll asks for animation frames
+  only while the pointer is in the edge zone" failed in one pass ("expected 0 to be greater than
+  0": no frame was asked for in its 150 ms in the edge zone), in run 45099112411. Not fixed in spec
+  7c: a timing check, likely starved by the load. **Revisit when** it fails in CI again, or when
+  touching that test: wait on the autoscroll's first frame rather than counting frames in a fixed
+  150 ms. _The same file's "a pointer resize animates the frame's size as it snaps" failed in CI
+  again on 2026-11-24 (step 6 spec 2) and was fixed: it counts size animations as they start
+  (`Element.prototype.animate`), not while they run._
 
 - **WebKit E2E runs at 1x, so it doesn't cover drawing at 2x.** _Noted 2026-11-22 (step 5,
   WebKit E2E fix)._ The WebKit project now sets `deviceScaleFactor: 1` (`playwright.config.ts`),

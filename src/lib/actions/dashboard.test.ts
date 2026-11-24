@@ -171,6 +171,7 @@ describe("Duplicate for another place", () => {
 			current: { session: { doc: d, readOnly, flush }, isStarter },
 			index: { names: new Map(), items: [], duplicate },
 			sessions: { get: vi.fn(async () => copy) },
+			starterPlace: B,
 			starterArea: null,
 			starterTypesReady: vi.fn(async () => ["a", "b"])
 		} as unknown as AppContext;

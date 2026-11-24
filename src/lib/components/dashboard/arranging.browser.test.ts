@@ -22,7 +22,13 @@ import { loadMonitorTypes } from "$lib/widgets/map/start";
 // The real loader unless a test holds the catalog's answer.
 vi.mock("$lib/widgets/map/start", async (importOriginal) => {
 	const original = await importOriginal<typeof import("$lib/widgets/map/start")>();
-	return { ...original, loadMonitorTypes: vi.fn(original.loadMonitorTypes) };
+	const loadMonitorTypes = vi.fn(original.loadMonitorTypes);
+	return {
+		...original,
+		loadMonitorTypes,
+		// The app asks this one; it answers with `loadMonitorTypes`' types.
+		loadMonitorTypesResult: vi.fn(async () => ({ types: await loadMonitorTypes(), failed: false }))
+	};
 });
 
 const originalUrl = location.href;
@@ -674,9 +680,24 @@ test("dragging near the bottom of the viewport scrolls the page", async () => {
 test("a pointer resize animates the frame's size as it snaps", async () => {
 	await seed(halves());
 	await expect.element(titleBar("Readings")).toBeVisible();
-	await drag(handle("a", "right"), -pitchX() * 2, 0, false);
-	await expect.poll(() => sizeAnimations("a").length).toBe(1);
-	await press("{Escape}");
+	// Counted as they start, not while they run: under load the animation can end before a poll
+	// of the running ones sees it.
+	const animate = vi.spyOn(Element.prototype, "animate");
+	try {
+		await drag(handle("a", "right"), -pitchX() * 2, 0, false);
+		const frameA = page.getByTestId("widget-a").element();
+		const started = () =>
+			animate.mock.calls.filter(
+				([keyframes], i) =>
+					animate.mock.contexts[i] === frameA &&
+					Array.isArray(keyframes) &&
+					keyframes.some((k) => k.width !== undefined)
+			).length;
+		await expect.poll(started).toBeGreaterThan(0);
+		await press("{Escape}");
+	} finally {
+		animate.mockRestore();
+	}
 });
 
 test("autoscroll asks for animation frames only while the pointer is in the edge zone", async () => {
@@ -961,7 +982,7 @@ test("a touch long-press menu is cancelled on the title bar and handles, not the
 		el.dispatchEvent(event);
 		return event.defaultPrevented;
 	};
-	const body = frame("a").children[1];
+	const body = frame("a").querySelector("[data-widget-body]")!;
 	// A touch press comes first (it keeps the dashboard's own menu from opening).
 	const b = center(body);
 	touch(body, "pointerdown", b.x, b.y);
