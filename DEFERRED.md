@@ -271,7 +271,8 @@ string`) now get the union return type. The mobile app passes a string token, so
     plan)._ The shared response carries no `copied_from` (by design: it's the owner's data), so
     a shared copy of a copy shows only the made-by bar. Copies people make still show "Based on
     …" for the dashboard they copied. **Revisit if** people ask where a shared dashboard came
-    from.
+    from. _Looked at in step 6 spec 3 (2026-11-24): the credit row now exists only with a credit;
+    this still describes the behaviour._
   - **Each open shared page polls on its own** (no one-tab-per-browser leader as signed-in
     dashboards have). _Deferred 2026-11-02 (sync spec 3 plan)._ Viewers are mostly signed out on
     one tab each, and the sync design's cost estimate already counts one request per viewer per
@@ -291,6 +292,8 @@ string`) now get the union return type. The mobile app passes a string token, so
   - **"Based on …" looked up while offline stays hidden until the next page load.**
     _Deferred 2026-11-02 (sync spec 3, final review)._ The answer is cached per page load, so a
     lookup that failed offline is not retried. **Revisit if** people report a missing credit.
+    _Looked at in step 6 spec 3 (2026-11-24): the credit row now exists only with a credit; this
+    still describes the behaviour._
   - **The Help menu's feedback link still opens sjvair.com's contact form with no topic
     pre-filled.** _Deferred 2026-11-02 (sync spec 3, final review)._ The server pre-fills only
     the shared-page report. This was part of the removed "Pre-filling sjvair.com's contact form"
@@ -2803,11 +2806,12 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   picks which place's overlay it draws (the Data table and CSV have every place's). **Revisit
   when** users ask to compare overlays across places, or with spec 5's chart work.
 - **Get data's Detail limits are estimates.** _Deferred 2026-11-05 (step 4 spec 3, Task 9)._
-  "More options" → Detail greys out levels using guessed limits: places × periods over 50 000
+  "Data resolution" (a closed section in Get data's left column) greys out levels using guessed limits: places × periods over 50 000
   blocked, and 720 raw readings a day per place. No level has a range cap of its own: the
   server's 31-day cap is per request, and the adapters ask a month (or 31 raw days) at a time
   (settled in the final review). **Revisit after** real use, or when the metadata gives reading
-  intervals.
+  intervals. _Reworded in step 6 spec 3 (2026-11-24): "More options" is gone; the limits are
+  unchanged._
 - **A possible bug in the custom date range picker with the year calendar.** _Noted
   2026-11-09 (the user, after spec 5)._ The user saw what looks like an error when choosing a
   custom range of 8/10/24 to 10/09/24 (read as Aug 10 – Oct 9, 2024) while the year calendar
@@ -2859,7 +2863,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **The draft's debounce timer is module-level, shared across spaces.** **Revisit if** a
     draft is lost on a space switch.
   - **A `?type=` override keeps Chart options on a Data table draft** (harmless; Show as does
-    the same by design). **Revisit when** a non-Chart type has options of its own.
+    the same by design). _Looked at in step 6 spec 3 (2026-11-24): calendars now have a "Calendar options" section, but
+    the level line kept across Chart and calendar is the same one, kept by design; the Data table
+    still has no options, so a kept threshold there stays unused and harmless._ **Revisit when**
+    the Data table gains options of its own.
   - **Dashboard size measures the whole view's width,** so a wide `defaultSize` may clip.
     **Revisit with** spec 5's wider types.
   - **Rare storage failures when adding:** a failed starter hand-off keeps the add queued (a

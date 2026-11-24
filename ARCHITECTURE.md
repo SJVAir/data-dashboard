@@ -155,18 +155,41 @@ now inside the dataset sections.
 
 **Layout (option A).**
 
-- **Left column, top to bottom (changed in step 5 spec 7a):** **What** first (one list of
-  sections for every widget type, in catalog order; what a type can't show is greyed out with its
-  reason, never hidden; Air quality starts open), then **When**, **Where** (always shown; empty
-  reads "Everywhere"; "Change" opens the shared place picker in `multiple` mode up to the widget
-  type's `maxPlaces`, only the Map and the single-place types set one), **Data resolution** (its
-  own section since step 5 spec 6a, with a "?" toggletip), and **More options** (the threshold
-  line). **What is the data; When and Where filter it.** The column scrolls on its own
+- **Left column, top to bottom (changed in step 6 spec 3, 2026-11-24, the user; was What, When,
+  Where, Data resolution and "More options" since step 5 spec 7a):** **When** (only for types
+  with a range; a now type and the Map on Now have none, so Where comes first), **Where**
+  (always shown; empty reads "Everywhere"; "Change" opens the shared place picker in `multiple`
+  mode up to the widget type's `maxPlaces`, only the Map and the single-place types set one),
+  **What** (one list of sections for every widget type, in catalog order; what a type can't show
+  is greyed out with its reason, never hidden), then **Data resolution** (when there are
+  choices). **What is the data; When and Where filter it.** The column scrolls on its own
   (`scrollFocusable`) with the preview in view from `md:` up; on a phone the columns stack. The
   Air quality section is radios with None (never blocked) over the catalog's available
   pollutants, a checkbox per monitor type in the meta's groups, and a Monitors search listing the
   chosen monitors, each removable (see "Widget data selection: What, Where and monitors (spec
-  7a)").
+  7a)"). When, Where and What keep their `h2` headings and What's sections their `h3`; Data
+  resolution's trigger is an `h2`.
+- **Sections start closed and never open by themselves (2026-11-24, the user; replaces step 4
+  spec 3's "Air quality starts open" and step 5 spec 7's open-on-load rule: a type's main
+  section, every section for the Map).** On first load every What section and Data resolution
+  are closed, for every type and for "Edit data". A missing pick is said under the closed
+  section's name and in the action bar's blocked reason, so nothing opens to say it. On a type
+  change, sections the person opened stay open and any the new type greys out close; nothing
+  opens because of the change. A section listed later (location groups) arrives closed.
+- **Data resolution is a closed section showing its choice (2026-11-24).** One accordion item
+  with the same trigger look as What's sections. Closed, it shows the current choice under its
+  name ("Automatic", "Hourly", …), and a blocked choice's reason too, so a closed section never
+  hides why Add is blocked. The "?" toggletip stays beside the heading, and the note
+  (`role="status"`) stays outside the collapsible part so a note that appears while it is
+  closed is still announced.
+- **"More options" is gone (2026-11-24, the user; it held the threshold line since step 5 spec
+  7a).** A type's own settings sit in an always-open section under **Show as** in the preview
+  column, named by one whole message per type held on its registry entry (`optionsLabel`):
+  the **level line** for the Chart and both calendars, and the **alert levels** for Current
+  conditions and "Can we go outside?" (moved out of What). The section shows only when it has
+  a control to show right now (the level line needs its pollutant's scale; alert levels need a
+  ticked pollutant with levels), so no type shows an empty heading. The Map's options stay
+  data choices in What. No saved-document shape changed.
 - **Right:** a large live preview with a **Show as** switch (Chart | Data table today) and a
   **"Dashboard size"** switch that shows it at the size it will land (the type's `defaultSize`).
   It's the real widget component in a view-only frame, so its states (loading, "No data",
@@ -333,8 +356,9 @@ directly. Leaving with unsaved changes (Cancel, Back, a nav link) asks **"Discar
 (an alert dialog). Cancel goes Back only from an entry the app pushed; on a page opened from
 its link it goes to the dashboard (or `/` from `/data`), never off the app.
 
-**Data resolution (its own section after What since step 5 spec 6a; was "Show values" under
-"More options", and "Detail" until spec 3b).** **Automatic** (the default), or **Every
+**Data resolution (a closed section last in the left column; its own section since step 5 spec
+6a, closed by default since step 6 spec 3, 2026-11-24; was "Show values" under "More options",
+and "Detail" until spec 3b).** **Automatic** (the default), or **Every
 measurement**, **Hourly**, **Daily**, **Monthly**, **Yearly** (`LEVELS`; no Quarterly or
 Seasonal), stored once for the whole dataset as `WidgetDataConfig.resolution` (Automatic stores
 nothing; see "Datasets line up"). A "?" toggletip beside it (a button on the bits-ui popover:
@@ -3067,7 +3091,16 @@ type MenuProvider = (ctx: MenuContext) => MenuItem[];
   navigation, ARIA roles, and viewport collision handling. Opens via right-click and
   Shift+F10 / Menu key (focused element). **On touchscreens it opens from the ⋯ buttons, not
   long-press** (decided 2026-10-28, step 2: long-press picks up widgets and is the browser's
-  own gesture); the dashboard has its own visible ⋯ button for that reason.
+  own gesture); the dashboard has its own visible ⋯ button for that reason. **That button sits in
+  the top bar right after the dashboard picker (step 6 spec 3, 2026-11-24, the user; it had a
+  header row of its own above the grid since the design pass, PR #33).** It shows only for an
+  own dashboard with a session (read-only own dashboards included; not on the list, Get data or a
+  shared view) and is inert while a widget is fullscreen. The grid publishes its actions
+  provider (and its fullscreen state) to a small module-level store while mounted; the button
+  attaches it with `menuScope` and opens the menu with `openMenuFor`, so it lists the same items
+  as a right-click on the grid, and focus returns to it. The grid keeps its own scope for
+  right-clicks. The row above the grid is now only the **"Based on …"** credit, shown only when
+  there is one.
 - **The menus do their own opening focus** (step 5 spec 7c). bits-ui 2.19.2 mounts a top-level
   context or dropdown menu's focus scope twice as it opens, which queues two one-frame opening
   focuses. On a busy machine the second could land after ArrowRight had opened a submenu,
