@@ -704,7 +704,7 @@ describe("the starter's monitor types", () => {
 		await vi.waitFor(() => expect(mapTypes(app.current.session!.doc)).toEqual(TYPES));
 	});
 
-	it("catalog unavailable each time: the exit stores none, without waiting on it", async () => {
+	it("catalog unavailable each time: the exit stores none", async () => {
 		vi.mocked(loadMonitorTypes).mockResolvedValue([]);
 		const { platform, app } = await setup();
 		const starter = await showStarter(app);

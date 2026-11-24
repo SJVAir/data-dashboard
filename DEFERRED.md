@@ -2709,6 +2709,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     must not cost the person anything). The unit test checks the widget ids; the guarantee comes
     from `DashboardGrid` keying, which a later refactor could break silently. **Revisit when**
     people report it, or at the first usability testing.
+  - **During a catalog outage, every exit and every starter build asks for the types again.**
+    Each exit can wait the full `CATALOG_WAIT_MS` again, and each failure (not a timeout) sends
+    another error report. Parked: outages are rare, and it matches how a new Map asks on every
+    add. **Revisit if** error reports show repeats, or with the next change to the types load.
   - **Edit data opened on the starter's Map before the types arrive saves no types.** Its draft
     starts from the type-less widget, so saving it stores a Map with no monitor types. Very narrow
     (seconds after a first visit). **Revisit when** people report it, or at the first usability
