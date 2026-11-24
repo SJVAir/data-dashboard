@@ -1187,7 +1187,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 - **An off-screen Map's title reads "Map" until its code loads.** _Deferred 2026-11-23 (step 6
   spec 1, Task 6)._ A Map's code now loads only once its frame is within 200 px of the screen,
   takes focus, or is fullscreen. Until then its title bar reads the type label "Map": it still
-  names the widget, and it gets its full title ("PM2.5 · Fresno County") once it loads. Why: the
+  names the widget, and it gets its full title ("PM2.5 map · Fresno County") once it loads. Why: the
   generated title is worked out in the Map's lazy module (`map-title.svelte.ts`), and moving it out
   would split the title from the module. **Revisit when** people using screen readers report it,
   or when a Map title change touches `map-title.svelte.ts` anyway.
@@ -2657,8 +2657,11 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **A kept starter session can leak its `pagehide` and `pageshow` listeners.** (T3-a.) When the
     app keeps an opened starter that was replaced (its first edit hands off, so the new one is
     never tracked), or a caller other than Home makes the old one current and the place then
-    changes. Not reachable through Home. **Revisit if** session leaks show up, or with the next
-    change to the app's starter handling.
+    changes. Reachable through Home too: open `/`, then leave for `/dashboards` or the Data Portal
+    (both set no dashboard current) before the catalog answers; the replaced starter is kept and
+    never discarded, so its listeners stay for the page's life. Harmless in practice (it's
+    unedited, so there's nothing to journal) and only during the catalog wait. **Revisit if**
+    session leaks show up, or with the next change to the app's starter handling.
   - **Two starter negatives wait a fixed 10 ms** ("New from starter", "an edited starter isn't
     swapped"). (T3-b.) **Replace with** a wait on a signal with the next change to those tests.
   - **No test that Export of an ordinary dashboard doesn't start the catalog load.** (T3-c.)
@@ -2686,6 +2689,30 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **A generated Map title joins its notes two ways** (T6b-a): the generated branch uses
     `sentence_join`, the typed-title branch `map_label_marks_hidden`, so the two could drift.
     **Revisit with** the next change to `map-title.svelte.ts`.
+  - **An empty typed Map title gives an empty widget title and no map region label** (T6b-b). The
+    schema allows `""`, and the typed branch treats it as typed. Pre-existing, not from this spec.
+    **Revisit with** the next change to widget titles or the schema.
+  - **A default-zone E2E flake: "Show as Chart from a Map with schools notes them left out"**
+    (T6b-c). It flaked in a default-zone run and passed when run alone (twice). **Revisit if** it
+    fails again in CI.
+  - **The starter's first edit stays invisible while the types load.** `onBeforeFirstEdit` now
+    waits for `typesReady()` before the copy is committed, and a starter session doesn't apply
+    queued edits to its own document. Before this spec that wait was one commit; now it can be up
+    to `CATALOG_WAIT_MS` if someone edits within the first seconds on a slow connection. Decision 11
+    accepts the wait. **Revisit when** people report it, or at the first usability testing.
+  - **Export of the starter during the types wait ignores an edit made meanwhile.** `targetOf`
+    exports `starterDashboard(...)` after `await app.starterTypesReady()` even if the starter's
+    hand-off started meanwhile (Duplicate handles this through `duplicateSource`; Export doesn't).
+    A narrow window; the exported file lacks the edit. **Revisit when** people report it, or at the
+    first usability testing.
+  - **No component-level test that the types swap keeps focus and fullscreen** (decision 10: it
+    must not cost the person anything). The unit test checks the widget ids; the guarantee comes
+    from `DashboardGrid` keying, which a later refactor could break silently. **Revisit when**
+    people report it, or at the first usability testing.
+  - **Edit data opened on the starter's Map before the types arrive saves no types.** Its draft
+    starts from the type-less widget, so saving it stores a Map with no monitor types. Very narrow
+    (seconds after a first visit). **Revisit when** people report it, or at the first usability
+    testing.
 - **The startup chain keeps LCP over 2.5 s on a throttled phone.** _Deferred 2026-11-23 (step 6
   spec 1, the Lighthouse check; the user: revisit at go-live)._ The LCP element is the welcome
   Note's text. It waits for the app chunk (188 KB gzipped) to download and run its startup
