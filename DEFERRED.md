@@ -2307,23 +2307,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   2026-11-15 and 2026-11-24 runs); neither is traced yet to monitor-map or map-sdk. Why deferred:
   beta.3 unblocks mobile's re-pin and the user's iOS test. **Revisit before** `@sjvair/monitor-map`
   `5.0.0` final: trace each, fix it in the package that owns it, and recheck on the phone.
-- **map-sdk: arriving townships go clear for 3–6 frames on a block's first visit.** _Deferred
-  2026-11-20 (the user; found by the scripted lens check on `@sjvair/map-sdk` `0.1.0-beta.22`)._ On
-  the first visit to a block (5 of 30 moves per run, 32–77 ms), map-sdk first draws the sections
-  it already holds for the new block. Those include a few edge sections of the arriving
-  townships, and one drawn section hides its whole township, so the interior shows clear until
-  the full block arrives (the dashboard's 50 ms `LENS_WAIT` plus the fetch). Real data does this
-  too: sjvair.com selects sections by bounding-box overlap (`bboverlaps`), which includes boxes
-  that only touch. Fix in map-sdk: hide a township only once its whole block has loaded. Short
-  and not urgent. **Revisit with** the next `@sjvair/map-sdk` beta that step 6 needs (spec 7 stayed
-  on `0.1.0-beta.22`);
-  check it with `.superpowers/lens-check/` in map-sdk. Fixed in `@sjvair/map-sdk` `0.1.0-beta.23` (map-sdk #40) for hosts that pass `shapesLens`'s `childrenLoaded`; this entry closes when step 6 spec 3's re-pin (Task 8) lands it in the dashboard.
-- **map-sdk: a township the lens leaves goes clear for 1 frame.** _Deferred 2026-11-20 (the user;
-  found by the same check)._ New in `0.1.0-beta.21`/`beta.22` from map-sdk #38: a leaving
-  township's sections are gone from the drawn tiles, but it shows again only at `sourcedata` or
-  `idle`, a frame later (8–14 of 30 moves per run; `0.1.0-beta.19` didn't do this). Fix in
-  map-sdk: show it again on the same frame its sections go. **Revisit with** the next
-  `@sjvair/map-sdk` beta that step 6 needs, with the entry above. Fixed in `@sjvair/map-sdk` `0.1.0-beta.23` (map-sdk #40); closes with the same re-pin.
 - **The Monthly and Yearly legend line takes its units from the catalog.** _Deferred 2026-11-20
   (step 5 spec 6b, Task 11 review)._ map-sdk's own "(units)" line reads the monitors meta's scale
   units, while the Monthly or Yearly figure line that replaces it ("µg/m³ · Average of 24-hour

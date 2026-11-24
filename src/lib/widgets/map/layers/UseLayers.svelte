@@ -31,6 +31,7 @@
 		lensSource,
 		block,
 		parentOf,
+		childrenLoaded,
 		label,
 		units,
 		zoom,
@@ -53,6 +54,8 @@
 		block: (refKey: string) => string[];
 		/** A section's township refKey. */
 		parentOf: (props: UseProps) => string | null;
+		/** Whether the lens source holds every section of a township (it then isn't cleared). */
+		childrenLoaded?: (refKey: string) => boolean;
 		/** The layer label ("Pounds Applied, 2023"); none, nothing is drawn. */
 		label: string | undefined;
 		/** The figure's units (the catalog's), for the legend's units lines. */
@@ -186,6 +189,7 @@
 			source: lensSource,
 			block,
 			parentOf,
+			childrenLoaded,
 			layerLabel,
 			noFigure: "outline",
 			legendDisplay: "blocks",

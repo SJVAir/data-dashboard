@@ -1188,6 +1188,7 @@
 		lensSource={data.useBlock.lens}
 		block={(refKey) => data.useBlock.blockOf(refKey)}
 		parentOf={(props) => data.useBlock.parentOf(props)}
+		childrenLoaded={(refKey) => data.useBlock.childrenLoaded(refKey)}
 		label={useLabel}
 		units={useFigureInfo?.units ?? ""}
 		zoom={useZoom}
