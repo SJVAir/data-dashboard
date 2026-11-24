@@ -36,10 +36,14 @@ test("the walk raises no CSP violation", async ({ page, context, cspViolations }
 	expect(messages, "CSP console and worker messages").toEqual([]);
 });
 
-test("a worker's violation is caught", async ({ page, context, cspViolations }) => {
+test("a worker's violation is caught", async ({ page, context, cspViolations, browserName }) => {
+	test.fixme(
+		browserName === "webkit",
+		"WebKit exposes no worker CSP event or console message to Playwright; workers are covered on Chromium (CDP) and Firefox (console)"
+	);
 	// A same-origin file (so `script-src 'self'` allows it) that starts a `blob:` worker (which
 	// `worker-src` allows), whose eval the policy blocks. Firefox logs it to the console; Chromium
-	// reports it only over CDP (`watchWorkerCsp`); WebKit is checked in CI.
+	// reports it only over CDP (`watchWorkerCsp`); WebKit shows it to neither (the fixme).
 	await context.route("**/workspace/__csp-worker-probe.js", (route) =>
 		route.fulfill({
 			contentType: "text/javascript",
