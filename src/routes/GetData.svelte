@@ -5,6 +5,7 @@
 	import { addFromDraft, addTargets, landedIn } from "$lib/get-data/add";
 	import DiscardDialog from "$lib/get-data/DiscardDialog.svelte";
 	import { flushDraft, loadDraft, type Draft } from "$lib/get-data/draft.svelte";
+	import { tickTypesIfNone } from "$lib/get-data/map";
 	import { draftChanged, editDraft, saveEdit } from "$lib/get-data/edit";
 	import GetDataView from "$lib/get-data/GetDataView.svelte";
 	import { cancelPlan, parseGetDataMode } from "$lib/get-data/mode";
@@ -15,6 +16,7 @@
 	import { LAST_OPENED_KEY, useApp } from "$lib/store/app.svelte";
 	import type { DocumentSession } from "$lib/store/document-session.svelte";
 	import { HandOffSchema, type HandOff } from "$lib/widgets/map/hand-off";
+	import { MAP_TYPE } from "$lib/widgets/map/options";
 	import { dataTypes } from "$lib/widgets/registry";
 	import { navigate, p, route } from "../router";
 
@@ -101,8 +103,9 @@
 		notFound = null;
 		leaving = false;
 		if (at.kind === "edit") {
-			// Edit data starts from the widget each time.
-			void openDashboard(at.dashboardId)
+			// Edit data starts from the widget each time. Opened untracked: opening the starter reads
+			// the catalog's types, and their arrival mustn't reopen it (that would reset the draft).
+			void untrack(() => openDashboard(at.dashboardId))
 				.catch((error) => {
 					// Storage failed: the "not here" message stands, and the failure is reported.
 					report(error, { operation: "get-data-open" });
@@ -261,6 +264,19 @@
 
 	let saving = $state(false);
 
+	/**
+	 * The starter's Map, changed: `draft` with the catalog's monitor types (awaited) ticked when the
+	 * person ticked none and searched no monitors, as its copy has them (spec decision 18). An
+	 * unchanged draft stays as it is, so it saves nothing (no copy).
+	 */
+	async function withStarterTypes(draft: Draft): Promise<Draft> {
+		if (draft.type !== MAP_TYPE || !baseline || !draftChanged(baseline, draft)) return draft;
+		const types = await app.starterTypesReady();
+		const data = $state.snapshot(draft.data);
+		tickTypesIfNone(data, types);
+		return { ...draft, data };
+	}
+
 	/** Save changes (nothing to apply when unchanged), then back to the widget on its dashboard. */
 	async function save(draft: Draft): Promise<void> {
 		const session = editing;
@@ -269,7 +285,13 @@
 		saving = true;
 		let landed: Awaited<ReturnType<typeof landedIn>>;
 		try {
-			saveEdit(session, widgetId, draft);
+			const saved = mode.dashboardId === STARTER_ID ? await withStarterTypes(draft) : draft;
+			// Another widget, or another page, meanwhile: this save is dropped.
+			if (editing !== session) {
+				saving = false;
+				return;
+			}
+			saveEdit(session, widgetId, saved);
 			landed = await landedIn(session);
 		} catch (error) {
 			report(error, { operation: "get-data-save" });

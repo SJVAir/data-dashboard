@@ -28,6 +28,7 @@ import {
 	setNotices,
 	setSmokeAndFire,
 	setUse,
+	tickTypesIfNone,
 	toMapDraft
 } from "./map";
 
@@ -873,5 +874,34 @@ describe("pesticide use on a Map", () => {
 		const calendar = fromMapDraft(in2023, monthCalendarType, USE_CATALOG, "unavailable", NOW);
 		expect(calendar.dropped).toContain("overlays");
 		expect(calendar.draft.data.layers.some((l) => l.dataset === "pesticide-use")).toBe(false);
+	});
+});
+
+describe("tickTypesIfNone", () => {
+	const aq = (layer: Partial<Layer>): WidgetDataConfig => ({
+		place: FRESNO,
+		layers: [{ dataset: "air-quality", entryType: "pm25", ...layer } as Layer]
+	});
+	it("fills only a layer with neither monitors nor types", () => {
+		const none = aq({});
+		tickTypesIfNone(none, ["airnow", "purpleair"]);
+		expect(none.layers[0].monitorTypes).toEqual(["airnow", "purpleair"]);
+		const ticked = aq({ monitorTypes: ["airnow"] });
+		tickTypesIfNone(ticked, ["airnow", "purpleair"]);
+		expect(ticked.layers[0].monitorTypes).toEqual(["airnow"]);
+		const searched = aq({ monitors: ["m1"] } as Partial<Layer>);
+		tickTypesIfNone(searched, ["airnow"]);
+		expect(searched.layers[0]).not.toHaveProperty("monitorTypes");
+	});
+	it("fills nothing from an empty list", () => {
+		const none = aq({});
+		tickTypesIfNone(none, []);
+		expect(none.layers[0]).not.toHaveProperty("monitorTypes");
+	});
+	it("copies the list it's given", () => {
+		const types = ["airnow"];
+		const none = aq({});
+		tickTypesIfNone(none, types);
+		expect(none.layers[0].monitorTypes).not.toBe(types);
 	});
 });

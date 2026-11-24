@@ -358,10 +358,17 @@ function mapRange(
  * draft with ticks or searched monitors keeps them. Nothing is ticked when the catalog lacks them.
  */
 export function tickEveryTypeIfNone(data: WidgetDataConfig, catalog: CatalogEntry[]): void {
+	tickTypesIfNone(data, everyMonitorType(catalog));
+}
+
+/**
+ * `data`'s air-quality layer ticks `types` when it has neither searched monitors nor ticks (the
+ * person set neither). Nothing is ticked when `types` is empty.
+ */
+export function tickTypesIfNone(data: WidgetDataConfig, types: readonly string[]): void {
 	const layer = data.layers.find((l) => l.dataset === AIR_QUALITY && l.entryType);
 	if (!layer || layer.monitors?.length || layer.monitorTypes?.length) return;
-	const types = everyMonitorType(catalog);
-	if (types.length > 0) layer.monitorTypes = types;
+	if (types.length > 0) layer.monitorTypes = [...types];
 }
 
 /**

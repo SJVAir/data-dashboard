@@ -9,6 +9,7 @@ import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { FIXTURE_CATALOG } from "$lib/data/testing/fixtures";
 import { DRAFT_KEY, type Draft } from "$lib/get-data/draft.svelte";
 import { setSmokeAndFire } from "$lib/get-data/map";
+import { setPlatform } from "$lib/platform";
 import { m } from "$lib/paraglide/messages.js";
 import { chartType } from "$lib/widgets/chart";
 import { showInDraft } from "$lib/widgets/map/show-in";
@@ -18,6 +19,7 @@ import { blankDashboard, STARTER_ID, starterTemplate } from "$lib/starter/starte
 import { getMetadata } from "$lib/data";
 import { APP_CONTEXT_KEY, LAST_OPENED_KEY, initApp, type AppContext } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
+import { animationsSettled } from "../test/animations";
 import App from "../App.svelte";
 import { navigate } from "../router";
 import GetData from "./GetData.svelte";
@@ -323,29 +325,44 @@ test("a pre-spec widget opens unchanged; Save changes with no changes applies no
 	expect(await platform.preferences.get(app.space, DRAFT_KEY)).toBeUndefined();
 });
 
-// Passes without Get data's starter claim today: the edit effect tracks `starterTypes` (through
-// opening the starter) and reopens the fresh one when they arrive. Once it stops tracking, the
-// claim keeps the starter it opened usable.
-test("Edit data on the starter while the types load: the copy it saves keeps saving", async () => {
+/**
+ * The whole app on Edit data for the starter's widget of `type`, the catalog held until `answer()`
+ * (then giving `types` as the air-quality monitor types).
+ */
+async function starterEditAt(type: string, types: string[]) {
 	const platform = createMemoryPlatform();
+	// The previews (and the dashboard Save lands on) read the platform adapter.
+	setPlatform(platform);
 	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
-	// The catalog answers when the test says, with monitor types for the starter's Map.
 	let answer!: () => void;
 	const held = new Promise<void>((resolve) => (answer = resolve));
 	const catalog = vi.spyOn(getMetadata(), "catalog").mockImplementation(async () => {
 		await held;
-		return FIXTURE_CATALOG.map((d) =>
-			d.id === "air-quality" ? { ...d, monitorTypes: ["purpleair"] } : d
-		);
+		return FIXTURE_CATALOG.map((d) => (d.id === "air-quality" ? { ...d, monitorTypes: types } : d));
 	});
+	const index = starterTemplate().body.widgets.findIndex((w) => w.type === type);
+	const widgetId = `starter-${index + 1}`;
+	await navigate("/dashboards/:id/widgets/:widgetId/edit", {
+		params: { id: STARTER_ID, widgetId }
+	});
+	await render(App, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await expect.element(saveButton()).toBeVisible();
+	/** The stored copy's widget, once Save made the copy. */
+	const savedWidget = async () => {
+		await expect.poll(() => app.current.session?.doc.copiedFrom).toBe(STARTER_ID);
+		const copy = app.current.session!;
+		await copy.flush();
+		const stored = (await platform.documents.get(app.space, copy.doc.id)) as Dashboard;
+		return stored.body.widgets.find((w) => w.id === widgetId)!;
+	};
+	return { app, platform, answer, restore: () => catalog.mockRestore(), savedWidget };
+}
+
+// Edit data opens the starter untracked, so the types' arrival doesn't reopen it: Get data's claim
+// keeps the starter it opened usable (without it, the types swap discards it).
+test("Edit data on the starter while the types load: the copy it saves keeps saving", async () => {
+	const { app, platform, answer, restore } = await starterEditAt("chart", ["purpleair"]);
 	try {
-		const chart = starterTemplate().body.widgets.findIndex((w) => w.type === "chart");
-		const widgetId = `starter-${chart + 1}`;
-		await navigate("/dashboards/:id/widgets/:widgetId/edit", {
-			params: { id: STARTER_ID, widgetId }
-		});
-		await render(App, { context: new Map([[APP_CONTEXT_KEY, app]]) });
-		await expect.element(saveButton()).toBeVisible();
 		// The types arrive while Edit data holds the starter (nothing is current here).
 		answer();
 		await expect.poll(() => app.starterTypes).not.toBeNull();
@@ -360,7 +377,104 @@ test("Edit data on the starter while the types load: the copy it saves keeps sav
 		const stored = (await platform.documents.get(app.space, copy.doc.id)) as Dashboard;
 		expect(stored.name).toBe("Mine");
 	} finally {
-		catalog.mockRestore();
+		restore();
+	}
+});
+
+const datesButton = () => page.getByRole("button", { name: /^Dates/ });
+
+/** A draft change the Map offers while the catalog loads: its dates. */
+async function chooseLastWeek() {
+	await datesButton().click();
+	await page.getByRole("option", { name: "Last 7 days" }).click();
+	await animationsSettled(document.body);
+	await expect.element(datesButton()).toHaveTextContent("Last 7 days");
+}
+
+/** The stored Map's dates are the ones chosen (the starter's are Now). */
+const lastWeek = (map: WidgetInstance) => expect(map.data.dateRange).not.toEqual(starterMapRange());
+const starterMapRange = () =>
+	starterTemplate().body.widgets.find((w) => w.type === "map")!.data.dateRange;
+
+test("Edit data on the starter's Map: a change made while the types load survives their arrival, and Save stores them", async () => {
+	const { app, answer, restore, savedWidget } = await starterEditAt("map", [
+		"purpleair",
+		"bam1022"
+	]);
+	try {
+		await chooseLastWeek();
+		answer();
+		await expect.poll(() => app.starterTypes).not.toBeNull();
+		// The types swap left the draft alone.
+		await expect.element(page.getByRole("checkbox", { name: "BAM 1022" })).toBeVisible();
+		await expect.element(datesButton()).toHaveTextContent("Last 7 days");
+		await saveButton().click();
+		const map = await savedWidget();
+		const air = map.data.layers.find((l) => l.dataset === "air-quality");
+		expect(air?.monitorTypes).toEqual(["purpleair", "bam1022"]);
+		lastWeek(map);
+	} finally {
+		restore();
+	}
+});
+
+test("Edit data on the starter's Map saved before the types arrive waits for them", async () => {
+	const { answer, restore, savedWidget } = await starterEditAt("map", ["purpleair"]);
+	try {
+		await chooseLastWeek();
+		await saveButton().click();
+		answer();
+		const map = await savedWidget();
+		const air = map.data.layers.find((l) => l.dataset === "air-quality");
+		expect(air?.monitorTypes).toEqual(["purpleair"]);
+	} finally {
+		restore();
+	}
+});
+
+test("Edit data on the starter's Map with no types in the catalog ticks none", async () => {
+	const { answer, restore, savedWidget } = await starterEditAt("map", []);
+	try {
+		await chooseLastWeek();
+		answer();
+		await saveButton().click();
+		const map = await savedWidget();
+		const air = map.data.layers.find((l) => l.dataset === "air-quality");
+		expect(air).not.toHaveProperty("monitorTypes");
+	} finally {
+		restore();
+	}
+});
+
+test("Edit data on the starter's Map keeps exactly the types the person ticked", async () => {
+	const { app, answer, restore, savedWidget } = await starterEditAt("map", [
+		"purpleair",
+		"bam1022"
+	]);
+	try {
+		answer();
+		await expect.poll(() => app.starterTypes).not.toBeNull();
+		await page.getByRole("checkbox", { name: "BAM 1022" }).click();
+		await saveButton().click();
+		const map = await savedWidget();
+		const air = map.data.layers.find((l) => l.dataset === "air-quality");
+		expect(air?.monitorTypes).toEqual(["bam1022"]);
+	} finally {
+		restore();
+	}
+});
+
+test("Save changes on the starter's unchanged Map makes no copy", async () => {
+	const { app, platform, answer, restore } = await starterEditAt("map", ["purpleair"]);
+	try {
+		answer();
+		await expect.poll(() => app.starterTypes).not.toBeNull();
+		await saveButton().click();
+		await expect.poll(() => location.pathname).toBe("/workspace/");
+		expect(app.current.isStarter).toBe(true);
+		expect((await platform.documents.list(app.space)).length).toBe(0);
+	} finally {
+		restore();
 	}
 });
 
