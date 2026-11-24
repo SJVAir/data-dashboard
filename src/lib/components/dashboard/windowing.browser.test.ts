@@ -364,11 +364,25 @@ test("moving a starter widget from the ⋯ menu by mouse while the types load ke
 		.getByRole("button", { name: /^Actions for/ })
 		.click();
 	await page.getByRole("menuitem", { name: "Move", exact: true }).click();
+	// Where focus goes from here: the bounce this test is about must happen, or it proves nothing.
+	const focused: Array<{ closedMenu: boolean; bar: boolean }> = [];
+	const record = (event: FocusEvent) => {
+		const target = event.target as Element;
+		focused.push({
+			closedMenu: !!target.closest?.('[role="menu"][data-state="closed"]'),
+			bar: target === bar()
+		});
+	};
+	document.addEventListener("focusin", record);
 	// The click edits at once (shown on the starter), and the closing submenu takes focus as the
 	// pointer leaves its item, then drops it to the page as it goes.
 	await page.getByRole("menuitem", { name: "Right", exact: true }).click();
 	await expect.element(page.getByRole("menu")).not.toBeInTheDocument();
 	await settle();
+	document.removeEventListener("focusin", record);
+	const bounced = focused.findIndex((f) => f.closedMenu);
+	expect(bounced).toBeGreaterThanOrEqual(0);
+	expect(focused.slice(bounced + 1).some((f) => f.bar)).toBe(true);
 	expect(app.current.session).toBe(starter);
 	expect(document.activeElement).toBe(bar());
 	answer();

@@ -360,6 +360,9 @@ describe("starterSession", () => {
 	it("the first edit's copy waits for typesReady and stores its types", async () => {
 		const platform = createMemoryPlatform();
 		const copies: string[] = [];
+		const asked = vi.fn();
+		let answer!: (types: string[]) => void;
+		const held = new Promise<string[]>((resolve) => (answer = resolve));
 		const starter = starterSession({
 			platform,
 			space: SPACE,
@@ -367,15 +370,22 @@ describe("starterSession", () => {
 			now: () => NOW,
 			place: SCHOOL,
 			types: [],
-			typesReady: async () => {
-				await new Promise((resolve) => setTimeout(resolve, 20));
-				return ["a"];
+			typesReady: () => {
+				asked();
+				return held;
 			},
 			onCopied: (session) => copies.push(session.doc.id)
 		});
 		starter.apply(renameWidget("starter-1", "Fresno"));
+		// The hand-off reached the wait: nothing is stored or copied until the types answer.
+		await vi.waitFor(() => expect(asked).toHaveBeenCalledOnce());
+		await starter.flush();
 		expect(copies).toHaveLength(0);
-		await vi.waitFor(() => expect(copies).toHaveLength(1));
+		expect(await platform.documents.list(SPACE)).toHaveLength(0);
+		answer(["a"]);
+		await starter.handoff;
+		expect(copies).toHaveLength(1);
+		expect(await platform.documents.list(SPACE)).toHaveLength(1);
 		const stored = (await platform.documents.get(SPACE, copies[0])) as Dashboard;
 		const map = stored.body.widgets.find((w) => w.type === "map")!;
 		expect(map.data.layers[0].monitorTypes).toEqual(["a"]);
