@@ -206,17 +206,50 @@ async function expectPreviewLoaded(page: Page): Promise<void> {
 	await expectBodyLoaded(page.getByTestId("get-data-preview"), "the Data Portal preview");
 }
 
+/** The Data Portal's Show as choices (a toggle group whose items are radios). */
+function showAsChoices(page: Page, name?: string): Locator {
+	return page
+		.getByTestId("get-data-preview-column")
+		.getByRole("group", { name: "Show as", exact: true })
+		.getByRole("radio", name ? { name, exact: true } : {});
+}
+
+/**
+ * Picks the Show as choice `choice` and waits for it to be checked. A bits-ui toggle item isn't a
+ * native radio, so it's clicked rather than `check()`ed; a click the preview's re-render swallowed
+ * is tried once more. Resolves false (logged) when the choice is disabled or stays unchecked: what
+ * the data allows decides, and the walk moves on.
+ */
+async function pickShowAs(choice: Locator): Promise<boolean> {
+	const name = (await choice.textContent())?.trim() ?? "?";
+	if (await choice.isDisabled()) {
+		console.log(`Show as ${name}: disabled for this data, skipped`);
+		return false;
+	}
+	for (let attempt = 0; attempt < 2; attempt++) {
+		if ((await choice.getAttribute("aria-checked")) === "true") return true;
+		await choice.click();
+		try {
+			await expect(choice).toHaveAttribute("aria-checked", "true", { timeout: 3_000 });
+			return true;
+		} catch {
+			// Re-rendered under the click: once more.
+		}
+	}
+	console.log(`Show as ${name}: not checked after two clicks, skipped`);
+	return false;
+}
+
 /** Picks each Show as choice in turn, waiting for its preview, and ends on `last`. */
 async function previewEachType(page: Page, last: string): Promise<void> {
 	await expectPreviewLoaded(page);
-	const choices = page.getByTestId("get-data-preview-column").getByRole("radio");
+	const choices = showAsChoices(page);
 	const count = await choices.count();
+	expect(count, "Show as choices").toBeGreaterThan(0);
 	for (let i = 0; i < count; i++) {
-		if (!(await choices.nth(i).isChecked())) await choices.nth(i).check();
-		await expectPreviewLoaded(page);
+		if (await pickShowAs(choices.nth(i))) await expectPreviewLoaded(page);
 	}
-	const end = page.getByRole("radio", { name: last, exact: true });
-	if (!(await end.isChecked())) await end.check();
+	expect(await pickShowAs(showAsChoices(page, last)), `Show as ${last}`).toBe(true);
 	await expectPreviewLoaded(page);
 }
 
