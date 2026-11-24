@@ -1,4 +1,5 @@
 import { beforeEach, expect, test } from "vitest";
+import { userEvent } from "vitest/browser";
 import {
 	isAssistiveActivation,
 	pendingFocusTarget,
@@ -74,12 +75,20 @@ test("the app's own click (a download link, a file input) leaves a pending reque
 	}
 });
 
-test("a request made while handling a screen reader's activation survives it", () => {
+test("a request made by a button's click survives the trusted, pointerless click that ran it", async () => {
+	// Enter on a button: a trusted keydown, then a trusted click with `detail` 0 (what a screen
+	// reader's activation is). The request the click's handler makes must outlive that click.
 	const button = document.createElement("button");
 	document.body.append(button);
-	button.addEventListener("click", () => requestFocus({ kind: "title", id: "r" }));
+	const clicks: Array<{ isTrusted: boolean; detail: number }> = [];
+	button.addEventListener("click", (event) => {
+		clicks.push({ isTrusted: event.isTrusted, detail: event.detail });
+		requestFocus({ kind: "title", id: "r" });
+	});
 	try {
-		button.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 0 }));
+		button.focus();
+		await userEvent.keyboard("{Enter}");
+		expect(clicks).toEqual([{ isTrusted: true, detail: 0 }]);
 		expect(pendingFocusTarget()).toEqual({ kind: "title", id: "r" });
 	} finally {
 		button.remove();

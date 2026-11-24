@@ -1333,19 +1333,36 @@ describe("the starter's copy, made after the person moved on", () => {
 		await app.starterTypesReady();
 		const fresh = (await app.sessions.get(STARTER_ID))!;
 		expect(fresh).not.toBe(kept);
-		// The fresh one's copy is held back after the kept one's, so the moment between them shows.
+		// Each copy's first store (`baseVersion: null`) is held, by its document id, so the moment
+		// between the two landings can be looked at.
 		const commit = platform.documents.commit.bind(platform.documents);
-		let calls = 0;
-		let letThrough!: () => void;
-		const held = new Promise<void>((resolve) => (letThrough = resolve));
-		vi.spyOn(platform.documents, "commit").mockImplementation(async (...args) => {
-			if (++calls === 2) await held;
-			return commit(...args);
+		const heldCopies = new Map<string, () => void>();
+		vi.spyOn(platform.documents, "commit").mockImplementation(async (space, request) => {
+			if (request.baseVersion === null) {
+				await new Promise<void>((resolve) => heldCopies.set(request.docId, resolve));
+			}
+			return commit(space, request);
 		});
 		// Get data's Save hands the kept one off; meanwhile the person edits the fresh one at /.
 		kept.apply(rename);
 		app.current = { session: fresh, isStarter: true };
 		fresh.apply({ ...rename, to: "Theirs" });
+		await vi.waitFor(() => expect(heldCopies.size).toBe(2));
+		// Let the copies through one at a time until the kept one's has landed; the fresh one's must
+		// still be held then (were it first, the moment this test is about can't happen).
+		const landed = { kept: false, fresh: false };
+		void kept.handoff!.then(() => (landed.kept = true));
+		void fresh.handoff!.then(() => (landed.fresh = true));
+		for (const [docId, letThrough] of heldCopies) {
+			heldCopies.delete(docId);
+			letThrough();
+			await vi.waitFor(() => expect(landed.kept || landed.fresh).toBe(true));
+			if (landed.kept) break;
+		}
+		expect(landed, "the kept starter's copy lands while the fresh one's is held").toEqual({
+			kept: true,
+			fresh: false
+		});
 		const keptCopy = await kept.handoff;
 		expect(keptCopy).not.toBeNull();
 		expect(app.current.session).not.toBe(keptCopy);
@@ -1355,7 +1372,7 @@ describe("the starter's copy, made after the person moved on", () => {
 		// The fresh one, still handing off, is still the starter.
 		expect(fresh.handingOff).toBe(true);
 		expect(await app.sessions.get(STARTER_ID, { remember: false })).toBe(fresh);
-		letThrough();
+		for (const letThrough of heldCopies.values()) letThrough();
 		// Its own hand-off still lands where it shows.
 		const freshCopy = await fresh.handoff;
 		expect(app.current).toEqual({ session: freshCopy, isStarter: false });
