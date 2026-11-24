@@ -377,6 +377,8 @@ test("moving a starter widget from the ⋯ menu by mouse while the types load ke
 	// The click edits at once (shown on the starter), and the closing submenu takes focus as the
 	// pointer leaves its item, then drops it to the page as it goes.
 	await page.getByRole("menuitem", { name: "Right", exact: true }).click();
+	// The pointer moves on, as a person's does (under load the item may not have moved from under it).
+	await userEvent.hover(page.getByTestId("widget-starter-1").getByRole("group"));
 	await expect.element(page.getByRole("menu")).not.toBeInTheDocument();
 	await settle();
 	document.removeEventListener("focusin", record);
