@@ -188,12 +188,11 @@ function arrangeBy(
 		return !was || !sameRect(was.rect, item.rect);
 	}).length;
 	const phone = columns === 1;
-	const doc = session.editTarget.doc;
 	session.apply(change);
-	// The document didn't take the change itself: it went to a starter's hand-off, and the copy
-	// shows on a new page, where this menu's widget is gone. Close the menu (left open, it would
-	// hang off-screen and block the page) and move focus to the widget's title bar on the copy.
-	if (session.editTarget.doc === doc) {
+	// The change went to a starter's hand-off (shown here meanwhile), and the copy shows on a new
+	// page, where this menu's widget is gone. Close the menu (left open, it would hang off-screen
+	// and block the page) and move focus to the widget's title bar on the copy.
+	if (session.handingOff) {
 		afterMenuClose(() => requestFocus({ kind: "title", id: widgetId }));
 		closeMenus();
 		requestFocus({ kind: "title", id: widgetId });

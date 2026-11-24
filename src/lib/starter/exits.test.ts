@@ -572,6 +572,89 @@ describe("the starter's monitor types", () => {
 		expect(app.current.isStarter).toBe(false);
 	});
 
+	it("a first edit during the wait shows at once", async () => {
+		const answer = holdTypes();
+		const { platform, app } = await setup();
+		const starter = await showStarter(app);
+		starter.apply(rename);
+		expect(app.current.session!.doc.name).toBe("Mine");
+		expect(app.current.isStarter).toBe(true);
+		await new Promise((resolve) => setTimeout(resolve, 10));
+		expect(await platform.documents.list("anonymous")).toEqual([]);
+		answer();
+		await vi.waitFor(() => expect(app.current.isStarter).toBe(false));
+	});
+
+	it("undo during the wait does nothing; after the copy, it reverts the edit", async () => {
+		const answer = holdTypes();
+		const { platform, app } = await setup();
+		const starter = await showStarter(app);
+		starter.apply(rename);
+		expect(starter.canUndo).toBe(false);
+		expect(starter.canRedo).toBe(false);
+		starter.undo();
+		expect(starter.doc.name).toBe("Mine");
+		answer();
+		await vi.waitFor(() => expect(app.current.isStarter).toBe(false));
+		const copy = app.current.session!;
+		expect(copy.doc.name).toBe("Mine");
+		expect(copy.canUndo).toBe(true);
+		copy.undo();
+		expect(copy.doc.name).toBeNull();
+		await copy.flush();
+		expect(app.current.session).toBe(copy);
+		expect(app.current.isStarter).toBe(false);
+		expect((await stored(platform, copy.doc.id)).name).toBeNull();
+	});
+
+	it("a failed hand-off keeps the shown edits; the retry stores each once", async () => {
+		const answer = holdTypes();
+		const { platform, app } = await setup();
+		const starter = await showStarter(app);
+		const commit = vi.spyOn(platform.documents, "commit");
+		commit.mockRejectedValueOnce(new Error("no storage"));
+		const first = starter.doc.body.widgets[0].id;
+		const titled = (to: string) =>
+			({ op: "setField", target: { widgetId: first, path: "title" }, from: null, to }) as const;
+		starter.apply(rename);
+		starter.apply(titled("A"));
+		expect(starter.doc.name).toBe("Mine");
+		expect(starter.doc.body.widgets[0].title).toBe("A");
+		answer();
+		await vi.waitFor(() => expect(starter.status).toBe("error"));
+		expect(starter.handingOff).toBe(false);
+		expect(app.current.session).toBe(starter);
+		expect(starter.doc.name).toBe("Mine");
+		expect(starter.doc.body.widgets[0].title).toBe("A");
+		starter.apply(titled("B"));
+		expect(starter.doc.body.widgets[0].title).toBe("B");
+		await vi.waitFor(() => expect(app.current.isStarter).toBe(false));
+		const copy = app.current.session!;
+		await copy.flush();
+		const doc = await stored(platform, copy.doc.id);
+		expect(doc.name).toBe("Mine");
+		expect(doc.body.widgets[0].title).toBe("B");
+		const log = await platform.documents.readLog("anonymous", copy.doc.id, 0);
+		expect(log).toHaveLength(3);
+	});
+
+	it("Clear my data during the wait drops the shown edits", async () => {
+		const answer = holdTypes();
+		const { platform, app } = await setup();
+		const starter = await showStarter(app);
+		starter.apply(rename);
+		// As Clear my data does (`clearMyData`): storage first, then the app.
+		await platform.reset.clearAll();
+		await app.resetAfterClear();
+		answer();
+		await app.starterTypesReady();
+		await new Promise((resolve) => setTimeout(resolve, 10));
+		expect(await platform.documents.list("anonymous")).toEqual([]);
+		const shown = await showStarter(app);
+		expect(shown).not.toBe(starter);
+		expect(shown.doc.name).toBeNull();
+	});
+
 	it("place change during the load", async () => {
 		const answer = holdTypes();
 		const { app } = await setup();

@@ -452,9 +452,14 @@ describe("starterSession", () => {
 		expect(await platform.documents.list(SPACE)).toEqual([]);
 	});
 
-	it("the starter stays unchanged", async () => {
+	it("the starter shows its first edit but is never stored", async () => {
 		const { platform, starter } = await setup();
-		expect(starter.doc).toEqual(starterDashboard(SCHOOL, null, []));
+		const template = starterDashboard(SCHOOL, null, []);
+		const [first, ...rest] = template.body.widgets;
+		expect(starter.doc).toEqual({
+			...template,
+			body: { ...template.body, widgets: [{ ...first, title: "Fresno" }, ...rest] }
+		});
 		expect(await platform.documents.get(SPACE, STARTER_ID)).toBeUndefined();
 	});
 

@@ -1813,7 +1813,9 @@ test("hands a mark on the starter off to its copy", async () => {
 	const copied = copy.doc.body.widgets.find((w) => w.type === "map")!;
 	expect(copied.data.layers[0].monitorTypes).toEqual(EVERY_TYPE);
 	await expect.poll(() => mapOptions(copied).marks).toEqual(["a"]);
-	expect(mapOptions(starter.doc.body.widgets.find((w) => w.type === "map")!).marks).toBeUndefined();
+	// The starter showed the mark at once (decision 12), but only the copy is stored.
+	expect(mapOptions(starter.doc.body.widgets.find((w) => w.type === "map")!).marks).toEqual(["a"]);
+	expect(await platform.documents.get("anonymous", STARTER_ID)).toBeUndefined();
 });
 
 /** Shows `widget` in the grid's editing context (where the Map offers Show in). */

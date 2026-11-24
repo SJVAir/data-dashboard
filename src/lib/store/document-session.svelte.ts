@@ -136,7 +136,8 @@ export class DocumentSession {
 	#successor: DocumentSession | null = null;
 	/**
 	 * Edits not yet taken by a hand-off, oldest first: the first goes through the hook. Kept
-	 * (and journaled) until a hand-off succeeds.
+	 * (and journaled) until a hand-off succeeds. `doc` shows them meanwhile; they're never
+	 * recorded or saved here (a starter's document is never stored).
 	 */
 	#queued: Change[] = [];
 
@@ -269,6 +270,11 @@ export class DocumentSession {
 	/** A starter that was edited: its first edit started (or finished) the hand-off to a copy. */
 	get edited(): boolean {
 		return this.#queued.length > 0 || this.#handoff !== null || this.#successor !== null;
+	}
+
+	/** A starter's hand-off to its copy is running: started, and not yet finished or failed. */
+	get handingOff(): boolean {
+		return this.#handoff !== null && this.#successor === null;
 	}
 
 	/**
@@ -426,8 +432,8 @@ export class DocumentSession {
 			})
 			.sort((a, b) => a.record.writtenAt.localeCompare(b.record.writtenAt));
 		if (records.length === 0) return Promise.resolve();
+		// Shows the queued edits already; the replayed ones are shown with them.
 		let doc = this.doc;
-		for (const change of this.#queued) doc = applyChange(doc, change).doc;
 		for (const { tabId, record } of records) {
 			this.#replayed.push(tabId);
 			for (const change of this.#upgradeRecordChanges(record.changes, record.schemaVersion)) {
@@ -439,6 +445,7 @@ export class DocumentSession {
 				}
 			}
 		}
+		this.doc = doc;
 		if (this.#queued.length > 0 && !this.#handoff) this.#startHandoff();
 		return this.#handoff?.then(() => {}) ?? Promise.resolve();
 	}
@@ -665,8 +672,12 @@ export class DocumentSession {
 		this.#schedule();
 	}
 
-	/** Edits made while the hook runs (or after it failed) wait their turn in `#queued`. */
+	/**
+	 * Edits made while the hook runs (or after it failed) wait their turn in `#queued`, shown at
+	 * once (not an undo step, and not recorded: the copy stores them).
+	 */
 	#handOff(change: Change): void {
+		this.doc = applyChange(this.doc, change).doc;
 		this.#queued.push(change);
 		if (!this.#handoff) this.#startHandoff();
 	}
