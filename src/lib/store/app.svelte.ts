@@ -1,4 +1,4 @@
-import { getContext, setContext } from "svelte";
+import { getContext, setContext, untrack } from "svelte";
 import { toast } from "svelte-sonner";
 import { displayNames } from "$lib/documents/names";
 import { m } from "$lib/paraglide/messages.js";
@@ -31,7 +31,7 @@ import { forecastType } from "$lib/widgets/forecast";
 import { outsideType } from "$lib/widgets/outside";
 import { dataTableType } from "$lib/widgets/table";
 import { mapType } from "$lib/widgets/map";
-import { loadMonitorTypes } from "$lib/widgets/map/start";
+import { loadMonitorTypesResult } from "$lib/widgets/map/start";
 import { noteType } from "$lib/widgets/notes";
 import { placeholderType } from "$lib/widgets/placeholder";
 import { AccountState, type Notify } from "./account.svelte";
@@ -82,6 +82,12 @@ export type AppContext = {
 	 * never rejects. Every exit from the starter awaits it, so its copy's Map has them.
 	 */
 	starterTypesReady(): Promise<readonly string[]>;
+	/**
+	 * Discards every starter kept by a types swap (opened, maybe about to be shown) that can no
+	 * longer be: not current, its hand-off not started, and not the one the next open gives. Home
+	 * calls it once it shows a starter, and when it goes.
+	 */
+	releaseStarter(): void;
 	/**
 	 * The starter's "Change place": saves `place` as the space's chosen place and shows a fresh
 	 * starter there (every widget at once; no copy, no undo). A starter whose first edit already
@@ -150,15 +156,17 @@ const toastNotify: Notify = {
 };
 
 class App implements AppContext {
-	current = $state<CurrentDashboard>({ session: null, isStarter: false });
+	#current = $state<CurrentDashboard>({ session: null, isStarter: false });
 	sync = $state.raw<SyncWorker | null>(null);
 	resetCount = $state(0);
 	// Raw: places are cloned into documents, and a deep proxy can't be.
 	starterPlace = $state.raw<ChosenPlace>(defaultStarterPlace());
 	starterArea = $state.raw<ChosenPlace | null>(null);
 	starterTypes = $state.raw<readonly string[] | null>(null);
-	/** The load of `starterTypes`, started once. */
+	/** The load of `starterTypes`, started once (again after a late answer). */
 	#typesLoad: Promise<readonly string[]> | null = null;
+	/** Starters replaced while not shown, kept usable until `releaseStarter`. */
+	readonly #kept = new Set<DocumentSession>();
 	/** Counts starter place changes: a lookup answered after a newer change (or a reset) is stale. */
 	#starterChange = 0;
 	readonly index: DashboardIndex;
@@ -343,7 +351,8 @@ class App implements AppContext {
 		const opened = (await Promise.allSettled(this.#open.values()))
 			.map((result) => (result.status === "fulfilled" ? result.value : null))
 			.filter((session) => session !== null);
-		const sessions = [...new Set([...this.#live.values(), ...opened])];
+		const sessions = [...new Set([...this.#live.values(), ...opened, ...this.#kept])];
+		this.#kept.clear();
 		this.#open.clear();
 		this.#live.clear();
 		this.current = { session: null, isStarter: false };
@@ -375,7 +384,8 @@ class App implements AppContext {
 	}
 
 	async resetAfterClear(): Promise<void> {
-		for (const session of this.#live.values()) session.discard();
+		for (const session of [...this.#live.values(), ...this.#kept]) session.discard();
+		this.#kept.clear();
 		for (const opening of this.#open.values())
 			void opening.then(
 				(session) => session?.discard(),
@@ -483,23 +493,46 @@ class App implements AppContext {
 	 * stays usable: its first edit still makes a copy, and the next open gets the fresh one.
 	 */
 	#replaceStarter(starter: DocumentSession, keep = false): void {
-		if (!keep) starter.discard();
+		if (keep) this.#kept.add(starter);
+		else starter.discard();
 		this.#live.delete(STARTER_ID);
 		const fresh = this.#starter();
 		this.#open.set(STARTER_ID, Promise.resolve(fresh));
 		if (this.current.isStarter) this.current = { session: fresh, isStarter: true };
 	}
 
+	get current(): CurrentDashboard {
+		return this.#current;
+	}
+
+	/** A kept starter can't be shown once another dashboard, or its replacement, is current. */
+	set current(value: CurrentDashboard) {
+		this.#current = value;
+		if (value.session) this.releaseStarter();
+	}
+
+	releaseStarter(): void {
+		if (this.#kept.size === 0) return;
+		// Called from effects (setting `current`): reading `current` here mustn't track it.
+		const shown = untrack(() => this.#current.session);
+		const next = this.#live.get(STARTER_ID);
+		for (const starter of this.#kept) {
+			if (starter === shown || starter === next || starter.edited) continue;
+			this.#kept.delete(starter);
+			starter.discard();
+		}
+	}
+
 	starterTypesReady(): Promise<readonly string[]> {
 		if (this.#typesLoad) return this.#typesLoad;
-		const load: Promise<readonly string[]> = loadMonitorTypes()
+		const load: Promise<readonly string[]> = loadMonitorTypesResult()
 			// It never rejects; were it to, the starter's first edit would wait forever.
-			.catch((): string[] => [])
-			.then((types) => {
-				// None (the catalog failed or was late): not kept, so the next ask tries again, as
-				// a new Map does on every add.
+			.catch(() => ({ types: [] as string[], failed: true }))
+			.then(({ types, failed }) => {
+				// None. A failed catalog is kept as none for the page's life (decision 17: no second
+				// wait, no second report). A late one isn't, so the next ask tries again.
 				if (types.length === 0) {
-					if (this.#typesLoad === load) this.#typesLoad = null;
+					if (!failed && this.#typesLoad === load) this.#typesLoad = null;
 					return types;
 				}
 				try {
@@ -555,7 +588,11 @@ class App implements AppContext {
 				// A hand-off that finished after the data was cleared mustn't come back.
 				if (this.resetCount !== resets) return copy.discard();
 				const id = copy.doc.id;
-				// The next visit to the starter gets a fresh one.
+				this.#kept.delete(starter);
+				// The next visit to the starter gets a fresh one. One built when this one was kept
+				// (a types swap) goes too: it was never shown, and its listeners mustn't stay.
+				const next = this.#live.get(STARTER_ID);
+				if (next && next !== starter && next !== this.current.session) next.discard();
 				this.#open.delete(STARTER_ID);
 				this.#live.delete(STARTER_ID);
 				this.#open.set(id, Promise.resolve(copy));

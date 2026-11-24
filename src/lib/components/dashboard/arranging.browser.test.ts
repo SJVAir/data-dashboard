@@ -22,7 +22,13 @@ import { loadMonitorTypes } from "$lib/widgets/map/start";
 // The real loader unless a test holds the catalog's answer.
 vi.mock("$lib/widgets/map/start", async (importOriginal) => {
 	const original = await importOriginal<typeof import("$lib/widgets/map/start")>();
-	return { ...original, loadMonitorTypes: vi.fn(original.loadMonitorTypes) };
+	const loadMonitorTypes = vi.fn(original.loadMonitorTypes);
+	return {
+		...original,
+		loadMonitorTypes,
+		// The app asks this one; it answers with `loadMonitorTypes`' types.
+		loadMonitorTypesResult: vi.fn(async () => ({ types: await loadMonitorTypes(), failed: false }))
+	};
 });
 
 const originalUrl = location.href;

@@ -12,11 +12,16 @@ import { loadMonitorTypes } from "$lib/widgets/map/start";
 import { MAP_TYPE } from "$lib/widgets/map/options";
 import Home from "./Home.svelte";
 
-// The catalog's monitor types, answered when a test says (none by default).
-vi.mock("$lib/widgets/map/start", async (importOriginal) => ({
-	...(await importOriginal<typeof import("$lib/widgets/map/start")>()),
-	loadMonitorTypes: vi.fn()
-}));
+// The catalog's monitor types, answered when a test says (none by default). The app asks
+// `loadMonitorTypesResult`, which answers with `loadMonitorTypes`' types.
+vi.mock("$lib/widgets/map/start", async (importOriginal) => {
+	const loadMonitorTypes = vi.fn();
+	return {
+		...(await importOriginal<typeof import("$lib/widgets/map/start")>()),
+		loadMonitorTypes,
+		loadMonitorTypesResult: vi.fn(async () => ({ types: await loadMonitorTypes(), failed: false }))
+	};
+});
 
 beforeEach(() => {
 	vi.mocked(loadMonitorTypes).mockReset();

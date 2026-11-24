@@ -52,11 +52,15 @@
 				}
 				// The starter shown now (the types may have swapped it after the re-read).
 				starter = app.current.isStarter ? app.current.session : starter;
+				// Any other starter the types swap kept for this page can't be shown now.
+				app.releaseStarter();
 				// Edits a starter page left mid-hand-off (it went away) are handed off now.
 				void starter?.replayPending();
 			})();
 			return () => {
 				active = false;
+				// Leaving `/` (or resolving it again): a starter kept for this page goes.
+				app.releaseStarter();
 			};
 		});
 	});

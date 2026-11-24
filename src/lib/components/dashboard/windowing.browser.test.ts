@@ -26,7 +26,13 @@ const real = vi.hoisted(() => ({ load: null as null | (() => Promise<string[]>) 
 vi.mock("$lib/widgets/map/start", async (importOriginal) => {
 	const original = await importOriginal<typeof import("$lib/widgets/map/start")>();
 	real.load = original.loadMonitorTypes;
-	return { ...original, loadMonitorTypes: vi.fn(original.loadMonitorTypes) };
+	const loadMonitorTypes = vi.fn(original.loadMonitorTypes);
+	return {
+		...original,
+		loadMonitorTypes,
+		// The app asks this one; it answers with `loadMonitorTypes`' types.
+		loadMonitorTypesResult: vi.fn(async () => ({ types: await loadMonitorTypes(), failed: false }))
+	};
 });
 afterEach(() => vi.mocked(loadMonitorTypes).mockImplementation(real.load!));
 

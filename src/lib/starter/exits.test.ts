@@ -22,7 +22,7 @@ import { placeRegion } from "$lib/data";
 import { STARTER_AREA_KEY, STARTER_PLACE_KEY, saveStarterPlace } from "./place.svelte";
 import { STARTER_ID } from "./starter";
 import { barChange } from "$lib/places/replace";
-import { loadMonitorTypes } from "$lib/widgets/map/start";
+import { loadMonitorTypes, loadMonitorTypesResult } from "$lib/widgets/map/start";
 import { MAP_TYPE } from "$lib/widgets/map/options";
 import { dashboardActions } from "$lib/actions/dashboard";
 import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
@@ -45,10 +45,13 @@ vi.mock("$lib/data", async (importOriginal) => ({
 	placeRegion: vi.fn(async () => ({ type: "zipcode", code: "93721" }))
 }));
 
-// The catalog's monitor types, as loaded (a test controls when they arrive).
+// The catalog's monitor types, as loaded (a test controls when they arrive). The app asks
+// `loadMonitorTypesResult`, which answers with `loadMonitorTypes`' types (never a failure) unless a
+// test says otherwise.
 vi.mock("$lib/widgets/map/start", async (importOriginal) => ({
 	...(await importOriginal<typeof import("$lib/widgets/map/start")>()),
-	loadMonitorTypes: vi.fn()
+	loadMonitorTypes: vi.fn(),
+	loadMonitorTypesResult: vi.fn()
 }));
 
 const TYPES = ["purpleair", "airnow"];
@@ -56,6 +59,11 @@ const TYPES = ["purpleair", "airnow"];
 beforeEach(() => {
 	vi.mocked(loadMonitorTypes).mockReset();
 	vi.mocked(loadMonitorTypes).mockImplementation(async () => [...TYPES]);
+	vi.mocked(loadMonitorTypesResult).mockReset();
+	vi.mocked(loadMonitorTypesResult).mockImplementation(async () => ({
+		types: await loadMonitorTypes(),
+		failed: false
+	}));
 });
 
 /** Makes the next load answer only when `answer` is called. */
@@ -170,8 +178,9 @@ describe("every exit from the starter holds the chosen place", () => {
 		const { platform, app } = await setup(SCHOOL);
 		const answer = holdTypes();
 		await run(app, "new-from-starter");
-		// It waits for the catalog's monitor types.
-		await new Promise((resolve) => setTimeout(resolve, 10));
+		// It waits for the catalog's monitor types: asked, and nothing stored meanwhile.
+		await vi.waitFor(() => expect(loadMonitorTypes).toHaveBeenCalledOnce());
+		await Promise.resolve();
 		expect(await platform.documents.list("anonymous")).toHaveLength(0);
 		answer();
 		expectFromStarter(await newest(platform), SCHOOL);
@@ -570,7 +579,9 @@ describe("the starter's monitor types", () => {
 		answer();
 		await vi.waitFor(() => expect(app.current.isStarter).toBe(false));
 		const copy = app.current.session!;
-		await new Promise((resolve) => setTimeout(resolve, 10));
+		// The types' arrival (which would swap a starter) has run, and the copy is stored.
+		await app.starterTypesReady();
+		await copy.flush();
 		expect(app.current.session).toBe(copy);
 		expect(app.current.isStarter).toBe(false);
 	});
@@ -582,7 +593,8 @@ describe("the starter's monitor types", () => {
 		starter.apply(rename);
 		expect(app.current.session!.doc.name).toBe("Mine");
 		expect(app.current.isStarter).toBe(true);
-		await new Promise((resolve) => setTimeout(resolve, 10));
+		// Whatever a save would store, stored now.
+		await starter.flush();
 		expect(await platform.documents.list("anonymous")).toEqual([]);
 		answer();
 		await vi.waitFor(() => expect(app.current.isStarter).toBe(false));
@@ -651,7 +663,8 @@ describe("the starter's monitor types", () => {
 		await app.resetAfterClear();
 		answer();
 		await app.starterTypesReady();
-		await new Promise((resolve) => setTimeout(resolve, 10));
+		// The edited starter's hand-off (had it gone ahead) has finished.
+		await starter.handoff;
 		expect(await platform.documents.list("anonymous")).toEqual([]);
 		const shown = await showStarter(app);
 		expect(shown).not.toBe(starter);
@@ -689,6 +702,83 @@ describe("the starter's monitor types", () => {
 		const copy = app.current.session!;
 		await copy.flush();
 		expectFromStarter(await stored(platform, copy.doc.id), DEFAULT_PLACE);
+	});
+
+	it("a kept starter's listeners go once Home lets go of it", async () => {
+		// The page's events (no window in Node): each session listens for pagehide and pageshow.
+		const page = new EventTarget();
+		vi.stubGlobal("window", page);
+		try {
+			const answer = holdTypes();
+			const { app } = await setup();
+			const kept = await showStarter(app);
+			// Left for /dashboards before the catalog answered: nothing is current.
+			app.current = { session: null, isStarter: false };
+			answer();
+			await app.starterTypesReady();
+			const fresh = (await app.sessions.get(STARTER_ID))!;
+			expect(fresh).not.toBe(kept);
+			const removed = vi.spyOn(page, "removeEventListener");
+			app.releaseStarter();
+			const types = removed.mock.calls.map(([type]) => type);
+			expect(types).toContain("pagehide");
+			expect(types).toContain("pageshow");
+			// Only the kept one: the fresh starter (the next open) still listens.
+			expect(types.filter((t) => t === "pagehide")).toHaveLength(1);
+			expect(await app.sessions.get(STARTER_ID)).toBe(fresh);
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	});
+
+	it("a kept starter goes once another dashboard is current", async () => {
+		const page = new EventTarget();
+		vi.stubGlobal("window", page);
+		try {
+			const answer = holdTypes();
+			const { app } = await setup();
+			await showStarter(app);
+			app.current = { session: null, isStarter: false };
+			answer();
+			await app.starterTypesReady();
+			const removed = vi.spyOn(page, "removeEventListener");
+			const id = await app.index.createBlank();
+			app.current = { session: (await app.sessions.get(id))!, isStarter: false };
+			expect(removed.mock.calls.filter(([t]) => t === "pagehide")).toHaveLength(1);
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	});
+
+	it("releasing keeps the current starter, the next open and one handing off", async () => {
+		const page = new EventTarget();
+		vi.stubGlobal("window", page);
+		try {
+			const answer = holdTypes();
+			const { app } = await setup();
+			const opened = (await app.sessions.get(STARTER_ID))!;
+			answer();
+			await app.starterTypesReady();
+			const fresh = (await app.sessions.get(STARTER_ID))!;
+			// Made current after the types arrived (Home's re-read hasn't run yet).
+			app.current = { session: opened, isStarter: true };
+			const removed = vi.spyOn(page, "removeEventListener");
+			app.releaseStarter();
+			expect(removed).not.toHaveBeenCalled();
+			// Its first edit hands it off; releasing then leaves it alone too.
+			opened.apply(rename);
+			app.current = { session: null, isStarter: false };
+			app.releaseStarter();
+			expect(removed).not.toHaveBeenCalled();
+			// Its copy is made current.
+			await vi.waitFor(() => expect(app.current.session).not.toBeNull());
+			await app.current.session!.flush();
+			// Once handed off, the fresh starter (never shown) goes, and the next open builds one.
+			expect(removed.mock.calls.filter(([t]) => t === "pagehide")).toHaveLength(1);
+			expect(await app.sessions.get(STARTER_ID)).not.toBe(fresh);
+		} finally {
+			vi.unstubAllGlobals();
+		}
 	});
 
 	it("Clear my data while they load: only the starter built after it is swapped", async () => {
@@ -857,6 +947,21 @@ describe("the starter's monitor types", () => {
 		await showStarter(app);
 		await expect(app.starterTypesReady()).resolves.toEqual([]);
 		expect(app.starterTypes).toBeNull();
+	});
+
+	it("a failed catalog is asked once per app", async () => {
+		vi.mocked(loadMonitorTypesResult).mockResolvedValue({ types: [], failed: true });
+		const { platform, app } = await setup(ZIP);
+		const starter = await showStarter(app);
+		await run(app, "new-from-starter");
+		expectFromStarter(await newest(platform), ZIP, DEFAULT_PLACE, null);
+		starter.apply(rename);
+		await vi.waitFor(() => expect(app.current.isStarter).toBe(false));
+		await app.current.session!.flush();
+		expect(loadMonitorTypesResult).toHaveBeenCalledOnce();
+		expect(app.starterTypes).toBeNull();
+		expect(await app.starterTypesReady()).toEqual([]);
+		expect(loadMonitorTypesResult).toHaveBeenCalledOnce();
 	});
 
 	it("a late catalog: the next exit asks again and stores the types", async () => {

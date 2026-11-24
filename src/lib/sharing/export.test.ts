@@ -19,10 +19,14 @@ import { parseIncoming, parseLinkFragment } from "./incoming";
 
 vi.mock("../../router", () => ({ navigate: vi.fn() }));
 vi.mock("$lib/components/dialogs/lazy.svelte", () => ({ openShare: vi.fn() }));
-vi.mock("$lib/widgets/map/start", async (importOriginal) => ({
-	...(await importOriginal<typeof import("$lib/widgets/map/start")>()),
-	loadMonitorTypes: vi.fn(async () => ["purpleair"])
-}));
+vi.mock("$lib/widgets/map/start", async (importOriginal) => {
+	const loadMonitorTypes = vi.fn(async () => ["purpleair"]);
+	return {
+		...(await importOriginal<typeof import("$lib/widgets/map/start")>()),
+		loadMonitorTypes,
+		loadMonitorTypesResult: vi.fn(async () => ({ types: await loadMonitorTypes(), failed: false }))
+	};
+});
 
 const now = new Date("2026-10-25T12:00:00Z");
 
