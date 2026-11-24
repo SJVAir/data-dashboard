@@ -1,0 +1,411 @@
+/**
+ * The CSP walk: one list of steps that opens every route (`csp-walk-routes.ts`) and every lazy
+ * part a person can open in the built app. `csp-walk.spec.ts` runs it on the E2E fakes under the
+ * contract CSP; the local stack run (`e2e-local/`) runs the same steps against sjvair.com's real
+ * enforced header, signed in, on real data. So no step names fixture data (titles, places,
+ * monitor ids): each finds things by role and the app's own English labels, and reads what it
+ * needs (the Map's title, the dashboard's address, the share links) from the page.
+ *
+ * Imports only Playwright and the route list (never `./fixtures` or a fixture server), since the
+ * stack run imports it too.
+ */
+import { expect, type BrowserContext, type Locator, type Page } from "@playwright/test";
+
+/** Where the walk runs: the E2E fakes, or the local sjvair.com stack. */
+export type WalkTarget = "fakes" | "stack";
+
+/** What earlier steps found, for later ones. */
+export type WalkState = {
+	/** The dashboard the walk made (its absolute address). */
+	dashboardUrl?: string;
+	/** Its Map widget's title, as the page shows it. */
+	mapTitle?: string;
+	/** Its copy link (`…/import#…`). */
+	shareLink?: string;
+	/** Its live link (`…/shared/:token`). */
+	liveLink?: string;
+};
+
+/** One named step: opens one route or lazy part and waits for its content. */
+export type WalkStep = {
+	name: string;
+	/** The targets it runs on (omitted: both). */
+	on?: WalkTarget[];
+	run(page: Page, state: WalkState): Promise<void>;
+};
+
+const DASHBOARD_URL = /\/workspace\/dashboards\/[0-9a-f-]{36}$/;
+const NEW_WIDGET_URL = /\/workspace\/dashboards\/[0-9a-f-]{36}\/widgets\/new(\?.*)?$/;
+const EDIT_URL = /\/workspace\/dashboards\/[0-9a-f-]{36}\/widgets\/[^/]+\/edit$/;
+const SHARED_URL = /\/workspace\/shared\/[^/]+$/;
+const DATA_PORTAL = { level: 1, name: "Data Portal" } as const;
+/** A generated Map title ("{shows} map" or "{shows} map · {place}"). */
+const MAP_TITLE = / map( · .+)?$/;
+/** The welcome Note's title, and the bold start of its text (rendered by `marked`). */
+const NOTE = "Note";
+const WELCOME = "Welcome to the SJVAir Dashboard.";
+
+/**
+ * Whether the page's browser can make a WebGL context (copied from `helpers.ts`, which imports
+ * fixture code). Without it a Map draws no map region, only its frame and title.
+ */
+function hasWebGL(page: Page): Promise<boolean> {
+	return page.evaluate(() => {
+		const canvas = document.createElement("canvas");
+		return !!(canvas.getContext("webgl2") ?? canvas.getContext("webgl"));
+	});
+}
+
+function need<T>(value: T | undefined, what: string): T {
+	if (value === undefined) throw new Error(`The walk has no ${what} (an earlier step failed)`);
+	return value;
+}
+
+/** The widgets' titles, in reading order. */
+function widgetTitles(page: Page): Locator {
+	return page.getByRole("main").getByRole("heading", { level: 2 });
+}
+
+/** The Map widget's region (it holds the GL map and its UI), by its title. */
+function mapOf(page: Page, title: string): Locator {
+	const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	return page.getByRole("region", { name: new RegExp(`^${escaped}(?:\\.|$)`) });
+}
+
+/**
+ * The first Map widget's title, once its data has loaded. A widget's code loads when it comes near
+ * the screen, and a Map is titled "Map" until then, so it's scrolled into view first.
+ */
+async function readMapTitle(page: Page, known?: string): Promise<string> {
+	const loading = widgetTitles(page).filter({ hasText: /^Map$/ });
+	const loaded = known
+		? widgetTitles(page).filter({ hasText: known })
+		: widgetTitles(page).filter({ hasText: MAP_TITLE });
+	const either = loading.or(loaded).first();
+	await expect(either).toBeVisible();
+	await either.scrollIntoViewIfNeeded();
+	await expect(loaded.first()).toBeVisible({ timeout: 15_000 });
+	return (await loaded.first().textContent())!.trim();
+}
+
+/** The widget titled `title` (its frame), for what's inside it. */
+function widgetOf(page: Page, title: string): Locator {
+	return page
+		.locator("[data-testid^=widget-]")
+		.filter({ has: page.getByRole("group", { name: title, exact: true }) });
+}
+
+/** Waits for the Map titled `title` to draw (its GL map), where the browser has WebGL. */
+async function expectMapDrawn(page: Page, title: string): Promise<void> {
+	if (!(await hasWebGL(page))) return;
+	const map = mapOf(page, title);
+	await expect(map).toBeVisible();
+	await expect(map.getByRole("region", { name: "Map", exact: true })).toBeVisible();
+}
+
+/** The welcome Note's rendered text. */
+async function expectNoteRendered(page: Page): Promise<void> {
+	const note = widgetOf(page, NOTE).first();
+	await expect(note.locator("strong", { hasText: WELCOME })).toBeVisible();
+}
+
+/** Opens the widget titled `title`'s ⋯ menu and picks `item`. */
+async function widgetMenuItem(page: Page, title: string, item: string): Promise<void> {
+	await page
+		.getByRole("button", { name: `Actions for ${title}`, exact: true })
+		.first()
+		.click();
+	await page.getByRole("menuitem", { name: item, exact: true }).click();
+}
+
+/** Opens the dashboard's ⋯ menu ("Dashboard actions") and picks `item`. */
+async function dashboardMenuItem(page: Page, item: string): Promise<void> {
+	await page.getByRole("button", { name: "Dashboard actions", exact: true }).click();
+	await page.getByRole("menuitem", { name: item, exact: true }).click();
+}
+
+/** Closes every open dialog with Escape (one at a time: a question can sit over a picker). */
+async function escapeDialogs(page: Page): Promise<void> {
+	const dialogs = page.getByRole("dialog");
+	await expect(dialogs.first()).toBeVisible();
+	await expect(async () => {
+		if ((await dialogs.count()) > 0) await page.keyboard.press("Escape");
+		await expect(dialogs).toHaveCount(0, { timeout: 1_000 });
+	}).toPass();
+}
+
+async function backToDashboard(page: Page, state: WalkState): Promise<void> {
+	const url = need(state.dashboardUrl, "dashboard");
+	if (page.url() !== url) await page.goto(url);
+	await expect(page).toHaveURL(url);
+	await expect(widgetTitles(page).first()).toBeVisible();
+	if (state.mapTitle) await readMapTitle(page, state.mapTitle);
+}
+
+/** The Data Portal, open and drawn. */
+async function expectDataPortal(page: Page): Promise<void> {
+	await expect(page.getByRole("heading", DATA_PORTAL)).toBeVisible();
+}
+
+/** The Map's feature list (its List button shows only while focused). */
+async function openFeatureList(map: Locator): Promise<Locator> {
+	const list = map.getByRole("listbox", { name: "Features on the map" });
+	const button = map.getByRole("button", { name: "List of features on the map" });
+	await button.focus();
+	await button.press("Enter");
+	await expect(list).toBeVisible();
+	return list;
+}
+
+export const WALK: readonly WalkStep[] = [
+	{
+		// The starter in a fresh context (no storage). The stack reaches it signed in, through
+		// New from starter, since a signed-in `/` opens one of the account's dashboards.
+		name: "starter-first-visit",
+		on: ["fakes"],
+		async run(page) {
+			await page.goto("./");
+			await expect(page.getByRole("main")).toBeVisible();
+			const title = await readMapTitle(page);
+			await expectMapDrawn(page, title);
+			await expectNoteRendered(page);
+		}
+	},
+	{
+		name: "dashboard-list",
+		async run(page) {
+			await page.goto("./dashboards");
+			await expect(
+				page.getByRole("button", { name: "New from starter", exact: true })
+			).toBeVisible();
+		}
+	},
+	{
+		name: "new-from-starter",
+		async run(page, state) {
+			await page.getByRole("button", { name: "New from starter", exact: true }).click();
+			await expect(page).toHaveURL(DASHBOARD_URL);
+			state.dashboardUrl = page.url();
+			state.mapTitle = await readMapTitle(page);
+			await expectMapDrawn(page, state.mapTitle);
+			await expectNoteRendered(page);
+		}
+	},
+	{
+		name: "fullscreen",
+		async run(page, state) {
+			const title = need(state.mapTitle, "Map title");
+			await widgetMenuItem(page, title, "Fullscreen");
+			const exit = page.getByRole("button", { name: "Exit fullscreen" });
+			await expect(exit).toBeVisible();
+			await expectMapDrawn(page, title);
+			await page.keyboard.press("Escape");
+			await expect(exit).toBeHidden();
+		}
+	},
+	{
+		// The Notes editor (Lexical), opened and closed without a change.
+		name: "notes-editor",
+		async run(page) {
+			await widgetMenuItem(page, NOTE, "Edit note");
+			const editor = page.getByRole("dialog", { name: "Edit note" });
+			await expect(editor.getByRole("textbox", { name: "Note text" })).toBeVisible();
+			await escapeDialogs(page);
+		}
+	},
+	{
+		// The dashboard menu's dialogs, each opened and closed (nothing confirmed); Export saves a
+		// file. Sign-in links leave the app, so they aren't a step.
+		name: "dashboard-dialogs",
+		async run(page) {
+			await dashboardMenuItem(page, "Rename dashboard…");
+			await expect(page.getByRole("dialog", { name: "Rename dashboard" })).toBeVisible();
+			await escapeDialogs(page);
+
+			// The place picker (after a "which place" question when there's a tie).
+			await dashboardMenuItem(page, "Duplicate for another place…");
+			await escapeDialogs(page);
+
+			await dashboardMenuItem(page, "Share…");
+			await expect(page.getByRole("dialog", { name: "Share dashboard" })).toBeVisible();
+			await escapeDialogs(page);
+
+			await dashboardMenuItem(page, "Notifications…");
+			await expect(page.getByRole("dialog", { name: "Notifications" })).toBeVisible();
+			await escapeDialogs(page);
+
+			const download = page.waitForEvent("download");
+			await dashboardMenuItem(page, "Export…");
+			await (await download).cancel();
+		}
+	},
+	{
+		// A copy link and a live link (the dashboard is saved to the account first).
+		name: "share-link",
+		async run(page, state) {
+			await expect(
+				page.getByRole("navigation", { name: "Main" }).getByText("Saved to your account", {
+					exact: true
+				})
+			).toBeVisible();
+			await dashboardMenuItem(page, "Share…");
+			const dialog = page.getByRole("dialog", { name: "Share dashboard" });
+			const copy = dialog.getByRole("textbox", { name: "Link", exact: true });
+			await expect(copy).toHaveValue(/\/workspace\/import#.+/);
+			state.shareLink = await copy.inputValue();
+			await dialog.getByRole("button", { name: "Create link" }).click();
+			const live = dialog.getByRole("textbox", { name: "Live link" });
+			await expect(live).toHaveValue(SHARED_URL);
+			state.liveLink = await live.inputValue();
+			await escapeDialogs(page);
+		}
+	},
+	{
+		// With no fragment the page goes home; a copy link imports a copy (a new one, since this
+		// browser already has the dashboard).
+		name: "import-page",
+		async run(page, state) {
+			await page.goto("./import");
+			await expect(page).not.toHaveURL(/\/import$/);
+			await expect(widgetTitles(page).first()).toBeVisible();
+
+			await page.goto(need(state.shareLink, "share link"));
+			const makeNew = page.getByRole("button", { name: "Make a new copy" });
+			await expect(makeNew.or(widgetTitles(page).first())).toBeVisible();
+			if (await makeNew.isVisible()) await makeNew.click();
+			await expect(page).toHaveURL(DASHBOARD_URL);
+			await expect(widgetTitles(page).first()).toBeVisible();
+		}
+	},
+	{
+		name: "shared-page",
+		async run(page, state) {
+			await page.goto(need(state.liveLink, "live link"));
+			await expect(page).toHaveURL(SHARED_URL);
+			await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+			const title = await readMapTitle(page);
+			await expectMapDrawn(page, title);
+		}
+	},
+	{
+		// Get data for a new widget: a Table, then a Chart, added to the dashboard.
+		name: "data-portal-new",
+		async run(page, state) {
+			await backToDashboard(page, state);
+			const before = await widgetTitles(page).count();
+			await page.goto(`${need(state.dashboardUrl, "dashboard")}/widgets/new`);
+			await expect(page).toHaveURL(NEW_WIDGET_URL);
+			await expectDataPortal(page);
+			await page.getByRole("radio", { name: "Data table" }).check();
+			await page.getByRole("radio", { name: "Chart" }).check();
+			await page.getByRole("button", { name: /^Add to (?!another dashboard$)/ }).click();
+			await expect(page).toHaveURL(need(state.dashboardUrl, "dashboard"));
+			await expect(widgetTitles(page)).toHaveCount(before + 1);
+		}
+	},
+	{
+		name: "data-portal-edit",
+		async run(page, state) {
+			await backToDashboard(page, state);
+			await widgetMenuItem(page, need(state.mapTitle, "Map title"), "Open in Data Portal");
+			await expect(page).toHaveURL(EDIT_URL);
+			await expectDataPortal(page);
+			await page.goBack();
+			await backToDashboard(page, state);
+		}
+	},
+	{
+		name: "data-page",
+		async run(page) {
+			await page.goto("./data");
+			await expectDataPortal(page);
+		}
+	},
+	{
+		// Marks a monitor the way a person does (Shift-click in the Map's feature list), then
+		// Show in a chart and Show in a table. With no WebGL there's no map to mark on, so the
+		// items never show: the step opens the Map's menu only (its log line says so).
+		name: "show-in",
+		async run(page, state) {
+			await backToDashboard(page, state);
+			const title = need(state.mapTitle, "Map title");
+			if (!(await hasWebGL(page))) {
+				console.log("show-in: no WebGL, so no marks and no Show in items; opened the menu only");
+				await page.getByRole("button", { name: `Actions for ${title}`, exact: true }).click();
+				await expect(page.getByRole("menu")).toBeVisible();
+				await page.keyboard.press("Escape");
+				await expect(page.getByRole("menu")).toBeHidden();
+				return;
+			}
+			const map = mapOf(page, title);
+			const list = await openFeatureList(map);
+			// A monitor's row (selectable rows carry aria-selected).
+			const row = list.locator("[role=option][aria-selected]").first();
+			await expect(row).toBeVisible();
+			if ((await row.getAttribute("aria-selected")) !== "true") {
+				await row.click({ modifiers: ["Shift"] });
+				await expect(row).toHaveAttribute("aria-selected", "true");
+			}
+
+			for (const item of ["Show in a chart", "Show in a table"]) {
+				await widgetMenuItem(page, title, item);
+				await expect(page).toHaveURL(NEW_WIDGET_URL);
+				await expectDataPortal(page);
+				await page.goBack();
+				await backToDashboard(page, state);
+			}
+		}
+	},
+	{
+		// Trimmed and unknown paths redirect: to the dashboard, or home.
+		name: "trimmed-paths",
+		async run(page, state) {
+			const dashboard = need(state.dashboardUrl, "dashboard");
+			await page.goto(`${dashboard}/widgets`);
+			await expect(page).toHaveURL(dashboard);
+			await expect(widgetTitles(page).first()).toBeVisible();
+			for (const path of ["./shared", "./no-such-page"]) {
+				await page.goto(path);
+				await expect(page).not.toHaveURL(/\/(shared|no-such-page)$/);
+				await expect(widgetTitles(page).first()).toBeVisible();
+			}
+		}
+	}
+];
+
+/**
+ * Records console messages that mention the Content Security Policy, from `context`'s pages and
+ * their workers (some engines report a blocked worker or font only there).
+ */
+export function watchCspConsole(context: BrowserContext, into: string[]): void {
+	// Chromium and WebKit say "Content Security Policy"; Firefox says "Content-Security-Policy".
+	const csp = /Content[- ]Security[- ]Policy/i;
+	const record = (text: string) => {
+		if (csp.test(text)) into.push(text);
+	};
+	const watchPage = (page: Page) => {
+		page.on("console", (message) => record(message.text()));
+		page.on("worker", (worker) => worker.on("console", (message) => record(message.text())));
+	};
+	context.pages().forEach(watchPage);
+	context.on("page", watchPage);
+}
+
+/**
+ * Runs each step for `target` in order, calling `onStep` before it, and waits for the network to
+ * go idle after it. Resolves what the steps found.
+ */
+export async function runWalk(
+	page: Page,
+	target: WalkTarget,
+	onStep: (name: string) => void
+): Promise<WalkState> {
+	const state: WalkState = {};
+	for (const step of WALK) {
+		if (step.on && !step.on.includes(target)) continue;
+		onStep(step.name);
+		await step.run(page, state);
+		await page.waitForLoadState("networkidle");
+	}
+	return state;
+}
