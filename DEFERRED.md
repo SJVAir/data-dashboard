@@ -2692,10 +2692,16 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **The threshold watcher** (`ThresholdWatcher`): it loads once a dashboard is watched, which
     needs an alert level and the notifications permission. On the fakes, `e2e/thresholds.spec.ts`
     loads it under the contract CSP.
-  - **The downsample worker** (`downsample-client.ts`, an inline `blob:` worker): it starts only
-    for a dataset offered at raw resolution alone (on the fakes, wind direction), and no walk step
-    shows one; no E2E test does either. Its CSP surface (a same-origin chunk and a `blob:` worker)
-    is the same as the Map's MapLibre workers, which the walk starts on every engine with WebGL.
+  - **The downsample worker** (`downsample-client.ts`, an inline `blob:` worker): only an
+    air-quality type offered at raw resolution alone is downsampled (`fetchLevel`'s
+    `downsampleFromRaw`, used only by the air-quality adapter). No fakes dataset reaches it: the
+    fixture's pm25 offers every level, and weather never downsamples (`offeredLevels` drops raw
+    for weather, so its raw-only wind direction offers nothing). On the stack it depends on
+    whether a raw-only air-quality type exists; the walk doesn't look for one. No E2E test starts
+    it. Its CSP surface (a same-origin chunk and a `blob:` worker) is the same as the Map's
+    MapLibre workers, which the walk starts on every engine with WebGL. **Revisit when** the
+    downsample worker's code changes, or by adding a raw-only air-quality type to the E2E fixtures
+    and a fakes-only walk step that charts it and asserts a worker attach on Chromium.
   - **Move to account on the stack:** it needs the stack's session signed out and back in (a
     logout and a login), which the stack run doesn't do.
   - **The placeholder widget** (an unknown or not-yet-loaded type's frame): nothing in the built
