@@ -482,11 +482,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   320k–410k), so this entry still covers it.
   **Revisit when** the post-deploy check shows production has JIT on, or another endpoint's
   `EXPLAIN` shows JIT time dominating.
-- **`with_latest_entry()` picks a `LatestEntry` row without an order (sjvair.com).** _Deferred
-  2026-11-10 (closest-monitor work, #326)._ It takes the first `LatestEntry` row per monitor and
-  entry type with no `ORDER BY`; for a monitor with both cleaned and calibrated PM2.5 rows it
-  returns the calibrated one only because of index order. Unchanged by #326, which kept the
-  behavior. **Revisit when** anyone touches `LatestEntry` or the published-series logic.
 - **resticus streams JSON one token at a time (django-resticus).** _Deferred 2026-11-10 (the
   user, sjvair.com monitor-list work)._ `StreamingJSONResponse` (`resticus/http.py`) passes
   `JSON_ENCODER().iterencode(data)` straight to `StreamingHttpResponse`, so the 486 KB monitor
@@ -530,6 +525,12 @@ string`) now get the union return type. The mobile app passes a string token, so
     fixtures still contain `levels`. **Mobile done** (mobile #114 into its `release/5.0.0`,
     2026-11-09): it reads `scale`, and a subscription level missing from the PM2.5 scale shows
     "—" instead of disappearing; `MonitorSubscription.svelte` was removed.
+  - **Mobile onto the latest monitor-map 5.0 beta and SDK, before the day** (the user,
+    2026-11-24). After the user's parity review and a `@sjvair/monitor-map` `5.0.0-beta.3` (the
+    user's yes), mobile's `release/5.0.0` moves from `5.0.0-beta.2` and `@sjvair/sdk`
+    `5.0.0-beta.10` to that beta and `@sjvair/sdk` `5.0.0-beta.17` (monitor-map's SDK peer range
+    stays `^5.0.0-beta.10`, so the SDK move is mobile's choice). The coordinator writes its prompt.
+    **Revisit when** `5.0.0-beta.3` is published.
   - **Mobile 5.0.0 on the day, after `develop` is deployed** (the user, 2026-11-09). Each step
     needs the user's own yes; none is done earlier. Mobile's 5.0 work waits on its
     `release/5.0.0` branch (`main` stays on 4.x for hotfixes):
@@ -552,9 +553,13 @@ string`) now get the union return type. The mobile app passes a string token, so
   - **MapTiler key** (step 5 spec 1, 2026-11-11): confirm `VITE_MAPTILER_KEY` reaches
     sjvair.com's Heroku build of the dashboard, and that the key's domain restriction covers
     `/workspace/`. Without it, every Map widget says the map is unavailable.
-  - **Dashboard CSP check, before:** rerun the CSP check against the stack on go-live day (the
-    first run, 2026-11-23, found no violation: `docs/reference/csp-check-2026-11-23.md`, which has
-    the rerun command).
+  - **Dashboard CSP check, before:** on go-live day, swap the final `main` build into the local
+    stack's `/workspace/` (it must include 5f0e564's `data-widget-body` mark, or the walk stops at
+    once), then from data-dashboard, outside :40–:50, run
+    `WORKSPACE_E2E_IDENTIFIER=… WORKSPACE_E2E_PASSWORD=… npm run test:csp-stack` (Chromium and
+    Firefox) and `npm run test:csp-stack:webkit` (WebKit, in the Playwright podman image with
+    `--network host`). Every run so far found no violation
+    (`docs/reference/csp-check-2026-11-23.md`).
   - **Migrations at deploy:** `hms/0003_smoke_date_index` (sjvair.com #314), a plain `AddIndex` on
     `hms_smoke.date`; runs with `migrate`, quick on a small table; undo with `migrate hms 0002`.
     Nothing to run by hand.
