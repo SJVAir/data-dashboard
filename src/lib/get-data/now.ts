@@ -54,7 +54,9 @@ export type NowDropped =
 	| "marks"
 	| "range-cut"
 	| "fill"
-	| "area";
+	| "area"
+	/** A Forecast strip's forecast (no pollutant of its own) became PM2.5. */
+	| "forecast";
 
 const AIR_QUALITY = "air-quality";
 const FORECASTS = "forecasts";
@@ -354,7 +356,8 @@ export function fromNowDraft(draft: Draft, type: WidgetType): NowConversion {
 /** `fromNowDraft` for a draft that isn't cut first (one pollutant at most). */
 function rangeDraftOf(draft: Draft, type: WidgetType): NowConversion {
 	const cap = type.accepts?.maxPlaces;
-	// A Forecast strip's layer becomes PM2.5, keeping its monitor.
+	// A Forecast strip's layer becomes PM2.5, keeping its monitor (a note says so).
+	const fromStrip = draft.data.layers.some((l) => isStripLayer(draft.data, l));
 	let layers = draft.data.layers.map((l) =>
 		!isStripLayer(draft.data, l)
 			? structuredClone(l)
@@ -387,7 +390,8 @@ function rangeDraftOf(draft: Draft, type: WidgetType): NowConversion {
 		dropped: [
 			...(cut ? (["places"] as const) : []),
 			...(one?.dropped.includes("monitor-types") ? (["monitor-types"] as const) : []),
-			...(!thresholds && draft.thresholds?.length ? (["alert"] as const) : [])
+			...(!thresholds && draft.thresholds?.length ? (["alert"] as const) : []),
+			...(fromStrip ? (["forecast"] as const) : [])
 		]
 	};
 }

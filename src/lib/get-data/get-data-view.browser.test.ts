@@ -688,6 +688,30 @@ test("Air quality's monitor types and searched monitors edit the draft's air-qua
 	host.remove();
 });
 
+test("with Forecast chosen, the calendars are offered; one shows PM2.5 with a note", async () => {
+	const { latest } = await show({
+		type: "forecast-strip",
+		data: {
+			place: { kind: "region", type: "county", code: "06019" },
+			layers: [{ dataset: "forecasts" }]
+		}
+	});
+	const month = page.getByRole("radio", { name: "Month calendar" });
+	const year = page.getByRole("radio", { name: "Year calendar" });
+	await expect.element(month).toBeEnabled();
+	await expect.element(year).toBeEnabled();
+	await month.click();
+	await expect.poll(() => latest().type).toBe("calendar-month");
+	expect(latest().data.layers).toEqual([{ dataset: "air-quality", entryType: "pm25" }]);
+	await expect
+		.element(
+			page.getByText(
+				"Air Quality Forecasts has no pollutant of its own, so this shows PM2.5. Change the pollutant in What."
+			)
+		)
+		.toBeVisible();
+});
+
 test("a Forecast strip searches one monitor, saved on its forecasts layer; it replaces the Where", async () => {
 	const { host, latest } = await show({
 		type: "forecast-strip",

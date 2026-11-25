@@ -254,6 +254,27 @@ describe("single-place types: one place or one monitor", () => {
 		]);
 	});
 
+	it("a Forecast strip as a Month calendar shows PM2.5 at its place, noting the forecast", () => {
+		const strip: Draft = {
+			type: "forecast-strip",
+			data: { place: FRESNO, layers: [{ dataset: "forecasts" }] }
+		};
+		const out = fromNowDraft(strip, monthCalendarType);
+		expect(out.draft.data.place).toEqual(FRESNO);
+		expect(out.draft.data.layers).toEqual([PM25]);
+		expect(out.dropped).toContain("forecast");
+	});
+
+	it("a Forecast strip of one monitor, with no Where, keeps the monitor as a calendar", () => {
+		const strip: Draft = {
+			type: "forecast-strip",
+			data: { layers: [{ dataset: "forecasts", monitors: ["m1"] }] }
+		};
+		const out = fromNowDraft(strip, monthCalendarType);
+		expect(out.draft.data.layers).toEqual([{ ...PM25, monitors: ["m1"] }]);
+		expect(out.dropped).toContain("forecast");
+	});
+
 	it("fromNowDraft to a one-place type: ticked types dropped, a monitor wins over the Where", () => {
 		const map: Draft = {
 			type: "map",
