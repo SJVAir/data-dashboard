@@ -106,12 +106,9 @@ describe("monitorsEntry", () => {
 		expect(found.map((m) => m.id)).toEqual(["a"]);
 	});
 
-	it("ticked types with no Where read every current monitor of them", async () => {
-		get.mockResolvedValue([monitor("a"), monitor("b", { type: "airnow" })]);
-		const source = await entry().source(data({}));
-		const found = await (source as Src).fetch(new AbortController().signal);
-		expect(get).toHaveBeenCalledExactlyOnceWith("pm25", undefined, expect.anything());
-		expect(found.map((m) => m.id)).toEqual(["a"]);
+	it("ticked types with no Where draw nothing and fetch nothing", async () => {
+		expect(await entry().source(data({}))).toBeNull();
+		expect(get).not.toHaveBeenCalled();
 	});
 
 	it("adds searched monitors from outside the areas", async () => {
