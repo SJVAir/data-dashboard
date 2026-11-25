@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import type { Effective } from "$lib/data/dataset-rules";
 import type { Layer } from "$lib/data/schema";
 import type { WidgetOverlay } from "./data-widget.svelte";
-import { misfitNotes } from "./misfit-notes";
+import { idleTypesNote, misfitNotes } from "./misfit-notes";
 
 const layer = (dataset: string): Layer => ({ dataset, entryType: "x" });
 const overlay = (l: Layer, label: string | null): WidgetOverlay =>
@@ -50,4 +50,27 @@ test("a read-only dashboard's notes don't point at Edit data", () => {
 	expect(misfitNotes([overlay(smoke, "Smoke")], effective("raw", [smoke]), false)).toEqual([
 		"Smoke isn't shown: it has no individual measurements."
 	]);
+});
+
+const ticked: Layer = {
+	dataset: "air-quality",
+	entryType: "pm25",
+	monitors: ["m1"],
+	monitorTypes: ["airnow"]
+};
+
+test("ticked types with no Where, beside a searched monitor, say to add a place", () => {
+	expect(idleTypesNote({ layers: [ticked] }, undefined, true)).toBe(
+		"Add a place to show ticked monitor types."
+	);
+	expect(idleTypesNote({ layers: [ticked] }, undefined, false)).toBe(
+		"Ticked monitor types aren't shown: this has no place."
+	);
+});
+
+test("no ticks note inside a Where, or when nothing is drawn (the empty message says it)", () => {
+	const place = { kind: "region", type: "county", code: "06019" } as const;
+	expect(idleTypesNote({ place, layers: [ticked] }, undefined, true)).toBeNull();
+	const typesOnly: Layer = { ...ticked, monitors: [] };
+	expect(idleTypesNote({ layers: [typesOnly] }, undefined, true)).toBeNull();
 });

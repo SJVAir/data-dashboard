@@ -191,6 +191,18 @@ test("chart widget: the empty prompt names what to add", async () => {
 	expect(requests).toEqual([]);
 });
 
+test("ticked types with no Where draw nothing beside a searched monitor, and say so", async () => {
+	const widget = chartWidget(["m1"]);
+	widget.data.layers[0].monitorTypes = ["airnow"];
+	const screen = await show(widget);
+	await expect.element(screen.getByRole("group", { name: "Chart of Monitor m1" })).toBeVisible();
+	await expect.poll(() => frame.querySelector("canvas")).not.toBeNull();
+	// A viewer (no dashboard session): the note says what's missing, not how to edit it.
+	await expect.element(screen.getByText(/Ticked monitor types aren.t shown/)).toBeInTheDocument();
+	expect(frame.textContent).toContain(m.widget_types_need_place_view());
+	expect(requests.every((r) => r.target.kind === "monitors")).toBe(true);
+});
+
 test("a widget with no layers (None and nothing else) shows its empty state", async () => {
 	const widget = chartWidget(["m1"]);
 	widget.data.layers = [];

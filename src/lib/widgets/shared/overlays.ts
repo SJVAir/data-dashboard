@@ -84,24 +84,12 @@ export function overlayMonitor(options: unknown, places?: PlaceInfo[]): string |
 }
 
 /**
- * Whether a main asks for everywhere: no Where and no monitors (every weather station, the
- * valley's pesticide use). Its overlays aren't fetched: an everywhere overlay has no line of the
- * main's to pair with (`overlayInputsFor`; `noWhereNotes` says why).
- */
-export function everywhereMain(main: QueryInput | null): boolean {
-	if (!main) return false;
-	const { place, selection } = main.layer;
-	return !place && !selection && !monitorMain(main.layer);
-}
-
-/**
  * A widget's overlay inputs as fetched (`base`: `widgetInputs`' overlays at the main's places).
  * A monitor set's (ticked types) are fetched for one of its monitors (`overlayMonitor`), never
  * per monitor: a set can hold hundreds. `null` until the set has loaded. Areas keep theirs, and
  * searched monitors theirs (one per line: "Overlay for" picks among them), once the main has
  * loaded only those it fetched (`places`: a searched monitor that doesn't measure the pollutant
- * has no line, so no overlay). An everywhere main's (`everywhereMain`) are never fetched: the
- * whole layer is for main layers only.
+ * has no line, so no overlay).
  */
 export function overlayInputsFor(
 	main: QueryInput | null,
@@ -109,7 +97,6 @@ export function overlayInputsFor(
 	options: unknown,
 	places?: PlaceInfo[]
 ): (QueryInput | null)[] {
-	if (everywhereMain(main)) return base.map(() => null);
 	if (!main) return base;
 	if (!monitorSet(main.layer)) return searchedFetched(main, base, places);
 	const id = overlayMonitor(options, places);
