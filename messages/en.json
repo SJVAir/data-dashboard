@@ -1277,6 +1277,7 @@
 	"get_data_none": "None",
 	"getdata_map_fill": "Fill regions by",
 	"getdata_map_points_of_interest": "Points of interest",
+	"get_data_pesticides": "Pesticides",
 	"get_data_section_only_for": "Only for {types}",
 	"get_data_section_always_shown": "This widget always shows these.",
 	"get_data_choices_label": "What, When and Where",

@@ -32,7 +32,7 @@
 	import SectionTrigger from "./SectionTrigger.svelte";
 	import { pesticideMeta } from "./sources";
 	import StationChoice from "./StationChoice.svelte";
-	import { sectionTypes, whatSections, type WhatSection } from "./what-sections";
+	import { PESTICIDES, sectionTypes, whatSections, type WhatSection } from "./what-sections";
 
 	/**
 	 * What, for every widget type (spec decision 16): one list of sections, in catalog order, the
@@ -217,17 +217,31 @@
 
 	/** What's chosen in a section, for its heading (so a closed section still says). */
 	function chosen(section: WhatSection): string | undefined {
+		if (section.key === PESTICIDES) {
+			const { use: usePart, notices: noticesPart } = section.parts ?? {};
+			const labels = usePart ? chosenLabels(usePart) : [];
+			// The Map's use switch holds no measure of its own: the part's name says it's on.
+			if (usePart && use && labels.length === 0) labels.push(labelOf(usePart));
+			if (noticesPart && notices) labels.push(labelOf(noticesPart));
+			return formatList(labels) || undefined;
+		}
+		return formatList(chosenLabels(section)) || undefined;
+	}
+
+	/** The chosen measures of a dataset section, each once, in layer order. */
+	function chosenLabels(section: WhatSection): string[] {
 		const entryTypes = section.entry?.entryTypes ?? [];
 		const labels = data.layers
 			.filter((l) => l.dataset === section.key)
 			.map((l) => entryTypes.find((e) => e.id === l.entryType)?.label)
 			.filter((label): label is string => label !== undefined);
 		// Two pesticide layers of one measure (different filters) name it once.
-		return formatList([...new Set(labels)]) || undefined;
+		return [...new Set(labels)];
 	}
 
 	/** A section's heading. */
 	function labelOf(section: WhatSection): string {
+		if (section.key === PESTICIDES) return m.get_data_pesticides();
 		if (section.key === HMS_SMOKE && isMap) return m.get_data_smoke_and_fire();
 		if (section.entry) return section.entry.label;
 		if (section.key === HMS_SMOKE) return m.get_data_smoke_and_fire();
@@ -430,6 +444,7 @@
 {/snippet}
 
 {#snippet noticesSection(section: WhatSection)}
+	{@const blockedNow = noticesBlocked ?? greyed(PESTICIDE_NOTICES)}
 	{@render description(section.entry?.description)}
 	<div class="flex min-h-6 flex-wrap items-center gap-x-2 text-sm">
 		<label class="flex items-center gap-2">
@@ -438,22 +453,18 @@
 				role="switch"
 				class="accent-primary size-4"
 				checked={notices}
-				disabled={!!noticesBlocked}
-				aria-describedby={noticesBlocked ? `${uid}-notices-blocked` : undefined}
+				disabled={!!blockedNow}
+				aria-describedby={blockedNow ? `${uid}-notices-blocked` : undefined}
 				onchange={(e) => map.onnotices(e.currentTarget.checked)}
 			/>
-			<span class={[noticesBlocked && "text-muted-foreground"]}>
+			<span class={[blockedNow && "text-muted-foreground"]}>
 				{m.getdata_map_notices_switch()}
 			</span>
 		</label>
-		{#if noticesBlocked}
-			{@render reason(`${uid}-notices-blocked`, noticesBlocked)}
+		{#if blockedNow}
+			{@render reason(`${uid}-notices-blocked`, blockedNow)}
 		{/if}
 	</div>
-	<!-- With use on, the one filter set shows in its section. -->
-	{#if notices && !use}
-		{@render filterSet()}
-	{/if}
 {/snippet}
 
 {#snippet useSection(section: WhatSection)}
@@ -483,9 +494,6 @@
 				<Button variant="outline" size="sm" onclick={map.onretryyears}>{m.get_data_retry()}</Button>
 			</div>
 		{/if}
-		{#if use}
-			{@render filterSet()}
-		{/if}
 	{:else if section.offered}
 		{@render description(section.entry?.description, {
 			label: m.get_data_pesticide_help_label(),
@@ -505,6 +513,26 @@
 			{onremove}
 			{onfilters}
 		/>
+	{/if}
+{/snippet}
+
+<!-- Pesticide use and spray notices, one section (2026-11-25): each part under its own heading (the
+     catalog's label), then the Map's one filter set, below both, while either is on. -->
+{#snippet pesticidesSection(section: WhatSection)}
+	{#if section.parts?.use}
+		<div class="flex flex-col gap-2">
+			<h4 class="text-sm font-medium">{labelOf(section.parts.use)}</h4>
+			{@render useSection(section.parts.use)}
+		</div>
+	{/if}
+	{#if section.parts?.notices}
+		<div class="flex flex-col gap-2">
+			<h4 class="text-sm font-medium">{labelOf(section.parts.notices)}</h4>
+			{@render noticesSection(section.parts.notices)}
+		</div>
+	{/if}
+	{#if isMap && (use || notices)}
+		{@render filterSet()}
 	{/if}
 {/snippet}
 
@@ -531,10 +559,8 @@
 						{@render airQuality(section)}
 					{:else if section.key === HMS_SMOKE}
 						{@render smokeSection(section)}
-					{:else if section.key === PESTICIDE_NOTICES}
-						{@render noticesSection(section)}
-					{:else if section.key === PESTICIDE_USE}
-						{@render useSection(section)}
+					{:else if section.key === PESTICIDES}
+						{@render pesticidesSection(section)}
 					{:else if section.offered}
 						{@render description(section.entry?.description)}
 						{#if type.type === FORECAST_TYPE}

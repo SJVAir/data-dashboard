@@ -12,6 +12,9 @@ import {
 import type { WidgetType } from "$lib/widgets/registry";
 import type { OfferedDataset } from "./offer";
 
+/** One section for pesticide use and spray notices (2026-11-25, the user): its parts are theirs. */
+export const PESTICIDES = "pesticides";
+
 /** The datasets the Map has sections of its own for (smoke takes fire with it). */
 const MAP_OWN = [HMS_SMOKE, PESTICIDE_USE, PESTICIDE_NOTICES];
 
@@ -22,6 +25,8 @@ export type WhatSection = {
 	entry?: CatalogEntry;
 	/** The offer (entry types to choose), for a dataset Get data offers. */
 	offered?: OfferedDataset;
+	/** The Pesticides section's parts: use and notices, each as its own section would be. */
+	parts?: { use?: WhatSection; notices?: WhatSection };
 };
 
 /**
@@ -55,7 +60,8 @@ export function toggledLocationTypes(
  * What's sections for every widget type (spec decision 16), in catalog order: each offered dataset
  * (one some type accepts, with an adapter) and the Map's own (smoke and fire as one, spray notices,
  * pesticide use). Air quality, and the Map's smoke and fire, show without a catalog entry; notices
- * and use only while on (their fallback headings). A dataset no type shows isn't listed. The Map's
+ * and use only while on (their fallback headings). Use and notices are one Pesticides section,
+ * where the first of them would be, with each as a part. A dataset no type shows isn't listed. The Map's
  * settings (points of interest, the fill) are in its options panel, not What (2026-11-25).
  */
 export function whatSections(
@@ -81,7 +87,18 @@ export function whatSections(
 	for (const key of [PESTICIDE_USE, PESTICIDE_NOTICES]) {
 		if (layers.some((l) => l.dataset === key)) add(key);
 	}
-	return out;
+	return withPesticides(out);
+}
+
+/** `sections` with pesticide use and notices as one Pesticides section where the first one was. */
+function withPesticides(sections: WhatSection[]): WhatSection[] {
+	const use = sections.find((s) => s.key === PESTICIDE_USE);
+	const notices = sections.find((s) => s.key === PESTICIDE_NOTICES);
+	if (!use && !notices) return sections;
+	const at = sections.findIndex((s) => s === use || s === notices);
+	const rest = sections.filter((s) => s !== use && s !== notices);
+	const section: WhatSection = { key: PESTICIDES, parts: { use, notices } };
+	return [...rest.slice(0, at), section, ...rest.slice(at)];
 }
 
 /**
@@ -90,6 +107,10 @@ export function whatSections(
  * (its one monitor is searched there, spec decision 11). Any other type shows it greyed out.
  */
 export function sectionTypes(key: string, types: WidgetType[]): WidgetType[] {
+	if (key === PESTICIDES) {
+		const either = [PESTICIDE_USE, PESTICIDE_NOTICES].flatMap((k) => sectionTypes(k, types));
+		return types.filter((t) => either.includes(t));
+	}
 	return types.filter(
 		(t) =>
 			t.accepts?.datasets?.includes(key) ||

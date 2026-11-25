@@ -412,8 +412,7 @@ async function openResolution() {
 }
 
 const AIR = /^Air quality(?! forecasts)/i;
-const USE = /^Pesticide Use/;
-const NOTICES = /^Pesticide Spray Notices/;
+const PESTICIDES = /^Pesticides/;
 const SMOKE = new RegExp(`^${m.get_data_smoke_and_fire()}`);
 
 async function chooseDates(name: string) {
@@ -717,7 +716,7 @@ test("adding pesticide use on Automatic says Automatic moved to Monthly; removin
 	const { host, current } = await show(monitorsDraft(["m1"]));
 	const note = page.getByTestId("resolution-note");
 	await expect.element(note).toHaveTextContent("");
-	await openSection(/^Pesticide Use/);
+	await openSection(PESTICIDES);
 	await page.getByRole("button", { name: m.get_data_pesticide_add_first() }).click();
 	await page.getByRole("menuitem", { name: "Pounds Applied" }).click();
 	await expect
@@ -869,14 +868,7 @@ test("get data view: the Map and the Chart render the same What", async () => {
 	expect(sections()).toEqual(chart);
 	expect(chart).not.toContain("fill");
 	// Catalog order.
-	expect(chart).toEqual([
-		"air-quality",
-		"forecasts",
-		"weather",
-		"pesticide-use",
-		"hms-smoke",
-		"pesticide-notices"
-	]);
+	expect(chart).toEqual(["air-quality", "forecasts", "weather", "pesticides", "hms-smoke"]);
 });
 
 test("get data view: the left column scrolls and the preview stays in view", async () => {
@@ -1271,16 +1263,70 @@ test("a mixed draft on Automatic blocks Add, naming the dataset the main layer c
 		.toHaveAccessibleDescription(
 			"Pesticide Use doesn't line up with the data resolution. Remove it or choose another data resolution."
 		);
-	await openSection(/^Pesticide Use/);
+	await openSection(PESTICIDES);
 	await page.getByRole("button", { name: /^Remove Pounds Applied/ }).click();
 	await expect.element(add).toBeEnabled();
+});
+
+describe("one Pesticides section", () => {
+	const part = (name: string) => page.getByRole("heading", { level: 4, name, exact: true });
+	const noticesSwitch = () => page.getByRole("switch", { name: m.getdata_map_notices_switch() });
+	const filters = () => page.getByRole("group", { name: m.getdata_map_pesticide_filters() });
+
+	test("the Map's Pesticides section switches use and notices, with one filter set below both", async () => {
+		const { current } = await show(monitorsDraft(["m1"], { type: "map" }));
+		expect(page.getByRole("button", { name: /^Pesticide Use/ }).elements()).toHaveLength(0);
+		await openSection(PESTICIDES);
+		await expect.element(part("Pesticide Use")).toBeVisible();
+		await expect.element(part("Pesticide Spray Notices")).toBeVisible();
+		await expect.element(filters()).not.toBeInTheDocument();
+		await noticesSwitch().click();
+		await expect.element(filters()).toBeVisible();
+		expect(filters().elements()).toHaveLength(1);
+		// Below both parts.
+		const box = (el: Element) => el.getBoundingClientRect();
+		expect(box(filters().element()).top).toBeGreaterThan(box(noticesSwitch().element()).top);
+		expect((await current()).data.layers.slice(1)).toEqual([{ dataset: "pesticide-notices" }]);
+	});
+
+	test("a Chart's Pesticides section adds use measures; Notices is greyed, Only for Map", async () => {
+		await show(withLayers(["m1"], { ...POUNDS }));
+		// Closed, the section names what's chosen.
+		await expect
+			.element(page.getByRole("button", { name: PESTICIDES }))
+			.toHaveAccessibleName("Pesticides Pounds Applied");
+		await openSection(PESTICIDES);
+		await expect.element(part("Pesticide Use")).toBeVisible();
+		await expect.element(noticesSwitch()).toBeDisabled();
+		await expect
+			.element(noticesSwitch())
+			.toHaveAccessibleDescription(m.get_data_section_only_for({ types: "Map" }));
+		await expect.element(filters()).not.toBeInTheDocument();
+	});
+
+	test("a calendar greys the whole Pesticides section with its reason", async () => {
+		await show({
+			type: "calendar-month",
+			data: {
+				dateRange: { kind: "to-date", unit: "month" },
+				layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }]
+			}
+		});
+		const trigger = page.getByRole("button", { name: PESTICIDES });
+		await expect.element(trigger).toBeDisabled();
+		await expect
+			.element(trigger)
+			.toHaveAccessibleDescription(
+				m.get_data_section_only_for({ types: "Chart, Data table, and Map" })
+			);
+	});
 });
 
 test("at Daily, pesticide use is greyed: it's reported by month", async () => {
 	const draft = monitorsDraft(["m1"]);
 	draft.data.resolution = "day";
 	await show(draft);
-	await openSection(/^Pesticide Use/);
+	await openSection(PESTICIDES);
 	const addUse = page.getByRole("button", { name: m.get_data_pesticide_add_first() });
 	await expect.element(addUse).toBeDisabled();
 	await expect
@@ -1339,7 +1385,7 @@ test("on Automatic, only a dataset sharing no level with those chosen is greyed"
 	await openSection(/^Wildfire Smoke/);
 	const smoke = page.getByRole("checkbox", { name: "Smoke density" });
 	await expect.element(smoke).toBeEnabled();
-	await openSection(/^Pesticide Use/);
+	await openSection(PESTICIDES);
 	const addUse = page.getByRole("button", { name: m.get_data_pesticide_add_first() });
 	await expect.element(addUse).toBeEnabled();
 	// Smoke is reported by day and pesticide use by month: once smoke is on, use can't line up.
@@ -1531,7 +1577,7 @@ test("a filter search lists results after two letters and picks one", async () =
 	};
 	fake.names = { c1: "Chlorpyrifos" };
 	const { current } = await show(withLayers(["m1"], { ...POUNDS }));
-	await openSection(/^Pesticide Use/);
+	await openSection(PESTICIDES);
 	await expect.element(page.getByTestId("pesticide-summary")).toHaveTextContent("All pesticides");
 	await page.getByRole("button", { name: "Filters" }).click();
 	const chemical = page.getByRole("combobox", { name: "Chemical" });
@@ -1555,8 +1601,8 @@ test("a filter search lists results after two letters and picks one", async () =
 	expect(layers.slice(1)).toEqual([{ ...POUNDS, filters: { chemical: "c1" } }, { ...POUNDS }]);
 	// The section's heading names the measure once.
 	await expect
-		.element(page.getByRole("button", { name: /^Pesticide Use/ }))
-		.toHaveAccessibleName("Pesticide Use Pounds Applied");
+		.element(page.getByRole("button", { name: PESTICIDES }))
+		.toHaveAccessibleName("Pesticides Pounds Applied");
 	// At the overlay limit, no more can be added.
 	const add = page.getByRole("button", { name: "Add another pesticide layer" });
 	await expect.element(add).toBeDisabled();
@@ -1571,7 +1617,7 @@ test("a slow search's results never replace a newer one's", async () => {
 		more: false
 	};
 	await show(withLayers(["m1"], { ...POUNDS }));
-	await openSection(/^Pesticide Use/);
+	await openSection(PESTICIDES);
 	await page.getByRole("button", { name: "Filters" }).click();
 	const chemical = page.getByRole("combobox", { name: "Chemical" });
 	await chemical.click();
@@ -1600,7 +1646,7 @@ test("a long result list scrolls; its rows keep their full height and never over
 		more: true
 	};
 	await show(withLayers(["m1"], { ...POUNDS }));
-	await openSection(/^Pesticide Use/);
+	await openSection(PESTICIDES);
 	await page.getByRole("button", { name: "Filters" }).click();
 	await page.getByRole("combobox", { name: "Chemical" }).click();
 	await userEvent.keyboard("ch");
@@ -1651,7 +1697,7 @@ describe.each([
 		await page.viewport(width, height);
 		fake.stations = [{ id: "st1", name: "Fresno State", distance: 0, inside: true, active: true }];
 		const { host } = await show(withLayers(["m1"], { ...POUNDS, filters: { iarcGroup: "1" } }));
-		await openSection(/^Pesticide Use/);
+		await openSection(PESTICIDES);
 		await page.getByRole("button", { name: "Filters" }).click();
 		await expect.element(page.getByRole("combobox", { name: "Cancer group" })).toHaveValue("1");
 		await openSection(/^Weather/);
@@ -1839,7 +1885,7 @@ describe("now widgets", () => {
 			}
 		});
 		const use = page.getByRole("switch", { name: m.getdata_map_use_switch() });
-		await openSection(USE);
+		await openSection(PESTICIDES);
 		await expect.element(use).toBeDisabled();
 		await expect
 			.element(use)
@@ -1858,7 +1904,7 @@ describe("now widgets", () => {
 			.element(smoke)
 			.toHaveAccessibleDescription("Reported by day. Set the data resolution to Daily to add it.");
 		const notices = page.getByRole("switch", { name: m.getdata_map_notices_switch() });
-		await openSection(NOTICES);
+		await openSection(PESTICIDES);
 		await expect.element(notices).toBeDisabled();
 		await use.click();
 		expect((await current()).data.layers.slice(1)).toEqual([{ dataset: "pesticide-use" }]);
@@ -1907,10 +1953,11 @@ describe("now widgets", () => {
 
 	test("the Spray notices section switches the layer on and shows its filters", async () => {
 		const { current, host } = await show(monitorsDraft(["m1"], { type: "map" }));
+		await openSection(PESTICIDES);
 		await expect
 			.element(page.getByRole("heading", { name: "Pesticide Spray Notices" }))
 			.toBeVisible();
-		await openSection(NOTICES);
+		await openSection(PESTICIDES);
 		await expect.element(page.getByText("Notices of intent to spray.")).toBeVisible();
 		const notices = page.getByRole("switch", { name: m.getdata_map_notices_switch() });
 		await expect.element(notices).not.toBeChecked();
@@ -1939,7 +1986,7 @@ describe("now widgets", () => {
 				]
 			}
 		});
-		await openSection(NOTICES);
+		await openSection(PESTICIDES);
 		await expect.element(page.getByText(skipped)).toBeVisible();
 		// Only the commodity: the chemical applies.
 		expect(
@@ -1962,9 +2009,10 @@ describe("now widgets", () => {
 
 	test("the Pesticide use section switches the layer on, with no period of its own (the Map's stops are)", async () => {
 		const { current, host } = await show(monitorsDraft(["m1"], { type: "map" }));
+		await openSection(PESTICIDES);
 		await expect.element(page.getByRole("heading", { name: "Pesticide Use" })).toBeVisible();
 		const use = page.getByRole("switch", { name: m.getdata_map_use_switch() });
-		await openSection(USE);
+		await openSection(PESTICIDES);
 		await expect.element(use).not.toBeChecked();
 		await use.click();
 		await expect.element(use).toBeChecked();
@@ -1987,7 +2035,7 @@ describe("now widgets", () => {
 		};
 		const { current } = await show(monitorsDraft(["m1"], { type: "map" }));
 		const use = page.getByRole("switch", { name: m.getdata_map_use_switch() });
-		await openSection(USE);
+		await openSection(PESTICIDES);
 		await expect.element(page.getByText(m.getdata_map_use_years_unavailable())).toBeVisible();
 		await expect.element(use).toBeDisabled();
 		await expect.element(use).toHaveAccessibleDescription(m.getdata_map_use_years_unavailable());
@@ -2005,7 +2053,7 @@ describe("now widgets", () => {
 		fake.pesticideMeta = async () => ({ ...PESTICIDE_META, years: [] });
 		await show(monitorsDraft(["m1"], { type: "map" }));
 		const use = page.getByRole("switch", { name: m.getdata_map_use_switch() });
-		await openSection(USE);
+		await openSection(PESTICIDES);
 		await expect.element(page.getByText(m.getdata_map_use_no_years())).toBeVisible();
 		await expect.element(use).toBeDisabled();
 		expect(page.getByRole("button", { name: m.get_data_retry() }).query()).toBeNull();
@@ -2025,8 +2073,7 @@ describe("now widgets", () => {
 		// Notices (by day) and use (by month) never line up, and use isn't shown on Now: only a link
 		// can carry both, and it can't be added as it is.
 		await expect.element(page.getByRole("button", { name: "Add to Home" })).toBeDisabled();
-		await openSection(USE);
-		await openSection(NOTICES);
+		await openSection(PESTICIDES);
 		const group = page.getByRole("group", { name: m.getdata_map_pesticide_filters() });
 		await expect.element(group).toBeVisible();
 		expect(group.all()).toHaveLength(1);
@@ -2089,6 +2136,7 @@ describe("now widgets", () => {
 				]
 			}
 		});
+		await openSection(PESTICIDES);
 		await expect
 			.element(
 				page.getByRole("heading", { name: m.getdata_map_section_fallback({ section: "notices" }) })

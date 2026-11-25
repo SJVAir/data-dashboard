@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { CatalogEntry, LocationGroup } from "$lib/data/metadata";
 import type { WidgetType } from "$lib/widgets/registry";
 import type { OfferedDataset } from "./offer";
-import { goneTypes, sectionTypes, toggledLocationTypes, whatSections } from "./what-sections";
+import {
+	goneTypes,
+	PESTICIDES,
+	sectionTypes,
+	toggledLocationTypes,
+	whatSections
+} from "./what-sections";
 
 const entry = (id: string): CatalogEntry => ({ id, label: id, entryTypes: [], geographies: [] });
 const offer = (id: string): OfferedDataset => ({
@@ -56,8 +62,7 @@ describe("whatSections", () => {
 			"air-quality",
 			"weather",
 			"hms-smoke",
-			"pesticide-use",
-			"pesticide-notices",
+			PESTICIDES,
 			"forecasts"
 		]);
 	});
@@ -78,9 +83,35 @@ describe("whatSections", () => {
 			"air-quality",
 			"weather",
 			"hms-smoke",
-			"pesticide-use",
-			"pesticide-notices"
+			PESTICIDES
 		]);
+	});
+});
+
+describe("whatSections: one Pesticides section", () => {
+	it("lists one Pesticides section where pesticide use is, with use and notices as parts", () => {
+		const sections = whatSections(CATALOG, OFFERED, []);
+		const keys = sections.map((s) => s.key);
+		expect(keys).not.toContain("pesticide-use");
+		expect(keys).not.toContain("pesticide-notices");
+		expect(keys.indexOf(PESTICIDES)).toBe(3);
+		const pesticides = sections.find((s) => s.key === PESTICIDES)!;
+		expect(pesticides.parts?.use?.key).toBe("pesticide-use");
+		expect(pesticides.parts?.use?.offered?.dataset.id).toBe("pesticide-use");
+		expect(pesticides.parts?.notices?.key).toBe("pesticide-notices");
+	});
+
+	it("is left out when neither is offered or on, and holds only the one that is", () => {
+		const bare = [entry("weather")];
+		expect(whatSections(bare, [offer("weather")], []).map((s) => s.key)).not.toContain(PESTICIDES);
+		const notices = whatSections(bare, [offer("weather")], [{ dataset: "pesticide-notices" }]);
+		const section = notices.find((s) => s.key === PESTICIDES)!;
+		expect(section.parts?.notices).toBeDefined();
+		expect(section.parts?.use).toBeUndefined();
+	});
+
+	it("shows for the types that show either part", () => {
+		expect(sectionTypes(PESTICIDES, TYPES)).toEqual([CHART, MAP]);
 	});
 });
 

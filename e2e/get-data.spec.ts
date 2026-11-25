@@ -156,7 +156,7 @@ test("adds PM2.5 with a weather strip and a filtered pesticide strip", async ({ 
 	await expect(page.getByText(/Temperature · CIMIS #80 - Fresno State/).first()).toBeVisible();
 
 	// One filtered pesticide layer: the chemical is searched by name, then picked.
-	await openSection(page, /^Pesticide Use/);
+	await openSection(page, /^Pesticides/);
 	await page.getByRole("button", { name: "Add a pesticide layer" }).click();
 	await page.getByRole("menuitem", { name: "Pounds Applied" }).click();
 	await page.getByRole("button", { name: "Filters" }).click();
@@ -348,7 +348,7 @@ test("downloads a CSV with station and filter columns", async ({ page }) => {
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
 	await openSection(page, /^Weather/);
 	await page.getByRole("checkbox", { name: "Temperature", exact: true }).check();
-	await openSection(page, /^Pesticide Use/);
+	await openSection(page, /^Pesticides/);
 	await page.getByRole("button", { name: "Add a pesticide layer" }).click();
 	await page.getByRole("menuitem", { name: "Pounds Applied" }).click();
 	await page.getByRole("button", { name: "Filters" }).click();
