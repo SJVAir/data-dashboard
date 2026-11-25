@@ -295,6 +295,8 @@ test.describe("from a pesticide section card", () => {
 		Object.assign(doc.body.widgets[0].data, { resolution: "month" });
 		await openSharedDoc(page, doc);
 		const map = mapOf(page, FRESNO_MAP);
+		// The legend starts folded: open it.
+		await map.getByRole("button", { name: "Legend", exact: true }).click();
 		await expect(
 			map
 				.getByRole("region", { name: "Legend", exact: true })

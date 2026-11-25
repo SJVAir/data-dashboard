@@ -100,8 +100,6 @@
 	let { widget, fullscreen = false }: { widget: WidgetInstance; fullscreen?: boolean } = $props();
 	const app = useApp();
 
-	/** Below this widget width the legend folds into a "Legend" button. */
-	const NARROW_PX = 360;
 	/** Below this widget width (the toolbar's narrow breakpoint) the day stepper drops its slider. */
 	const STEPPER_NARROW_REM = 48;
 
@@ -1137,7 +1135,6 @@
 		else if (data.monitorsState.status === "error") data.retryMonitors();
 	}
 
-	const narrow = $derived(width > 0 && width < NARROW_PX);
 	/** The toolbar's narrow breakpoint (48rem), which the day stepper follows. */
 	const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
 	const stepperNarrow = $derived(width > 0 && width < STEPPER_NARROW_REM * remPx);
@@ -1184,7 +1181,7 @@
 
 {#snippet overlays()}
 	{#if map}
-		<MapLegendOverlay {map} {narrow} bind:open={legendOpen} />
+		<MapLegendOverlay {map} bind:open={legendOpen} />
 	{/if}
 	{#if map && (!map.ready || data.monitorsLoading)}
 		<!-- Over the map and its legend, under the notes (the toolbar and list stay usable). -->

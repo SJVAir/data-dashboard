@@ -6,21 +6,19 @@
 
 	/**
 	 * The map's legend, bottom left, never over the toolbar (it scrolls instead). A "Legend" header
-	 * folds it at any width, as monitor-map's does; it starts open on a wide widget and folded on a
-	 * narrow one, until the person chooses.
+	 * folds it at any width, as monitor-map's does; it starts folded at every width, until the
+	 * person opens it.
 	 */
 	let {
 		map,
-		narrow,
 		open = $bindable(null)
 	}: {
 		map: MapContext;
-		narrow: boolean;
 		/** The person's choice (null until they toggle); bound, so it outlives a new map. */
 		open?: boolean | null;
 	} = $props();
 
-	const shown = $derived(open ?? !narrow);
+	const shown = $derived(open ?? false);
 	const id = $props.id();
 </script>
 

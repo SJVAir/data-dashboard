@@ -1137,7 +1137,7 @@ test("a failed place lookup shows the error, and a retry looks it up again", asy
 	await expect.poll(() => screen.getByText(m.widget_state_error()).query()).toBeNull();
 });
 
-test("the legend sits in the widget's card, folds at any width, and starts folded when narrow", async () => {
+test("the legend sits in the widget's card, starts folded at any width, and keeps the choice", async () => {
 	const screen = await show(mapWidget(region("019")));
 	const map = await madeMap();
 	map.ready = true;
@@ -1146,14 +1146,16 @@ test("the legend sits in the widget's card, folds at any width, and starts folde
 		.toBe("false");
 	const legend = () => frame.querySelector<HTMLElement>("[data-legend]")!;
 	const toggle = screen.getByRole("button", { name: m.map_legend_toggle() });
-	// Wide: open, and the header folds it.
-	await expect.element(toggle).toHaveAttribute("aria-expanded", "true");
+	// Wide: folded until the header opens it.
+	await expect.element(toggle).toHaveAttribute("aria-expanded", "false");
 	const controls = toggle.element().getAttribute("aria-controls")!;
 	expect(document.getElementById(controls)?.contains(legend())).toBe(true);
+	await expect.poll(() => legend().checkVisibility()).toBe(false);
+	await toggle.click();
+	await expect.element(toggle).toHaveAttribute("aria-expanded", "true");
 	await expect.poll(() => legend().checkVisibility()).toBe(true);
 	await toggle.click();
 	await expect.element(toggle).toHaveAttribute("aria-expanded", "false");
-	await expect.poll(() => legend().checkVisibility()).toBe(false);
 	await toggle.click();
 	await expect.element(toggle).toHaveAttribute("aria-expanded", "true");
 	await expect.poll(() => legend().checkVisibility()).toBe(true);
@@ -5077,7 +5079,9 @@ test("at about 300 px tall the legend fits under the toolbar and scrolls", async
 	const screen = await show(mapWidget(region("019")));
 	const map = await madeMap();
 	map.ready = true;
-	await expect.poll(() => frame.querySelector("[data-legend]")).toBeTruthy();
+	// It starts folded: open it.
+	await screen.getByRole("button", { name: m.map_legend_toggle() }).click();
+	await expect.poll(() => frame.querySelector("[data-legend]")?.checkVisibility()).toBe(true);
 	const card = frame.querySelector("[data-legend]")!.parentElement!;
 	// A legend taller than the map, as with several layers.
 	const tall = document.createElement("div");
