@@ -20,6 +20,7 @@ import { getMetadata } from "$lib/data";
 import { APP_CONTEXT_KEY, LAST_OPENED_KEY, initApp, type AppContext } from "$lib/store/app.svelte";
 import { createMemoryTabHub } from "$lib/store/tab-channel";
 import { animationsSettled } from "../test/animations";
+import { openSection } from "../test/sections";
 import App from "../App.svelte";
 import { navigate } from "../router";
 import GetData from "./GetData.svelte";
@@ -383,16 +384,8 @@ test("Edit data on the starter while the types load: the copy it saves keeps sav
 
 const datesButton = () => page.getByRole("button", { name: /^Dates/ });
 
-/** Opens the air-quality What section (every section starts closed; this test has no catalog, so it carries its dataset key). */
-async function openAirQuality() {
-	const trigger = page.getByRole("button", { name: /^air.quality(?! forecasts)/i });
-	await expect.element(trigger).toBeVisible();
-	if (trigger.element().getAttribute("aria-expanded") === "false") {
-		await trigger.click();
-		await animationsSettled(document.body);
-	}
-	await expect.element(trigger).toHaveAttribute("aria-expanded", "true");
-}
+/** The air-quality What section (this test has no catalog, so it carries its dataset key). */
+const AIR_QUALITY = /^air.quality(?! forecasts)/i;
 
 /** A draft change the Map offers while the catalog loads: its dates. */
 async function chooseLastWeek() {
@@ -415,7 +408,7 @@ test("Edit data on the starter's Map: a change made while the types load survive
 		await chooseLastWeek();
 		answer();
 		await expect.poll(() => app.starterTypes).not.toBeNull();
-		await openAirQuality();
+		await openSection(AIR_QUALITY);
 		// The types swap left the draft alone.
 		await expect.element(page.getByRole("checkbox", { name: "BAM 1022" })).toBeVisible();
 		await expect.element(datesButton()).toHaveTextContent("Last 7 days");
@@ -539,7 +532,7 @@ test("Edit data on the starter's Map keeps exactly the types the person ticked",
 	try {
 		answer();
 		await expect.poll(() => app.starterTypes).not.toBeNull();
-		await openAirQuality();
+		await openSection(AIR_QUALITY);
 		await page.getByRole("checkbox", { name: "BAM 1022" }).click();
 		await saveButton().click();
 		const map = await savedWidget();

@@ -35,6 +35,7 @@ import {
 	fakeForecastsAdapter,
 	fakeNumberAdapter
 } from "$lib/widgets/shared/test-harness/fake-data";
+import { openSection } from "../../test/sections";
 import { animationsSettled } from "../../test/animations";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { makeDoc } from "$lib/sync/test-support";
@@ -403,20 +404,6 @@ async function drawn(host: HTMLElement) {
 	await expect
 		.poll(() => host.querySelector("[data-testid=get-data-preview] canvas"), { timeout: 5000 })
 		.not.toBeNull();
-}
-
-/**
- * Opens a What section by its name, as a person would; one already open is left alone. Every
- * section starts closed.
- */
-async function openSection(name: string | RegExp) {
-	const trigger = page.getByRole("button", { name });
-	await expect.element(trigger).toBeVisible();
-	if (trigger.element().getAttribute("aria-expanded") === "false") {
-		await trigger.click();
-		await animationsSettled(document.body);
-	}
-	await expect.element(trigger).toHaveAttribute("aria-expanded", "true");
 }
 
 /** Opens Data resolution (it starts closed), as a person would. */

@@ -1,5 +1,7 @@
 import { expect, test } from "./fixtures";
 import {
+	AIR_QUALITY_SECTION,
+	CHART_TITLE,
 	DASHBOARD_URL,
 	NOTE,
 	STARTER_TITLES,
@@ -9,7 +11,6 @@ import {
 	makeOwnCopy,
 	openPicker,
 	openSection,
-	AIR_QUALITY_SECTION,
 	shareLinkFor,
 	sharedDoc,
 	widgetMenuItem,
@@ -69,6 +70,15 @@ for (const colorScheme of ["light", "dark"] as const) {
 		test("the Data Portal with a What section open", async ({ page }) => {
 			await page.goto("data");
 			await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
+			await openSection(page, AIR_QUALITY_SECTION);
+			await expectNoViolations(page);
+		});
+
+		test("a widget's Edit data with a What section open", async ({ page }) => {
+			await makeOwnCopy(page);
+			await addWidget(page, "Chart");
+			await widgetMenuItem(page, CHART_TITLE, "Open in Data Portal", 1);
+			await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeFocused();
 			await openSection(page, AIR_QUALITY_SECTION);
 			await expectNoViolations(page);
 		});
