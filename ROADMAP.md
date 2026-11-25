@@ -142,16 +142,17 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
   switch, and the wording and behavior fixes parked for it. Spec
   `docs/superpowers/specs/2026-11-03-design-pass-design.md`.
 
-4. **Get data (formerly Widget Creation) and the non-map widgets** (seven specs, stacked into
-   `step-4`; see `TODO.md`; spec 3b, the Get data layers, added after spec 3 by the user on
+4. **The Data Portal and the non-map widgets** (seven specs, stacked into
+   `step-4`; see `TODO.md`; spec 3b, the Data Portal layers, added after spec 3 by the user on
    2026-11-05). **All seven specs merged into `step-4` by 2026-11-10** (#36, #38, #40, #43, #45,
    #47, #49), and `step-4` merged into `main` with the user's yes
-   - **Get data** (formerly the Data Explorer and Widget Creation view; renamed 2026-11-05:
-     data first, then how to show it; Add to dashboard or Download CSV; catalog-driven dataset
-     sections, layers and overlays, advanced resolution override; built in spec 3)
-   - **spec 3b:** Get data's layers for weather (CIMIS station summaries, with a station choice),
-     smoke per day, and monthly pesticide use (with the explorer's filters); number layers in
-     strips under the chart and on their own; on `@sjvair/sdk` `5.0.0-beta.6` (the pesticide
+   - **The Data Portal** (built as "Get data", renamed from the Data Explorer and Widget
+     Creation view 2026-11-05; the Data Portal since 2026-11-19): data first, then how to show
+     it; Add to dashboard or Download CSV; catalog-driven dataset sections, layers and overlays,
+     advanced resolution override; built in spec 3
+   - **spec 3b:** the Data Portal's layers for weather (CIMIS station summaries, with a station
+     choice), smoke per day, and monthly pesticide use (with the explorer's filters); number
+     layers in strips under the chart and on their own; on `@sjvair/sdk` `5.0.0-beta.6` (the pesticide
      filters; server and SDK first done 2026-11-05: sjvair.com #310–#313, sdk-js #51–#54)
    - the **starter dashboard** (first-visit default; place defaults to Fresno County, with a
      "Change place" bar; the first edit makes a personal copy) with non-map widgets: Current
@@ -206,7 +207,7 @@ Both server PRs are on sjvair.com `develop`, not yet in production. Current base
         torn down when off screen. **Merged into `step-5` 2026-11-12** (#53, on map-sdk
         `0.1.0-beta.9`).
      2. The Map's data per tile (several data sets, monitors limited to the tile's places,
-        chosen in Get data and loaded through the dashboard's data layer), the saved map
+        chosen in the Data Portal and loaded through the dashboard's data layer), the saved map
         selection, the reading card's Select/Remove and Shift-click, and the focus area (map-sdk
         `0.1.0-beta.11`).
      3. The options toolbar, built from the tile's data, plus Settings, on map-sdk's shared

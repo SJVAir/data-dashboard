@@ -6,8 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 SJVAir's data dashboard — a Vite + Svelte 5 SPA: a personal, interactive dashboard and
 data-analysis toolbox over all public SJVAir data, for community members, schools, and
-researchers. Three views: **Dashboard** (windowed widgets), **Widget Creation**, and
-**Analysis** (Collections, starter analyses, notebooks).
+researchers. Three views: **Dashboard** (windowed widgets), the **Data Portal** (configures a widget's
+data), and **Analysis** (Collections, starter analyses, notebooks). The Data Portal was formerly
+"Widget Creation", "the Data Explorer" and "Get data" (older docs, specs, commits and PR titles
+use those names); use "Data Portal" in new text.
 
 Where to look:
 
@@ -61,7 +63,7 @@ reuse existing code only if it's exactly what the new design needs.
 ### State architecture
 
 - **Dashboard direction (new code):** the URL identifies _where you are_ (dashboard,
-  fullscreen widget, Widget Creation, Analysis); saved documents hold _what's there_.
+  fullscreen widget, the Data Portal, Analysis); saved documents hold _what's there_.
   All document edits go through `applyChange` (gives undo/redo), and every change
   autosaves (there is no explicit Save). See `ARCHITECTURE.md` →
   "Routing, URL state & undo" and "Saving & sharing documents".

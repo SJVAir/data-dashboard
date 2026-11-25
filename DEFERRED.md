@@ -31,7 +31,7 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   `check:budget` jumps after adding a package (check whether it needs a `BARRELED` entry), or
   when the budget is next over.
 - **bits-ui helpers in `BARRELED` (initial bundle near the budget).** _Deferred 2026-11-05
-  (step 4 spec 3, Tasks 9–11)._ To keep Get data's bits-ui primitives (Select, Accordion,
+  (step 4 spec 3, Tasks 9–11)._ To keep the Data Portal's bits-ui primitives (Select, Accordion,
   Collapsible, Toggle Group, Alert Dialog) out of the initial bundle, `vite.config.ts`'s
   `BARRELED` names them and some bits-ui helpers by hand (some used only by Select); a bits-ui
   upgrade that renames or moves them may pull them back into the app chunk. After this spec the
@@ -427,7 +427,7 @@ string`) now get the union return type. The mobile app passes a string token, so
   security issue (a cross-site page can't set the header). **Revisit with** the next
   resticus change; fix by raising `AuthenticationFailed` there.
 - **sjvair.com: a malformed id on `hms/smoke/<id>/` and `hms/fire/<id>/` isn't a 404.** _Found
-  2026-11-05 (Get data layers); narrowed 2026-11-06._ Monitors are fixed: sjvair.com #314 (merged)
+  2026-11-05 (Data Portal layers); narrowed 2026-11-06._ Monitors are fixed: sjvair.com #314 (merged)
   answers one JSON 404 `"Resource not found"` for bad and unknown monitor ids on every route,
   writes with an access key included. Smoke and Fire detail go through resticus's `get_object`,
   which doesn't treat an unparseable id as not found: production answers 400 with the unfilled
@@ -1706,10 +1706,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     - Notice groups follow the server's order (sort them for deterministic markers).
     - The import cycle `metadata.ts` ↔ `pesticide-meta.ts` (`untilAborted`); it works today.
       **Revisit if** it bites.
-  - **Get data and the widget:**
-    - Get data's "doesn't apply" lines aren't tied to their filter field for screen readers
+  - **The Data Portal and the widget:**
+    - The Data Portal's "doesn't apply" lines aren't tied to their filter field for screen readers
       (`aria-describedby`); the text sits next to the group.
-    - A failed meta load in Get data refetches only on toggle.
+    - A failed meta load in the Data Portal refetches only on toggle.
     - Before the pesticides meta loads, the legend's "Filtered by" can briefly name a skipped
       filter (self-correcting).
   - **Test gaps:**
@@ -1735,13 +1735,13 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
       non-retrying reads; the fixtures' `past` flag is never asserted in the UI (the UI doesn't
       use it); the Tulare fixture points are approximate real locations (county-level; use
       clearly fake points); `routeMapNotices`' doc comment runs over 100 columns.
-    - Process: the Get data browser test never ran RED (written after the implementation), and
+    - Process: the Data Portal browser test never ran RED (written after the implementation), and
       the catalog fixture uses an `as CatalogEntry` cast.
 
 - **Step 5 spec 5b review leftovers.** _Deferred 2026-11-17 (step 5 spec 5b, pesticide use; the
   task reviews and the review-leftovers sweep)._ Small things the reviews let stay, each with its
   own trigger.
-  - **Get data's filter set remounts when use turns on** (`MapSections.svelte`). The one filter
+  - **The Data Portal's filter set remounts when use turns on** (`MapSections.svelte`). The one filter
     set shows in the notices section, and moves to the use section once use is on, so it mounts
     again there: a half-typed chemical search is lost (focus is on the use switch, outside the
     set). Keeping it mounted means moving it out of both sections (a shared filters section) or
@@ -1794,7 +1794,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   everywhere overlay have no meaningful pairing, and overlays pair by index, so the valley's use
   would sit beside the first station only (or one station's weather beside the valley), which
   would mislead. **Revisit when** someone asks for overlays with no Where.
-- **A weekly data resolution.** _Deferred 2026-11-18 (step 5 spec 6a)._ Get data offers
+- **A weekly data resolution.** _Deferred 2026-11-18 (step 5 spec 6a)._ The Data Portal offers
   Every measurement, Hourly, Daily, Monthly and Yearly. Why: the server has no weekly summaries;
   it would need server work, with weeks starting Sunday in Pacific time, and the dashboard
   computes no coarse figure itself. **Revisit when** someone asks for weekly figures.
@@ -1941,13 +1941,13 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   per-monitor-type switch). PM10 is still raw: the client fetches it span-capped and chunked and
   downsamples it in a worker. **Revisit when** raw PM10 fetches get slow or large. It's now a
   one-line switch per monitor type (or the model flag, if regions should get it too).
-- **Region-level weather summaries.** _Deferred 2026-11-05 (Get data layers, the user)._ CIMIS
+- **Region-level weather summaries.** _Deferred 2026-11-05 (Data Portal layers, the user)._ CIMIS
   stations get monitor summaries only; there are never region rows for weather. Region
   weighting is built on air-sensor grades and health checks, so weather would need its own
-  rule. Get data gives a place its weather through the nearby-stations list
+  rule. The Data Portal gives a place its weather through the nearby-stations list
   (`monitors/weather/place/`) and one station's summaries. **Revisit when** a place needs one
   blended weather value instead of a station's.
-- **Wind direction summaries (circular mean).** _Deferred 2026-11-05 (Get data layers, the
+- **Wind direction summaries (circular mean).** _Deferred 2026-11-05 (Data Portal layers, the
   user)._ `winddirection` stays raw: averaging angles is wrong. A circular mean (and perhaps a
   prevailing-direction stat) would need its own aggregation. **Revisit when** a chart or the
   pollution-rose preset needs daily or monthly prevailing wind.
@@ -1956,14 +1956,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   records), exposed through the new `sections/` and `townships/` endpoints (`month=`) and
   section detail. The `region/<id>/summary/` endpoint is still chemical × commodity ×
   year. **Updated 2026-11-05:** `pesticides/place/` (sjvair.com #310) now serves monthly
-  pounds, acres and applications for any place, for the Get data page. Starter analysis #9
+  pounds, acres and applications for any place, for the Data Portal. Starter analysis #9
   stays yearly for now. **Revisit when** users need seasonal pesticide timing in an
   analysis; it now needs only a client adapter on `getPesticidesForPlace`.
-- **Pesticide use within a distance of a place.** _Deferred 2026-11-05 (Get data layers,
+- **Pesticide use within a distance of a place.** _Deferred 2026-11-05 (Data Portal layers,
   the user)._ `pesticides/place/` counts a place's use by region membership: a region's
   touching MTRS sections, a monitor (or a school, via the client) by its ZIP. "Use within 1
   mile of this school" would need a buffer (the `shapes.BUFFERS` choices, as `sections/`
-  already takes). Region membership is the rule for every Get data layer today. **Revisit
+  already takes). Region membership is the rule for every Data Portal layer today. **Revisit
   when** the dashboard wants a distance option or users ask about nearby use.
 - **Fast pesticide totals for multi-county places.** _Deferred 2026-11-05 (sjvair.com #310
   final review)._ `pesticides/place/` sums a non-county place through the MTRS sections it
@@ -1973,7 +1973,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   with `county__in` and only partial ones by section would fix it. **Revisit when** a
   widget uses a multi-county place (air district, legislative district) or cold requests
   show up as slow in production timing.
-- **Smoke "no data" vs "no smoke".** _Deferred 2026-11-05 (Get data layers, the user)._
+- **Smoke "no data" vs "no smoke".** _Deferred 2026-11-05 (Data Portal layers, the user)._
   `hms/smoke/place/` (sjvair.com #312) reads a day with no stored HMS outlines as no smoke
   (`density: null`). An empty HMS file and a fetch that never ran store the same nothing, so a
   missed day reads as clear sky. Fix: record each successful daily fetch (a small per-day
@@ -2580,8 +2580,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **Some places fit silently, with no note.** A selection with retired or missing monitors, or
     with some regions missing, fits to what it finds. A single unlisted monitor does get a note.
     **Revisit if** someone is confused by a map that shows fewer places than they picked.
-  - **No Get data test for a failed map pollutant list.** Get data treats `"unavailable"` like an
-    empty list, the same as before. **Revisit with** the next change to Get data's Map path.
+  - **No Data Portal test for a failed map pollutant list.** The Data Portal treats `"unavailable"`
+    like an empty list, the same as before. **Revisit with** the next change to the Data Portal's
+    Map path.
   - **The no-key "Map unavailable" isn't a `WidgetState` card,** and it hides an idle map's
     "Choose a place". Only a build without a MapTiler key shows it. **Revisit with** the next
     change to the widget's states.
@@ -2704,7 +2705,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **The setter path could discard a just-kept starter if the current one is another kept
     starter** (T7-m2). Unreachable today. **Revisit with** the next change to the starter claims
     in `src/lib/store/app.svelte.ts`.
-  - **Edit data on the starter: `starterPlace` and `resetCount` dependencies are untracked**
+  - **Opening a starter widget in the Data Portal: `starterPlace` and `resetCount` dependencies are untracked**
     (T8-m2, likely unreachable; _looked at in the final review's fixes, 2026-11-23, which changed
     `GetData.svelte`'s Save: left, still unreachable_); **the Edit-data-on-the-starter tests that check the page stays
     where the person went use a `setTimeout(200)` negative check** (T8-m8, and the two the final
@@ -2746,11 +2747,11 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   far) point looks like any other; the readout still says it's incomplete. **Revisit if** five-
   place charts are common, or when the series markers are reviewed.
 
-- **Air monitors' temperature and humidity as Get data overlays.** _Deferred 2026-11-05 (step 4
+- **Air monitors' temperature and humidity as Data Portal overlays.** _Deferred 2026-11-05 (step 4
   spec 3)._ They stay unsummarized on the server (raw readings only), so the weather summaries
   work (CIMIS stations only) doesn't bring them. **Revisit if** the server summarizes them, or a
   raw-only overlay is wanted.
-- **Fires near a place or per day, TEMPO, and emissions series in Get data.** _Deferred
+- **Fires near a place or per day, TEMPO, and emissions series in the Data Portal.** _Deferred
   2026-11-05 (step 4 spec 3)._ None has a per-place time series today: TEMPO isn't in the SDK,
   and emissions are yearly snapshots. **Revisit when** a widget needs one of them, or the Map
   widget (fires) is built.
@@ -2759,7 +2760,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   Level layers alone (smoke days, no-burn days) still can't make a widget or a CSV: the reason
   shows. Spec 5's calendars kept to pollutants, so this waits on "Other data in the calendars"
   (under Widgets). **Revisit with** that item.
-- **Wind direction in Get data.** _Deferred 2026-11-07 (step 4 spec 3b)._ It's raw-only, and a
+- **Wind direction in the Data Portal.** _Deferred 2026-11-07 (step 4 spec 3b)._ It's raw-only, and a
   compass bearing is circular (a line jumps between 359 and 0). **Revisit if** the server
   summarizes it (a prevailing direction), or someone asks for a wind rose.
 - **"Every measurement" for weather.** _Deferred 2026-11-07 (step 4 spec 3b)._ Weather offers
@@ -2783,8 +2784,8 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   3)._ When a Chart's places fall in different forecast zones, the Chart's "Overlay for" choice
   picks which place's overlay it draws (the Data table and CSV have every place's). **Revisit
   when** users ask to compare overlays across places, or with spec 5's chart work.
-- **Get data's Detail limits are estimates.** _Deferred 2026-11-05 (step 4 spec 3, Task 9)._
-  "Data resolution" (a closed section in Get data's left column) greys out levels using guessed
+- **The Data Portal's Detail limits are estimates.** _Deferred 2026-11-05 (step 4 spec 3, Task
+  9)._ "Data resolution" (a closed section in the Data Portal's left column) greys out levels using guessed
   limits: places × periods over 50 000 blocked, and 720 raw readings a day per place. No level
   has a range cap of its own: the server's 31-day cap is per request, and the adapters ask a
   month (or 31 raw days) at a time
@@ -2796,7 +2797,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   custom range of 8/10/24 to 10/09/24 (read as Aug 10 – Oct 9, 2024) while the year calendar
   (the contribution calendar, `calendar-contribution`) was shown. Not investigated yet: the
   exact symptom and the cause are unknown. **Revisit when** the user picks it up (they said "we
-  will revisit this later"): reproduce with that range on a year calendar in Get data first.
+  will revisit this later"): reproduce with that range on a year calendar in the Data Portal first.
 - **Step 5 spec 7a review leftovers.** _Deferred 2026-11-22 (step 5 spec 7a, final review)._
   Minor; none affects what ships. **Fix with** the next change to the code around each:
   - E2E documents are hand-written types (`DocWidget`, `SharedDocument`): derive them from the
@@ -2826,7 +2827,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 - **`getMonitors` has no type option.** _Deferred 2026-11-22 (step 5 spec 7a, final review)._ The
   Map on Now filters monitor types in the dashboard (decision 35), after loading every monitor.
   **Revisit when** the SDK adds a `type` option to `getMonitors`: filter on the server then.
-- **Get data review leftovers.** _Deferred 2026-11-05 (step 4 spec 3, final review)._ Small
+- **Data Portal review leftovers.** _Deferred 2026-11-05 (step 4 spec 3, final review)._ Small
   things the review let stay, each rare or harmless today:
   - **A forecasts 404 gives an empty series, not "unavailable"** (Task 5 ruling): `fetch` can't
     return unavailable per place, so "this place isn't covered" reads the same as "no forecasts
@@ -2851,9 +2852,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **Rare storage failures when adding:** a failed starter hand-off keeps the add queued (a
     retry adds two widgets), and `createBlank` followed by a session-open failure leaves an
     empty dashboard. **Revisit if** reported.
-  - **Edit data edges:** a replayed size clamp overwrites a concurrent move (last wins); Back
+  - **Opening a widget in the Data Portal, edges:** a replayed size clamp overwrites a concurrent move (last wins); Back
     while dirty flickers the URL, and a second Back while the dialog is open isn't handled; a
-    dataset gone entirely shows no "Choose another" (⋯ Edit data still works); the
+    dataset gone entirely shows no "Choose another" (⋯ Open in Data Portal still works); the
     unknown-widget page links only to "Your dashboards". **Revisit if** reported, or with
     sv-router's next `blockNavigation` change.
   - **Two `regions/meta` fetches** (the resolver's and the directory's), and `regionsMeta()`
@@ -2866,11 +2867,11 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **Test gaps and one duplication** (the user kept these 2026-11-06 out of the review's
     eight nits): no test pins the Add widget menu's order (data types first) or `typeBlock`
     with no layers; the Chart's "borrowed place" test doesn't prove the overlay asked for the
-    main layer's place, and nothing tests an overlay whose levels fail to load; Edit data
-    repeats `DashboardPage.svelte`'s fetch-a-server-only-dashboard steps and its not-found
+    main layer's place, and nothing tests an overlay whose levels fail to load; opened on a
+    widget, the Data Portal repeats `DashboardPage.svelte`'s fetch-a-server-only-dashboard steps and its not-found
     markup (`src/routes/GetData.svelte`), so the two can drift. **Revisit when** those files
     are next touched (the duplication first: a shared helper and not-found component).
-- **Get data layers review leftovers.** _Deferred 2026-11-07 (step 4 spec 3b, final review)._
+- **Data Portal layers review leftovers.** _Deferred 2026-11-07 (step 4 spec 3b, final review)._
   Small things the review let stay, each rare or harmless today:
   - **With the catalog down, `mainLayer` falls back to the first layer with an entry type,**
     which can be a level layer, so the place picker could write places onto an overlay.
@@ -2965,7 +2966,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **Switching a calendar whose range is exactly "Last 30 days"** (the app default) to the other
     calendar gives it the new type's default range, as an untouched range would (Ruling 9's
     `wasDefault`). **Revisit if** someone loses a chosen 30-day range that way.
-  - **Get data keeps one note slot:** a range note replaces an earlier conversion note.
+  - **The Data Portal keeps one note slot:** a range note replaces an earlier conversion note.
     **Revisit if** both are needed at once.
   - **`moveFocus` assumes the selectable days run first ≤ last.** Today a range with no selectable
     day (all still to come) sets `selectable: null`, so the grid never calls it then. **Revisit
@@ -2983,7 +2984,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     after a range change; Home/End/Page Up/Page Down, drag and Shift-click in the year calendar's
     weeks layout; the cross-widget patterns on-again check and the misnamed "a fresh space starts
     with patterns on" test; races and midnight rollover in the calendar data; real (not synthetic)
-    drags, including a release outside the grid; Escape's `stopPropagation`; the Get data keyboard
+    drags, including a release outside the grid; Escape's `stopPropagation`; the Data Portal keyboard
     Show-as test (loose), its weather case using census, and the span reason; the adapter's bulk
     all-places path, figure at non-day resolutions, with `worstHour`, and the client carrying
     `figure` (was `dailyFigure`); an open-days call failing the whole query (deliberate: no partial
@@ -3281,16 +3282,17 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   menu-opening keys, which ship in Release 1). _Deferred 2026-09-23 (IDEA.md
   Q5)._ The shared action registry is designed to feed these. **Revisit when** the action
   registry and the widget "⋯" menus have shipped.
-- **Asking before closing the tab or reloading with unsaved Edit data changes** (a browser
-  `beforeunload` prompt). _Deferred 2026-11-05 (step 4 spec 3, Edit data; ruled out of scope
+- **Asking before closing the tab or reloading with unsaved changes to a widget in the Data
+  Portal** (a browser `beforeunload` prompt). _Deferred 2026-11-05 (step 4 spec 3, "Edit data",
+  now the Data Portal opened on a widget; ruled out of scope
   for the task)._ Cancel, Back, forward and in-app links ask "Discard changes?"; closing the
   tab or reloading drops the unsaved edit without asking (the dashboard itself is untouched,
   since nothing is applied before Save changes). sv-router's `blockNavigation` already takes a
-  `beforeUnload` callback. **Revisit when** people report losing Edit data work to a closed tab
-  or reload, or when Edit data grows long-running edits.
-- **Rare read-only dashboards in Get data's "Add to" menu.** _Deferred 2026-11-05 (step 4 spec
+  `beforeUnload` callback. **Revisit when** people report losing Data Portal work to a closed
+  tab or reload, or when the Data Portal grows long-running edits.
+- **Rare read-only dashboards in the Data Portal's "Add to" menu.** _Deferred 2026-11-05 (step 4 spec
   3, Task 10)._ A dashboard saved by a newer build, or one that couldn't keep its original, opens
-  read-only, but the dashboard index carries no read-only flag, so Get data's target menu still
+  read-only, but the dashboard index carries no read-only flag, so the Data Portal's target menu still
   lists it and adding fails with an error toast. Shared dashboards are never offered. **Revisit
   if** it's reported (then put a read-only flag on the index).
 - **A toast that appears under a still pointer can stay up forever in Firefox** (svelte-sonner
@@ -3299,7 +3301,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   settles; svelte-sonner's Firefox workaround ignores a leave within 1px of the last position,
   so the toaster stays "expanded" (paused) until the pointer enters and leaves it again. Seen
   after "Add to …" (the "Saved as your own dashboard" toast lands where the pointer was). Why
-  deferred: it's in the library, and since toasts now sit above Get data's action bar
+  deferred: it's in the library, and since toasts now sit above the Data Portal's action bar
   (`toastClearance`) the stuck toast covers nothing the person is using; moving the mouse over
   it and off dismisses it. **Revisit when** svelte-sonner changes that check (report it
   upstream), or if people report toasts that don't go away.
@@ -3797,7 +3799,7 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
   longer than asked; the backup download covers a change of mind for documents.
 - **"Mark for analysis" on every widget** (IDEA.md's wording): _2026-09-28_. Notes and the
   Alerts feed hold no query, so they are `analyzable: false` and don't offer it.
-- **Building Widget Creation "based on what we currently have"** (IDEA.md's wording):
+- **Building Widget Creation (now the Data Portal) "based on what we currently have"** (IDEA.md's wording):
   _2026-09-28_. It is built fresh; the v1 tabs' options reappear as accordions, but no
   v1 code is carried over unless it is exactly what the new design needs.
 - **Server `sqid`s as the saved reference for regions and locations** (with official codes
@@ -3887,7 +3889,7 @@ notes):
 - **The "weeks start on Sunday" test lives in `date-presets.test.ts`** but exercises the shared
   range code.
 - **The forecasts test fixtures' nested ternary and casts** (`src/lib/data/testing/fixtures.ts`).
-- **The Get data view's tests were written after the components** (test-first order skipped;
+- **The Data Portal's tests were written after the components** (test-first order skipped;
   the tests cover the behavior).
 - **`e2e/get-data.spec.ts` parses CSV by splitting on commas** (fine for its fixtures, which
   have no quoted commas).

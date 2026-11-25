@@ -37,8 +37,8 @@ for basic users, feature-rich for power users.
   "Widget catalog"). Multiple saved dashboards, selectable at minimum via a dropdown
   (decided 2026-09-24: a **dropdown in the top nav** for Release 1, with new / duplicate /
   rename / delete at its bottom; a visual thumbnail picker is deferred). "Add widget" picks a type
-  from the predefined list, then opens Widget Creation to configure its data.
-- **Widget Creation** — configures one widget's data (see below).
+  from the predefined list, then opens the Data Portal to configure its data.
+- **Data Portal** — configures one widget's data (see below).
 - **Analysis** (Release 3; the nav shows no Analysis entry before then) — Collections,
   starter and user-defined analyses, notebooks (see "Analysis: Collections & engine",
   "Notebooks").
@@ -115,7 +115,7 @@ Decided 2026-09-28. The dashboard a first-time visitor sees (not a blank page):
 - **The starter's Map** (step 6 spec 1, decided 2026-11-23). Its place is the template's
   `default-place`, so "Change place" and "Duplicate for another place" move it like the other
   one-place widgets (it is not areas-only, so a school or point stays a school or point). Its data
-  is PM2.5 now, every monitor type ticked, plus smoke and fire, exactly as Get data stores them
+  is PM2.5 now, every monitor type ticked, plus smoke and fire, exactly as the Data Portal stores them
   (`mapStartData` plus `setSmokeAndFire`); it stores no options, so it looks like a new Map. A test
   checks it against that.
 - **Where its monitor types come from.** The template is synchronous and holds no type ids
@@ -133,22 +133,23 @@ Decided 2026-09-28. The dashboard a first-time visitor sees (not a blank page):
   (a 211–238 ms task) before anything scrolled near. Until it loads, the frame's title reads the
   type label "Map" (see `DEFERRED.md`).
 
-### Get data (formerly the Data Explorer and "Widget Creation view")
+### Data Portal (formerly Get data, the Data Explorer and the Widget Creation view)
 
-**Renamed 2026-11-05 (the user, step 4 spec 3, which built it; spec:
-`docs/superpowers/specs/2026-11-05-step-4-spec-3-get-data-design.md`).** **Shown to people as
-the "Data Portal"** (the user, 2026-11-19, step 5 spec 6a; it was "Data" in the nav, "Get data"
-and "Edit data" as headings): the top nav and the heading say **"Data Portal"**, opened from a
-widget the heading adds "Changing a widget's data", the widget menu item is **"Open in Data
-Portal"**, and messages say "…in the Data Portal". In docs and code it's still "the Get data
-view" (and "Edit data" for it opened on a widget). Older text saying "Widget Creation" or "Data Explorer" means this
-view. People mostly know what they want, so it isn't an explorer (sjvair.com's Pesticide and
+**Built in step 4 spec 3 as "Get data"** (renamed from the Data Explorer by the user,
+2026-11-05; spec: `docs/superpowers/specs/2026-11-05-step-4-spec-3-get-data-design.md`).
+**Renamed the Data Portal** (the user, 2026-11-19, step 5 spec 6a; it was "Data" in the nav, "Get
+data" and "Edit data" as headings): the top nav and the heading say **"Data Portal"**, opened
+from a widget the heading adds "Changing a widget's data", the widget menu item is **"Open in
+Data Portal"**, and messages say "…in the Data Portal". Code still names it `get-data` (e.g.
+`src/lib/get-data/`). Older text, specs, plans, commits and PR titles may say "Widget Creation",
+"Data Explorer", "Get data" or "Edit data"; all mean the Data Portal (renamed by the user
+2026-11-19). People mostly know what they want, so it isn't an explorer (sjvair.com's Pesticide and
 Facility Emissions explorers are "the explorers"). It doesn't overlap Release 3's Analysis view.
 
 **Data first, and never blank.** Pick _what_ data, _where_ and _when_, watch the live preview,
 choose how to show it, then **Add to dashboard** or **Download CSV** (no widget needed just to
 download). It opens already filled in: from the nav or "Add widget", the last draft, or for a
-first-timer **Fresno County · PM2.5 · last 30 days**; from a widget's **"Edit data"**, that
+first-timer **Fresno County · PM2.5 · last 30 days**; from a widget's **"Open in Data Portal"**, that
 widget's data. Notes (and later the Map) are added directly from "Add widget", since they don't
 start from data. Built fresh; the only carry-over from v1 is the idea of per-dataset options,
 now inside the dataset sections.
@@ -173,7 +174,7 @@ now inside the dataset sections.
 - **Sections start closed and never open by themselves (2026-11-24, the user; replaces step 4
   spec 3's "Air quality starts open" and step 5 spec 7's open-on-load rule: a type's main
   section, every section for the Map).** On first load every What section and Data resolution
-  are closed, for every type and for "Edit data". A missing pick is said under the closed
+  are closed, for every type and when opened on a widget. A missing pick is said under the closed
   section's name and in the action bar's blocked reason, so nothing opens to say it. On a type
   change, sections the person opened stay open and any the new type greys out close; nothing
   opens because of the change. A section listed later (location groups) arrives closed.
@@ -339,7 +340,7 @@ module's list helper); the note is `NowDropped` `"pollutants"` with the entry ty
 (`firstPollutantOnly` in `src/lib/widgets/current/pollutants.ts`, then `fromNowDraft`). Spec 5's calendars
 appear by registering descriptors (see "Widget-type contract"), with no change here.
 
-**Add to dashboard.** The button names its target: the dashboard Get data was opened from, else
+**Add to dashboard.** The button names its target: the dashboard the Data Portal was opened from, else
 the last-opened one; the menu lists the others and **"New dashboard"**. A read-only (shared)
 dashboard is never a target. The widget goes into the first free spot at the type's
 `defaultSize`, and you land on that dashboard with the new widget focused and briefly
@@ -349,11 +350,11 @@ with no saved dashboards the target is the starter (named as in the nav): adding
 so it makes the personal copy as any first edit does, with the same "Saved as your own
 dashboard" toast.
 
-**Edit data.** Every data widget's ⋯ menu has **"Edit data"**, opening the view with that
+**Opening a widget in the Data Portal.** Every data widget's ⋯ menu has **"Open in Data Portal"**, opening the view with that
 widget's data and **Save changes**, which applies one `setWidgetData` change (one undo step,
 including a switched type and a size clamped to the new type's `minSize`; the widget keeps its
 id, position, and title) and returns to the dashboard. "Choose another" on a retired dataset or
-entry type opens Edit data; "Change place" and "Choose a place" still open the place picker
+entry type opens the Data Portal on that widget; "Change place" and "Choose a place" still open the place picker
 directly. Leaving with unsaved changes (Cancel, Back, a nav link) asks **"Discard changes?"**
 (an alert dialog). Cancel goes Back only from an entry the app pushed; on a page opened from
 its link it goes to the dashboard (or `/` from `/data`), never off the app.
@@ -376,7 +377,7 @@ hides it. A Map offers Daily, Monthly and Yearly.
 
 **Routes** (see "Routing, URL state & undo"): `/data` (from the top nav),
 `/dashboards/:id/widgets/new` (from "Add widget"; `?type=` picks the starting Show as), and
-`/dashboards/:id/widgets/:widgetId/edit` (Edit data). The URL holds only where you are: **the
+`/dashboards/:id/widgets/:widgetId/edit` (the Data Portal on a widget). The URL holds only where you are: **the
 draft never goes in the URL**, so coordinates never do. An unknown dashboard or widget id shows
 the not-found page.
 
@@ -389,7 +390,7 @@ Back / Forward to that entry starts from the Map's draft again; an invalid one i
 normal saved draft is used.
 
 - **No saved draft:** a visit from a Map starts from the hand-off, keeps edits for this visit
-  only, and never writes the device's saved draft (as Edit data). "Add to" targets the Map's
+  only, and never writes the device's saved draft (as when it's opened on a widget). "Add to" targets the Map's
   dashboard when the person can edit it; a read-only dashboard is never a target (`addTargets`
   skips dashboards known to be read-only, and the hand-off's `skip`); "Add to" then names the
   last-opened dashboard, else the starter; when the starter is skipped, it falls to the first
@@ -409,7 +410,7 @@ normal saved draft is used.
 
 **The draft.** Kept in memory on the view and saved through the platform adapter as a
 preference (device-local, never synced) so a reload or later visit starts from it: one draft
-for `/data` and `…/widgets/new`; Edit data starts from the widget each time. It's a
+for `/data` and `…/widgets/new`; opened on a widget, it starts from the widget each time. It's a
 `WidgetDataConfig` plus the chosen type (and Chart options), validated with the same schemas on
 read (drafts are untrusted input); an invalid one is dropped for the default.
 
@@ -525,7 +526,7 @@ worker to show notifications, and that arrives with web push (see `DEFERRED.md`)
 no server changes; ships with the widgets.
 
 **Part 1 as built (step 4 spec 4, 2026-11-08).** Thresholds are per widget; Off is the default
-until a person picks a level (Get data's "Alert me at" choice). They apply to the two live tiles
+until a person picks a level (the Data Portal's "Alert me at" choice). They apply to the two live tiles
 (Current conditions and "Can we go outside?", the two `thresholds: true` "now" types; the Forecast strip has none);
 **Charts only display** a level-colored threshold line (keyed in the legend) and never toast or
 notify.
@@ -959,7 +960,7 @@ you:**
 
 | Anonymous (local via platform adapter)                 | Requires an account                                                                   |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------- |
-| Dashboards, widgets, Widget Creation                   | Automated alerts (SMS/email) + alert inbox                                            |
+| Dashboards, widgets, the Data Portal                   | Automated alerts (SMS/email) + alert inbox                                            |
 | Collections, analyses, notebook export, JupyterLite    | Creating server-backed documents & live share links (opening a link needs no account) |
 | Self-monitoring (client-side thresholds/notifications) | Cross-device sync                                                                     |
 | File / URL sharing (fork on open)                      |                                                                                       |
@@ -1358,7 +1359,7 @@ days" is 30), except a trailing-hours range, which is its elapsed hours / 24.
   stays empty until the server task runs. Since step 4 spec 1 the backfill's own last
   sub-period is filled one level finer again, and the backfill is skipped for places whose
   coarse value has arrived.
-- The **Data resolution** control in Get data (Release 1 step 4; renamed from "Show values" in
+- The **Data resolution** control in the Data Portal (Release 1 step 4; renamed from "Show values" in
   step 5 spec 6a); data table and exports show the resolution used.
 - **Where resolution lives** (decided 2026-09-28; revised 2026-11-18, step 5 spec 6a): the
   widget's data carries one `resolution` for every layer (`WidgetDataConfig.resolution`,
@@ -1440,10 +1441,10 @@ home (`/shared` redirects to `/`; `/shared/:token` is built, sync spec 3).
 /                                                last-opened dashboard (preference) or the starter
 /dashboards                                      all dashboards (list)
 /dashboards/:id                                  a dashboard
-/dashboards/:id/widgets/new?type=chart           Get data, adding to that dashboard (from Add widget)
+/dashboards/:id/widgets/new?type=chart           the Data Portal, adding to that dashboard (from Add widget)
 /dashboards/:id?widget=:widgetId                 that widget fullscreen (deep-linkable)
-/dashboards/:id/widgets/:widgetId/edit           Get data editing a widget's data ("Edit data")
-/data                                            Get data, from the top nav ("Data")
+/dashboards/:id/widgets/:widgetId/edit           the Data Portal editing a widget's data ("Open in Data Portal")
+/data                                            the Data Portal, from the top nav ("Data Portal")
 /analysis                                        Analysis home (your Collections)
 /analysis/collections/:id                        a Collection
 /analysis/collections/:id/analyses/:analysisId   an analysis run on it
@@ -1452,10 +1453,10 @@ home (`/shared` redirects to `/`; `/shared/:token` is built, sync spec 3).
 ```
 
 The `/analysis` routes arrive with Collections in Release 3 (see "Collections"). The three
-Get data routes were built in step 4 spec 3; `/dashboards/:id/widgets` (trimmed) goes to the
-dashboard, and the Get data draft never goes in the URL (see "Get data").
+Data Portal routes were built in step 4 spec 3; `/dashboards/:id/widgets` (trimmed) goes to the
+dashboard, and the Data Portal draft never goes in the URL (see "Data Portal").
 
-- **Back/forward navigates between places** (dashboards, fullscreen, Get data, Analysis) —
+- **Back/forward navigates between places** (dashboards, fullscreen, the Data Portal, Analysis) —
   never between edits.
 - **Ephemeral UI state stays out of the URL** (open accordions, in-progress map
   selection, calendar drag range).
@@ -1466,7 +1467,7 @@ dashboard, and the Get data draft never goes in the URL (see "Get data").
 - **Embedding:** same routes, held in memory when the host owns the URL (see
   "Embedding").
 - The v1 per-tab URL seeding is gone. Preferences hold the "last-opened dashboard" and the
-  Get data draft (through the platform adapter).
+  Data Portal draft (through the platform adapter).
 
 **Undo/redo (first release).** A **document-level undo/redo stack** (Ctrl+Z /
 Ctrl+Shift+Z, plus menu actions via the shared action list), separate from browser
@@ -1523,7 +1524,7 @@ It covers the dashboard only, not monitor-map or mobile.
   resolution: an earlier document's `Layer.resolution` is dropped by the schema and opens as
   Automatic. Types that pin a resolution keep it (the calendars' `day`).
 - **The rules module** (`src/lib/data/dataset-rules.ts`) answers every question the rule raises,
-  for Get data, the query client, the Chart, the Table and the Map. `LEVELS` (`raw`, `hour`,
+  for the Data Portal, the query client, the Chart, the Table and the Map. `LEVELS` (`raw`, `hour`,
   `day`, `month`, `year`; no quarter or season) and `MAP_LEVELS` (`day`, `month`, `year`).
   `layerOffers` is what one layer offers: its catalog `resolutions` that its adapter can fetch for
   the places (`offered.ts`; region air quality has no raw). An air-quality entry type listing only
@@ -1531,7 +1532,7 @@ It covers the dashboard only, not monitor-map or mobile.
   and spray notices offer `day` only, pesticide use `month` and `year`, forecasts `day`.
 - **Automatic** (`effectiveResolution`) starts from the range ladder (see "Data resolution &
   live refresh") and takes the finest level at or above it that every layer offers. When the
-  datasets moved it, Get data says so: "Automatic data resolution is now Monthly: Pesticide Use is
+  datasets moved it, the Data Portal says so: "Automatic data resolution is now Monthly: Pesticide Use is
   reported by month." A widget left open follows a growing range.
 - **Ticked monitor types are their own place kind** (`PlaceKind` `"monitor-types"`,
   `src/lib/data/dataset-rules.ts`, spec 7a): like regions, they have **no raw**, because they come
@@ -1543,16 +1544,16 @@ It covers the dashboard only, not monitor-map or mobile.
   types is in `DEFERRED.md`.
 - **Whole periods.** At Monthly or Yearly the range is whole months or years. The stored range
   keeps its kind; `resolveRange(range, now, resolution)` widens it, so "last 12 months" at
-  Monthly is the last 12 calendar months, the current one so far. When the range widens, Get data
-  shows the resolved dates, ending at today with "(so far)" when the range holds the current
+  Monthly is the last 12 calendar months, the current one so far. When the range widens, the Data
+  Portal shows the resolved dates, ending at today with "(so far)" when the range holds the current
   period. A custom range at a coarse resolution is picked in whole periods (month or year
   pickers).
-- **Get data greys out, never hides**: datasets the chosen resolution doesn't offer, resolutions a
+- **The Data Portal greys out, never hides**: datasets the chosen resolution doesn't offer, resolutions a
   chosen dataset doesn't offer (the reason names the dataset), and Show as types that can't show
   the dataset at its resolution. The action bar stays blocked while a dataset doesn't line up.
 - **Untrusted documents** (a share link, `/import#…`) that don't line up open without errors and
   are drawn, never rewritten: the main layer (a Map's first pollutant) decides the resolution,
-  the layers that don't offer it aren't drawn, and a note says why and to change it in Edit data.
+  the layers that don't offer it aren't drawn, and a note says why and to change it in the Data Portal.
 - **One figure per pollutant, everywhere.** "Monthly" is one value per Pacific calendar month in
   every widget, and each pollutant's value is the figure its scale is built on, named by the
   metadata (`MetadataSource.figure(entryType, resolution)`, through `figureFromScale`):
@@ -1580,14 +1581,14 @@ Decided 2026-09-23 (IDEA.md Open Question #2).
 
 **What gets staged is a query descriptor, not copied data.** This is the **single
 definition** used by Collections, saved documents, and export manifests. A widget's
-config is **one shared date range plus a list of layers** (see "Get data"),
+config is **one shared date range plus a list of layers** (see "Data Portal"),
 and each layer resolves to one descriptor:
 
 ```ts
 type QueryDescriptor = {
 	dataset: string; // from the meta/datasets/ catalog
 	entryType?: string; // pollutant/entry type where applicable
-	dateRange: DateRangeSpec; // set / rolling (to-date or trailing) / custom (see "Get data")
+	dateRange: DateRangeSpec; // set / rolling (to-date or trailing) / custom (see "Data Portal")
 	timeSubRange?: { start: string; end: string }; // e.g. calendar day-range selection
 	place?: PlaceRef; // Where: one area, school or point (never a monitor); or…
 	selection?: SpatialSelection; // …several areas (regions only). Never both; neither = everywhere
@@ -1645,7 +1646,7 @@ type DateRangeSpec =
   not on each layer's descriptor: the range is per widget. A layer resolves to a
   `QueryDescriptor` by taking the widget's `dateRange` and `timeSubRange`.
 - **Dates are Pacific calendar dates** (`YYYY-MM-DD`). `"to-date"` and `"trailing"` are the
-  two groups of the Rolling method (see "Get data").
+  two groups of the Rolling method (see "Data Portal").
 - **Where is on the widget, not on a layer** (decided 2026-10-13; moved by spec 7a, 2026-11-21;
   see "Widget data selection: What, Where and monitors (spec 7a)" below): `WidgetDataConfig.place`
   takes a `PlaceRef` (an area, a school or a point, which is how a chart keeps "my location");
@@ -1828,7 +1829,7 @@ kinds (not `default-place`, which only the built-in starter uses). Server suppor
 - **The shared place picker** (built in step 4 spec 2, 2026-11-04; spec
   `docs/superpowers/specs/2026-11-04-step-4-spec-2-place-picker-design.md`). A lazily loaded
   component (`src/lib/places/`) that a dialog hosts today (full screen on a phone) and spec 3's
-  Get data view and spec 6's starter bar can place inline. Its code never reaches the initial
+  Data Portal and spec 6's starter bar can place inline. Its code never reaches the initial
   bundle; the menu item and idle button reach it through `lazy.svelte.ts`.
   - **Getting there:** "Change place" in a Chart's or Data table's ⋯ menu (and its taskbar
     menu when minimized), only on an editable dashboard; "Choose a place" on the idle state;
@@ -1918,7 +1919,7 @@ type SpatialSelection = {
 - **B. Region picking**: uses the **shared place picker** (decided 2026-09-28), a non-map
   component built in **Release 1 step 4** that picks monitors, regions (any type in the
   hierarchy), schools and child-care sites, or points (`PlaceRef`), with search, hierarchy browsing, and single or multiple
-  selection, built on the region-hierarchy metadata. It's reused by Widget Creation's
+  selection, built on the region-hierarchy metadata. It's reused by the Data Portal's
   accordions, the "now" widgets, Collections item editing, the Map widget (the same
   picker, with the selection also shown on the map; selections sync both ways), and
   Release 2's alert-rule targets. Step 5 adds only map-specific method A (clicking
@@ -2027,17 +2028,17 @@ types are limited to, and where the camera goes.
 pesticide layers use (chemical, commodity, product, categories, cancer group, method, narrow-to).
 It is saved on each of the Map's pesticide layers (the notices, and the place-less pesticide use)
 and kept in step by `setMapPesticideFilters` (`src/lib/get-data/map.ts`); `mapPesticideFilters`
-reads the first. Get data's Map section edits it with `PesticideFilters.svelte`, shown in the
+reads the first. The Data Portal's Map section edits it with `PesticideFilters.svelte`, shown in the
 "Spray notices" section, and in the "Pesticide use" section once use is on. **The set outlives
 either layer while the other is on:** turning notices off keeps it on the use layer, and turning
 them on again takes it from there (`setNotices`); turning use on takes the notices' set
 (`setUse`). Turning off the last pesticide layer removes the set with it. One set applies to use,
-its classes, the section card's detail, and the notices. Filters are owner choices in Get data,
+its classes, the section card's detail, and the notices. Filters are owner choices in the Data Portal,
 never toolbar rows.
 
 - **Only what the notices take is sent.** The notices request carries only the filters the
   pesticides meta lists in `notice_filters` (`toNoticeParams`). A saved filter not listed (the
-  crop: notices record none) is named "‹filter›: doesn't apply to spray notices" in Get data and
+  crop: notices record none) is named "‹filter›: doesn't apply to spray notices" in the Data Portal and
   in the legend, and is left out of the legend's "Filtered by" line. It is never dropped
   silently.
 - **Filter-gone** works as on charts, but only for the filters the notices take: a saved
@@ -2279,7 +2280,7 @@ settings), plus its own EV charger and Wind groups, with the host's values in on
 
 - **Stops: days, months or years** (step 5 spec 4; months and years since step 5 spec 6a). A Map
   with a date range steps through it at its data resolution (Daily, Monthly or Yearly,
-  `MAP_LEVELS`; chosen in Get data, with Automatic; see "Datasets line up"). At Daily its
+  `MAP_LEVELS`; chosen in the Data Portal, with Automatic; see "Datasets line up"). At Daily its
   **stops** are each Pacific day of the range before today, then **Now** if the range includes
   today. At Monthly and Yearly they are each month or year of the range widened to whole periods,
   the current one last as "so far" (`days.ts` `periodStops`; future periods are cut). A range
@@ -2317,7 +2318,7 @@ settings), plus its own EV charger and Wind groups, with the host's values in on
   Daily** (the day's: `hms/*?date=`); **pesticide use only at Monthly and Yearly**, for the
   stop's month or year. A layer the resolution doesn't offer isn't drawn and has no toolbar row;
   from an untrusted document, a note says so ("‹dataset› isn't shown at this data resolution.
-  Change it in Edit data."). **A stop where no monitor in the places has a figure says "No
+  Change it in the Data Portal."). **A stop where no monitor in the places has a figure says "No
   figures for this day"** (or "this month", "this year"; once the stop has loaded, never while
   it loads; it joins the map's notes and its accessible name). The hidden-marks note's reason is
   "no figure for this period".
@@ -2386,7 +2387,7 @@ for the data that tile holds.
   always shows, because its options set up the map itself.
 - **Layers holds only Fire & Smoke** (the user, 2026-11-13; **and the region fill's row since
   step 5 spec 4, and a "Spray notices" row since spec 5a**): a show/hide switch for each. It
-  doesn't add or remove the data, which stays a Get data choice (the layers' data stays loaded
+  doesn't add or remove the data, which stays a Data Portal choice (the layers' data stays loaded
   while hidden, so showing again is instant, with no new request). The group shows when the tile
   has a fill, smoke and fire, or notices. The notices row (`NOTICES_KEY`, in `toolbar/values.ts`)
   is saved as `noticesShown`: only `false` is stored, and it is a toolbar key, so Reset clears it.
@@ -2683,7 +2684,7 @@ for the data that tile holds.
   `map.basemap.onFallback`: fallbacks are drawn, not saved. The toolbar and the List button show
   above the loading skeleton, and so do the map's notes (under the toolbar, using
   `--mapsdk-toolbar-height`, which ends the banner crowding the zoom buttons).
-  Get data's "Show as" converts by the pollutant drawn.
+  The Data Portal's "Show as" converts by the pollutant drawn.
 - **Providers:** `messages` maps every `mapsdk_*` key to a Paraglide message through an explicit
   table (a test fails when map-sdk adds a key the table lacks); `format` wraps the dashboard's
   `format` module (Pacific, " PT" off-Pacific), except relative time, which stays map-sdk's
@@ -2852,7 +2853,7 @@ is a map idea instead (see `DEFERRED.md` → "Map plugins").
   generated title names every pollutant ("PM2.5 and Ozone · Fresno County").
 
 **The two calendars as built (step 4 spec 5, 2026-11-09).** Both are `time: "range"` types with
-the resolution pinned to `"day"`, lazily loaded, set up in Get data, and limited to **one place
+the resolution pinned to `"day"`, lazily loaded, set up in the Data Portal, and limited to **one place
 and one air-quality pollutant** (`accepts.onlyPollutant`; other data layers are in `DEFERRED.md`).
 Show as greys them out with the reason for two places, a weather or other non-pollutant layer, or
 a date range outside their span.
@@ -2901,11 +2902,11 @@ icon and messages; map-sdk, MapLibre and the rest load with `module.ts`.
   the `now` flag), `accepts: { datasets: ["air-quality", HMS_SMOKE, HMS_FIRE],
 maxPollutantLayers: 1, maxPlaces: 25 }`, `thresholds`, `analyzable` and `downloadable` all `false`,
   `menu` lists "Show in a chart" and "Show in a table" (below; empty without a mark to send).
-  "Change place" and "Edit data" come from the generic items. Sizes: 6 × 6 by
+  "Change place" and "Open in Data Portal" come from the generic items. Sizes: 6 × 6 by
   default, 3 × 4 at minimum.
 - **The pollutants come from metadata:** the map accepts only the monitors meta's
   `available_pollutants` (today PM2.5 and ozone), because that's what map-sdk's monitors store
-  draws. Get data greys out the rest with a reason. A draft on another pollutant that becomes a
+  draws. The Data Portal greys out the rest with a reason. A draft on another pollutant that becomes a
   Map switches to the first allowed one, with a note.
 - **25 places at most** (`maxPlaces`, the Map's Where). A chart's data can become a map in Get
   data's Show as, keeping all its places (up to 25, with the "left out" note beyond). Leaving a
@@ -2977,7 +2978,7 @@ widget". Linking is deferred (see `DEFERRED.md`).
 
 ### Widget-type contract
 
-Each widget type declares what Get data shows and how the dashboard treats it:
+Each widget type declares what the Data Portal shows and how the dashboard treats it:
 
 ```ts
 type WidgetType = {
@@ -3010,7 +3011,7 @@ Examples: **Notes** is `time: "none"` with no layers; it uses `addable`,
 and keeps its content in the widget's free-form **`options`** (`{ text }` or `{ message }`),
 which the document schema checks for `note` widgets (it is not left free-form). **Current conditions**, **Forecast
 strip**, and **"Can we go outside?"** are `time: "now"` with `placePicker: true`; for those,
-Get data hides the date section and shows **the shared place picker** instead of
+the Data Portal hides the date section and shows **the shared place picker** instead of
 the dataset accordions, plus a **separate pollutant control** for Current conditions and
 "Can we go outside?" (a checkbox per pollutant for Current conditions; for "Can we go outside?"
 the pollutants with school guidelines); in `WidgetDataConfig` the picked place is the widget's
@@ -3027,12 +3028,12 @@ no `dateRange` shows now, as it did in specs 1–3 (`offersNow` and `showsNow` i
 dataset ids a type can show; a type with no list accepts no datasets, so a new type can't
 accidentally offer everything. Chart and Data table declare
 `["air-quality", "forecasts", "weather", "hms-smoke", "pesticide-use"]` (spec 3b);
-Notes declares none. The types with a list are the **data types**: "Add widget" opens Get data
-for them, and Get data's **What** sections and **Show as** choices come from their lists (see
-"Get data"). **`addable`** is a direct add: "Add widget" adds the type with the data it returns,
+Notes declares none. The types with a list are the **data types**: "Add widget" opens the Data Portal
+for them, and the Data Portal's **What** sections and **Show as** choices come from their lists (see
+"Data Portal"). **`addable`** is a direct add: "Add widget" adds the type with the data it returns,
 given the open dashboard (`addable(doc)`, step 5 spec 1). Notes has it, and so does the Map,
 which is also a data type: a type with `addable` is added directly and listed once, not also
-through Get data. Chart and Data table dropped it in spec 3.
+through the Data Portal. Chart and Data table dropped it in spec 3.
 
 **Analysis actions on widgets without a date range** (decided 2026-09-24). IDEA.md asks
 for "Mark for analysis" / "Analyze" on all widgets, but a Collection item needs a date
@@ -3096,7 +3097,7 @@ type MenuProvider = (ctx: MenuContext) => MenuItem[];
   own gesture); the dashboard has its own visible ⋯ button for that reason. **That button sits in
   the top bar right after the dashboard picker (step 6 spec 3, 2026-11-24, the user; it had a
   header row of its own above the grid since the design pass, PR #33).** It shows only for an
-  own dashboard with a session (read-only own dashboards included; not on the list, Get data or a
+  own dashboard with a session (read-only own dashboards included; not on the list, the Data Portal or a
   shared view) and is inert while a widget is fullscreen. The grid publishes its actions
   provider (and its fullscreen state) to a small module-level store while mounted; the button
   attaches it with `menuScope` and opens the menu with `openMenuFor`, so it lists the same items
@@ -3117,8 +3118,8 @@ type MenuProvider = (ctx: MenuContext) => MenuItem[];
   - _Dashboard (blank space):_ **Add widget**, **Save as copy…**, **Export…**, Share…,
     New / Duplicate / Rename / Delete dashboard, **Restore an earlier version…**.
   - _Widget:_ **Refresh** (a manual refetch, alongside automatic live refresh), **Download
-    data (CSV)** on every data widget (decided 2026-11-04, step 4 spec 1), Edit
-    (opens Widget Creation), Rename, **Duplicate**, Minimize, Fullscreen, Move ▸ / Size ▸
+    data (CSV)** on every data widget (decided 2026-11-04, step 4 spec 1), **Open in
+    Data Portal**, Rename, **Duplicate**, Minimize, Fullscreen, Move ▸ / Size ▸
     (single-click alternatives to dragging), Delete. From Release 3: **Mark for analysis**,
     **Analyze**, Add to collection ▸.
   - _Selection (map features/regions, calendar range), from Release 3:_ Mark selected data
@@ -3340,7 +3341,7 @@ pollutant's scale lacks the key draws no line and says so). Switching a widget's
 the level where the new type can hold it and says what was dropped. The `SelfMonitorThreshold`
 name above is `Threshold` in the code.
 
-Widget Creation offers only the date methods and spans a type declares (`dateMethods`,
+The Data Portal offers only the date methods and spans a type declares (`dateMethods`,
 `span` in the widget-type contract), so a saved widget can't hold a range its type can't
 show. **A `span` is checked against a range's full unit** (decided 2026-10-14): week-to-date
 counts as a week even on a Sunday, and the widget shows the rest of the period as empty.
@@ -3811,7 +3812,7 @@ hardcode it in this app, `map-sdk`, `monitor-map`, or `sdk-js`. When a value is 
 server metadata rather than hardcoding "for now".
 
 **What a dataset is (decided 2026-09-24).** A catalog entry is a **broad data domain**, and
-each one is one Widget Creation accordion:
+each one is one Data Portal accordion:
 
 ```ts
 type DatasetCatalogEntry = {
@@ -3964,7 +3965,7 @@ external_id } }`). Lookups by code: `regions/?type=&external_id=a,b` (returns sq
 **Gaps, in priority order:**
 
 1. **Dataset catalog**: label, description, geography type, available resolutions,
-   units, and source attribution/license. Needed by the Widget Creation picker,
+   units, and source attribution/license. Needed by the Data Portal's picker,
    `AnalysisSpec` input filters, and export manifests. See "What a dataset is" above.
 2. **Coverage/availability** — first/last data date per dataset and per
    monitor/region × entry type; which summary resolutions are complete (monthly+
@@ -4346,7 +4347,7 @@ Decided 2026-09-24.
 | Layer         | Tool                                                                | Covers                                                                                                                                                                                                 |
 | ------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Unit          | Vitest (existing)                                                   | Pure logic: layout engine, `applyChange`/undo, menu resolution and merge, `format` and Pacific time/DST, resolution selection and stitching, descriptor codecs, document migrations, analysis steps    |
-| Component     | Vitest browser mode (Playwright provider) + `vitest-browser-svelte` | Svelte components in a real browser: widgets, Widget Creation accordions, pickers                                                                                                                      |
+| Component     | Vitest browser mode (Playwright provider) + `vitest-browser-svelte` | Svelte components in a real browser: widgets, Data Portal accordions, pickers                                                                                                                          |
 | End-to-end    | Playwright on Chromium, WebKit, Firefox                             | Drag/resize and keyboard move/resize, context menus, autosave → reload, undo, the offline banner, fullscreen/taskbar focus, a Map widget WebGL smoke test. WebKit stands in for Safari and Tauri/macOS |
 | Accessibility | `@axe-core/playwright` inside E2E                                   | Automated WCAG 2.2 AA checks on key screens. Manual keyboard and screen-reader passes are still required before releases                                                                               |
 
