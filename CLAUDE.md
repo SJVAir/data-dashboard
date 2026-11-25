@@ -46,7 +46,8 @@ npm run test:sync-stack # Local-only RemoteDocuments contract against the stack 
                         # optional WORKSPACE_E2E_ORIGIN, default http://localhost:8000)
 npm run check:build  # Check dist/workspace/ against the hosting contract (after a build)
 npm run check:budget # Check the initial bundle budget (after a build); warns when over, never fails
-npm run lint         # Prettier check + ESLint
+npm run lint         # Prettier check + ESLint (cached in node_modules/.cache: a re-run checks only
+                     # changed files; CI starts with no cache)
 npm run format       # Auto-format with Prettier
 ```
 
