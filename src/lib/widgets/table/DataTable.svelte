@@ -22,6 +22,7 @@
 	import { sourceLabel } from "../shared/source-label";
 	import { placeLabel } from "../title";
 	import { idleTypesNote, misfitNotes } from "../shared/misfit-notes";
+	import { widgetPlaceKind } from "../shared/input";
 	import { overlayColumns, sortRows, wideRows, type OverlayColumn } from "./rows";
 
 	let { widget }: { widget: WidgetInstance } = $props();
@@ -139,7 +140,13 @@
 			return [];
 		});
 		return [
-			...misfitNotes(w.overlays, w.picked.effective, editable),
+			...misfitNotes(
+				w.overlays,
+				w.picked.effective,
+				editable,
+				widgetPlaceKind(widget.data),
+				w.catalog
+			),
 			...failed,
 			...(idleTypesNote(widget.data, w.catalog, editable) ?? [])
 		];

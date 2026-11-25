@@ -51,6 +51,14 @@
 		const blocked = choice.blocked;
 		if (blocked === "too-many-points") return m.get_data_resolution_too_many();
 		if (blocked && choice.level !== "auto") {
+			// An area's or ticked types' air quality is summarized: the place is why, not the data.
+			if (choice.level === "raw" && blocked.cause) {
+				const hourly = blocked.finest === "hour";
+				if (blocked.cause === "area") {
+					return hourly ? m.get_data_resolution_raw_area_hour() : m.get_data_resolution_raw_area();
+				}
+				return hourly ? m.get_data_resolution_raw_types_hour() : m.get_data_resolution_raw_types();
+			}
 			const dataset = datasetLabel(blocked.notOffered);
 			return choice.level === "raw"
 				? m.get_data_resolution_not_offered_raw({ dataset })

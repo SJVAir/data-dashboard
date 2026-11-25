@@ -11,6 +11,7 @@
 	import { useApp } from "$lib/store/app.svelte";
 	import { DataWidget, type WidgetOverlay } from "../shared/data-widget.svelte";
 	import { idleTypesNote, misfitNotes } from "../shared/misfit-notes";
+	import { widgetPlaceKind } from "../shared/input";
 	import { lineRefs, overlayPlaceFor, sharedSource } from "../shared/overlays";
 	import { sourceLabel } from "../shared/source-label";
 	import WidgetState from "../shared/WidgetState.svelte";
@@ -146,7 +147,13 @@
 					yMin={w.meta?.entryType.yMin ?? null}
 					overlays={overlays.bands}
 					notes={[
-						...misfitNotes(w.overlays, w.picked.effective, editable),
+						...misfitNotes(
+							w.overlays,
+							w.picked.effective,
+							editable,
+							widgetPlaceKind(widget.data),
+							w.catalog
+						),
 						...(idleTypesNote(widget.data, w.catalog, editable) ?? []),
 						...overlays.notes,
 						...(threshold.missing ? [m.chart_level_line_missing()] : [])

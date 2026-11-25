@@ -1,4 +1,4 @@
-import type { Effective } from "$lib/data/dataset-rules";
+import { rawCause, type Effective, type PlaceKind } from "$lib/data/dataset-rules";
 import type { CatalogEntry } from "$lib/data/metadata";
 import type { WidgetDataConfig } from "$lib/data/schema";
 import type { WidgetOverlay } from "./data-widget.svelte";
@@ -15,13 +15,31 @@ import { drawnMonitors, idleTypes } from "./input";
 export function misfitNotes(
 	overlays: WidgetOverlay[],
 	effective: Effective | undefined,
-	editable: boolean
+	editable: boolean,
+	place: PlaceKind,
+	catalog: CatalogEntry[] | undefined
 ): string[] {
 	if (!effective) return [];
 	return overlays.flatMap((o) => {
 		const dataset = o.meta?.dataset.label;
 		if (!dataset || !effective.misfits.includes(o.layer)) return [];
 		if (effective.resolution === "raw") {
+			// An area's or ticked types' air quality is summarized: the place is why, not the data.
+			const cause = catalog ? rawCause(o.layer, catalog, place) : null;
+			if (cause === "area") {
+				return [
+					editable
+						? m.widget_layer_raw_area({ dataset })
+						: m.widget_layer_raw_area_view({ dataset })
+				];
+			}
+			if (cause === "monitor-types") {
+				return [
+					editable
+						? m.widget_layer_raw_types({ dataset })
+						: m.widget_layer_raw_types_view({ dataset })
+				];
+			}
 			return [
 				editable
 					? m.widget_layer_not_lined_up_raw({ dataset })

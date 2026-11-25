@@ -53,6 +53,20 @@ export function layerOffers(layer: Layer, catalog: CatalogEntry[], place: PlaceK
 	);
 }
 
+/** Why a place has no raw for a layer its dataset reports raw for: an area, or ticked types. */
+export type RawCause = "area" | "monitor-types";
+
+/**
+ * Why `layer` has no raw at `place` when its dataset does report raw (at monitors): an area's
+ * air quality and ticked monitor types come from the server's summaries. `null` when raw is
+ * offered, or when the dataset itself has none (its own reason applies).
+ */
+export function rawCause(layer: Layer, catalog: CatalogEntry[], place: PlaceKind): RawCause | null {
+	if (layer.dataset !== "air-quality" || !noRaw(place)) return null;
+	if (!layerOffers(layer, catalog, "monitors").includes("raw")) return null;
+	return place === "regions" ? "area" : "monitor-types";
+}
+
 /** Levels every layer offers, finest first, limited to `within` (default LEVELS). */
 export function datasetOffers(
 	layers: readonly Layer[],

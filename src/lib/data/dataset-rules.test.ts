@@ -7,6 +7,7 @@ import {
 	effectiveResolution,
 	layerOffers,
 	offeredFrom,
+	rawCause,
 	rangeLevel
 } from "./dataset-rules";
 import {
@@ -240,5 +241,16 @@ describe("offeredFrom", () => {
 	it("is the finest offered level", () => {
 		expect(offeredFrom(use, catalog, "regions")).toBe("month");
 		expect(offeredFrom({ dataset: "nope", entryType: "x" }, catalog, "none")).toBeNull();
+	});
+});
+
+describe("rawCause", () => {
+	it("names the place when it, not the dataset, has no raw", () => {
+		expect(rawCause(pm25, catalog, "regions")).toBe("area");
+		expect(rawCause(pm25, catalog, "monitor-types")).toBe("monitor-types");
+	});
+	it("is null where raw is offered, or where the dataset itself has none", () => {
+		expect(rawCause(pm25, catalog, "monitors")).toBeNull();
+		expect(rawCause(temperature, catalog, "regions")).toBeNull();
 	});
 });

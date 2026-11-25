@@ -1408,6 +1408,20 @@ test("with weather chosen, Every measurement says weather has no individual meas
 	await expect.element(raw).toHaveAccessibleDescription("Weather has no individual measurements");
 });
 
+test("at an area, Every measurement says the area is summarized by the hour", async () => {
+	const draft = areasDraft(["06019"]);
+	draft.data.dateRange = { kind: "trailing", amount: 2, unit: "day" };
+	await show(draft);
+	await openResolution();
+	const raw = page.getByRole("radio", { name: m.get_data_resolution_raw() });
+	await expect.element(raw).toBeDisabled();
+	await expect
+		.element(raw)
+		.toHaveAccessibleDescription(
+			"Air quality for an area is summarized by the hour. Search for monitors in What to see every measurement."
+		);
+});
+
 test("on Automatic, only a dataset sharing no level with those chosen is greyed", async () => {
 	await show(monitorsDraft(["m1"]));
 	await openSection(/^Wildfire Smoke/);
