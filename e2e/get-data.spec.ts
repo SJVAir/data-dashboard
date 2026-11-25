@@ -477,7 +477,9 @@ test("Add widget → Current conditions keeps the default alert level through Ed
 test("on two columns the left column scrolls under the top nav; the preview and actions stay", async ({
 	page
 }) => {
-	await page.setViewportSize({ width: 1280, height: 720 });
+	// Short enough that the open sections outgrow it (at 720 px a Chart's all fit, 2026-11-25).
+	const height = 520;
+	await page.setViewportSize({ width: 1280, height });
 	await page.goto("data");
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
 	const column = page.getByRole("group", { name: "What, When and Where" });
@@ -489,13 +491,15 @@ test("on two columns the left column scrolls under the top nav; the preview and 
 	while ((await closed.count()) > 0) await closed.first().click();
 	await expect.poll(() => column.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
 	// The page itself doesn't scroll: the view fills the screen below the nav.
-	expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(720);
+	expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(
+		height
+	);
 	await column.evaluate((el) => (el.scrollTop = el.scrollHeight));
 	const preview = await page.getByTestId("get-data-preview").boundingBox();
 	expect(preview!.y).toBeGreaterThanOrEqual(0);
-	expect(preview!.y).toBeLessThan(720);
+	expect(preview!.y).toBeLessThan(height);
 	const add = await addToButton(page).boundingBox();
-	expect(add!.y + add!.height).toBeLessThanOrEqual(720);
+	expect(add!.y + add!.height).toBeLessThanOrEqual(height);
 	// The top nav is still there above the view.
 	await expect(nav(page)).toBeInViewport();
 });
@@ -511,8 +515,14 @@ for (const width of [390, 320]) {
 		expect(await scrollWidth()).toBeLessThanOrEqual(width);
 		await page.getByRole("radio", { name: "Map" }).click();
 		await expect(page.getByRole("radio", { name: "Map" })).toBeChecked();
-		await expect(page.getByRole("button", { name: "Fill regions by" })).toBeEnabled();
 		expect(await scrollWidth()).toBeLessThanOrEqual(width);
+		// The Map's options panel fits too, inside the screen.
+		await openTypeOptions(page, "Map options");
+		const panel = (await page.getByRole("dialog", { name: "Map options" }).boundingBox())!;
+		expect(panel.x).toBeGreaterThanOrEqual(0);
+		expect(panel.x + panel.width).toBeLessThanOrEqual(width);
+		expect(await scrollWidth()).toBeLessThanOrEqual(width);
+		await page.keyboard.press("Escape");
 		// The choices still work from the keyboard: arrows move along the group.
 		await page.getByRole("radio", { name: "Map" }).focus();
 		await page.keyboard.press("ArrowLeft");

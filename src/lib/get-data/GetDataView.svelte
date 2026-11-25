@@ -69,6 +69,7 @@
 	import type { AddTarget } from "./add";
 	import DataResolutionControl from "./DataResolutionControl.svelte";
 	import TypeOptionsButton from "./TypeOptionsButton.svelte";
+	import MapOptions, { hasMapOptions } from "./MapOptions.svelte";
 	import { hasAlertLevels, hasLevelLine } from "./type-options";
 	import { flushDraft, saveDraft, type Draft } from "./draft.svelte";
 	import type { GetDataMode } from "./mode";
@@ -91,6 +92,7 @@
 		mapShowingOnly,
 		setLocationTypes,
 		setMapFill,
+		locationsLayer,
 		setMapPesticideFilters,
 		setNotices,
 		setSmokeAndFire,
@@ -1018,10 +1020,17 @@
 		untrack(() => (optionsOpen = false));
 	});
 
-	/** The type's own options (level line or alert levels) have something to show. */
+	/** The Map's ticked location types (saved order), for its options panel. */
+	const tickedLocations = $derived(locationsLayer(plain.data)?.locationTypes ?? []);
+	/**
+	 * The type's own options have something to show: the level line or alert levels, or the Map's
+	 * points of interest and fill.
+	 */
 	const showTypeOptions = $derived(
-		!!type?.thresholds &&
-			(isNow ? hasAlertLevels(nowAlerts) : hasLevelLine(shownLevels ?? undefined))
+		plain.type === MAP_TYPE
+			? hasMapOptions(locationGroups, tickedLocations, fillTypes, mapOptions(plain).fill)
+			: !!type?.thresholds &&
+					(isNow ? hasAlertLevels(nowAlerts) : hasLevelLine(shownLevels ?? undefined))
 	);
 	// A Chart's saved line is dropped once it can't be shown or edited: the type has no
 	// thresholds, or the main layer isn't a pollutant with levels.
@@ -1249,11 +1258,6 @@
 								useYears = undefined;
 								useYearsTry++;
 							},
-							fill: mapOptions(plain).fill,
-							fillTypes,
-							onfill: (type) => setMapFill(draft, type),
-							locationGroups,
-							onlocations: (types) => setLocationTypes(draft, types, locationGroups),
 							blocks: mapBlocks
 						}}
 					/>
@@ -1286,7 +1290,16 @@
 				</div>
 				{#if showTypeOptions && type?.optionsLabel}
 					<TypeOptionsButton label={type.optionsLabel()} bind:open={optionsOpen}>
-						{#if isNow}
+						{#if plain.type === MAP_TYPE}
+							<MapOptions
+								groups={locationGroups}
+								ticked={tickedLocations}
+								onlocations={(types) => setLocationTypes(draft, types, locationGroups)}
+								fill={mapOptions(plain).fill}
+								{fillTypes}
+								onfill={(t) => setMapFill(draft, t)}
+							/>
+						{:else if isNow}
 							<!-- A now type's alert levels, one per pollutant (chosen in Air quality). -->
 							<NowControls
 								alerts={nowAlerts}

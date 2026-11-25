@@ -414,11 +414,7 @@ async function openResolution() {
 const AIR = /^Air quality(?! forecasts)/i;
 const USE = /^Pesticide Use/;
 const NOTICES = /^Pesticide Spray Notices/;
-const SCHOOLS = /^Schools/;
-const CHILD = /^Child care/;
 const SMOKE = new RegExp(`^${m.get_data_smoke_and_fire()}`);
-const FILL = new RegExp(`^${m.getdata_map_fill()}`);
-const GONE = new RegExp(`^${m.getdata_map_locations_gone()}`);
 
 async function chooseDates(name: string) {
 	await page.getByRole("button", { name: /^Dates/ }).click();
@@ -865,35 +861,27 @@ test("get data view: the Map and the Chart render the same What", async () => {
 		[...host.querySelectorAll<HTMLElement>("[data-what-section]")].map(
 			(el) => el.dataset.whatSection
 		);
-	const fill = () => page.getByRole("button", { name: m.getdata_map_fill() });
-	await expect.element(fill()).toBeInTheDocument();
+	await expect.element(page.getByRole("button", { name: AIR })).toBeVisible();
 	const chart = sections();
-	// What a Chart can't show is greyed with its reason, never hidden.
-	await expect.element(fill()).toBeDisabled();
-	await expect
-		.element(fill())
-		.toHaveAccessibleDescription(m.get_data_section_only_for({ types: "Map" }));
 	await page.getByRole("radio", { name: "Map" }).click();
 	await expect.element(page.getByRole("radio", { name: "Map" })).toBeChecked();
-	await expect.element(fill()).toBeEnabled();
+	// The Map's own settings are in Map options, not What: What is the same list.
 	expect(sections()).toEqual(chart);
-	expect(chart).toContain("fill");
-	// Catalog order, the Map's own fill last.
+	expect(chart).not.toContain("fill");
+	// Catalog order.
 	expect(chart).toEqual([
 		"air-quality",
 		"forecasts",
 		"weather",
 		"pesticide-use",
 		"hms-smoke",
-		"pesticide-notices",
-		"locations:school",
-		"locations:child_care",
-		"fill"
+		"pesticide-notices"
 	]);
 });
 
 test("get data view: the left column scrolls and the preview stays in view", async () => {
-	await page.viewport(1280, 720);
+	// Short enough that the open sections outgrow it.
+	await page.viewport(1280, 480);
 	const { host } = await show(areasDraft(["06019"]));
 	await drawn(host);
 	const column = host.querySelector<HTMLElement>("[data-testid=get-data-choices]")!;
@@ -2273,7 +2261,7 @@ describe("now widgets", () => {
 				type("zipcode", "ZIP code", "ZIP codes")
 			];
 			const { current } = await show(monitorsDraft(["m1"], { type: "map" }));
-			await openSection(FILL);
+			await openTypeOptions("Map options");
 			const none = fillGroup().getByRole("radio", { name: m.getdata_map_fill_none() });
 			await expect.element(none).toBeChecked();
 			await expect.element(fillGroup().getByRole("radio", { name: "Counties" })).toBeVisible();
@@ -2284,6 +2272,8 @@ describe("now widgets", () => {
 			expect(fillGroup().getByRole("radio").elements()).toHaveLength(3);
 			await fillGroup().getByRole("radio", { name: "ZIP codes" }).click();
 			expect((await current()).options).toEqual({ fill: "zipcode" });
+			// Reading the draft clicks Add, which closes the panel.
+			await openTypeOptions("Map options");
 			await none.click();
 			expect((await current()).options).toBeUndefined();
 		});
@@ -2293,13 +2283,13 @@ describe("now widgets", () => {
 			const { current } = await show(
 				monitorsDraft(["m1"], { type: "map", options: { fill: "zipcode" } })
 			);
-			await openSection(FILL);
+			await openTypeOptions("Map options");
 			await expect.element(fillGroup().getByRole("radio", { name: "ZIP codes" })).toBeChecked();
 			await page.getByRole("radio", { name: "Chart" }).click();
 			await expect.element(page.getByText(m.getdata_note_fill_dropped())).toBeVisible();
 			expect((await current()).options).toBeUndefined();
 			await page.getByRole("radio", { name: "Map" }).click();
-			await openSection(FILL);
+			await openTypeOptions("Map options");
 			await expect
 				.element(fillGroup().getByRole("radio", { name: m.getdata_map_fill_none() }))
 				.toBeChecked();
@@ -2312,7 +2302,7 @@ describe("now widgets", () => {
 			const { current } = await show(
 				monitorsDraft(["m1"], { type: "map", options: { fill: "zipcode" } })
 			);
-			await openSection(FILL);
+			await openTypeOptions("Map options");
 			await expect
 				.element(fillGroup().getByRole("radio", { name: m.getdata_map_fill_none() }))
 				.toBeVisible();
@@ -2323,37 +2313,43 @@ describe("now widgets", () => {
 
 	describe("Schools and child care", () => {
 		const box = (name: string) => page.getByRole("checkbox", { name, exact: true });
+		/** Ticks or unticks in Map options (reading the draft clicks Add, which closes the panel). */
+		const tick = async (name: string) => {
+			await openTypeOptions("Map options");
+			await box(name).click();
+		};
 		const none = () =>
 			page.getByRole("group", { name: "Air quality" }).getByRole("radio", { name: "None" });
 		const locations = async (current: () => Promise<Draft>) =>
 			(await current()).data.layers.find((l) => l.dataset === "locations");
 
 		test("a section per group, a checkbox per type; ticks save in the meta's order, unticking all removes the layer", async () => {
-			const { current, host } = await show(monitorsDraft(["m1"], { type: "map" }));
-			const schools = host.querySelector<HTMLElement>("[data-what-section='locations:school']");
-			const care = host.querySelector<HTMLElement>("[data-what-section='locations:child_care']");
-			await expect.element(page.getByRole("button", { name: "Schools" })).toBeEnabled();
-			await openSection(SCHOOLS);
-			await openSection(CHILD);
+			const { current } = await show(monitorsDraft(["m1"], { type: "map" }));
+			await openTypeOptions("Map options");
+			const panel = page.getByRole("dialog", { name: "Map options" });
+			await expect
+				.element(panel.getByRole("heading", { name: m.getdata_map_points_of_interest() }))
+				.toBeVisible();
+			const schools = panel.getByRole("group", { name: "Schools" });
+			const care = panel.getByRole("group", { name: "Child care" });
+			await expect.element(schools.getByRole("checkbox", { name: "Public school" })).toBeVisible();
+			await expect.element(schools.getByRole("checkbox", { name: "Private school" })).toBeVisible();
+			expect(care.getByRole("checkbox").elements()).toHaveLength(1);
+			await animationsSettled(document.body);
+			expect((await axe.run(panel.element())).violations).toEqual([]);
 			await openSection(AIR);
-			await expect.element(box("Public school")).toBeVisible();
-			expect(schools?.textContent).toContain("Private school");
-			expect(care?.querySelectorAll("input[type=checkbox]")).toHaveLength(1);
-			await animationsSettled(host);
-			const what = host.querySelector("[aria-labelledby$=-what]")!;
-			expect((await axe.run(what)).violations).toEqual([]);
 			await expect.element(none()).toBeEnabled();
-			await box("Child care").click();
+			await tick("Child care");
 			expect(await locations(current)).toEqual({
 				dataset: "locations",
 				locationTypes: ["child_care"]
 			});
 			await expect.element(none()).toBeEnabled();
-			await box("Public school").click();
+			await tick("Public school");
 			expect((await locations(current))?.locationTypes).toEqual(["public_school", "child_care"]);
 			await expect.element(none()).toBeEnabled();
-			await box("Public school").click();
-			await box("Child care").click();
+			await tick("Public school");
+			await tick("Child care");
 			expect(await locations(current)).toBeUndefined();
 			await expect.element(none()).toBeEnabled();
 		});
@@ -2364,26 +2360,36 @@ describe("now widgets", () => {
 			draft.options = { hiddenLocationGroups: ["child_care"] };
 			const { current } = await show(draft);
 			const hidden = async () => mapOptions(await current()).hiddenLocationGroups;
-			await openSection(SCHOOLS);
-			await openSection(CHILD);
-			await box("Public school").click();
+			await openTypeOptions("Map options");
+			await tick("Public school");
 			expect(await hidden()).toEqual(["child_care"]);
-			await box("Child care").click();
+			await tick("Child care");
 			expect(await hidden()).toBeUndefined();
-			await box("Child care").click();
+			await tick("Child care");
 			expect((await locations(current))?.locationTypes).toEqual(["public_school", "child_care"]);
 			expect(await hidden()).toBeUndefined();
 		});
 
-		test("a Chart shows the location sections greyed, Map only", async () => {
+		test("with no groups and no fill types the Map has no options button", async () => {
+			fake.metadata = fixtureMetadata({
+				catalog: async () => CATALOG,
+				guidelinePollutants: async () => ["pm25"],
+				locationGroups: async () => []
+			});
+			fake.regionTypes = async () => [];
+			await show(monitorsDraft(["m1"], { type: "map" }));
+			await expect.element(page.getByRole("button", { name: AIR })).toBeVisible();
+			await animationsSettled(document.body);
+			expect(page.getByRole("button", { name: "Map options" }).elements()).toHaveLength(0);
+		});
+
+		test("a Chart's What lists no Map settings, greyed or not", async () => {
 			await show(areasDraft(["06019"]));
-			for (const name of ["Schools", "Child care"]) {
-				const trigger = page.getByRole("button", { name });
-				await expect.element(trigger).toBeDisabled();
-				await expect
-					.element(trigger)
-					.toHaveAccessibleDescription(m.get_data_section_only_for({ types: "Map" }));
+			await expect.element(page.getByRole("button", { name: AIR })).toBeVisible();
+			for (const name of ["Schools", "Child care", m.getdata_map_fill()]) {
+				expect(page.getByRole("button", { name }).elements()).toHaveLength(0);
 			}
+			expect(page.getByRole("button", { name: "Map options" }).elements()).toHaveLength(0);
 		});
 
 		test("a saved type no group offers shows greyed and ticked with its reason, and can be unticked", async () => {
@@ -2391,18 +2397,18 @@ describe("now widgets", () => {
 			draft.data.layers.push({ dataset: "locations", locationTypes: ["gone_type"] });
 			const platform = createMemoryPlatform();
 			setPlatform(platform);
-			const { current, host } = await show(draft);
+			const { current } = await show(draft);
 			const gone = box("gone_type");
-			await openSection(GONE);
+			await openTypeOptions("Map options");
+			const panel = page.getByRole("dialog", { name: "Map options" });
 			await expect.element(gone).toBeChecked();
 			await expect.element(gone).toBeEnabled();
 			await expect.element(gone).toHaveAccessibleDescription(m.getdata_map_location_type_gone());
 			await expect
-				.element(page.getByRole("button", { name: `${m.getdata_map_locations_gone()} gone_type` }))
+				.element(panel.getByRole("group", { name: m.getdata_map_locations_gone() }))
 				.toBeVisible();
-			await animationsSettled(host);
-			const what = host.querySelector("[aria-labelledby$=-what]")!;
-			expect((await axe.run(what)).violations).toEqual([]);
+			await animationsSettled(document.body);
+			expect((await axe.run(panel.element())).violations).toEqual([]);
 			await gone.click();
 			expect(await locations(current)).toBeUndefined();
 			await expect.element(gone).not.toBeInTheDocument();
@@ -2421,15 +2427,15 @@ describe("now widgets", () => {
 			});
 			const platform = createMemoryPlatform();
 			setPlatform(platform);
-			const { host } = await show(monitorsDraft(["m1"], { type: "map" }));
+			await show(monitorsDraft(["m1"], { type: "map" }));
 			await expect.poll(() => platform.errors.reports.length).toBeGreaterThan(0);
-			expect(host.querySelectorAll("[data-what-section^='locations']")).toHaveLength(0);
+			expect(page.getByRole("group", { name: "Schools" }).elements()).toHaveLength(0);
 			await openSection(AIR);
 			await expect.element(none()).toBeEnabled();
 			failing = false;
 			await page.getByRole("radio", { name: "Chart" }).click();
 			await page.getByRole("radio", { name: "Map" }).click();
-			await openSection(SCHOOLS);
+			await openTypeOptions("Map options");
 			await expect.element(box("Public school")).toBeVisible();
 		});
 
@@ -2442,7 +2448,7 @@ describe("now widgets", () => {
 
 		test("Show as a Chart names the ticked groups it leaves out, from the meta", async () => {
 			const { current } = await show(childCareMap());
-			await openSection(CHILD);
+			await openTypeOptions("Map options");
 			await expect.element(box("Child care")).toBeChecked();
 			await page.getByRole("radio", { name: "Chart" }).click();
 			await expect
@@ -3267,12 +3273,11 @@ describe("What sections start closed", () => {
 			.toHaveAttribute("aria-expanded", "true");
 	});
 
-	test("a section listed later arrives closed", async () => {
+	test("the Map's options arrive closed once the groups load", async () => {
 		await show(monitorsDraft(["m1"], { type: "map" }));
 		// The location groups resolve after the catalog.
-		await expect.element(page.getByRole("button", { name: SCHOOLS })).toBeVisible();
-		await closed(SCHOOLS);
-		await closed(CHILD);
+		const button = page.getByRole("button", { name: "Map options", exact: true });
+		await expect.element(button).toHaveAttribute("aria-expanded", "false");
 		await expectAllClosed();
 	});
 });
@@ -3365,7 +3370,6 @@ describe("a type's own options", () => {
 					layers: [{ dataset: "forecasts" }]
 				}
 			},
-			areasDraft(["06019"], { type: "map" }),
 			withAreaLayers(["06019"], POUNDS)
 		];
 		for (const draft of drafts) {
