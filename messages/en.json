@@ -43,6 +43,7 @@
 	"dashboard_new_blank": "New blank dashboard",
 	"dashboard_new_from_starter": "New from starter",
 	"dashboard_duplicate": "Duplicate dashboard",
+	"dashboard_change_place": "Change place…",
 	"dashboard_duplicate_for_another_place": "Duplicate for another place…",
 	"dashboard_duplicate_no_single_place": "This dashboard has no widget showing a single place, so there's no place to change.",
 	"dashboard_notifications_menu": "Notifications…",

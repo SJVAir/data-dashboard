@@ -3,6 +3,7 @@ import Copy from "@lucide/svelte/icons/copy";
 import CopyPlus from "@lucide/svelte/icons/copy-plus";
 import FilePlus from "@lucide/svelte/icons/file-plus";
 import LayoutTemplate from "@lucide/svelte/icons/layout-template";
+import MapPin from "@lucide/svelte/icons/map-pin";
 import Bell from "@lucide/svelte/icons/bell";
 import History from "@lucide/svelte/icons/history";
 import Pencil from "@lucide/svelte/icons/pencil";
@@ -485,6 +486,23 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 				group: "create",
 				run: () => importDashboardFile(app)
 			},
+			// The open dashboard's place bar, closed or not: what its "Change place" does.
+			...(id === undefined && !locked && session?.doc.body.placeBar
+				? [
+						{
+							id: "change-place",
+							label: m.dashboard_change_place(),
+							icon: MapPin,
+							group: "manage" as const,
+							run: (ctx: MenuContext) =>
+								afterMenuClose(() => {
+									// Focus goes back to what opened the menu, so the picker returns it there.
+									(ctx.target as Partial<HTMLElement>).focus?.();
+									openPlacePicker({ dashboardPlace: true });
+								})
+						}
+					]
+				: []),
 			{
 				id: "duplicate-dashboard",
 				label: m.dashboard_duplicate(),
