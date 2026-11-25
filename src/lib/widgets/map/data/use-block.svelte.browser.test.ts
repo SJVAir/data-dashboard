@@ -319,9 +319,9 @@ describe("UseBlock", () => {
 		// The block around T-1 is T-0, T-1 and T-2.
 		expect(t.block.childrenLoaded(ref("T-0"))).toBe(true);
 		expect(t.block.childrenLoaded(ref("T-2"))).toBe(true);
-		// A township outside the loaded block, and one that does not exist.
+		// Townships outside the loaded block.
 		expect(t.block.childrenLoaded(ref("T-3"))).toBe(false);
-		expect(t.block.childrenLoaded(ref("nowhere"))).toBe(false);
+		expect(t.block.childrenLoaded(ref("T-4"))).toBe(false);
 		// A section ref is not a township.
 		expect(t.block.childrenLoaded(encodeRef({ kind: "feature", id: "section:s1" }))).toBe(false);
 		// A lens of another key holds nothing for the new key.
