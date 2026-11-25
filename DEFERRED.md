@@ -1468,12 +1468,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   line. **Why deferred:** cosmetic and pre-existing (no hotfix urgency before go-live).
   **Revisit with** the next monitor-map change to the detail panel, or before monitor-map 5.0.0
   final; whether `county` should be filled server-side is a separate question.
-- **monitor-map: a selected monitor may show no ring while its panel is open.** _Found 2026-11-15
-  (monitor-map comparison rerun, `monitor-map-78`; not investigated)._ In a local 1440 px
-  screenshot taken after selecting a monitor through the keyboard list, the selected marker had
-  no ring with the panel open. Whether that's expected is unchecked. **Why deferred:** an
-  untriaged observation, not a confirmed bug (no hotfix urgency). **Revisit when** selection
-  styling comes up in monitor-map or map-sdk, or at the parity review; check it first.
 - **monitor-map: at 1024 px with a monitor panel open, the search button wraps below the
   toolbar.** _Found 2026-11-15 (`monitor-map-78`, after #135)._ The toolbar keeps its dropdowns.
   4.3 at 1024 px wasn't compared, so it may be pre-existing. **Why deferred:** untriaged, cosmetic.
@@ -3852,6 +3846,8 @@ Recorded so nobody re-proposes these without the context. Reopen only with a new
   line, or a rule for border ZIPs is set (e.g. a minimum land share).
 
 ## Dropped
+
+- **monitor-map: a selected monitor may show no ring while its panel is open.** _Closed 2026-11-25 (the user), after `monitor-map-c5` traced it:_ not a bug. monitor-map's `selectedStyle: "enlarge"` draws the selected monitor 1.3× with no ring, as 4.3.0 does; only a monitor inside a cluster bubble shows no mark, also as in 4.3.0.
 
 Dropped 2026-09-24 with the user's approval (docs review), each overtaken by later decisions:
 
