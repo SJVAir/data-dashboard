@@ -9,6 +9,7 @@
 import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import {
+	AIR_QUALITY_SECTION,
 	DASHBOARD_URL,
 	STARTER_TITLES,
 	addToButton,
@@ -17,6 +18,7 @@ import {
 	maria,
 	nav,
 	openPicker,
+	openSection,
 	openSharedDoc,
 	widgetMenuItem,
 	widgetTitles
@@ -62,8 +64,8 @@ const EXTRAS: ExtraMonitor[] = ["A", "B", "C", "D", "E", "F"].map((letter) => ({
 }));
 const SEVEN = [DRUMMOND, ...EXTRAS.map((m) => m.id)];
 
-const FRESNO_MAP = "PM2.5 · Fresno County";
-const DRUMMOND_MAP = "PM2.5 · Fresno - Drummond Street";
+const FRESNO_MAP = "PM2.5 map · Fresno County";
+const DRUMMOND_MAP = "PM2.5 map · Fresno - Drummond Street";
 const GET_DATA = { level: 1, name: "Data Portal" } as const;
 const NEW_WIDGET_URL = /\/workspace\/dashboards\/[0-9a-f-]{36}\/widgets\/new$/;
 
@@ -102,7 +104,7 @@ function countyDoc(marks: string[], range: Record<string, unknown> | null = PAST
 /** The map of the widget titled `title` (its region, which holds the GL map and its UI). */
 function mapOf(page: Page, title: string): Locator {
 	const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-	return page.getByRole("region", { name: new RegExp(`^${escaped} map\\b`) });
+	return page.getByRole("region", { name: new RegExp(`^${escaped}(?:\\.|$)`) });
 }
 
 /** The map's summary line: the monitors in view, counted by level. */
@@ -159,6 +161,7 @@ test.describe("from a Map's marks", () => {
 		// The Map's range.
 		await expect(page.getByTestId("resolved-range")).toHaveText("Nov 9 – 11, 2026");
 		// The three marks are the Chart's searched monitors, listed in Air quality.
+		await openSection(page, AIR_QUALITY_SECTION);
 		const searched = page.getByRole("list", { name: "Chosen monitors" }).getByRole("listitem");
 		await expect(searched).toHaveCount(3);
 		await expect(searched.filter({ hasText: "Fresno - Drummond Street" })).toHaveCount(1);

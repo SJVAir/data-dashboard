@@ -33,6 +33,11 @@ export type WidgetType = {
 	 */
 	now?: boolean;
 	thresholds: boolean;
+	/**
+	 * The heading of the type's own settings in Get data ("Chart options"); none for a type with
+	 * none.
+	 */
+	optionsLabel?: () => string;
 	analyzable: boolean;
 	/** Offers "Download data (CSV)". */
 	downloadable: boolean;
@@ -60,6 +65,13 @@ export type WidgetType = {
 	menu: (ctx: MenuContext, env: WidgetMenuEnv) => MenuItem[];
 	/** A dynamic `import()` of the type's code; `loadWidget` caches it after the first call. */
 	load: () => Promise<WidgetModule>;
+	/**
+	 * Its code is big (the Map's): a frame loads it only once the frame is within 200 px of the
+	 * screen, focus moves into it, it's fullscreen, or the type's code had already loaded when the
+	 * frame mounted (a frame already waiting loads once it reports near again); until then the
+	 * frame shows its pending state. Other types load as soon as their frame mounts.
+	 */
+	loadWhenNear?: boolean;
 	/**
 	 * A direct add: Add widget adds the type with this data. Data types (those with
 	 * `accepts.datasets`) go through Get data unless they're also `addable`, which adds them

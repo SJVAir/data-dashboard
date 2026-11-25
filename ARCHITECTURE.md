@@ -106,11 +106,32 @@ Decided 2026-09-28. The dashboard a first-time visitor sees (not a blank page):
 - **Contents** (decided 2026-09-28; layout settled in the step 4 spec): Current conditions
   (PM2.5), Forecast strip, "Can we go outside?", a PM2.5 chart (last 30 days), a
   day-colored calendar (this month), and a short welcome Note. (The hour × weekday heatmap was
-  dropped on 2026-11-09, step 4 spec 5.) **Layout as built (spec 6, 12 columns):** the welcome
-  Note full width on top; then Current conditions, "Can we go outside?" and the Forecast strip
-  in a row; then the chart (8 wide) beside the month calendar (4 wide). The heatmap's old slot
-  stays empty. The Map joins in step 6 as a full-width row under the "now" row. The welcome
-  Note is a message reference (`{ message }`); a copy keeps it until the person edits the Note.
+  dropped on 2026-11-09, step 4 spec 5.) **Layout as built (step 4 spec 6 and step 6 spec 1, 12
+  columns):** the welcome Note full width on top; then Current conditions, "Can we go outside?"
+  and the Forecast strip in a row (7 rows high); then **the Map, a full-width row of the same
+  height** (`{x 0, y 9, w 12, h 7}`; on a phone it is one column, full width, 7 rows tall); then the
+  chart (8 wide) beside the month calendar (4 wide). The welcome Note is a message reference
+  (`{ message }`); a copy keeps it until the person edits the Note.
+- **The starter's Map** (step 6 spec 1, decided 2026-11-23). Its place is the template's
+  `default-place`, so "Change place" and "Duplicate for another place" move it like the other
+  one-place widgets (it is not areas-only, so a school or point stays a school or point). Its data
+  is PM2.5 now, every monitor type ticked, plus smoke and fire, exactly as Get data stores them
+  (`mapStartData` plus `setSmokeAndFire`); it stores no options, so it looks like a new Map. A test
+  checks it against that.
+- **Where its monitor types come from.** The template is synchronous and holds no type ids
+  (metadata is the source of truth). The **app holds the catalog's monitor types**, as it holds
+  the starter's area: unknown until loaded, then a list (empty when the catalog failed or was
+  late; a failure is reported). They load lazily, so the initial bundle doesn't grow, and they
+  aren't a preference; each visit reads them again. The starter shows at once without them, then
+  is swapped for a fresh one that has them, unless its first edit already began the hand-off.
+  Every exit (the first edit's copy, Share, New from starter, Duplicate, Duplicate for another
+  place, Export) **waits for the types** before it stores anything, so a copy's Map holds the
+  explicit list, like a new Map's. With none, the copy's Map shows its "no monitors chosen" note.
+- **The Map's code loads near the screen.** A widget type with `loadWhenNear` (the Map) has its
+  code fetched only once its frame is within 200 px of the screen, takes focus, or is fullscreen.
+  Without it, a first visit on a phone would fetch the Map's 431 KB (gzipped) chunk and run it
+  (a 211–238 ms task) before anything scrolled near. Until it loads, the frame's title reads the
+  type label "Map" (see `DEFERRED.md`).
 
 ### Get data (formerly the Data Explorer and "Widget Creation view")
 
@@ -134,19 +155,44 @@ now inside the dataset sections.
 
 **Layout (option A).**
 
-- **Left column, top to bottom (changed in step 5 spec 7a):** **What** first (one list of
-  sections for every widget type, in catalog order; what a type can't show is greyed out with its
-  reason, never hidden; Air quality starts open), then **When**, **Where** (always shown; empty
-  reads "Everywhere"; "Change" opens the shared place picker in `multiple` mode up to the widget
-  type's `maxPlaces`, only the Map and the single-place types set one), **Data resolution** (its
-  own section since step 5 spec 6a, with a "?" toggletip), and **More options** (the threshold
-  line). **What is the data; When and Where filter it.** The column scrolls on its own
+- **Left column, top to bottom (changed in step 6 spec 3, 2026-11-24, the user; was What, When,
+  Where, Data resolution and "More options" since step 5 spec 7a):** **When** (only for types
+  with a range; the now-only types (Current conditions, "Can we go outside?", the Forecast) have
+  none, so Where comes first. The Map keeps When, since Now is a choice inside it), **Where**
+  (always shown; empty reads "Everywhere"; "Change" opens the shared place picker in `multiple`
+  mode up to the widget type's `maxPlaces`, only the Map and the single-place types set one),
+  **What** (one list of sections for every widget type, in catalog order; what a type can't show
+  is greyed out with its reason, never hidden), then **Data resolution** (when there are
+  choices). **What is the data; When and Where filter it.** The column scrolls on its own
   (`scrollFocusable`) with the preview in view from `md:` up; on a phone the columns stack. The
   Air quality section is radios with None (never blocked) over the catalog's available
   pollutants, a checkbox per monitor type in the meta's groups, and a Monitors search listing the
   chosen monitors, each removable (see "Widget data selection: What, Where and monitors (spec
-  7a)").
-- **Right:** a large live preview with a **Show as** switch (Chart | Data table today) and a
+  7a)"). When, Where and What keep their `h2` headings and What's sections their `h3`; Data
+  resolution's trigger is an `h2`.
+- **Sections start closed and never open by themselves (2026-11-24, the user; replaces step 4
+  spec 3's "Air quality starts open" and step 5 spec 7's open-on-load rule: a type's main
+  section, every section for the Map).** On first load every What section and Data resolution
+  are closed, for every type and for "Edit data". A missing pick is said under the closed
+  section's name and in the action bar's blocked reason, so nothing opens to say it. On a type
+  change, sections the person opened stay open and any the new type greys out close; nothing
+  opens because of the change. A section listed later (location groups) arrives closed.
+- **Data resolution is a closed section showing its choice (2026-11-24).** One accordion item
+  with the same trigger look as What's sections. Closed, it shows the current choice under its
+  name ("Automatic", "Hourly", …), and a blocked choice's reason too, so a closed section never
+  hides why Add is blocked. The "?" toggletip stays beside the heading, and the note
+  (`role="status"`) stays outside the collapsible part so a note that appears while it is
+  closed is still announced.
+- **"More options" is gone (2026-11-24, the user; it held the threshold line since step 5 spec
+  7a).** A type's own settings sit in an always-open section under **Show as** in the preview
+  column, named by one whole message per type held on its registry entry (`optionsLabel`):
+  the **level line** for the Chart and both calendars, and the **alert levels** for Current
+  conditions and "Can we go outside?" (moved out of What). The section shows only when it has
+  a control to show right now (the level line needs its pollutant's scale; alert levels need a
+  ticked pollutant with levels), so no type shows an empty heading. The Map's options stay
+  data choices in What. No saved-document shape changed.
+- **Right:** a large live preview with a **Show as** switch (Chart | Data table today), then the
+  type's own options (below), and a
   **"Dashboard size"** switch that shows it at the size it will land (the type's `defaultSize`).
   It's the real widget component in a view-only frame, so its states (loading, "No data",
   errors, retired) look exactly as on the dashboard. No drag-to-resize. Changes are announced
@@ -312,8 +358,9 @@ directly. Leaving with unsaved changes (Cancel, Back, a nav link) asks **"Discar
 (an alert dialog). Cancel goes Back only from an entry the app pushed; on a page opened from
 its link it goes to the dashboard (or `/` from `/data`), never off the app.
 
-**Data resolution (its own section after What since step 5 spec 6a; was "Show values" under
-"More options", and "Detail" until spec 3b).** **Automatic** (the default), or **Every
+**Data resolution (a closed section last in the left column; its own section since step 5 spec
+6a, closed by default since step 6 spec 3, 2026-11-24; was "Show values" under "More options",
+and "Detail" until spec 3b).** **Automatic** (the default), or **Every
 measurement**, **Hourly**, **Daily**, **Monthly**, **Yearly** (`LEVELS`; no Quarterly or
 Seasonal), stored once for the whole dataset as `WidgetDataConfig.resolution` (Automatic stores
 nothing; see "Datasets line up"). A "?" toggletip beside it (a button on the bits-ui popover:
@@ -1053,7 +1100,17 @@ files, and server documents.
      review). Zod's compiled parser probes `new Function`, so every module imports `z` from
      `$lib/zod`, which sets `jitless` first (ESLint forbids importing `zod` directly). The
      preview server sends the CSP from `csp-hosts.json`, and an E2E fixture fails any test
-     whose page reports a violation.
+     whose page reports a violation. The ESLint ban covers `zod/*` subpaths and dynamic
+     `import("zod")` too.
+   - **One CSP walk** (step 6 spec 2, `e2e/csp-walk.ts`) opens every route and the lazy parts a
+     person reaches from them (each widget type, the Notes editor, the menus' dialogs, Help's
+     privacy page and Clear my data, Restore an earlier version, Sign out's question, a CSV
+     download, a calendar's "Open these days in a chart", Show in, share and import), and fails
+     on any violation. Move to account and the downsample worker (a raw-only fixture type, with
+     a worker attach asserted on Chromium) run on the fakes only. A few parts it can't reach
+     without fixture data or a browser permission (Which place, the threshold watcher) are listed
+     in `DEFERRED.md`; on the fakes, other E2E tests open them under the same CSP. It runs in the E2E suite on the fakes (so in CI), and against the local
+     stack's enforced header with `npm run test:csp-stack`, which is rerun on go-live day.
 4. **Unguessable share tokens:** at least 128 bits (`secrets.token_urlsafe(16)` or
    more), revocable.
 5. **Abuse limits** in the server-documents plan: per-user caps on document count and save
@@ -2673,7 +2730,9 @@ for the data that tile holds.
   no focus area (only those monitors are drawn and the camera fits them). Region geometry comes
   from `getRegionsGeoJSON`, kept in a page-wide in-memory cache in `src/lib/widgets/map/regions.ts`
   (each region fetched once, one request per region type). `featureList={{ reveal: "focus" }}` is
-  the keyboard path, and the legend sits in the widget's card (a button on narrow maps).
+  the keyboard path, and the legend sits in the widget's card under a "Legend" header that folds it at any width, as
+  monitor-map's does (the user, 2026-11-23); it starts open on a wide widget and folded on a narrow
+  one, until the person chooses. The choice isn't saved.
 - **CSP:** `connect-src` and `img-src` both include `https://api.maptiler.com` (styles, tiles,
   glyphs, sprites, and the logo; the user, 2026-11-11). sjvair.com holds the real list, so it
   gets the same host (sjvair.com #330, on `develop`). `cdn.maptiler.com`, MapTiler's default
@@ -3034,7 +3093,16 @@ type MenuProvider = (ctx: MenuContext) => MenuItem[];
   navigation, ARIA roles, and viewport collision handling. Opens via right-click and
   Shift+F10 / Menu key (focused element). **On touchscreens it opens from the ⋯ buttons, not
   long-press** (decided 2026-10-28, step 2: long-press picks up widgets and is the browser's
-  own gesture); the dashboard has its own visible ⋯ button for that reason.
+  own gesture); the dashboard has its own visible ⋯ button for that reason. **That button sits in
+  the top bar right after the dashboard picker (step 6 spec 3, 2026-11-24, the user; it had a
+  header row of its own above the grid since the design pass, PR #33).** It shows only for an
+  own dashboard with a session (read-only own dashboards included; not on the list, Get data or a
+  shared view) and is inert while a widget is fullscreen. The grid publishes its actions
+  provider (and its fullscreen state) to a small module-level store while mounted; the button
+  attaches it with `menuScope` and opens the menu with `openMenuFor`, so it lists the same items
+  as a right-click on the grid, and focus returns to it. The grid keeps its own scope for
+  right-clicks. The row above the grid is now only the **"Based on …"** credit, shown only when
+  there is one.
 - **The menus do their own opening focus** (step 5 spec 7c). bits-ui 2.19.2 mounts a top-level
   context or dropdown menu's focus scope twice as it opens, which queues two one-frame opening
   focuses. On a busy machine the second could land after ArrowRight had opened a submenu,
@@ -4140,7 +4208,12 @@ Decided 2026-09-28.
   delivery, which S3 only gives if files are uploaded pre-compressed (see "Template
   embedding").
 - **A low-end device check before go-live:** Lighthouse with throttled CPU and network,
-  plus a real older Chromebook from the private-preview school if possible.
+  plus a real older Chromebook from the private-preview school if possible. **The Lighthouse
+  half is done and rerunnable** (step 6 spec 1, 2026-11-23): `npm run perf:lighthouse` runs the
+  starter and a saved dashboard, compressed and uncompressed, on the mobile preset; the numbers,
+  method and findings are in `docs/reference/lighthouse-2026-11-23.md`. **The real Chromebook
+  stays open** (a hand check for the user): Lighthouse doesn't measure dragging or resizing, and
+  its host is much faster than a school Chromebook.
 
 ## Telemetry, analytics & privacy
 

@@ -72,7 +72,13 @@ test("the header shows the credit line with neither", async () => {
 
 test("the header shows nothing when the source is unknown", async () => {
 	await renderCopy("nope");
-	await expect.element(page.getByTestId("dashboard-header")).toBeVisible();
 	await new Promise((r) => setTimeout(r, 50));
 	expect(document.querySelector('[data-testid="based-on"]')).toBeNull();
+});
+
+test("no credit, no row", async () => {
+	await renderCopy(undefined);
+	await new Promise((r) => setTimeout(r, 50));
+	expect(document.querySelector('[data-testid="based-on"]')).toBeNull();
+	expect(document.querySelector('[data-testid="dashboard-header"]')).toBeNull();
 });

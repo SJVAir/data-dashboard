@@ -9,6 +9,7 @@ import ts from "typescript-eslint";
 import svelteConfig from "./svelte.config.js";
 
 const gitignorePath = fileURLToPath(new URL("./.gitignore", import.meta.url));
+const ZOD_MESSAGE = 'Import `z` from "$lib/zod" instead.';
 
 export default defineConfig(
 	includeIgnoreFile(gitignorePath),
@@ -35,7 +36,7 @@ export default defineConfig(
 				"error",
 				{
 					paths: [
-						{ name: "zod", message: 'Import `z` from "$lib/zod" instead.' },
+						{ name: "zod", message: ZOD_MESSAGE },
 						{
 							name: "@sjvair/sdk/documents",
 							message: 'Import from "$lib/api/documents" instead.'
@@ -95,8 +96,17 @@ export default defineConfig(
 						{
 							group: ["@sjvair/sdk/documents/*"],
 							message: 'Import from "$lib/api/documents" instead.'
-						}
+						},
+						{ group: ["zod/*"], message: ZOD_MESSAGE }
 					]
+				}
+			],
+			// Dynamic imports skip `no-restricted-imports`.
+			"no-restricted-syntax": [
+				"error",
+				{
+					selector: "ImportExpression[source.value=/^zod(\\/|$)/]",
+					message: ZOD_MESSAGE
 				}
 			]
 		}

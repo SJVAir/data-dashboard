@@ -1,4 +1,4 @@
-import { getContext, setContext } from "svelte";
+import { getContext, setContext, untrack } from "svelte";
 import { toast } from "svelte-sonner";
 import { displayNames } from "$lib/documents/names";
 import { m } from "$lib/paraglide/messages.js";
@@ -31,6 +31,7 @@ import { forecastType } from "$lib/widgets/forecast";
 import { outsideType } from "$lib/widgets/outside";
 import { dataTableType } from "$lib/widgets/table";
 import { mapType } from "$lib/widgets/map";
+import { loadMonitorTypesResult } from "$lib/widgets/map/start";
 import { noteType } from "$lib/widgets/notes";
 import { placeholderType } from "$lib/widgets/placeholder";
 import { AccountState, type Notify } from "./account.svelte";
@@ -70,6 +71,31 @@ export type AppContext = {
 	 * holds areas only); `null` when none was looked up (`starterAreaFor` then decides).
 	 */
 	starterArea: ChosenPlace | null;
+	/**
+	 * The catalog's monitor types, which the starter's Map ticks: `null` until loaded, and when a
+	 * load gave none (the catalog failed, or was late). Metadata, not a preference: loaded once per
+	 * app and kept through "Clear my data".
+	 */
+	starterTypes: readonly string[] | null;
+	/**
+	 * Starts loading `starterTypes` and resolves to them; never rejects. Asked once per app: a
+	 * failed catalog (it threw, or the server had none) is kept as none, with no second wait or
+	 * report; only a late one is asked again. Every exit from the starter awaits it, so its copy's
+	 * Map has them.
+	 */
+	starterTypesReady(): Promise<readonly string[]>;
+	/**
+	 * Discards every starter kept by a types swap (opened, maybe about to be shown) that can no
+	 * longer be: not current, its hand-off not started, and not the one the next open gives. Runs
+	 * when a dashboard is made current and when the last starter claim is released.
+	 */
+	releaseStarter(): void;
+	/**
+	 * Claims the starter for a page that may show it (Home, while mounted): a starter the types
+	 * swap replaces before it's shown is kept usable only while a claim is held (with none, it's
+	 * discarded at once). Returns the release; releasing the last claim runs `releaseStarter`.
+	 */
+	claimStarter(): () => void;
 	/**
 	 * The starter's "Change place": saves `place` as the space's chosen place and shows a fresh
 	 * starter there (every widget at once; no copy, no undo). A starter whose first edit already
@@ -138,12 +164,19 @@ const toastNotify: Notify = {
 };
 
 class App implements AppContext {
-	current = $state<CurrentDashboard>({ session: null, isStarter: false });
+	#current = $state<CurrentDashboard>({ session: null, isStarter: false });
 	sync = $state.raw<SyncWorker | null>(null);
 	resetCount = $state(0);
 	// Raw: places are cloned into documents, and a deep proxy can't be.
 	starterPlace = $state.raw<ChosenPlace>(defaultStarterPlace());
 	starterArea = $state.raw<ChosenPlace | null>(null);
+	starterTypes = $state.raw<readonly string[] | null>(null);
+	/** The load of `starterTypes`, started once (again after a late answer). */
+	#typesLoad: Promise<readonly string[]> | null = null;
+	/** Starters replaced while not shown, kept usable until `releaseStarter`. */
+	readonly #kept = new Set<DocumentSession>();
+	/** Pages that may show the starter (`claimStarter`). */
+	#claims = 0;
 	/** Counts starter place changes: a lookup answered after a newer change (or a reset) is stale. */
 	#starterChange = 0;
 	readonly index: DashboardIndex;
@@ -328,7 +361,8 @@ class App implements AppContext {
 		const opened = (await Promise.allSettled(this.#open.values()))
 			.map((result) => (result.status === "fulfilled" ? result.value : null))
 			.filter((session) => session !== null);
-		const sessions = [...new Set([...this.#live.values(), ...opened])];
+		const sessions = [...new Set([...this.#live.values(), ...opened, ...this.#kept])];
+		this.#kept.clear();
 		this.#open.clear();
 		this.#live.clear();
 		this.current = { session: null, isStarter: false };
@@ -360,7 +394,8 @@ class App implements AppContext {
 	}
 
 	async resetAfterClear(): Promise<void> {
-		for (const session of this.#live.values()) session.discard();
+		for (const session of [...this.#live.values(), ...this.#kept]) session.discard();
+		this.#kept.clear();
 		for (const opening of this.#open.values())
 			void opening.then(
 				(session) => session?.discard(),
@@ -449,11 +484,7 @@ class App implements AppContext {
 		// Replaced before anything awaits, so an edit can't reach the old starter meanwhile.
 		this.starterPlace = place;
 		if (starter) {
-			starter.discard();
-			this.#live.delete(STARTER_ID);
-			const fresh = this.#starter();
-			this.#open.set(STARTER_ID, Promise.resolve(fresh));
-			if (this.current.isStarter) this.current = { session: fresh, isStarter: true };
+			this.#replaceStarter(starter);
 		} else {
 			this.#open.delete(STARTER_ID);
 		}
@@ -463,6 +494,92 @@ class App implements AppContext {
 			// Shown for now; the next visit shows the place saved before.
 			report(error, { operation: "starter-place" });
 		}
+	}
+
+	/**
+	 * Shows a fresh starter in place of `starter` (unedited): every widget at once, no copy, no
+	 * undo. Its widget ids are the same, so fullscreen and open dialogs keep their target.
+	 * `keep`: `starter` isn't shown but may be about to be (opened, not yet made current), so it
+	 * stays usable: its first edit still makes a copy, and the next open gets the fresh one.
+	 */
+	#replaceStarter(starter: DocumentSession, keep = false): void {
+		if (keep) this.#kept.add(starter);
+		else starter.discard();
+		this.#live.delete(STARTER_ID);
+		const fresh = this.#starter();
+		this.#open.set(STARTER_ID, Promise.resolve(fresh));
+		if (this.current.isStarter) this.current = { session: fresh, isStarter: true };
+	}
+
+	get current(): CurrentDashboard {
+		return this.#current;
+	}
+
+	/** A kept starter can't be shown once another dashboard, or its replacement, is current. */
+	set current(value: CurrentDashboard) {
+		this.#current = value;
+		if (value.session) this.releaseStarter();
+	}
+
+	claimStarter(): () => void {
+		this.#claims++;
+		let released = false;
+		return () => {
+			if (released) return;
+			released = true;
+			this.#claims--;
+			if (this.#claims === 0) this.releaseStarter();
+		};
+	}
+
+	releaseStarter(): void {
+		if (this.#kept.size === 0) return;
+		// Called from effects (setting `current`): reading `current` here mustn't track it.
+		const shown = untrack(() => this.#current.session);
+		const next = this.#live.get(STARTER_ID);
+		for (const starter of this.#kept) {
+			if (starter === shown || starter === next || starter.edited) continue;
+			this.#kept.delete(starter);
+			starter.discard();
+		}
+	}
+
+	starterTypesReady(): Promise<readonly string[]> {
+		if (this.#typesLoad) return this.#typesLoad;
+		const load: Promise<readonly string[]> = loadMonitorTypesResult()
+			// It never rejects; were it to, the starter's first edit would wait forever.
+			.catch(() => ({ types: [] as string[], failed: true }))
+			.then(({ types, failed }) => {
+				// None. A failed catalog is kept as none for the page's life (decision 17: no second
+				// wait, no second report). A late one isn't, so the next ask tries again.
+				if (types.length === 0) {
+					if (!failed && this.#typesLoad === load) this.#typesLoad = null;
+					return types;
+				}
+				try {
+					this.#typesArrived(types);
+				} catch (error) {
+					report(error, { operation: "starter-types" });
+				}
+				return types;
+			});
+		this.#typesLoad = load;
+		return load;
+	}
+
+	/**
+	 * The catalog's monitor types arrived: kept, and the shown starter (built before, so without
+	 * them) is replaced by one with them, unless its first edit started its hand-off (the copy
+	 * gets them then) or the app is closed.
+	 */
+	#typesArrived(types: readonly string[]): void {
+		this.starterTypes = types;
+		if (this.#closed) return;
+		const starter = this.#live.get(STARTER_ID);
+		if (!starter || this.#handedOff()) return;
+		// Not shown: kept only while a page that may show it holds a claim (Home, between opening
+		// it and making it current); with none, nothing can show it.
+		this.#replaceStarter(starter, this.current.session !== starter && this.#claims > 0);
 	}
 
 	async copyStarter(): Promise<DocumentSession | null> {
@@ -476,6 +593,8 @@ class App implements AppContext {
 	#starter(): DocumentSession {
 		const { debounceMs, now } = this.options;
 		const resets = this.resetCount;
+		// Shown at once; replaced by one with the types when they arrive (`#typesArrived`).
+		if (this.starterTypes === null) void this.starterTypesReady();
 		const starter = starterSession({
 			platform: this.platform,
 			space: this.space,
@@ -485,18 +604,38 @@ class App implements AppContext {
 			now,
 			place: this.starterPlace,
 			area: this.starterArea,
+			types: this.starterTypes ?? [],
+			typesReady: () => this.starterTypesReady(),
 			...this.#guards,
 			onCopied: (copy) => {
 				// A hand-off that finished after the data was cleared mustn't come back.
 				if (this.resetCount !== resets) return copy.discard();
 				const id = copy.doc.id;
-				// The next visit to the starter gets a fresh one.
-				this.#open.delete(STARTER_ID);
-				this.#live.delete(STARTER_ID);
+				this.#kept.delete(starter);
+				const next = this.#live.get(STARTER_ID);
+				// The copy takes the starter's place only where the starter is still shown (it, or the
+				// fresh one a types swap put in its place). A person who moved on during the types wait
+				// (another dashboard, the list, Get data, a shared page) stays there: the copy is stored
+				// and listed, and opens from its link. A fresh one the person edited meanwhile has its
+				// own hand-off: it isn't taken over, and keeps its place as the starter.
+				const { session: shown, isStarter } = this.current;
+				const ownStarter = !!next && next !== starter && next.edited;
+				const takesOver =
+					shown === starter || (isStarter && !!next && shown === next && !next.edited);
+				if (!ownStarter) {
+					this.#open.delete(STARTER_ID);
+					this.#live.delete(STARTER_ID);
+				}
 				this.#open.set(id, Promise.resolve(copy));
 				this.#live.set(id, copy);
-				this.current = { session: copy, isStarter: false };
-				void this.platform.preferences.set(this.space, LAST_OPENED_KEY, id);
+				if (takesOver) {
+					this.current = { session: copy, isStarter: false };
+					void this.platform.preferences.set(this.space, LAST_OPENED_KEY, id);
+				}
+				// The next visit to the starter gets a fresh one. One built when this one was kept
+				// (a types swap) goes too, shown or not: the copy replaced it, and its listeners
+				// mustn't stay.
+				if (next && next !== starter && !next.edited) next.discard();
 				void this.index.refresh();
 			}
 		});

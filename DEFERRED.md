@@ -67,7 +67,14 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   the fixed-name `app.js`/`app.css` after a deploy (spec 5a's reload button re-fetches them
   with `cache: "reload"` first); a page loading mid-deploy can hit a missing chunk (the reload
   bar covers it). **Revisit together with** monitor-map's upload, or when the low-end device
-  check shows slow loads.
+  check shows slow loads. _Looked at in step 6 spec 1, 2026-11-23: **on hold, the user's call
+  (2026-11-23).** Lighthouse (`docs/reference/lighthouse-2026-11-23.md`; mobile preset, DevTools
+  throttling, median of 3) shows what it costs. On the E2E fakes, a first visit with the Map
+  fetched up front: compressed LCP 5.37 s, FCP 3.80 s, 765 KB of script; uncompressed LCP 9.14 s,
+  FCP 6.79 s, 2,580 KB of script. After the Map's code waits until its frame nears the screen: LCP
+  5.39 s compressed against 8.63 s uncompressed, FCP 3.88 s against 6.76 s, script 326 KB against
+  978 KB. On the local stack (uncompressed, as S3 serves it), a saved dashboard with a Map had LCP
+  10.35 s and median TBT 224 ms. The trigger stays at go-live._
 - **Testing cross-origin static serving before the preview.** _Deferred 2026-10-26 (the
   user, Foundations spec 5a and the hosting track)._ Locally, the dashboard's static files are
   served from the page's own origin, as monitor-map's are; nothing stands in for S3. So
@@ -90,7 +97,8 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   (Foundations spec 5a, final review)._ The app's `securitypolicyviolation` listener starts
   only after the platform (IndexedDB) is ready, so violations during the bootstrap are missed
   in the app's own reports; the CSP header's `report-uri` still covers them. **Revisit if**
-  the violation reports show gaps.
+  the violation reports show gaps. _Looked at in step 6 spec 2:_ the CSP check sees bootstrap
+  violations in the browser; the app's own reports still miss them.
 - **WebKit and a failed chunk after reload.** _Deferred 2026-10-26 (Foundations spec 5a,
   final review)._ In the E2E suite, once Playwright's WebKit fails to import the app chunk
   (a routed 404 or abort, even with `no-store`), a reload or a fresh navigation in the same
@@ -99,36 +107,23 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   refreshes the entry files and reloads. Unknown whether real Safari does the same after a
   real 404 (a page loading mid-deploy). **Revisit in** the beta preview: check a reload in
   Safari after a missing chunk; if it stays broken, retry the import under a new URL.
-- **Check the built app for zod eval violations before go-live.** _Deferred 2026-10-26 (Foundations
-  spec 5a, final fix-wave review); reworded as a go-live check 2026-11-11 (the user)._ **Before
-  go-live**, check the built app for `script-src` eval violations from zod on every route,
-  including the routes and contexts the E2E CSP fixture doesn't cover (see "Gaps in the E2E CSP
-  checks" below). If any appear, fix it in sdk-js (build its schemas lazily, or set `jitless`
-  there), not with an import-order workaround here.
-  **Why it's safe today:** the dashboard imports zod only through `$lib/zod`, which sets
-  `z.config({ jitless: true })`. `@sjvair/sdk` (`5.0.0-beta.8`) imports zod itself and builds
-  `z.object` schemas when its modules load (the root `schema.ts` and the schema modules of
-  `account`, `calenviroscreen`, `calheatscore`, `collocation_sites`, `forecasts`, `hms`, `meta`,
-  `monitors`, `pesticides` and `regions`; the documents schemas moved into `src/lib/api/documents/`
-  on 2026-11-11 and build under `$lib/zod`). Since step 4, the widgets load the SDK root in the
-  built app's initial bundle. There's only one copy of zod in `node_modules` (4.6.7), so the
-  `jitless` setting applies to the SDK's schemas too. zod 4.6.7 runs its `new Function` probe
-  when an object schema is created, unless `jitless` is already set
-  (`node_modules/zod/v4/core/util.js`, `allowsEval`). So the app is clean only because `$lib/zod`
-  runs before the SDK's schema modules, which is the import order that `$lib/zod` itself says not
-  to rely on. The E2E suite runs under the contract CSP and fails on any
-  `securitypolicyviolation` (`e2e/fixtures.ts`), and it passes. A one-off check on 2026-11-11 (the
-  built app in the E2E preview, every route in `src/router.ts` loaded fresh, on Chromium,
-  Firefox and WebKit) found no violations.
-  **Revisit:** before go-live (listed under "Production deploy of sjvair.com `develop` → `main`"
-  below); when the E2E CSP fixture reports the probe; or when someone next works on the SDK's
-  schemas.
-- **Gaps in the E2E CSP checks.** _Deferred 2026-10-26 (Foundations spec 5a, final fix-wave
-  review)._ The ESLint rule bans only the exact `"zod"` import, not `zod/*` subpaths or dynamic
-  `import("zod")` (add `patterns: ["zod/*"]`). The CSP fixture doesn't cover contexts made with
-  `browser.newContext()` (the sharing and backup specs). And `e2e/csp.spec.ts`'s "eval is blocked"
-  self-test injects an inline script, so it proves the checker works but not that eval is caught.
-  **Revisit when** touching the E2E fixtures or the zod wrapper.
+- **The SDK builds its zod schemas when its modules load.** _Deferred 2026-11-23 (step 6 spec 2,
+  decision 1)._ `@sjvair/sdk` `5.0.0-beta.17` imports zod itself and builds `z.object` schemas
+  at load (checked 2026-11-23: `node_modules/@sjvair/sdk/lib/meta/schemas/scale.js` does
+  `import * as z from "zod"` and builds `z.object` at the top level; the same holds for the
+  schema modules of `account`, `calenviroscreen`, `calheatscore`, `collocation_sites`,
+  `forecasts`, `hms`, `meta`, `monitors`, `pesticides` and `regions`). There is one copy of zod
+  in `node_modules` (4.6.7), so `$lib/zod`'s `z.config({ jitless: true })` applies to the SDK's
+  schemas too. zod 4.6.7 reads `allowsEval.value` when an object schema is created
+  (`node_modules/zod/v4/core/schemas.js`) and runs its `new Function` probe unless `jitless` is
+  already set (`node_modules/zod/v4/core/util.js`, `allowsEval`). So the app is clean only
+  because `$lib/zod` runs before the SDK's schema modules, the import order `$lib/zod` itself
+  says not to rely on. **Why we leave it (option A):** the CSP check in CI fails every test on a
+  reorder, so a regression can't merge unseen. **Why not B or C:** building the schemas lazily
+  (B) touches about 40 modules and changes exports in a beta right before launch; setting
+  `jitless` inside the SDK (C) makes a library change a global zod setting for the mobile app
+  and monitor-map too. **Revisit:** after launch; when sdk-js next works on its schemas; or when
+  the CSP check reports the probe.
 - **Spec 5a polish.** _Deferred 2026-10-26 (Foundations spec 5a, final review)._ Small
   follow-ups, none blocking. **Revisit when** next touching each file:
   - The `/workspace` base path is written in four places and `https://www.sjvair.com` in two;
@@ -276,7 +271,8 @@ string`) now get the union return type. The mobile app passes a string token, so
     plan)._ The shared response carries no `copied_from` (by design: it's the owner's data), so
     a shared copy of a copy shows only the made-by bar. Copies people make still show "Based on
     …" for the dashboard they copied. **Revisit if** people ask where a shared dashboard came
-    from.
+    from. _Looked at in step 6 spec 3 (2026-11-24): the credit row now exists only with a credit;
+    this still describes the behaviour._
   - **Each open shared page polls on its own** (no one-tab-per-browser leader as signed-in
     dashboards have). _Deferred 2026-11-02 (sync spec 3 plan)._ Viewers are mostly signed out on
     one tab each, and the sync design's cost estimate already counts one request per viewer per
@@ -290,18 +286,14 @@ string`) now get the union return type. The mobile app passes a string token, so
     same account.** _Deferred 2026-11-02 (sync spec 3, while building)._ A list answered just
     before the change can overwrite the newer state; it heals on the next poll (up to 60 s).
     **Revisit if** the dialog showing a stale link is reported.
-  - **The starter hand-off can set the current dashboard after the person has left for a shared
-    page.** _Deferred 2026-11-02 (sync spec 3, while building)._ This is the existing `onCopied`
-    in `src/lib/store/app.svelte.ts`, so Ctrl+Z there could reach that new copy. Very narrow
-    timing. **Revisit on a report, or when the hand-off is next changed.** _Looked at in step 4
-    spec 6, 2026-11-10: unchanged; Share on the starter now also uses the hand-off (through
-    `copyStarter`), so there is one more caller, with the same timing window._
   - **`?widget=` stays in the address bar when a fullscreen shared dashboard becomes
     unavailable.** _Deferred 2026-11-02 (sync spec 3, while building)._ Nothing shows; it is
     harmless. **Revisit with** any URL-state cleanup.
   - **"Based on …" looked up while offline stays hidden until the next page load.**
     _Deferred 2026-11-02 (sync spec 3, final review)._ The answer is cached per page load, so a
     lookup that failed offline is not retried. **Revisit if** people report a missing credit.
+    _Looked at in step 6 spec 3 (2026-11-24): the credit row now exists only with a credit; this
+    still describes the behaviour._
   - **The Help menu's feedback link still opens sjvair.com's contact form with no topic
     pre-filled.** _Deferred 2026-11-02 (sync spec 3, final review)._ The server pre-fills only
     the shared-page report. This was part of the removed "Pre-filling sjvair.com's contact form"
@@ -493,11 +485,6 @@ string`) now get the union return type. The mobile app passes a string token, so
   320k–410k), so this entry still covers it.
   **Revisit when** the post-deploy check shows production has JIT on, or another endpoint's
   `EXPLAIN` shows JIT time dominating.
-- **`with_latest_entry()` picks a `LatestEntry` row without an order (sjvair.com).** _Deferred
-  2026-11-10 (closest-monitor work, #326)._ It takes the first `LatestEntry` row per monitor and
-  entry type with no `ORDER BY`; for a monitor with both cleaned and calibrated PM2.5 rows it
-  returns the calibrated one only because of index order. Unchanged by #326, which kept the
-  behavior. **Revisit when** anyone touches `LatestEntry` or the published-series logic.
 - **resticus streams JSON one token at a time (django-resticus).** _Deferred 2026-11-10 (the
   user, sjvair.com monitor-list work)._ `StreamingJSONResponse` (`resticus/http.py`) passes
   `JSON_ENCODER().iterencode(data)` straight to `StreamingHttpResponse`, so the 486 KB monitor
@@ -563,8 +550,13 @@ string`) now get the union return type. The mobile app passes a string token, so
   - **MapTiler key** (step 5 spec 1, 2026-11-11): confirm `VITE_MAPTILER_KEY` reaches
     sjvair.com's Heroku build of the dashboard, and that the key's domain restriction covers
     `/workspace/`. Without it, every Map widget says the map is unavailable.
-  - **Dashboard CSP check, before:** check the built app for zod eval violations on every route
-    (see "Check the built app for zod eval violations before go-live" above).
+  - **Dashboard CSP check, before:** on go-live day, swap the final `main` build into the local
+    stack's `/workspace/` (it must include 5f0e564's `data-widget-body` mark, or the walk stops at
+    once), then from data-dashboard, outside :40–:50, run
+    `WORKSPACE_E2E_IDENTIFIER=… WORKSPACE_E2E_PASSWORD=… npm run test:csp-stack` (Chromium and
+    Firefox) and `npm run test:csp-stack:webkit` (WebKit, in the Playwright podman image with
+    `--network host`). Every run so far found no violation
+    (`docs/reference/csp-check-2026-11-23.md`).
   - **Migrations at deploy:** `hms/0003_smoke_date_index` (sjvair.com #314), a plain `AddIndex` on
     `hms_smoke.date`; runs with `migrate`, quick on a small table; undo with `migrate hms 0002`.
     Nothing to run by hand.
@@ -923,7 +915,8 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   first edits: replay a `starter` record into a version-0 copy whose `copiedFrom` is the
   starter. _Looked at in step 4 spec 6, 2026-11-10: unchanged; the hand-off is the same code,
   though Share on the starter now hands off too (through `copyStarter`), a second way to start
-  it._
+  it._ _Looked at in step 6 spec 1, 2026-11-23: unchanged; the hand-off now waits for the monitor
+  types first, which doesn't change when the copy is stored or journalled._
 - **A starter replay can take a live tab's journal record.** _Deferred 2026-10-25
   (Foundations spec 3, task 7 review)._ `replayPending` replays every other tab's `starter`
   journal record, including one from a tab that is still open (hidden mid-hand-off, or whose
@@ -932,13 +925,16 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   duplicate starter copies, or with server sync. _Looked at in sync spec 2, 2026-11-02: still
   deferred._ Sync dedupes nothing extra here; an account space would sync a duplicate copy as
   two dashboards, which the person can delete or restore. _Looked at in step 4 spec 6,
-  2026-11-10: unchanged; Share on the starter's hand-off adds one more way to hit it._
+  2026-11-10: unchanged; Share on the starter's hand-off adds one more way to hit it._ _Looked at in step 6 spec 1,
+  2026-11-23: unchanged; the hand-off waiting for the monitor types doesn't change what a journal
+  record is or who replays it._
 - **Another tab's starter shows a new chosen place only after reload.** _Deferred 2026-11-10
   (step 4 spec 6, Task 4)._ The starter's chosen place is a per-space preference, read when the
   app opens (and after "Clear my data"); preferences have no change event, so a starter already
   open in another tab keeps the place it opened with until that tab reloads (its first edit's
   copy keeps that place too). **Revisit if** people notice, or when preferences gain a change
-  event.
+  event. _Looked at in step 6 spec 1, 2026-11-23: unchanged. The monitor types aren't a
+  preference; each tab loads them from the catalog itself._
 - **Link decompression has no output limit.** _Deferred 2026-10-25 (Foundations spec 3,
   Task 8 review)._ `lz-string` can't cap its output, so a hostile 64,000-character link
   fragment can expand to a very large transient string before the post-decompression size
@@ -1171,6 +1167,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   account menu's link to the account page.
 
 ## Map & selection
+
+- **An off-screen Map's title reads "Map" until its code loads.** _Deferred 2026-11-23 (step 6
+  spec 1, Task 6)._ A Map's code now loads only once its frame is within 200 px of the screen,
+  takes focus, or is fullscreen. Until then its title bar reads the type label "Map": it still
+  names the widget, and it gets its full title ("PM2.5 map · Fresno County") once it loads. Why: the
+  generated title is worked out in the Map's lazy module (`map-title.svelte.ts`), and moving it out
+  would split the title from the module. **Revisit when** people using screen readers report it,
+  or when a Map title change touches `map-title.svelte.ts` anyway.
 
 - **Every measurement (raw) for ticked monitor types.** _Deferred 2026-11-21 (step 5 spec 7a, Task
   5)._ A ticked-type monitor set is fetched through the bulk monitor summaries, which have no raw
@@ -1808,11 +1812,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   catalog's label, which is title case. Why: labels come from the metadata (never rewritten in the
   dashboard), so a sentence-case label is a server catalog change. **Revisit when** the server
   catalog's labels are next edited, or with a copy review.
-- **A pinned calendar's lone dataset isn't greyed in What.** _Deferred 2026-11-19 (step 5 spec 6a,
-  final review)._ A calendar (pinned to Daily) with one dataset that doesn't offer Daily isn't
-  greyed in Get data's What section; the type block ("Show as") catches it instead, so it can't
-  be saved. Why: the person is still told, just in another place. **Revisit when** Get data's
-  What section is next reworked, or someone is confused by it.
 - **The Data table's notes aren't `role="status"`.** _Deferred 2026-11-19 (step 5 spec 6a, final
   review)._ The notes under a Data table (a layer that doesn't line up, a failed overlay) aren't
   announced when they appear. Why: graded minor; they sit just above the table, so a screen
@@ -2296,28 +2295,12 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   BAMs is wanted on the map or the dashboard. monitor-map 5.0 goes live showing "BAM 1022" in its
   Monitors menu where 4.3 shows "SJVAir" (the user, 2026-11-13, in monitor-map's shared-toolbar
   spec): a known difference from 4.3 for the parity review.
-- **`@sjvair/monitor-map` `5.0.0-beta.3` (with map-sdk `0.1.0-beta.15`, #135).** _Deferred
-  2026-11-15 (the user: "beta.3 later")._ `release/5.0.0` beaecf8 has the beta.15 re-pin, the phone
-  search width and the brand-blue `--primary`, but npm `next` stays `5.0.0-beta.2`. Why: nothing
-  needs it yet; mobile stays on beta.2. **Revisit when** the next phone test, a mobile re-pin, or
-  the parity review needs a published build.
-- **map-sdk: arriving townships go clear for 3–6 frames on a block's first visit.** _Deferred
-  2026-11-20 (the user; found by the scripted lens check on `@sjvair/map-sdk` `0.1.0-beta.22`)._ On
-  the first visit to a block (5 of 30 moves per run, 32–77 ms), map-sdk first draws the sections
-  it already holds for the new block. Those include a few edge sections of the arriving
-  townships, and one drawn section hides its whole township, so the interior shows clear until
-  the full block arrives (the dashboard's 50 ms `LENS_WAIT` plus the fetch). Real data does this
-  too: sjvair.com selects sections by bounding-box overlap (`bboverlaps`), which includes boxes
-  that only touch. Fix in map-sdk: hide a township only once its whole block has loaded. Short
-  and not urgent. **Revisit with** the next `@sjvair/map-sdk` beta that step 6 needs (spec 7 stayed
-  on `0.1.0-beta.22`);
-  check it with `.superpowers/lens-check/` in map-sdk.
-- **map-sdk: a township the lens leaves goes clear for 1 frame.** _Deferred 2026-11-20 (the user;
-  found by the same check)._ New in `0.1.0-beta.21`/`beta.22` from map-sdk #38: a leaving
-  township's sections are gone from the drawn tiles, but it shows again only at `sourcedata` or
-  `idle`, a frame later (8–14 of 30 moves per run; `0.1.0-beta.19` didn't do this). Fix in
-  map-sdk: show it again on the same frame its sections go. **Revisit with** the next
-  `@sjvair/map-sdk` beta that step 6 needs, with the entry above.
+- **monitor-map 5.0 on phones: the legend covers the EV station popup, and Reset leaves a monitor
+  tooltip open.** _Deferred 2026-11-24 (the user: publish `@sjvair/monitor-map` `5.0.0-beta.3`
+  first, fix before 5.0.0)._ Both show in the parity comparison on the phone (`compare-5.0.html`,
+  2026-11-15 and 2026-11-24 runs); neither is traced yet to monitor-map or map-sdk. Why deferred:
+  beta.3 unblocks mobile's re-pin and the user's iOS test. **Revisit before** `@sjvair/monitor-map`
+  `5.0.0` final: trace each, fix it in the package that owns it, and recheck on the phone.
 - **The Monthly and Yearly legend line takes its units from the catalog.** _Deferred 2026-11-20
   (step 5 spec 6b, Task 11 review)._ map-sdk's own "(units)" line reads the monitors meta's scale
   units, while the Monthly or Yearly figure line that replaces it ("µg/m³ · Average of 24-hour
@@ -2420,7 +2403,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   **Revisit when** a step 4 widget has internal state (zoom, scrub position) that is visibly
   lost on the starter's first edit. _Looked at in step 4 spec 6, 2026-11-10: this may now apply.
   The real starter has a chart (with zoom) and a month calendar (with a selection), so an edit
-  made in fullscreen resets them once. Not measured or reported; revisit if anyone notices._
+  made in fullscreen resets them once. Not measured or reported; revisit if anyone notices._ _Looked at in step 6 spec 1, 2026-11-23: the starter now also swaps to
+  a fresh starter when the monitor types arrive. The widget ids stay the same, so fullscreen and
+  open dialogs keep their target, and it swaps only an unedited starter (never one that has begun
+  its hand-off). The reset on the first edit's move to the copy is unchanged._
 - **Widget state when another tab minimizes or restores a fullscreen widget.** _Deferred
   2026-10-29 (spec 2b)._ The widget stays fullscreen, and focus moves back into it, but it moves
   between its grid frame and the frame a minimized fullscreen widget gets, so it's mounted again
@@ -2497,17 +2483,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   applies to every widget, not just the Map. Ideas: a toast after the change ("Moved 5 widgets
   to Tulare County. 1 kept its own places.", with Undo), or a "Dashboard place" tag on widgets
   that follow the bar. Why deferred: it's a dashboard-wide design question, outside the Map
-  widget. **Revisit at** the first usability testing or the step 6 starter review, whichever
-  comes first.
+  widget. **Revisit at** the first usability testing. _Changed 2026-11-23 (the user, step 6 spec 1): the
+  step 6 starter review no longer counts. In the starter every widget with a place, the Map
+  included, follows the bar, so the starter can't show the gap._
 - **"Duplicate for another place…" in the dashboards list always shows.** _Deferred 2026-11-10
   (step 4 spec 6, Task 8)._ The list's rows don't have their documents loaded when the menu is
   built, so the item can't tell whether the dashboard has a place to replace; when it has none, a
   toast says so after the click (it is hidden on the open dashboard). **Revisit if** people find
   it confusing; the fix is a replaceable-place flag on `DashboardSummary`.
-- **The Map joins the starter in step 6.** _Deferred 2026-11-10 (step 4 spec 6)._ It goes in as
-  a full-width row under the "now" row, pushing the chart and calendar down; the hour × weekday
-  heatmap's old slot stays empty until then (the year calendar does not take it). **Revisit
-  when** step 6 adds the Map widget.
 - **More Note formatting.** _Deferred 2026-11-10 (step 4 spec 6)._ Notes allow paragraphs, one
   heading level, bold, italic, bulleted and numbered lists and links. Images, tables, code,
   quotes and more heading levels show as plain text; images would also need CSP and privacy work
@@ -2567,11 +2550,13 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     which ends the address there); it shows as typed, as text. Hostnames can't hold `_`, so no
     real address is affected. **Revisit if** one turns up.
   - **Change place on the starter drops the pick if the hand-off fails.** The session already
-    shows its save error and the edits stay queued. **Revisit on** a report.
+    shows its save error and the edits stay queued. **Revisit on** a report. _Looked at in step 6
+    spec 1, 2026-11-23: unchanged; the hand-off waits for the monitor types (which never fail the
+    wait: an empty list stands in) before it stores anything._
   - **A thrown hand-off on Share gives two failure signals** (the save status and a toast). Only
     on a storage failure. **Revisit if** it happens outside storage failures.
   - **Double-clicking Share opens the dialog twice** (one copy is made). Harmless. **Revisit
-    with** the next Share dialog change.
+    with** the next Share dialog change. _Looked at in step 6 spec 1, 2026-11-23: unchanged._
   - **"Duplicate for another place…" edge cases:** a pick that resolves to `default-place` closes
     silently (unreachable: the picker never offers it), and picking the same place makes a plain
     copy with no feedback (still a correct copy). **Revisit if** someone is confused by either.
@@ -2595,8 +2580,8 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **The no-key "Map unavailable" isn't a `WidgetState` card,** and it hides an idle map's
     "Choose a place". Only a build without a MapTiler key shows it. **Revisit with** the next
     change to the widget's states.
-  - **The legend toggle has no `aria-controls`,** and the feature list is tabbable under the
-    loading skeleton. **Revisit with** the next accessibility pass on the map.
+  - **The feature list is tabbable under the loading skeleton.** (The legend toggle's missing
+    `aria-controls` is fixed: the "Legend" header that folds it at any width, 2026-11-23.) **Revisit with** the next accessibility pass on the map.
   - **eslint is a runtime dependency** through `@maptiler/sdk`'s `eslint-plugin-compat`. The
     license check passes and nothing is bundled. **Revisit when** raised upstream with MapTiler.
   - **Code and type gaps:** `isNowShaped` doesn't check a Map draft's pollutant (the widget
@@ -2619,16 +2604,118 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **Monitor-place tiles each fetch the whole Valley's current list** under their own key and
     filter client-side (`data/monitors.ts`); keying by entry type would share one request.
     **Revisit when** a dashboard has several monitor-place maps, or in a performance pass.
-  - **Test gaps kept:** the starter hand-off test uses a hand-built session (the real starter
-    holds no Map widget, and adding one is itself the first edit that hands off, so the test
-    can't start from a starter holding a Map until a starter preset has one). **Add with** the
-    next change to it.
   - **Small behaviours kept:** `serverScale` falls back to the monitors meta for unknown datasets
     (guard on air-quality); `mapMetadata.entryType` reads the catalog only (no scale fallback);
     `monitorsUnavailable` is written inside a now-client fetch; the HMS cache key's date is fixed
     when resolved (harmless: the fetch asks for the server's today); the raw "air-quality" id is
     the fallback section label without a catalog; the e2e point test has a 3 s hard sleep
     (MapTiler's metrics timer). **Fix with** the next change to each.
+- **Step 6 spec 1 review leftovers.** _Deferred 2026-11-23 (step 6 spec 1, per-task reviews)._
+  Small things the reviews let stay:
+  - **The starter Map E2E skips Firefox entirely** (T4-a), though its geometry checks don't need
+    WebGL. **Revisit with** the next change to `e2e/starter.spec.ts`: run the geometry part on all
+    three engines.
+  - **The starter Map's full-width check is "more than 85% of main"** (T4-b), which is loose.
+    **Tighten with** the next change to that test.
+  - **A nit in the Lighthouse script** (T5-a): `signedInProfile`'s doc comment sits above the
+    `SignInFailure` class, and the header comment has a line over 100 columns. **Fix with** the
+    next change to `e2e/lighthouse/`.
+  - **The load-when-near test never unregisters its fake types** (T6-a). **Fix with** the next
+    change to `load-when-near.browser.test.ts`.
+  - **`OnScreen` observes the implicit root, not `root: document`** (T6-b), so a dashboard
+    embedded in an iframe would clip the 200 px margin that starts a Map's code loading. No iframe
+    embed is planned. **Revisit if** an iframe embed is planned.
+  - **A phone test reads the Map's title at a fixed index** (T6-c: `PHONE_TITLES` relies on
+    `MAP_INDEX` being 4). **Fix with** the next change to the starter's layout or that test.
+  - **A generated Map title joins its notes two ways** (T6b-a): the generated branch uses
+    `sentence_join`, the typed-title branch `map_label_marks_hidden`, so the two could drift.
+    **Revisit with** the next change to `map-title.svelte.ts`.
+  - **A default-zone E2E flake: "Show as Chart from a Map with schools notes them left out"**
+    (T6b-c). It flaked in a default-zone run and passed when run alone (twice). **Revisit if** it
+    fails again in CI.
+- **WebKit's worker CSP violations aren't seen by the check.** _Deferred 2026-11-23 (step 6 spec 2,
+  ruling T2-b)._ Playwright's WebKit exposes no worker CSP event and no worker console message, so
+  the CSP walk can't see a violation raised inside a worker there. Workers are covered on Chromium
+  (through CDP Audits) and on Firefox (through the console). The worker self-test in
+  `e2e/csp-walk.spec.ts` is `test.fixme` on WebKit. A WebKit-only violation would go unseen; the Map's
+  worker code is the same across engines. **Revisit if** Playwright's WebKit exposes worker CSP
+  events, or if a code path that runs only in WebKit workers appears.
+- **Lazy parts the CSP walk doesn't open.** _Deferred 2026-11-23 (step 6 spec 2, final review
+  Important 3)._ The walk opens each widget type, the menus' dialogs, Help's privacy page and Clear
+  my data, Restore an earlier version, Sign out's question, a CSV download and a calendar's "Open
+  these days in a chart" on both targets, and Move to account and the downsample worker (a raw-only
+  PM10 fixture) on the fakes. Left out:
+  - **Which place** (`WhichPlaceDialog`): it asks only when a dashboard's widgets tie between places
+    and no widget shows the place bar's place, which a walk step can't make without fixture places.
+    On the fakes, `e2e/starter.spec.ts`'s tie test opens it under the contract CSP.
+  - **The threshold watcher** (`ThresholdWatcher`): it loads once a dashboard is watched, which
+    needs an alert level and the notifications permission. On the fakes, `e2e/thresholds.spec.ts`
+    loads it under the contract CSP.
+  - **Move to account on the stack:** it needs the stack's session signed out and back in (a
+    logout and a login), which the stack run doesn't do.
+  - **The placeholder widget** (an unknown or not-yet-loaded type's frame): nothing in the built
+    app shows it on purpose.
+
+  **Revisit if** one of these changes how it loads (a new chunk, a new worker or a new host), or
+  if a walk step can reach it without fixture data.
+
+- **Step 6 spec 2 review leftovers.** _Deferred 2026-11-23 (step 6 spec 2, per-task reviews)._
+  Small things the reviews let stay:
+  - **The eval self-test's predicate is a little loose** (T1-m1): any `script-src*` violation whose
+    sample is "eval". **Tighten with** the next change to `e2e/csp.spec.ts`.
+  - **A redundant `{ auto: false }`** (T1-m2) in `e2e/fixtures.ts`. **Remove with** the next change
+    to that file.
+  - **The zod-import-ban test may be slow, and a template-literal `import(`zod`)` isn't caught**
+    (T1-m3). **Revisit with** the next change to the ESLint zod rule.
+  - **Violations after a watched context closes can be lost** (T1-m4). Inherent to the watch.
+    **Revisit if** a violation is ever seen to slip through.
+  - **A step's route check can be met by the step before it** (fix wave 3 review, minor 2). The
+    walk records the page's navigations from the moment a step starts, so a redirect the previous
+    step set off that lands late (after its network went idle) counts for the next step. If the
+    next step claims that route and never goes there itself, the check passes when it shouldn't.
+    It can only pass wrongly, never fail wrongly, and needs a late redirect onto exactly the route
+    the next step claims, which is unlikely, so it's left. **Revisit with** the next change to the walk's route
+    checks (for example, wait for the URL to settle before a step starts, or count only
+    navigations the step itself started).
+  - **The stack run has data needs:** the show-in step needs at least one monitor row, the
+    share-link step needs sync, and the csv-download step needs the first calendar to have data
+    (T2-m6; failures say so). **`previewEachType` times out if a Show as
+    choice renders no preview or is disabled** (T2-m8). **Failed CDP sends are swallowed silently**
+    (T2-m9). **A worker started from inside another worker isn't watched** (T2-m10). **Revisit
+    with** the next change to the walk or the stack run.
+  - **Sign-in and header-check violations are labeled with the first walk step** (T3-m1), **the
+    per-step summary prints only if the walk completes** (T3-m2), **and Sentry is detected by
+    hostname only, so a same-origin tunnel wouldn't be seen** (T3-m3). **Fix with** the next
+    change to the stack run.
+  - **A read-only `arrangeBy` no longer closes the menu** (T4-m2). Unreachable today: the Move and
+    Size items are disabled on a read-only dashboard. **Fix with** the next change to `arrangeBy`
+    in `src/lib/actions/widget.ts`. _Looked at in the final review's fixes, 2026-11-23: the stale
+    comments (T4-m1) were fixed there; this one left, being unreachable._
+  - **Export after a failed hand-off adds no toast of its own** (T5-m2); the starter's save error
+    from step 6 spec 2 task 4 shows. **`duplicateSource`'s `doc` is null for the starter, so the
+    starter doc is built twice** (T5-m3). **The tie test doesn't assert two candidates remain**
+    (T5-m4: add `expect(placesToReplace(...)).toHaveLength(2)`). **Fix with** the next change to
+    `src/lib/actions/dashboard.ts` or its tests.
+  - **The setter path could discard a just-kept starter if the current one is another kept
+    starter** (T7-m2). Unreachable today. **Revisit with** the next change to the starter claims
+    in `src/lib/store/app.svelte.ts`.
+  - **Edit data on the starter: `starterPlace` and `resetCount` dependencies are untracked**
+    (T8-m2, likely unreachable; _looked at in the final review's fixes, 2026-11-23, which changed
+    `GetData.svelte`'s Save: left, still unreachable_); **the Edit-data-on-the-starter tests that check the page stays
+    where the person went use a `setTimeout(200)` negative check** (T8-m8, and the two the final
+    review's fixes added beside it: nothing observable changes when the page rightly stays);
+    **`air-quality-section.browser.test.ts` (about line 58) has an implicit any that
+    `npm run check` misses** (T8-m5, pre-existing). **Fix with** the next change to each file.
+- **The startup chain keeps LCP over 2.5 s on a throttled phone.** _Deferred 2026-11-23 (step 6
+  spec 1, the Lighthouse check; the user: revisit at go-live)._ The LCP element is the welcome
+  Note's text. It waits for the app chunk (188 KB gzipped) to download and run its startup
+  tasks, so LCP is 5.4 s with gzip and 8.6 s uncompressed on the fakes, and the same without the
+  Map (5.3 s and 8.7 s). The local stack's saved dashboard had 10.35 s. Compressing the uploads or
+  loading the Map later doesn't fix it; a smaller first chunk, or painting the Note before the
+  rest of the app runs, might. Numbers and the chain's timings:
+  `docs/reference/lighthouse-2026-11-23.md`. **Revisit** shortly after launch (the user,
+  2026-11-23: launch doesn't wait for it; it was "at go-live").
+
 - **Additional widget types.** _Deferred 2026-09-23 (IDEA.md Q8)._ Brainstormed but not in
   the first-release widget set (see `ARCHITECTURE.md` → "Widget catalog"). **Revisit
   when** the first-release widgets ship, or a specific audience asks for one. The list:
@@ -2692,11 +2779,13 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   picks which place's overlay it draws (the Data table and CSV have every place's). **Revisit
   when** users ask to compare overlays across places, or with spec 5's chart work.
 - **Get data's Detail limits are estimates.** _Deferred 2026-11-05 (step 4 spec 3, Task 9)._
-  "More options" → Detail greys out levels using guessed limits: places × periods over 50 000
-  blocked, and 720 raw readings a day per place. No level has a range cap of its own: the
-  server's 31-day cap is per request, and the adapters ask a month (or 31 raw days) at a time
+  "Data resolution" (a closed section in Get data's left column) greys out levels using guessed
+  limits: places × periods over 50 000 blocked, and 720 raw readings a day per place. No level
+  has a range cap of its own: the server's 31-day cap is per request, and the adapters ask a
+  month (or 31 raw days) at a time
   (settled in the final review). **Revisit after** real use, or when the metadata gives reading
-  intervals.
+  intervals. _Reworded in step 6 spec 3 (2026-11-24): "More options" is gone; the limits are
+  unchanged._
 - **A possible bug in the custom date range picker with the year calendar.** _Noted
   2026-11-09 (the user, after spec 5)._ The user saw what looks like an error when choosing a
   custom range of 8/10/24 to 10/09/24 (read as Aug 10 – Oct 9, 2024) while the year calendar
@@ -2748,7 +2837,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **The draft's debounce timer is module-level, shared across spaces.** **Revisit if** a
     draft is lost on a space switch.
   - **A `?type=` override keeps Chart options on a Data table draft** (harmless; Show as does
-    the same by design). **Revisit when** a non-Chart type has options of its own.
+    the same by design). _Looked at in step 6 spec 3 (2026-11-24): calendars now have a "Calendar
+    options" section, but the level line kept across Chart and calendar is the same one, kept by
+    design; the Data table still has no options, so a kept threshold there stays unused and
+    harmless._ **Revisit when** the Data table gains options of its own.
   - **Dashboard size measures the whole view's width,** so a wide `defaultSize` may clip.
     **Revisit with** spec 5's wider types.
   - **Rare storage failures when adding:** a failed starter hand-off keeps the add queued (a
@@ -3272,7 +3364,11 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   style, layout, or painting, and the reference value is tied to one machine and Chromium
   version. **Revisit with** the low-end Chromebook check before go-live, if CI flakes again, or
   when a Playwright upgrade moves the reference timing (re-measure it as the spec's comment
-  says).
+  says). _Looked at in step 6 spec 1, 2026-11-23: Lighthouse measures page loads, not dragging, so
+  it says nothing about this. The starter's TBT (the main thread's blocking time while it loads)
+  is 116–152 ms on the throttled profile, under the 200 ms mark, and 224 ms on the local stack's
+  saved dashboard. Still open for the real Chromebook._
+  _Flaked again in CI on 2026-11-24 (step 6 spec 2, run 45470864704, Chromium; passed on rerun)._
 - **Pen long-press still opens the context menu.** _Deferred 2026-10-28 (step 2, spec 2a)._ Only
   touch is blocked. **Revisit if** pen users report it.
 - **Screen-reader check of keyboard arranging (NVDA/JAWS browse mode, VoiceOver).** _Deferred
@@ -3280,8 +3376,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   mode may intercept Enter and the arrows before they reach it. A mitigation is in (a click
   with `detail` 0 on the title bar acts like Enter), but no real screen reader has been tried.
   On 2026-11-02 the user chose to merge `layout` into `main` first and do this check later
-  (the touch check had passed). **Revisit before** Release 1 goes live (step 6) or beta testers
-  get the dashboard, whichever comes first, or sooner when the user has time: a hand check with
+  (the touch check had passed). **Revisit** shortly after launch (the user, 2026-11-23:
+  launch doesn't wait for it; it was "before Release 1 goes live or beta testers get the
+  dashboard"), or sooner when the user has time: a hand check with
   NVDA (and JAWS if available) on Windows and VoiceOver on macOS/iOS, also covering the Move ▸
   and Size ▸ submenus (#18), their announcements, and the taskbar. _Widened 2026-11-03 (design
   pass Task 19):_ also check that announcements and toasts made while a dialog is open are read
@@ -3344,20 +3441,16 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   checks (sizes after layout, an animation), not wrong behaviour. **Revisit when** one fails in
   CI, or when touching the test: wait on the settled state (a poll on the final size, or the
   animation's end) instead of a fixed moment.
-- **Two arranging tests flake in CI under full-suite load.** _Noted 2026-11-22 (step 5 spec 7c,
-  Task 1)._ On `step-5-spec-7c-flake`, whose `ci.yml` ran `npm test` three times per run, each
-  failed in one pass and passed in the others:
-  - `src/lib/components/dashboard/arranging.browser.test.ts`, "a pointer resize animates the
-    frame's size as it snaps" ("expected +0 to be 1": likely the animation was over before the poll
-    saw it), in runs 45097726529 (before the menu fix), 45099109524 and 45099115463.
-  - The same file, "autoscroll asks for animation frames only while the pointer is in the edge
-    zone" ("expected 0 to be greater than 0": no frame was asked for in its 150 ms in the edge
-    zone), in run 45099112411.
-
-  Not fixed in spec 7c: neither involves menus or 7c's code; they're timing checks, likely
-  starved by the load. **Revisit when** either fails in CI again, or when touching that test: start the size
-  animation paused or long enough to be seen (as the keyboard-resize entry above suggests), and
-  wait on the autoscroll's first frame rather than counting frames in a fixed 150 ms.
+- **An arranging test flakes in CI under full-suite load.** _Noted 2026-11-22 (step 5 spec 7c,
+  Task 1)._ On `step-5-spec-7c-flake`, whose `ci.yml` ran `npm test` three times per run,
+  `src/lib/components/dashboard/arranging.browser.test.ts`, "autoscroll asks for animation frames
+  only while the pointer is in the edge zone" failed in one pass ("expected 0 to be greater than
+  0": no frame was asked for in its 150 ms in the edge zone), in run 45099112411. Not fixed in spec
+  7c: a timing check, likely starved by the load. **Revisit when** it fails in CI again, or when
+  touching that test: wait on the autoscroll's first frame rather than counting frames in a fixed
+  150 ms. _The same file's "a pointer resize animates the frame's size as it snaps" failed in CI
+  again on 2026-11-24 (step 6 spec 2) and was fixed: it counts size animations as they start
+  (`Element.prototype.animate`), not while they run._
 
 - **WebKit E2E runs at 1x, so it doesn't cover drawing at 2x.** _Noted 2026-11-22 (step 5,
   WebKit E2E fix)._ The WebKit project now sets `deviceScaleFactor: 1` (`playwright.config.ts`),
@@ -3446,7 +3539,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   switch to scale with counter-scaled content. _Noted 2026-11-11 (step 5 spec 1): the Map waits
   for `ancestorAnimationsSettled` before it refits, but MapLibre's own `ResizeObserver` still
   re-renders on every frame of the 200 ms animation. Accepted for now. **Revisit if** jank shows
-  on low-end devices._
+  on low-end devices. _Looked at in step 6 spec 1, 2026-11-23: the starter now holds a Map, but
+  Lighthouse doesn't resize widgets, so the check doesn't show it. The starter's TBT is
+  116–152 ms. Still open for the real Chromebook._
 - **A selected widget taller than a phone's screen.** _Deferred 2026-11-03 (design pass, Task 20
   review)._ During a touch selection the widget's body is `touch-action: none`, so the page
   can't be scrolled by touching the widget, and Done (centered in the body) may be off-screen.

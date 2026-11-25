@@ -170,6 +170,33 @@
 	let more = $state<HTMLButtonElement | null>(null);
 	let bar = $state<HTMLDivElement | null>(null);
 	let section = $state<HTMLElement | null>(null);
+	// A `loadWhenNear` type's code (the Map's) waits until the frame is within 200 px of the
+	// screen, focus moves into it, or it's fullscreen (D20). Once asked for, it stays.
+	let near = $state(false);
+	const ready = $derived(
+		near ||
+			fullscreen ||
+			!type?.loadWhenNear ||
+			typeof IntersectionObserver === "undefined" ||
+			!!loadedWidget(type)
+	);
+	$effect(() => {
+		if (fullscreen) near = true;
+	});
+	$effect(() => {
+		const t = type;
+		if (ready || !section || !t) return;
+		const observer = new IntersectionObserver(
+			(entries) => {
+				// Near, or another frame has loaded the code meanwhile.
+				if (loadedWidget(t) || entries.some((entry) => entry.isIntersecting)) near = true;
+			},
+			// This document's viewport, also inside an iframe (whose edge would clip the margin).
+			{ root: document, rootMargin: "200px" }
+		);
+		observer.observe(section);
+		return () => observer.disconnect();
+	});
 	// `aria-description` (ARIA 1.3) isn't in Svelte's attribute types yet, so it's spread.
 	const hint = $derived({ "aria-description": m.layout_title_bar_hint() });
 	/** Arranging is offered: not in fullscreen, and not in view mode. */
@@ -311,6 +338,7 @@
 
 	function onfocusin(): void {
 		held = true;
+		near = true;
 	}
 
 	function onfocusout(event: FocusEvent): void {
@@ -539,12 +567,48 @@
 	let addedTimer: ReturnType<typeof setTimeout> | undefined;
 	onDestroy(() => clearTimeout(addedTimer));
 
+	/** Bumped when a starter's hand-off fails, so a request it left pending is looked at again. */
+	let handOffFailed = $state(0);
+
 	// After a restore (or an add from Get data): focus the title bar and bring the widget into view.
 	$effect(() => {
+		void handOffFailed;
 		const request = pendingFocusTarget();
 		if (!bar || request?.id !== widget.id) return;
 		if (request.kind !== "title" && request.kind !== "added") return;
 		const kind = request.kind;
+		const element = bar;
+		// The starter is handing off to its copy (its first edit, which may wait for the catalog):
+		// the copy's page replaces this one, so focus here meanwhile but leave the request for the
+		// copy's frame, or focus is lost with this one.
+		const handoff = untrack(() =>
+			app.current.isStarter && app.current.session?.handingOff ? app.current.session.handoff : null
+		);
+		if (handoff) {
+			element.focus();
+			let active = true;
+			// The hand-off failed (no copy): the starter stays, so this frame takes the request now,
+			// not at the next press or key.
+			void handoff.then(
+				(copy) => {
+					if (active && !copy) handOffFailed++;
+				},
+				// The session reports its own failure; this frame adds nothing to it.
+				() => {}
+			);
+			// A closing menu takes focus as the pointer leaves the item just clicked (bits-ui
+			// focuses the menu; Move by mouse), then drops it to the page as it goes: it comes
+			// back here. A press, a key, a screen reader's activation, or the browser's Back or
+			// Forward drops the request, and this with it.
+			const off = on(document, "focusin", (event) => {
+				const menu = (event.target as Element).closest?.("[role=menu]");
+				if (menu?.getAttribute("data-state") === "closed") element.focus();
+			});
+			return () => {
+				active = false;
+				off();
+			};
+		}
 		untrack(() => {
 			if (!takeFocus({ kind, id: widget.id })) return;
 			bar!.focus();
@@ -702,11 +766,15 @@
 	<div
 		bind:this={content}
 		class={["relative min-h-0 flex-1 p-(--card-padding)", selected && "touch-none"]}
+		data-widget-body
 	>
 		{#snippet body(mod: WidgetModule)}
 			<mod.component {widget} {fullscreen} />
 		{/snippet}
-		{#if type}
+		{#if type && !ready}
+			<!-- Not near the screen yet: the pending state it shows while code loads. -->
+			<WidgetSkeleton />
+		{:else if type}
 			{@const loaded = loadedWidget(type)}
 			{#if loaded}
 				{@render body(loaded)}

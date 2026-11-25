@@ -143,7 +143,8 @@ describe("addFromDraft", () => {
 		const copy = (await app.sessions.get(dashboardId))!;
 		expect(copy.doc.copiedFrom).toBe(STARTER_ID);
 		expect(copy.doc.body.widgets.map((w) => w.id)).toContain(widgetId);
-		expect(app.current.session?.doc.id).toBe(dashboardId);
+		// Get data (nothing current) navigates to it itself: the copy doesn't make itself current.
+		expect(app.current.session).toBeNull();
 		await copy.flush();
 		expect((await stored(platform, "anonymous", dashboardId)).body.widgets.at(-1)!.id).toBe(
 			widgetId

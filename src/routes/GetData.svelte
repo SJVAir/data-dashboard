@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, untrack } from "svelte";
+	import { onDestroy, onMount, untrack } from "svelte";
 	import { toast } from "svelte-sonner";
 	import { blockNavigation } from "sv-router";
 	import { addFromDraft, addTargets, landedIn } from "$lib/get-data/add";
@@ -28,6 +28,12 @@
 	// No dashboard is open here: undo, redo and the preview's widget actions never reach one (as
 	// on the dashboards list).
 	app.current = { session: null, isStarter: false };
+	// This page may hold the starter (Edit data on it, or Add to it): one the types swap replaces
+	// meanwhile stays usable while mounted.
+	onDestroy(app.claimStarter());
+	/** Left (unmounted): a Save still waiting for the starter's copy doesn't navigate. */
+	let gone = false;
+	onDestroy(() => (gone = true));
 
 	const mode = $derived(parseGetDataMode(route.params));
 	/**
@@ -98,8 +104,10 @@
 		notFound = null;
 		leaving = false;
 		if (at.kind === "edit") {
-			// Edit data starts from the widget each time.
-			void openDashboard(at.dashboardId)
+			// Edit data starts from the widget each time. Opened untracked: opening the starter reads
+			// the catalog's types (and its place and the reset count), and a change to them mustn't
+			// reopen it (that would reset the draft).
+			void untrack(() => openDashboard(at.dashboardId))
 				.catch((error) => {
 					// Storage failed: the "not here" message stands, and the failure is reported.
 					report(error, { operation: "get-data-open" });
@@ -264,13 +272,27 @@
 		if (saving || !session || mode.kind !== "edit") return;
 		const { widgetId } = mode;
 		saving = true;
+		const before = baseline;
 		let landed: Awaited<ReturnType<typeof landedIn>>;
 		try {
+			// On the starter before the types arrive, its hand-off ticks them into the copy's Map.
 			saveEdit(session, widgetId, draft);
+			// Saved (on the starter, shown at once while its copy waits for the types): leaving now
+			// doesn't ask about it, only about changes made after.
+			baseline = draft;
 			landed = await landedIn(session);
 		} catch (error) {
 			report(error, { operation: "get-data-save" });
 			toast.error(m.get_data_save_failed());
+			// Not stored: leaving asks again.
+			if (editing === session) baseline = before;
+			saving = false;
+			return;
+		}
+		// The person went elsewhere while the starter's copy was made (it waits for the types),
+		// another page or another mode of this one: the edit is saved, and they stay where they went.
+		if (gone) return;
+		if (editing !== session) {
 			saving = false;
 			return;
 		}

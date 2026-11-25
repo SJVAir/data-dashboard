@@ -7,6 +7,7 @@
 	import { HOME_HREF } from "$lib/routing";
 	import { isActive, p } from "../../../router";
 	import AccountMenu from "./AccountMenu.svelte";
+	import DashboardMenuButton from "./DashboardMenuButton.svelte";
 	import DashboardPicker from "./DashboardPicker.svelte";
 	import HelpMenu from "./HelpMenu.svelte";
 	import SavedIndicator from "./SavedIndicator.svelte";
@@ -43,7 +44,10 @@
 		>
 			{m.nav_data()}
 		</a>
-		<div class="min-w-0 flex-1 sm:flex-none"><DashboardPicker /></div>
+		<div class="flex min-w-0 flex-1 items-center gap-1 sm:flex-none">
+			<DashboardPicker />
+			<DashboardMenuButton />
+		</div>
 		<div class="ml-auto flex items-center gap-2">
 			<SavedIndicator />
 			<UndoRedo />

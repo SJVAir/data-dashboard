@@ -169,40 +169,19 @@
 	const pollutantAt = $derived(data.layers.findIndex((l) => isPollutantLayer(l, catalog)));
 	const pollutant = $derived(pollutantAt >= 0 ? data.layers[pollutantAt] : undefined);
 
-	/** The sections a type starts with open: the Map's all (each short), else its main layer's. */
-	function opened(of: WidgetType): string[] {
-		const shown = list.filter((s) => !greyedFor(s.key, of)).map((s) => s.key);
-		if (of.type === MAP_TYPE) return shown;
-		if (of.type === FORECAST_TYPE) return [AIR_QUALITY];
-		const first = main && shown.includes(main.dataset) ? main.dataset : shown[0];
-		return first ? [first] : [];
-	}
 	const greyedFor = (key: string, of: WidgetType) =>
 		!sectionTypes(key, types).some((t) => t.type === of.type);
 
-	// svelte-ignore state_referenced_locally
-	let open = $state<string[]>(opened(type));
-	// Another type: its own sections open too; any it greys out close.
+	// Every section starts closed and opens only when the person opens it.
+	let open = $state<string[]>([]);
+	// Another type: any section it greys out closes.
 	let openFor = untrack(() => type.type);
-	// A section listed later (the location groups load after the catalog) opens as it would have.
-	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- bookkeeping, not rendered
-	const seen = new Set(untrack(() => list.map((s) => s.key)));
-	$effect(() => {
-		const keys = list.map((s) => s.key);
-		untrack(() => {
-			const fresh = keys.filter((key) => !seen.has(key));
-			if (!fresh.length) return;
-			for (const key of fresh) seen.add(key);
-			const opening = opened(type).filter((key) => fresh.includes(key) && !open.includes(key));
-			if (opening.length) open = [...open, ...opening];
-		});
-	});
 	$effect(() => {
 		const next = type;
 		if (next.type === openFor) return;
 		openFor = next.type;
 		untrack(() => {
-			open = [...new Set([...open, ...opened(next)])].filter((key) => !greyedFor(key, next));
+			open = open.filter((key) => !greyedFor(key, next));
 		});
 	});
 

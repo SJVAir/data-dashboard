@@ -1,0 +1,25 @@
+{
+	"data": [
+		{
+			"sensor": "",
+			"timestamp": "2026-11-11T10:00:00-08:00",
+			"stage": "raw",
+			"processor": "",
+			"entry_type": "pm100",
+			"value": "21.0"
+		},
+		{
+			"sensor": "",
+			"timestamp": "2026-11-11T11:00:00-08:00",
+			"stage": "raw",
+			"processor": "",
+			"entry_type": "pm100",
+			"value": "24.5"
+		}
+	],
+	"page": 1,
+	"pages": 1,
+	"count": 2,
+	"has_next_page": false,
+	"has_previous_page": false
+}

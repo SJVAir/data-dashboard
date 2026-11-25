@@ -475,7 +475,7 @@ describe("DocumentSession", () => {
 		expect(session.status).toBe("saved");
 	});
 
-	it("hands the first edit to onBeforeFirstEdit instead of applying it", async () => {
+	it("hands the first edit to onBeforeFirstEdit, showing it but not storing it", async () => {
 		const { platform } = await setup();
 		const successor = new DocumentSession({
 			platform,
@@ -498,7 +498,9 @@ describe("DocumentSession", () => {
 		await vi.advanceTimersByTimeAsync(0);
 
 		expect(hook).toHaveBeenCalledWith(rename("Home"));
-		expect(starter.doc.name).toBeNull();
+		// Shown on the starter (decision 12), stored only in the copy.
+		expect(starter.doc.name).toBe("Home");
+		expect(starter.hasPending).toBe(false);
 		expect(successor.doc.name).toBe("Home");
 
 		// Later edits on the old session go to its successor.
@@ -588,6 +590,52 @@ describe("DocumentSession", () => {
 		expect(await starter.handOff()).toBe(successor);
 		// A session that isn't a starter has nothing to hand off.
 		expect(await successor.handOff()).toBeNull();
+	});
+
+	it("handingOff is true only while the hand-off runs", async () => {
+		const { platform } = await setup();
+		const successor = new DocumentSession({ platform, space: SPACE, doc: makeDoc(), tabId: "t" });
+		let finish!: (ok: boolean) => void;
+		const hook = vi.fn(
+			(change: Change | null) =>
+				new Promise<DocumentSession | null>((resolve, reject) => {
+					finish = (ok) => {
+						if (!ok) return reject(new Error("failed"));
+						if (change) successor.apply(change);
+						resolve(successor);
+					};
+				})
+		);
+		const starter = new DocumentSession({
+			platform,
+			space: SPACE,
+			doc: { ...makeDoc(), id: "starter" },
+			tabId: "tab-1",
+			onBeforeFirstEdit: hook
+		});
+		expect(starter.handingOff).toBe(false);
+		starter.apply(rename("Home"));
+		expect(starter.handingOff).toBe(true);
+		// Shown at once, never recorded or saved from the starter.
+		expect(starter.doc.name).toBe("Home");
+		expect(starter.hasPending).toBe(false);
+		expect(starter.canUndo).toBe(false);
+		finish(false);
+		await vi.advanceTimersByTimeAsync(0);
+		expect(starter.handingOff).toBe(false);
+		expect(starter.edited).toBe(true);
+		expect(starter.doc.name).toBe("Home");
+		starter.apply(title("a", "Map"));
+		expect(starter.handingOff).toBe(true);
+		expect(starter.doc.body.widgets[0].title).toBe("Map");
+		finish(true);
+		await vi.advanceTimersByTimeAsync(0);
+		expect(starter.handingOff).toBe(false);
+		expect(successor.doc.name).toBe("Home");
+		expect(successor.doc.body.widgets[0].title).toBe("Map");
+		expect(await platform.documents.get(SPACE, "starter")).toBeUndefined();
+		// A session that isn't a starter never hands off.
+		expect(successor.handingOff).toBe(false);
 	});
 
 	it("replayPending does nothing once the hand-off has succeeded", async () => {

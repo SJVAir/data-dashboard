@@ -63,9 +63,16 @@ function generated(widget: WidgetInstance): string {
 	);
 }
 
+/** The person typed a title: an empty or blank one (only an incoming document has one) names nothing. */
+export function hasTypedTitle(
+	widget: WidgetInstance
+): widget is WidgetInstance & { title: string } {
+	return widget.title != null && widget.title.trim() !== "";
+}
+
 /** A widget's display title: its own, else its generated one. */
 export function widgetTitle(widget: WidgetInstance): string {
-	return widget.title ?? generated(widget);
+	return hasTypedTitle(widget) ? widget.title : generated(widget);
 }
 
 /** The editable current session and the widget in it, read when an action runs. */
@@ -134,7 +141,8 @@ export function removeWidget(app: AppContext, widgetId: string): void {
 				const target = session.editTarget;
 				const change: Change = { op: "addWidget", target: { widgetId }, widget, index };
 				try {
-					target.apply(replaceIfOverlapping(target.doc, change));
+					// Applied through `session`: a starter's copy takes the widget as it would have had it.
+					session.apply(replaceIfOverlapping(target.doc, change));
 				} catch (error) {
 					if (!(error instanceof ChangeTargetMissing)) throw error;
 				}
@@ -188,12 +196,12 @@ function arrangeBy(
 		return !was || !sameRect(was.rect, item.rect);
 	}).length;
 	const phone = columns === 1;
-	const doc = session.editTarget.doc;
 	session.apply(change);
-	// The document didn't take the change itself: it went to a starter's hand-off, and the copy
-	// shows on a new page, where this menu's widget is gone. Close the menu (left open, it would
-	// hang off-screen and block the page) and move focus to the widget's title bar on the copy.
-	if (session.editTarget.doc === doc) {
+	// The change went to a starter's hand-off: shown here at once, and the copy shows on a new page
+	// once the types are in, where this menu's widget is gone. Close the menu (left open, it would
+	// hang off-screen and block the page) and ask for focus on the widget's title bar, which the
+	// copy's frame takes when it shows.
+	if (session.handingOff) {
 		afterMenuClose(() => requestFocus({ kind: "title", id: widgetId }));
 		closeMenus();
 		requestFocus({ kind: "title", id: widgetId });

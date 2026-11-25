@@ -43,7 +43,8 @@
 	} from "$lib/widgets/shared/tile-options.svelte";
 	import { navigate, route } from "../../../router";
 	import AddWidgetButton from "./AddWidgetButton.svelte";
-	import DashboardHeader from "./DashboardHeader.svelte";
+	import BasedOnLine from "./BasedOnLine.svelte";
+	import { publishDashboardMenu } from "./dashboard-menu.svelte";
 	import EmptyState from "./EmptyState.svelte";
 	import PlaceBar from "./PlaceBar.svelte";
 	import Taskbar from "./Taskbar.svelte";
@@ -251,6 +252,12 @@
 	const shownId = $derived(check === "show" ? requested : null);
 	const shownWidget = $derived(shownId ? byId.get(shownId) : undefined);
 
+	// The top bar's ⋯ opens this dashboard's menu: published once there's a session (not in a view).
+	$effect(() => {
+		if (view || !session) return;
+		return publishDashboardMenu(actions, () => !!shownId);
+	});
+
 	/** This page's path, without the query (so without `widget`). */
 	const here = () => route.pathname as "/";
 
@@ -388,7 +395,7 @@
 			{@attach view ? undefined : menuScope(actions)}
 		>
 			{#if !view}
-				<DashboardHeader inert={!!shownId} />
+				<BasedOnLine inert={!!shownId} />
 			{/if}
 			{#if session?.readOnly}
 				<p role="status" class="bg-muted rounded-lg px-4 py-2 text-sm">

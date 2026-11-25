@@ -13,6 +13,7 @@ import {
 	expectSaved,
 	makeOwnCopy,
 	nav,
+	openSection,
 	shareLinkFor,
 	widgetMenuItem,
 	widgetTitles
@@ -79,7 +80,7 @@ test("a calendar is greyed out with its reason for two places and for a weather 
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
 
 	// A weather layer.
-	await page.getByRole("button", { name: /^Weather/ }).click();
+	await openSection(page, /^Weather/);
 	await page.getByRole("checkbox", { name: "Temperature", exact: true }).check();
 	for (const name of ["Month calendar", "Year calendar"]) {
 		await expect(page.getByRole("radio", { name })).toBeDisabled();

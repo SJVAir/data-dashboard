@@ -63,12 +63,28 @@ export const CHART_TITLE = "PM2.5 · Fresno County · Last 30 days";
 /** The starter's welcome Note's title. */
 export const NOTE = "Note";
 
+/**
+ * Whether the page's browser can make a WebGL context. Firefox in Playwright's container has none,
+ * so a Map there shows no map region (only its frame and title): a test asserts the region only
+ * where this is true, and everything else regardless.
+ */
+export function hasWebGL(page: Page): Promise<boolean> {
+	return page.evaluate(() => {
+		const canvas = document.createElement("canvas");
+		return !!(canvas.getContext("webgl2") ?? canvas.getContext("webgl"));
+	});
+}
+
+/** The starter's Map's generated title: its pollutant in Fresno County. */
+export const MAP_TITLE = "PM2.5 map · Fresno County";
+
 /** The starter's widgets' generated titles, in reading order (PM2.5 in Fresno County). */
 export const STARTER_TITLES = [
 	NOTE,
 	"PM2.5 · Fresno County",
 	"Can we go outside? · Fresno County",
 	"Forecast · Fresno County",
+	MAP_TITLE,
 	CHART_TITLE,
 	"PM2.5 · Fresno County · This month so far"
 ];
@@ -251,4 +267,17 @@ const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 export async function expectNoViolations(page: Page): Promise<void> {
 	const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
 	expect(results.violations).toEqual([]);
+}
+
+/** The Air quality section's trigger name (not Air quality forecasts). */
+export const AIR_QUALITY_SECTION = /^Air quality(?! forecasts)/i;
+
+/**
+ * Opens a Get data accordion section (What or Data resolution) by its name, when it's closed:
+ * the trigger is a button inside a heading.
+ */
+export async function openSection(page: Page, name: string | RegExp): Promise<void> {
+	const trigger = page.getByRole("heading").getByRole("button", { name });
+	if ((await trigger.getAttribute("aria-expanded")) === "false") await trigger.click();
+	await expect(trigger).toHaveAttribute("aria-expanded", "true");
 }

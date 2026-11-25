@@ -93,7 +93,7 @@
 		>
 			{title}
 		</h3>
-		<div class="relative min-h-0 flex-1 p-(--card-padding)">
+		<div class="relative min-h-0 flex-1 p-(--card-padding)" data-widget-body>
 			{#snippet body(mod: WidgetModule)}
 				<mod.component {widget} />
 			{/snippet}

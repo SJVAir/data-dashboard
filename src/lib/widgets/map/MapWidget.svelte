@@ -13,6 +13,7 @@
 		type ShapesLens
 	} from "@sjvair/map-sdk";
 	import type { MonitorFeatureProperties, SpatialSelection } from "@sjvair/map-sdk/data";
+	import { hasTypedTitle } from "$lib/actions/widget";
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import { getMetadata } from "$lib/data";
@@ -876,7 +877,9 @@
 			savedFill ? fillInfo?.plural : undefined
 		])
 	);
-	const title = $derived(widget.title ?? generatedTitle(widget.id));
+	/** The person typed a title (an empty or blank one names nothing). */
+	const typed = $derived(hasTypedTitle(widget));
+	const title = $derived(typed ? widget.title! : generatedTitle(widget.id));
 
 	const noteLinesOf = new MapNoteLines(
 		{
@@ -947,14 +950,17 @@
 			? m.sentence_join({ first: figureLabel, second: hiddenText })
 			: figureLabel || hiddenText || undefined
 	);
-	/** The map's accessible name, which also says which marks aren't shown and why. */
-	const mapLabel = $derived(
-		!title
-			? undefined
-			: hiddenText
-				? m.map_label_marks_hidden({ title, notes: hiddenText })
-				: m.map_label({ title })
-	);
+	/**
+	 * The map's accessible name, which also says which marks aren't shown and why. A generated
+	 * title already names the map; a typed one gets "map" after it.
+	 */
+	const mapLabel = $derived.by(() => {
+		if (!title) return undefined;
+		if (!typed) return hiddenText ? m.sentence_join({ first: title, second: hiddenText }) : title;
+		return hiddenText
+			? m.map_label_marks_hidden({ title, notes: hiddenText })
+			: m.map_label({ title });
+	});
 
 	/** Why the places can't all be shown, over a map that still draws. */
 	const note = $derived.by<QueryState | null>(() => {
@@ -1112,7 +1118,7 @@
 	/** The toolbar's narrow breakpoint (48rem), which the day stepper follows. */
 	const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
 	const stepperNarrow = $derived(width > 0 && width < STEPPER_NARROW_REM * remPx);
-	let legendOpen = $state(false);
+	let legendOpen = $state<boolean | null>(null);
 </script>
 
 {#snippet nothing()}{/snippet}
@@ -1182,6 +1188,7 @@
 		lensSource={data.useBlock.lens}
 		block={(refKey) => data.useBlock.blockOf(refKey)}
 		parentOf={(props) => data.useBlock.parentOf(props)}
+		childrenLoaded={(refKey) => data.useBlock.childrenLoaded(refKey)}
 		label={useLabel}
 		units={useFigureInfo?.units ?? ""}
 		zoom={useZoom}

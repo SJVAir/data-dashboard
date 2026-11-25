@@ -29,12 +29,36 @@ test("a Chart (uPlot and the data layer) raises no CSP violation", async ({ page
 	await page.waitForLoadState("networkidle");
 });
 
-test("the checker sees a violation (eval is blocked)", async ({ page, cspViolations }) => {
+test("the checker sees a violation (an inline script is blocked)", async ({
+	page,
+	cspViolations
+}) => {
 	await page.goto("./");
 	await expect(page.getByRole("main")).toBeVisible();
 	await page.addScriptTag({ content: "window.__inline = 1;" }).catch(() => undefined);
 	await expect.poll(() => cspViolations.length).toBeGreaterThan(0);
 	expect(cspViolations[0].directive).toMatch(/^script-src/);
+	// Expected here; clear it so the fixture's own check passes.
+	cspViolations.length = 0;
+});
+
+test("the checker sees a violation (eval is blocked)", async ({ page, context, cspViolations }) => {
+	// A same-origin file, so `script-src 'self'` allows it and blocks only the eval inside.
+	await context.route("**/workspace/__csp-eval-probe.js", (route) =>
+		route.fulfill({ contentType: "text/javascript", body: 'try { eval("1"); } catch {}' })
+	);
+	await page.goto("./");
+	await expect(page.getByRole("main")).toBeVisible();
+	await page.addScriptTag({ url: "__csp-eval-probe.js" }).catch(() => undefined);
+	// Engines differ in where they name the eval: `blockedURI` or the `sample`.
+	await expect
+		.poll(() =>
+			cspViolations.some(
+				(v) =>
+					/^script-src/.test(v.directive) && (v.blockedURI === "eval" || v.sample.includes("eval"))
+			)
+		)
+		.toBe(true);
 	// Expected here; clear it so the fixture's own check passes.
 	cspViolations.length = 0;
 });

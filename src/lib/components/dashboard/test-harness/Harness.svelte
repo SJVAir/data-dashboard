@@ -5,6 +5,7 @@
 	import type { Dashboard } from "$lib/documents/schema";
 	import { setContext } from "svelte";
 	import { ARRANGEMENT_PROBE_KEY, type Arrangement } from "$lib/layout/arrangement.svelte";
+	import DashboardMenuButton from "$lib/components/shell/DashboardMenuButton.svelte";
 	import DashboardGrid from "../DashboardGrid.svelte";
 
 	let {
@@ -18,6 +19,7 @@
 	setContext(ARRANGEMENT_PROBE_KEY, (arrangement: Arrangement) => onArrangement?.(arrangement));
 </script>
 
+<div class="flex"><DashboardMenuButton /></div>
 <DashboardGrid {view} />
 <RenameDialog />
 <Toaster />

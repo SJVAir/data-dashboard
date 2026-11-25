@@ -1,5 +1,5 @@
 import "../../../app.css";
-import { afterEach, beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { toast } from "svelte-sonner";
 import { render } from "vitest-browser-svelte";
 import { commands, page, userEvent } from "vitest/browser";
@@ -8,7 +8,7 @@ import type { Dashboard, Rect, WidgetInstance } from "$lib/documents/schema";
 import type { Arrangement } from "$lib/layout/arrangement.svelte";
 import { createMemoryPlatform } from "$lib/platform/memory";
 import { DocumentSession } from "$lib/store/document-session.svelte";
-import { pendingFocusTarget } from "$lib/layout/focus-request.svelte";
+import { pendingFocusTarget, requestFocus } from "$lib/layout/focus-request.svelte";
 import { FULLSCREEN_STATE } from "$lib/layout/fullscreen";
 import { minimizeChange, restoreChange } from "$lib/layout/windowing";
 import { APP_CONTEXT_KEY, initApp, type AppContext } from "$lib/store/app.svelte";
@@ -19,6 +19,33 @@ import App from "../../../App.svelte";
 import { navigate, route } from "../../../router";
 import Harness from "./test-harness/Harness.svelte";
 import { stubStarterTypes } from "./test-harness/stub-starter-types";
+import { loadMonitorTypes } from "$lib/widgets/map/start";
+
+// The real loader unless a test holds the catalog's answer (`holdTypes`).
+const real = vi.hoisted(() => ({ load: null as null | (() => Promise<string[]>) }));
+vi.mock("$lib/widgets/map/start", async (importOriginal) => {
+	const original = await importOriginal<typeof import("$lib/widgets/map/start")>();
+	real.load = original.loadMonitorTypes;
+	const loadMonitorTypes = vi.fn(original.loadMonitorTypes);
+	return {
+		...original,
+		loadMonitorTypes,
+		// The app asks this one; it answers with `loadMonitorTypes`' types.
+		loadMonitorTypesResult: vi.fn(async () => ({ types: await loadMonitorTypes(), failed: false }))
+	};
+});
+afterEach(() => vi.mocked(loadMonitorTypes).mockImplementation(real.load!));
+
+/** The starter's first edit waits for the catalog until `answer` is called. */
+function holdTypes(): () => void {
+	let answer!: (types: string[]) => void;
+	const held = new Promise<string[]>((resolve) => (answer = resolve));
+	vi.mocked(loadMonitorTypes).mockImplementation(() => held);
+	return () => answer(["a"]);
+}
+
+/** Long enough for focus to settle (or be lost) while the hand-off waits. */
+const settle = () => new Promise((resolve) => setTimeout(resolve, 300));
 
 declare module "vitest/browser" {
 	interface BrowserCommands {
@@ -231,6 +258,199 @@ test("restore on the starter makes the copy and focuses the restored title bar",
 		.poll(() => document.activeElement)
 		.toBe(page.getByTestId("widget-starter-1").getByRole("group", { name: title }).element());
 });
+
+for (const by of ["mouse", "keyboard"] as const) {
+	test(`minimize on the starter by ${by} while the types load: focus reaches the copy's taskbar item`, async () => {
+		const answer = holdTypes();
+		const app = await starterApp("/workspace/");
+		const starter = app.current.session!;
+		const minimize = page
+			.getByTestId("widget-starter-1")
+			.getByRole("button", { name: /^Minimize/ });
+		if (by === "mouse") await minimize.click();
+		else {
+			(minimize.element() as HTMLElement).focus();
+			await userEvent.keyboard("{Enter}");
+		}
+		await settle();
+		expect(app.current.session).toBe(starter);
+		answer();
+		await expect.poll(() => app.current.session).not.toBe(starter);
+		await expect
+			.poll(() => (document.activeElement as HTMLElement | null)?.getAttribute("aria-label") ?? "")
+			.toMatch(/^Restore /);
+		expect(document.activeElement?.closest('[role="toolbar"]')).not.toBeNull();
+	});
+
+	test(`restore on the starter by ${by} while the types load: focus reaches the copy's title bar`, async () => {
+		const answer = holdTypes();
+		const app = await starterApp("/workspace/");
+		const starter = app.current.session!;
+		// Shown minimized without an edit (the built-in starter has none minimized).
+		starter.doc = {
+			...starter.doc,
+			body: {
+				widgets: starter.doc.body.widgets.map((w) =>
+					w.id === "starter-1" ? { ...w, minimized: { order: 0 } } : w
+				)
+			}
+		};
+		const restore = page.getByRole("toolbar").getByRole("button", { name: /^Restore / });
+		await expect.element(restore).toBeVisible();
+		const title = (restore.element() as HTMLElement).getAttribute("aria-label")!.slice(8);
+		if (by === "mouse") await restore.click();
+		else {
+			(restore.element() as HTMLElement).focus();
+			await userEvent.keyboard("{Enter}");
+		}
+		await settle();
+		expect(app.current.session).toBe(starter);
+		answer();
+		await expect.poll(() => app.current.session).not.toBe(starter);
+		await expect
+			.poll(() => document.activeElement)
+			.toBe(page.getByTestId("widget-starter-1").getByRole("group", { name: title }).element());
+	});
+}
+
+test("a dialog's title focus request on the starter while the types load reaches the copy", async () => {
+	// What Change place, Edit note and Get data do when they close after the first edit.
+	const answer = holdTypes();
+	const app = await starterApp("/workspace/");
+	const starter = app.current.session!;
+	starter.apply({ op: "setField", target: { path: "name" }, from: null, to: "Mine" });
+	requestFocus({ kind: "title", id: "starter-2" });
+	await settle();
+	expect(app.current.session).toBe(starter);
+	// Meanwhile focus is on the starter's own title bar.
+	expect(document.activeElement).toBe(
+		page.getByTestId("widget-starter-2").getByRole("group").element()
+	);
+	answer();
+	await expect.poll(() => app.current.session).not.toBe(starter);
+	await expect
+		.poll(() => document.activeElement)
+		.toBe(page.getByTestId("widget-starter-2").getByRole("group").element());
+});
+
+test("after a failed hand-off, a focus request on the starter focuses the title bar and is taken", async () => {
+	const platform = createMemoryPlatform();
+	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	stubStarterTypes();
+	history.replaceState(null, "", "/workspace/");
+	await render(App, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await expect.element(page.getByTestId("widget-starter-1")).toBeVisible();
+	const starter = app.current.session!;
+	// The copy can't be stored, so the hand-off fails and the starter stays.
+	vi.spyOn(platform.documents, "commit").mockRejectedValueOnce(new Error("no storage"));
+	starter.apply({ op: "setField", target: { path: "name" }, from: null, to: "Mine" });
+	await expect.poll(() => starter.status).toBe("error");
+	expect(starter.handingOff).toBe(false);
+	expect(app.current.session).toBe(starter);
+	requestFocus({ kind: "title", id: "starter-2" });
+	await expect
+		.poll(() => document.activeElement)
+		.toBe(page.getByTestId("widget-starter-2").getByRole("group").element());
+	expect(pendingFocusTarget()).toBeNull();
+});
+
+test("a focus request pending when the hand-off fails is taken then, with no press or key", async () => {
+	const answer = holdTypes();
+	const platform = createMemoryPlatform();
+	const app = await initApp(platform, { channel: createMemoryTabHub().channel(), tabId: "t1" });
+	stubStarterTypes();
+	history.replaceState(null, "", "/workspace/");
+	await render(App, { context: new Map([[APP_CONTEXT_KEY, app]]) });
+	await expect.element(page.getByTestId("widget-starter-2")).toBeVisible();
+	const starter = app.current.session!;
+	starter.apply({ op: "setField", target: { path: "name" }, from: null, to: "Mine" });
+	requestFocus({ kind: "title", id: "starter-2" });
+	await settle();
+	// Left for the copy's frame while the hand-off waits for the types.
+	expect(starter.handingOff).toBe(true);
+	expect(pendingFocusTarget()).toEqual({ kind: "title", id: "starter-2" });
+	// The copy can't be stored, so the hand-off fails and the starter stays.
+	vi.spyOn(platform.documents, "commit").mockRejectedValueOnce(new Error("no storage"));
+	answer();
+	await expect.poll(() => starter.status).toBe("error");
+	expect(app.current.session).toBe(starter);
+	await expect.poll(() => pendingFocusTarget()).toBeNull();
+	expect(document.activeElement).toBe(
+		page.getByTestId("widget-starter-2").getByRole("group").element()
+	);
+});
+
+test("moving a starter widget from the ⋯ menu by mouse while the types load keeps focus on its title bar", async () => {
+	const answer = holdTypes();
+	const app = await starterApp("/workspace/");
+	const starter = app.current.session!;
+	const bar = () => page.getByTestId("widget-starter-2").getByRole("group").element();
+	// Where focus goes from here: the bounce this test is about must happen, or it proves nothing.
+	// Whether the closing submenu takes focus depends on timing, so the move is tried again (up to
+	// three times) until it does.
+	let focused: Array<{ closedMenu: boolean; bar: boolean }> = [];
+	const record = (event: FocusEvent) => {
+		const target = event.target as Element;
+		focused.push({
+			closedMenu: !!target.closest?.('[role="menu"][data-state="closed"]'),
+			bar: target === bar()
+		});
+	};
+	let bounced = -1;
+	for (let attempt = 0; attempt < 3 && bounced < 0; attempt++) {
+		focused = [];
+		await page
+			.getByTestId("widget-starter-2")
+			.getByRole("button", { name: /^Actions for/ })
+			.click();
+		await page.getByRole("menuitem", { name: "Move", exact: true }).click();
+		document.addEventListener("focusin", record);
+		// The click edits at once (shown on the starter), and the closing submenu takes focus as
+		// the pointer leaves its item, then drops it to the page as it goes.
+		// Right, then back Left on a retry, so the item is never disabled at an edge.
+		const direction = attempt % 2 === 0 ? "Right" : "Left";
+		await page.getByRole("menuitem", { name: direction, exact: true }).click();
+		// The pointer moves on, as a person's does (under load the item may not have moved from
+		// under it).
+		await userEvent.hover(page.getByTestId("widget-starter-1").getByRole("group"));
+		await expect.element(page.getByRole("menu")).not.toBeInTheDocument();
+		await settle();
+		document.removeEventListener("focusin", record);
+		bounced = focused.findIndex((f) => f.closedMenu);
+	}
+	expect(bounced, "the closing menu took focus in one of three tries").toBeGreaterThanOrEqual(0);
+	expect(focused.slice(bounced + 1).some((f) => f.bar)).toBe(true);
+	expect(app.current.session).toBe(starter);
+	expect(document.activeElement).toBe(bar());
+	answer();
+	await expect.poll(() => app.current.session).not.toBe(starter);
+	const copy = app.current.session!;
+	await expect.poll(() => location.pathname).toBe(`/workspace/dashboards/${copy.doc.id}`);
+	await expect.poll(() => document.activeElement).toBe(bar());
+});
+
+for (const fullscreen of [false, true]) {
+	test(`the types swap keeps focus${fullscreen ? " and fullscreen" : ""}`, async () => {
+		// The starter shown before the catalog answers is replaced by one with its types (spec 1
+		// decision 10), which must cost the person nothing: the same frames stay, so focus and
+		// fullscreen stay put.
+		const answer = holdTypes();
+		const app = await starterApp(fullscreen ? "/workspace/?widget=starter-2" : "/workspace/");
+		if (fullscreen) await expect.poll(() => isFullscreen("starter-2")).toBe(true);
+		const before = app.current.session!;
+		const bar = page.getByTestId("widget-starter-2").getByRole("group").element() as HTMLElement;
+		bar.focus();
+		expect(document.activeElement).toBe(bar);
+		answer();
+		await expect.poll(() => app.current.session).not.toBe(before);
+		expect(app.current.isStarter).toBe(true);
+		await settle();
+		expect(bar.isConnected).toBe(true);
+		expect(document.activeElement).toBe(bar);
+		expect(isFullscreen("starter-2")).toBe(fullscreen);
+		expect(location.search).toBe(fullscreen ? "?widget=starter-2" : "");
+	});
+}
 
 test("no Minimize on a read-only dashboard", async () => {
 	const { session } = await seed(halves());

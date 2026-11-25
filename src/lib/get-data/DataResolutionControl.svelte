@@ -1,8 +1,10 @@
 <script lang="ts">
 	import type { Level } from "$lib/data/dataset-rules";
 	import type { Layer } from "$lib/data/schema";
+	import { Accordion } from "bits-ui";
 	import { m } from "$lib/paraglide/messages.js";
 	import Toggletip from "$lib/components/Toggletip.svelte";
+	import SectionTrigger from "./SectionTrigger.svelte";
 	import { LEVEL_LOWER } from "./level-phrases";
 	import type { ResolutionChoice } from "./resolution-offer";
 
@@ -23,6 +25,18 @@
 	} = $props();
 
 	const uid = $props.id();
+
+	const checkedChoice = $derived(choices.find((c) => c.level === value));
+	let open = $state<string[]>([]);
+	/**
+	 * What's wrong with the chosen level, under the name. A blocked radio says it itself when the
+	 * list is open; an unknown stored level has no radio, so its warning stays.
+	 */
+	const warning = $derived.by(() => {
+		if (!(value in LABEL)) return m.get_data_resolution_unknown_blocked();
+		if (open.includes("resolution")) return undefined;
+		return checkedChoice?.blocked ? reason(checkedChoice) : undefined;
+	});
 
 	const LABEL: Record<ResolutionChoice["level"], () => string> = {
 		auto: () => m.get_data_resolution_auto(),
@@ -46,47 +60,58 @@
 	}
 </script>
 
-<section class="flex flex-col gap-2" aria-labelledby="{uid}-heading">
-	<!-- The help button sits beside the heading, outside the group's name. -->
-	<div class="flex items-center gap-1">
-		<h2 id="{uid}-heading" class="text-primary text-sm font-semibold">
-			{m.get_data_resolution()}
-		</h2>
-		<Toggletip label={m.get_data_resolution_help_label()} text={m.get_data_resolution_help()} />
-	</div>
-	<fieldset class="flex flex-col gap-1 px-1" aria-labelledby="{uid}-heading">
-		{#each choices as choice (choice.level)}
-			{@const reasonId = `${uid}-${choice.level}-reason`}
-			{@const checked = value === choice.level}
-			<div class="flex min-h-6 flex-wrap items-center gap-x-2 text-sm">
-				<label class="flex items-center gap-2">
-					<!-- A chosen level stays chosen (and focusable) when it's blocked: it never changes
-					     by itself, and its reason says why it can't be used. -->
-					<input
-						type="radio"
-						class="accent-primary size-4"
-						name="{uid}-resolution"
-						value={choice.level}
-						{checked}
-						disabled={!!choice.blocked && !checked}
-						aria-describedby={choice.blocked ? reasonId : undefined}
-						onchange={() => onchange(choice.level)}
+<div class="flex flex-col gap-2">
+	<Accordion.Root type="multiple" bind:value={open} class="flex flex-col">
+		<Accordion.Item value="resolution" class="flex flex-col gap-1">
+			<!-- The help button sits beside the header, outside the trigger. -->
+			<div class="flex items-center gap-1">
+				<div class="min-w-0 flex-1">
+					<SectionTrigger
+						level={2}
+						label={m.get_data_resolution()}
+						detail={value in LABEL ? LABEL[value]() : undefined}
+						{warning}
 					/>
-					<span class={[choice.blocked && "text-muted-foreground"]}>
-						{LABEL[choice.level]()}
-					</span>
-				</label>
-				{#if choice.blocked}
-					<span
-						id={reasonId}
-						class={["text-xs", checked ? "text-destructive" : "text-muted-foreground"]}
-					>
-						{reason(choice)}
-					</span>
-				{/if}
+				</div>
+				<Toggletip label={m.get_data_resolution_help_label()} text={m.get_data_resolution_help()} />
 			</div>
-		{/each}
-	</fieldset>
+			<Accordion.Content>
+				<fieldset class="flex flex-col gap-1 px-1" aria-label={m.get_data_resolution()}>
+					{#each choices as choice (choice.level)}
+						{@const reasonId = `${uid}-${choice.level}-reason`}
+						{@const checked = value === choice.level}
+						<div class="flex min-h-6 flex-wrap items-center gap-x-2 text-sm">
+							<label class="flex items-center gap-2">
+								<!-- A chosen level stays chosen (and focusable) when it's blocked: it never changes
+							     by itself, and its reason says why it can't be used. -->
+								<input
+									type="radio"
+									class="accent-primary size-4"
+									name="{uid}-resolution"
+									value={choice.level}
+									{checked}
+									disabled={!!choice.blocked && !checked}
+									aria-describedby={choice.blocked ? reasonId : undefined}
+									onchange={() => onchange(choice.level)}
+								/>
+								<span class={[choice.blocked && "text-muted-foreground"]}>
+									{LABEL[choice.level]()}
+								</span>
+							</label>
+							{#if choice.blocked}
+								<span
+									id={reasonId}
+									class={["text-xs", checked ? "text-destructive" : "text-muted-foreground"]}
+								>
+									{reason(choice)}
+								</span>
+							{/if}
+						</div>
+					{/each}
+				</fieldset>
+			</Accordion.Content>
+		</Accordion.Item>
+	</Accordion.Root>
 	<!-- Always mounted, so a new note is announced. -->
 	<p
 		role="status"
@@ -95,4 +120,4 @@
 	>
 		{note ?? ""}
 	</p>
-</section>
+</div>

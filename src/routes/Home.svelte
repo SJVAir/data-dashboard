@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack } from "svelte";
+	import { onDestroy, untrack } from "svelte";
 	import { toast } from "svelte-sonner";
 	import DashboardGrid from "$lib/components/dashboard/DashboardGrid.svelte";
 	import { FULLSCREEN_PARAM, fullscreenId } from "$lib/layout/fullscreen";
@@ -11,6 +11,9 @@
 
 	const app = useApp();
 	const name = $derived(currentDashboardName(app));
+	// This page may show the starter: one the types swap replaces before it's shown stays usable
+	// while mounted (Home makes the one it opened current after an await).
+	onDestroy(app.claimStarter());
 	/** The starter's session while it's shown here. */
 	let starter: DocumentSession | null = null;
 
@@ -39,8 +42,21 @@
 				if (!active) return;
 				starter = session;
 				app.current = { session, isStarter: true };
+				// The catalog's monitor types may have arrived after it opened, before it was shown: the
+				// app then has a starter with them, shown here instead unless this one's hand-off started.
+				const latest = await app.sessions.get(STARTER_ID);
+				if (!active) return;
+				const replaced = latest && session && latest !== session && !session.edited;
+				// Still the one shown (a place change or hand-off meanwhile already moved on).
+				if (replaced && app.current.session === session) {
+					starter = latest;
+					app.current = { session: latest, isStarter: true };
+					session.discard();
+				}
+				// The starter shown now (the types may have swapped it after the re-read).
+				starter = app.current.isStarter ? app.current.session : starter;
 				// Edits a starter page left mid-hand-off (it went away) are handed off now.
-				void session?.replayPending();
+				void starter?.replayPending();
 			})();
 			return () => {
 				active = false;

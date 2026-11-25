@@ -20,7 +20,12 @@ import { routeSummaries } from "./summaries-server";
 const API_FIXTURES = fileURLToPath(new URL("./fixtures/api/", import.meta.url));
 
 /** A CSP violation, as the page saw it. */
-export type CspViolation = { directive: string; blockedURI: string; sourceFile: string };
+export type CspViolation = {
+	directive: string;
+	blockedURI: string;
+	sourceFile: string;
+	sample: string;
+};
 
 /** The mocked account server of one context: change who it says is signed in. */
 export type AccountServer = { set(user: AccountUser | null): void; get(): AccountUser | null };
@@ -36,7 +41,7 @@ export type DocumentsServer = {
 };
 
 /** Reports CSP violations in `context`'s pages into `violations`. */
-async function watchCsp(context: BrowserContext, violations: CspViolation[]): Promise<void> {
+export async function watchCsp(context: BrowserContext, violations: CspViolation[]): Promise<void> {
 	await context.exposeBinding("__reportCspViolation", (_source, v: CspViolation) => {
 		violations.push(v);
 	});
@@ -47,14 +52,18 @@ async function watchCsp(context: BrowserContext, violations: CspViolation[]): Pr
 			report({
 				directive: event.effectiveDirective,
 				blockedURI: event.blockedURI,
-				sourceFile: event.sourceFile
+				sourceFile: event.sourceFile,
+				sample: event.sample
 			});
 		});
 	});
 }
 
 /** Answers `/api/…` from the fixture files, recording requests with none in `unmatched`. */
-async function routeApiFixtures(context: BrowserContext, unmatched: string[]): Promise<void> {
+export async function routeApiFixtures(
+	context: BrowserContext,
+	unmatched: string[]
+): Promise<void> {
 	await context.route("**/api/**", async (route) => {
 		const url = new URL(route.request().url());
 		const rest = url.pathname.slice(url.pathname.indexOf("/api/") + "/api/".length);
@@ -74,7 +83,7 @@ async function routeApiFixtures(context: BrowserContext, unmatched: string[]): P
  * server's shape, `place: null`, with the Fresno County fixture's months and years. A request
  * naming a place falls back to the fixture file.
  */
-async function routePesticideValley(context: BrowserContext): Promise<void> {
+export async function routePesticideValley(context: BrowserContext): Promise<void> {
 	await context.route(/\/api\/2\.0\/pesticides\/place\/(\?|$)/, async (route) => {
 		const url = new URL(route.request().url());
 		if (url.searchParams.has("region_type") || url.searchParams.has("monitor")) {
@@ -88,7 +97,7 @@ async function routePesticideValley(context: BrowserContext): Promise<void> {
 }
 
 /** The session account (`api/2.0/account/`) and the site's logout, which signs this context out. */
-async function routeAccount(
+export async function routeAccount(
 	context: BrowserContext,
 	initial: AccountUser | null
 ): Promise<AccountServer> {
@@ -173,6 +182,7 @@ export const test = base.extend<{
 	cspViolations: CspViolation[];
 	documentsServer: DocumentsServer;
 	mapTiler: MapTilerRequests;
+	newWatchedContext: (options?: BrowserContextOptions) => Promise<BrowserContext>;
 }>({
 	account: [null, { option: true }],
 	cspViolations: [
@@ -183,6 +193,20 @@ export const test = base.extend<{
 			expect(violations, "CSP violations").toEqual([]);
 		},
 		{ auto: true }
+	],
+	// Another context (closed after the test) whose CSP violations fail the test too.
+	newWatchedContext: [
+		async ({ browser, cspViolations }, use) => {
+			const contexts: BrowserContext[] = [];
+			await use(async (options) => {
+				const created = await browser.newContext(options);
+				contexts.push(created);
+				await watchCsp(created, cspViolations);
+				return created;
+			});
+			for (const created of contexts) await created.close();
+		},
+		{ auto: false }
 	],
 	apiFixtures: [
 		async ({ context }, use) => {

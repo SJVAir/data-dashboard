@@ -170,7 +170,7 @@ describe("TimeSubRangeSchema", () => {
 
 describe("default-place", () => {
 	const withPlace = (place: unknown) => {
-		const doc = starterDashboard(defaultStarterPlace());
+		const doc = starterDashboard(defaultStarterPlace(), null, []);
 		doc.body.widgets[0].data = { place, layers: [{ dataset: "monitors" }] } as never;
 		return doc;
 	};
@@ -182,14 +182,14 @@ describe("default-place", () => {
 	});
 
 	it("a county place bar is kept", () => {
-		const doc = starterDashboard(defaultStarterPlace());
+		const doc = starterDashboard(defaultStarterPlace(), null, []);
 		doc.body.placeBar = { place: county as never };
 		expect(DashboardSchema.parse(doc).body.placeBar).toEqual({ place: county });
 	});
 
 	it("leaves other places and the resolved starter valid; only the template holds it", () => {
 		expect(DashboardSchema.safeParse(withPlace(county)).success).toBe(true);
-		const starter = starterDashboard(defaultStarterPlace());
+		const starter = starterDashboard(defaultStarterPlace(), null, []);
 		expect(DashboardSchema.safeParse(starter).success).toBe(true);
 		expect(StarterDashboardSchema.safeParse(starter).success).toBe(true);
 		expect(DashboardSchema.safeParse(starterTemplate()).success).toBe(false);
