@@ -442,9 +442,7 @@
 				: (plain.data.resolution as DataLevel | undefined),
 			within: isMap ? MAP_LEVELS : LEVELS
 		});
-		return block
-			? datasetBlockText(block, pinned && type ? { type: type.label() } : undefined)
-			: undefined;
+		return block ? datasetBlockText(block, pinned) : undefined;
 	}
 	/** The Map's place-less datasets' reasons (smoke and fire go together). */
 	const mapBlocks = $derived(

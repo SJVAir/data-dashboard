@@ -89,13 +89,10 @@ describe("datasetBlockText", () => {
 });
 
 describe("datasetBlockText for a pinned type", () => {
-	it("names the type and the level it shows", () => {
-		expect(
-			datasetBlockText(
-				{ kind: "not-offered", at: "day", suggest: "month" },
-				{ type: "Month calendar" }
-			)
-		).toBe("Reported by month, but Month calendar shows daily data.");
+	it("says the calendar sets the level", () => {
+		expect(datasetBlockText({ kind: "not-offered", at: "day", suggest: "month" }, true)).toBe(
+			"Reported by month, but this calendar shows daily data."
+		);
 	});
 });
 

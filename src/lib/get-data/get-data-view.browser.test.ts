@@ -1234,6 +1234,14 @@ test("a stored level outside the levels (a quarter, untrusted) blocks Add with i
 	await expect.element(add).toBeDisabled();
 	await expect.element(add).toHaveAccessibleDescription(m.get_data_resolution_unknown_blocked());
 	await openResolution();
+	// The warning stays under the name with the list open: no radio is checked to say it.
+	await expect
+		.element(
+			page
+				.getByRole("heading", { level: 2, name: /^Data resolution/ })
+				.getByText(m.get_data_resolution_unknown_blocked())
+		)
+		.toBeVisible();
 	await page.getByRole("radio", { name: "Automatic" }).click();
 	await expect.element(add).toBeEnabled();
 	expect((await current()).data).not.toHaveProperty("resolution");
@@ -3055,7 +3063,7 @@ describe("calendar types", () => {
 		await expect.element(radio).toBeDisabled();
 		await expect
 			.element(radio)
-			.toHaveAccessibleDescription("Reported by month, but Month calendar shows daily data.");
+			.toHaveAccessibleDescription("Reported by month, but this calendar shows daily data.");
 		await expect.element(page.getByRole("radio", { name: "PM2.5" })).toBeChecked();
 	});
 
@@ -3252,7 +3260,7 @@ describe("a type's own options", () => {
 				"Calendar options",
 				m.get_data_mark_days_at_level()
 			],
-			[nowDraft("current-conditions"), "Current conditions options", "Alert level"],
+			[nowDraft("current-conditions"), "Alert levels", "Alert level"],
 			[nowDraft("outside"), "Alert levels", "Alert level"]
 		];
 		for (const [draft, heading, control] of cases) {
@@ -3294,12 +3302,10 @@ describe("a type's own options", () => {
 			type: "current-conditions",
 			data: { layers: [{ dataset: "air-quality", monitors: ["m1"] }] }
 		} as Draft);
-		expect(
-			column().getByRole("heading", { name: "Current conditions options" }).elements()
-		).toHaveLength(0);
+		expect(column().getByRole("heading", { name: "Alert levels" }).elements()).toHaveLength(0);
 		await openSection(AIR);
 		await page.getByRole("checkbox", { name: "PM2.5" }).click();
-		await expect.element(optionsHeading("Current conditions options")).toBeVisible();
+		await expect.element(optionsHeading("Alert levels")).toBeVisible();
 		expect(column().getByRole("combobox", { name: "Alert level" }).elements()).toHaveLength(1);
 		host.remove();
 	});

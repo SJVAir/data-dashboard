@@ -62,17 +62,16 @@ export function datasetBlock(args: {
 }
 
 /**
- * A dataset block's reason, shown beside the greyed choice. A `pinned` type (a calendar) names
- * itself: it, not the data resolution, sets the level.
+ * A dataset block's reason, shown beside the greyed choice. A `pinned` type (a calendar) says
+ * it, not the data resolution, sets the level.
  */
-export function datasetBlockText(block: DatasetBlock, pinned?: { type: string }): string {
+export function datasetBlockText(block: DatasetBlock, pinned?: boolean): string {
 	if (block.kind === "no-common") {
 		return m.get_data_dataset_no_common({ by: LEVEL_BY[block.by]() });
 	}
 	if (pinned) {
 		return m.get_data_dataset_not_offered_pinned({
 			by: LEVEL_BY[block.suggest](),
-			type: pinned.type,
 			level: LEVEL_LOWER[block.at]()
 		});
 	}

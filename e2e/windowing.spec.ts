@@ -8,6 +8,7 @@ import {
 	fullscreenFrame,
 	liveRegion,
 	makeOwnCopy,
+	newBlankDashboard,
 	nav,
 	openSharedDoc,
 	sharedDoc,
@@ -260,4 +261,17 @@ test("the top bar keeps the picker and ⋯ together at 390 px", async ({ page })
 			).length
 	);
 	expect(overflowing).toBe(0);
+});
+
+test("the ⋯ follows the dashboard on screen across routes", async ({ page }) => {
+	const actions = nav(page).getByRole("button", { name: "Dashboard actions", exact: true });
+	await makeOwnCopy(page);
+	await expect(actions).toBeVisible();
+	await nav(page).getByRole("link", { name: "Data Portal", exact: true }).click();
+	await expect(page).toHaveURL(/\/workspace\/data$/);
+	await expect(actions).toHaveCount(0);
+	await newBlankDashboard(page);
+	await expect(actions).toBeVisible();
+	await actions.click();
+	await expect(page.getByRole("menuitem", { name: /^Rename dashboard/ })).toBeVisible();
 });

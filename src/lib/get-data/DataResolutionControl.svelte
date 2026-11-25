@@ -28,10 +28,13 @@
 
 	const checkedChoice = $derived(choices.find((c) => c.level === value));
 	let open = $state<string[]>([]);
-	/** What's wrong with the chosen level, under the closed name (the open list says it itself). */
+	/**
+	 * What's wrong with the chosen level, under the name. A blocked radio says it itself when the
+	 * list is open; an unknown stored level has no radio, so its warning stays.
+	 */
 	const warning = $derived.by(() => {
-		if (open.includes("resolution")) return undefined;
 		if (!(value in LABEL)) return m.get_data_resolution_unknown_blocked();
+		if (open.includes("resolution")) return undefined;
 		return checkedChoice?.blocked ? reason(checkedChoice) : undefined;
 	});
 

@@ -16,7 +16,7 @@ export const currentType: WidgetType = {
 	time: "now",
 	placePicker: true,
 	thresholds: true,
-	optionsLabel: () => m.get_data_options_current(),
+	optionsLabel: () => m.get_data_options_outside(),
 	analyzable: true,
 	downloadable: false,
 	accepts: { datasets: ["air-quality"], maxPlaces: 1 },
