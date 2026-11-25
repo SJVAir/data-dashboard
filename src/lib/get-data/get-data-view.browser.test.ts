@@ -958,6 +958,14 @@ test("get data view: Clear goes back to None, focuses Change places, says so", a
 	expect(data.selection).toBeUndefined();
 });
 
+test("get data view: Clear drops the place from the preview's title", async () => {
+	await show(areasDraft(["06019"]));
+	const title = () => document.querySelector("[data-testid=get-data-preview] h3")?.textContent;
+	await expect.poll(title).toBe("PM2.5 · Area 06019 · Last 30 days");
+	await page.getByRole("button", { name: "Clear places" }).click();
+	await expect.poll(title).toBe("PM2.5 · Last 30 days");
+});
+
 test("get data view: a single-place widget has no Clear (its empty Where asks for one)", async () => {
 	await show({
 		type: "current-conditions",
