@@ -525,12 +525,6 @@ string`) now get the union return type. The mobile app passes a string token, so
     fixtures still contain `levels`. **Mobile done** (mobile #114 into its `release/5.0.0`,
     2026-11-09): it reads `scale`, and a subscription level missing from the PM2.5 scale shows
     "—" instead of disappearing; `MonitorSubscription.svelte` was removed.
-  - **Mobile onto the latest monitor-map 5.0 beta and SDK, before the day** (the user,
-    2026-11-24). After the user's parity review and a `@sjvair/monitor-map` `5.0.0-beta.3` (the
-    user's yes), mobile's `release/5.0.0` moves from `5.0.0-beta.2` and `@sjvair/sdk`
-    `5.0.0-beta.10` to that beta and `@sjvair/sdk` `5.0.0-beta.17` (monitor-map's SDK peer range
-    stays `^5.0.0-beta.10`, so the SDK move is mobile's choice). The coordinator writes its prompt.
-    `5.0.0-beta.3` was published 2026-11-24 (on `@sjvair/map-sdk` `0.1.0-beta.23`), so this is due.
   - **Mobile 5.0.0 on the day, after `develop` is deployed** (the user, 2026-11-09). Each step
     needs the user's own yes; none is done earlier. Mobile's 5.0 work waits on its
     `release/5.0.0` branch (`main` stays on 4.x for hotfixes):
