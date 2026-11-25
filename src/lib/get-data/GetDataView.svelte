@@ -68,7 +68,7 @@
 	import ActionBar from "./ActionBar.svelte";
 	import type { AddTarget } from "./add";
 	import DataResolutionControl from "./DataResolutionControl.svelte";
-	import TypeOptions from "./TypeOptions.svelte";
+	import TypeOptionsButton from "./TypeOptionsButton.svelte";
 	import { hasAlertLevels, hasLevelLine } from "./type-options";
 	import { flushDraft, saveDraft, type Draft } from "./draft.svelte";
 	import type { GetDataMode } from "./mode";
@@ -1008,6 +1008,16 @@
 			: []
 	);
 
+	/** Whether the type's options panel is open; a type change closes it. */
+	let optionsOpen = $state(false);
+	// The type alone (a string): any other draft change, such as a level picked in the panel,
+	// doesn't close it.
+	const shownType = $derived(plain.type);
+	$effect(() => {
+		void shownType;
+		untrack(() => (optionsOpen = false));
+	});
+
 	/** The type's own options (level line or alert levels) have something to show. */
 	const showTypeOptions = $derived(
 		!!type?.thresholds &&
@@ -1268,27 +1278,33 @@
 			data-testid="get-data-preview-column"
 			{@attach scrollFocusable}
 		>
-			<ShowAs types={showAs} value={plain.type} onchange={setType} />
-			{#if showTypeOptions && type?.optionsLabel}
-				<TypeOptions label={type.optionsLabel()}>
-					{#if isNow}
-						<!-- A now type's alert levels, one per pollutant (chosen in Air quality). -->
-						<NowControls
-							alerts={nowAlerts}
-							onthreshold={setThreshold}
-							onretry={(e) => void levelsOf(e)}
-						/>
-					{:else if shownLevels}
-						<ThresholdLineControl
-							levels={shownLevels}
-							thresholds={plain.thresholds}
-							onthreshold={setLineThreshold}
-							onretry={() => void levelsOf(lineEntryType)}
-							marks={isCalendarType(plain.type)}
-						/>
-					{/if}
-				</TypeOptions>
-			{/if}
+			<!-- Show as and the type's own options (a button opening a panel over the preview). The
+			     button sits at the row's bottom, so its panel opens below all of Show as. -->
+			<div class="flex flex-wrap items-end gap-2">
+				<div class="min-w-0 flex-1">
+					<ShowAs types={showAs} value={plain.type} onchange={setType} />
+				</div>
+				{#if showTypeOptions && type?.optionsLabel}
+					<TypeOptionsButton label={type.optionsLabel()} bind:open={optionsOpen}>
+						{#if isNow}
+							<!-- A now type's alert levels, one per pollutant (chosen in Air quality). -->
+							<NowControls
+								alerts={nowAlerts}
+								onthreshold={setThreshold}
+								onretry={(e) => void levelsOf(e)}
+							/>
+						{:else if shownLevels}
+							<ThresholdLineControl
+								levels={shownLevels}
+								thresholds={plain.thresholds}
+								onthreshold={setLineThreshold}
+								onretry={() => void levelsOf(lineEntryType)}
+								marks={isCalendarType(plain.type)}
+							/>
+						{/if}
+					</TypeOptionsButton>
+				{/if}
+			</div>
 			{#if overlayFor}
 				<label class="flex flex-wrap items-center gap-2 text-sm">
 					<span class="font-medium">{m.get_data_overlay_for()}</span>

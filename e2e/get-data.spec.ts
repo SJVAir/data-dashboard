@@ -17,6 +17,7 @@ import {
 	makeOwnCopy,
 	nav,
 	openSection,
+	openTypeOptions,
 	shareLinkFor,
 	titleBar,
 	widgetMenuItem,
@@ -452,6 +453,7 @@ test("Add widget → Current conditions keeps the default alert level through Ed
 	await expect(picker).toBeHidden();
 	await expect(page.getByTestId("where-summary")).toHaveText("Fresno County");
 
+	await openTypeOptions(page, "Alert levels");
 	const alert = page.getByRole("combobox", { name: "Alert level" });
 	await expect(alert).toHaveValue(usg);
 	await expect(alert.locator("option:checked")).toHaveText(
@@ -466,6 +468,7 @@ test("Add widget → Current conditions keeps the default alert level through Ed
 	await widgetMenuItem(page, title, "Open in Data Portal", 1);
 	await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeFocused();
 	await expect(page.getByRole("radio", { name: "Current conditions" })).toBeChecked();
+	await openTypeOptions(page, "Alert levels");
 	await expect(page.getByRole("combobox", { name: "Alert level" })).toHaveValue(usg);
 	// Opening a saved now widget converts nothing.
 	await expect(page.getByText(/so they were left out/)).toHaveCount(0);

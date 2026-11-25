@@ -35,7 +35,7 @@ import {
 	fakeForecastsAdapter,
 	fakeNumberAdapter
 } from "$lib/widgets/shared/test-harness/fake-data";
-import { openSection } from "../../test/sections";
+import { openSection, openTypeOptions } from "../../test/sections";
 import { animationsSettled } from "../../test/animations";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { makeDoc } from "$lib/sync/test-support";
@@ -666,6 +666,7 @@ test("Data resolution is its own section after What, with a help button", async 
 		.toBeVisible();
 	// The level line sits under Show as, always open.
 	const line = page.getByRole("combobox", { name: m.get_data_line_at_level() });
+	await openTypeOptions("Chart options");
 	await expect.element(line).toBeVisible();
 	host.remove();
 });
@@ -1714,6 +1715,7 @@ describe("now widgets", () => {
 		await expect.element(pollutant.getByRole("checkbox", { name: "PM10" })).not.toBeInTheDocument();
 		expect(pollutant.getByRole("radio").elements()).toHaveLength(0);
 		await expect.element(pollutant.getByText("None", { exact: true })).not.toBeInTheDocument();
+		await openTypeOptions("Alert levels");
 		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
 		const options = [...(alert().element() as HTMLSelectElement).options].map((o) => o.text);
 		expect(options).toEqual([
@@ -2500,6 +2502,7 @@ describe("now widgets", () => {
 	test("Outside has the alert level but no pollutant control; the Forecast strip has neither", async () => {
 		const { current } = await show(areasDraft(["a1"]));
 		await page.getByRole("radio", { name: "Can we go outside?" }).click();
+		await openTypeOptions("Alert levels");
 		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
 		// Not a downloadable type.
 		await expect
@@ -2546,10 +2549,12 @@ describe("now widgets", () => {
 		});
 		makeClient();
 		const { current } = await show({ ...currentDraft([{ level: "unhealthy" }]), type: "outside" });
+		await openTypeOptions("Alert levels");
 		await expect.element(alert()).toHaveValue("unhealthy");
 		await openSection(AIR);
 		await page.getByRole("radio", { name: "Ozone" }).click();
 		// "unhealthy" isn't on the ozone scale: its default, with no note (the person chose).
+		await openTypeOptions("Alert levels");
 		await expect.element(alert()).toHaveValue("usg-o3");
 		await expect.element(page.getByText(/isn't one of this pollutant's/)).not.toBeInTheDocument();
 		await alert().selectOptions("good");
@@ -2572,6 +2577,7 @@ describe("now widgets", () => {
 		// No watcher: nothing in the dashboard's marks.
 		expect(Object.keys(thresholdMarks)).toEqual([]);
 		// Above the reading: no mark.
+		await openTypeOptions("Alert levels");
 		await alert().selectOptions("unhealthy");
 		await expect.poll(() => preview().querySelector("[data-mark]")).toBeNull();
 	});
@@ -2579,6 +2585,7 @@ describe("now widgets", () => {
 	test("a Chart's low line carried to a tile as its alert level is named", async () => {
 		const { current } = await show(monitorsDraft(["m1"], { thresholds: [{ level: "good" }] }));
 		await page.getByRole("radio", { name: "Current conditions" }).click();
+		await openTypeOptions("Alert levels");
 		await expect.element(alert()).toHaveValue("good");
 		const note = m.get_data_alert_level_from_low_line({ level: "Good" });
 		expect(note).toBe(
@@ -2590,6 +2597,7 @@ describe("now widgets", () => {
 
 	test("a saved level the scale no longer has shows its default, and says so", async () => {
 		await show(currentDraft([{ level: "gone", entryType: "pm25" }]));
+		await openTypeOptions("Alert levels");
 		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
 		await expect
 			.element(
@@ -2605,6 +2613,7 @@ describe("now widgets", () => {
 		await expect.element(page.getByText(m.get_data_dates_left_out())).toBeVisible();
 		await expect.element(page.getByText(m.get_data_extra_places_left_out())).toBeVisible();
 		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Area a1");
+		await openTypeOptions("Alert levels");
 		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
 	});
 
@@ -2647,6 +2656,7 @@ describe("now widgets", () => {
 
 	test("an Off alert level stays Off from Can we go outside? to Current conditions", async () => {
 		const { current } = await show({ ...currentDraft(), type: "outside" });
+		await openTypeOptions("Alert levels");
 		await expect.element(alert()).toHaveValue("");
 		await page.getByRole("radio", { name: "Current conditions" }).click();
 		await expect.element(page.getByRole("radio", { name: "Current conditions" })).toBeChecked();
@@ -2666,6 +2676,7 @@ describe("now widgets", () => {
 		const instead = m.get_data_pollutant_instead({ pollutant: "PM2.5", previous: "Ozone" });
 		expect(instead).toBe("This widget shows only PM2.5, so it uses that instead of Ozone.");
 		await expect.element(page.getByText(instead)).toBeVisible();
+		await openTypeOptions("Alert levels");
 		await expect.element(alert()).toHaveValue("");
 		await alert().selectOptions("unhealthy");
 		await expect.element(page.getByText(instead)).not.toBeInTheDocument();
@@ -2688,6 +2699,7 @@ describe("now widgets", () => {
 		makeClient();
 		const { current } = await show(monitorsDraft(["m1"]));
 		await page.getByRole("radio", { name: "Current conditions" }).click();
+		await openTypeOptions("Alert levels");
 		await expect.element(page.getByText(m.get_data_levels_unavailable())).toBeVisible();
 		await expect.element(alert()).not.toBeInTheDocument();
 		failing = false;
@@ -2740,6 +2752,7 @@ describe("now widgets", () => {
 			await expect.element(aq().getByRole("checkbox", { name: "PM2.5" })).toBeChecked();
 			await expect.element(aq().getByRole("checkbox", { name: "Ozone" })).not.toBeChecked();
 			await aq().getByRole("checkbox", { name: "Ozone" }).click();
+			await openTypeOptions("Alert levels");
 			await expect.element(forPm25()).toHaveValue("unhealthy-sensitive");
 			await expect.element(forOzone()).toHaveValue("usg-o3");
 			const out = await current();
@@ -2761,11 +2774,13 @@ describe("now widgets", () => {
 
 		test("unticking PM2.5 drops its alert level and keeps the searched monitor", async () => {
 			const { current } = await show(both());
+			await openTypeOptions("Alert levels");
 			await expect.element(forPm25()).toHaveValue("unhealthy");
 			await openSection(AIR);
 			await aq().getByRole("checkbox", { name: "PM2.5" }).click();
 			await expect.element(forPm25()).not.toBeInTheDocument();
 			// One pollutant left: its control reads as a single one does.
+			await openTypeOptions("Alert levels");
 			await expect
 				.element(page.getByRole("combobox", { name: "Alert level", exact: true }))
 				.toHaveValue("usg-o3");
@@ -2782,6 +2797,7 @@ describe("now widgets", () => {
 			await aq().getByRole("checkbox", { name: "PM2.5" }).click();
 			await expect.element(forPm25()).not.toBeInTheDocument();
 			await aq().getByRole("checkbox", { name: "PM2.5" }).click();
+			await openTypeOptions("Alert levels");
 			await expect.element(forPm25()).toHaveValue("unhealthy-sensitive");
 			const out = await current();
 			expect(out.data.layers).toEqual([
@@ -2818,12 +2834,14 @@ describe("now widgets", () => {
 			// Ticking one again gives it its default and unblocks Add.
 			await aq().getByRole("checkbox", { name: "Ozone" }).click();
 			await expect.element(add).toBeEnabled();
+			await openTypeOptions("Alert levels");
 			await expect.element(alert()).toHaveValue("usg-o3");
 		});
 
 		test("one pollutant's scale failing replaces only its control, with its own Retry", async () => {
 			ozoneFails.on = true;
 			const { current } = await show(both());
+			await openTypeOptions("Alert levels");
 			await expect.element(page.getByText(m.get_data_levels_unavailable())).toBeVisible();
 			await expect.element(forOzone()).not.toBeInTheDocument();
 			await expect.element(forPm25()).toHaveValue("unhealthy");
@@ -2835,6 +2853,7 @@ describe("now widgets", () => {
 				{ level: "usg-o3", entryType: "o3" }
 			]);
 			ozoneFails.on = false;
+			await openTypeOptions("Alert levels");
 			await page.getByRole("button", { name: m.get_data_retry() }).click();
 			await expect.element(forOzone()).toHaveValue("usg-o3");
 			await expect.element(page.getByText(m.get_data_levels_unavailable())).not.toBeInTheDocument();
@@ -2845,9 +2864,11 @@ describe("now widgets", () => {
 			const { current } = await show(currentDraft([{ level: "unhealthy", entryType: "pm25" }]));
 			await openSection(AIR);
 			await aq().getByRole("checkbox", { name: "Ozone" }).click();
+			await openTypeOptions("Alert levels");
 			await expect.element(page.getByText(m.get_data_levels_unavailable())).toBeVisible();
 			expect((await current()).thresholds).toEqual([{ level: "unhealthy", entryType: "pm25" }]);
 			ozoneFails.on = false;
+			await openTypeOptions("Alert levels");
 			await page.getByRole("button", { name: m.get_data_retry() }).click();
 			await expect.element(forOzone()).toHaveValue("usg-o3");
 			expect((await current()).thresholds).toEqual([
@@ -2864,9 +2885,11 @@ describe("now widgets", () => {
 			const { current } = await show(
 				currentDraft([{ level: "unhealthy-sensitive", entryType: "pm25" }])
 			);
+			await openTypeOptions("Alert levels");
 			await alert().selectOptions("good");
 			await page.getByRole("radio", { name: "Can we go outside?" }).click();
 			await expect.element(page.getByRole("radio", { name: "Can we go outside?" })).toBeChecked();
+			await openTypeOptions("Alert levels");
 			await expect.element(alert()).toHaveValue("good");
 			const out = await current();
 			expect(out.type).toBe("outside");
@@ -2879,6 +2902,7 @@ describe("now widgets", () => {
 		const note = page.getByText(
 			m.get_data_alert_level_replaced({ level: "Unhealthy for Sensitive Groups" })
 		);
+		await openTypeOptions("Alert levels");
 		await expect.element(note).toBeVisible();
 		const use = page.getByRole("button", {
 			name: m.get_data_alert_level_use({ level: "Unhealthy for Sensitive Groups" })
@@ -2905,6 +2929,7 @@ describe("now widgets", () => {
 		setPlatform(platform);
 		await page.getByRole("radio", { name: "Can we go outside?" }).click();
 		await expect.element(page.getByRole("radio", { name: "Can we go outside?" })).toBeChecked();
+		await openTypeOptions("Alert levels");
 		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
 		expect(document.querySelectorAll("[data-no-guidelines]")).toHaveLength(0);
 		expect((await current()).data.layers).toEqual([{ dataset: "air-quality", entryType: "pm25" }]);
@@ -2932,6 +2957,7 @@ describe("now widgets", () => {
 
 	test("axe passes", async () => {
 		const { host } = await show(currentDraft([{ level: "gone", entryType: "pm25" }]));
+		await openTypeOptions("Alert levels");
 		await expect.element(alert()).toBeVisible();
 		await animationsSettled(host);
 		const results = await axe.run(host);
@@ -2942,6 +2968,7 @@ describe("now widgets", () => {
 test("a Chart's Threshold line defaults to Off and saves the chosen level", async () => {
 	const { host, current } = await show(monitorsDraft(["m1"]));
 	const select = page.getByRole("combobox", { name: m.get_data_line_at_level() });
+	await openTypeOptions("Chart options");
 	await expect.element(select).toBeVisible();
 	await expect.element(select).toHaveValue("");
 	expect(await current()).not.toHaveProperty("thresholds");
@@ -2955,6 +2982,7 @@ test("a Chart's Threshold line defaults to Off and saves the chosen level", asyn
 test("a saved level the scale lacks shows Off and says so", async () => {
 	const { host } = await show(monitorsDraft(["m1"], { thresholds: [{ level: "gone" }] }));
 	const select = page.getByRole("combobox", { name: m.get_data_line_at_level() });
+	await openTypeOptions("Chart options");
 	await expect.element(select).toHaveValue("");
 	await expect.element(page.getByText(m.chart_level_line_missing()).first()).toBeVisible();
 	host.remove();
@@ -2977,6 +3005,7 @@ test("Threshold line: Chart → Data table → Current conditions gets the defau
 	const { host, current } = await show(monitorsDraft(["m1"], { thresholds: [{ level: "gone" }] }));
 	await page.getByRole("radio", { name: "Data table" }).click();
 	await page.getByRole("radio", { name: "Current conditions" }).click();
+	await openTypeOptions("Alert levels");
 	await expect
 		.element(page.getByRole("combobox", { name: "Alert level" }))
 		.toHaveValue("unhealthy-sensitive");
@@ -2989,6 +3018,7 @@ test("Threshold line: Chart → Data table → Current conditions gets the defau
 test("Threshold line: Chart → Current conditions carries the line's level", async () => {
 	const { host } = await show(monitorsDraft(["m1"], { thresholds: [{ level: "unhealthy" }] }));
 	await page.getByRole("radio", { name: "Current conditions" }).click();
+	await openTypeOptions("Alert levels");
 	await expect
 		.element(page.getByRole("combobox", { name: "Alert level" }))
 		.toHaveValue("unhealthy");
@@ -3020,6 +3050,7 @@ describe("calendar types", () => {
 			...monthDraft(),
 			thresholds: [{ level: "gone" }]
 		});
+		await openTypeOptions("Calendar options");
 		await expect
 			.element(page.getByRole("combobox", { name: m.get_data_mark_days_at_level() }))
 			.toHaveValue("");
@@ -3248,9 +3279,10 @@ describe("What sections start closed", () => {
 
 describe("a type's own options", () => {
 	const column = () => page.getByTestId("get-data-preview-column");
-	const optionsHeading = (name: string) => column().getByRole("heading", { name, exact: true });
+	const optionsButton = (name: string) => column().getByRole("button", { name, exact: true });
+	const optionsPanel = (name: string) => page.getByRole("dialog", { name });
 
-	test("each type's options sit under Show as", async () => {
+	test("each type's options open from the button beside Show as", async () => {
 		const month = monthCalendarDraft();
 		const cases: [Draft, string, string][] = [
 			[monitorsDraft(["m1"]), "Chart options", m.get_data_line_at_level()],
@@ -3263,13 +3295,64 @@ describe("a type's own options", () => {
 			[nowDraft("current-conditions"), "Alert levels", "Alert level"],
 			[nowDraft("outside"), "Alert levels", "Alert level"]
 		];
-		for (const [draft, heading, control] of cases) {
+		for (const [draft, name, control] of cases) {
 			const { screen, host } = await show(draft);
-			await expect.element(optionsHeading(heading)).toBeVisible();
-			await expect.element(column().getByRole("combobox", { name: control })).toBeVisible();
+			await expect.element(optionsButton(name)).toHaveAttribute("aria-expanded", "false");
+			expect(page.getByRole("combobox", { name: control }).elements()).toHaveLength(0);
+			await openTypeOptions(name);
+			await expect
+				.element(optionsPanel(name).getByRole("combobox", { name: control }))
+				.toBeVisible();
 			screen.unmount();
 			host.remove();
 		}
+	});
+
+	test("the panel floats over the preview; Escape closes it and focus returns to the button", async () => {
+		const { host } = await show(monitorsDraft(["m1"]));
+		const preview = () => page.getByTestId("get-data-preview").element();
+		await expect.element(optionsButton("Chart options")).toBeVisible();
+		const before = preview().getBoundingClientRect().top;
+		await openTypeOptions("Chart options");
+		expect(preview().getBoundingClientRect().top).toBe(before);
+		await userEvent.keyboard("{Escape}");
+		await expect.element(optionsPanel("Chart options")).not.toBeInTheDocument();
+		await expect.element(optionsButton("Chart options")).toHaveFocus();
+		host.remove();
+	});
+
+	test("the open panel never covers Show as, even when Show as wraps", async () => {
+		const { host } = await show(nowDraft("current-conditions"));
+		await openTypeOptions("Alert levels");
+		for (const radio of page.getByRole("radio").elements()) {
+			if (!radio.closest("[data-show-as]") && !radio.hasAttribute("data-show-as")) continue;
+			const r = radio.getBoundingClientRect();
+			const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+			expect(radio.contains(hit), radio.textContent ?? "").toBe(true);
+		}
+		host.remove();
+	});
+
+	test("choosing a level in the panel keeps it open", async () => {
+		const { host, current } = await show(monitorsDraft(["m1"]));
+		await openTypeOptions("Chart options");
+		await page
+			.getByRole("combobox", { name: m.get_data_line_at_level() })
+			.selectOptions("unhealthy");
+		await expect.poll(async () => (await current()).thresholds).toEqual([{ level: "unhealthy" }]);
+		// A closing panel still shows while it animates out: the button says at once.
+		expect(optionsButton("Chart options").element().getAttribute("aria-expanded")).toBe("true");
+		host.remove();
+	});
+
+	test("switching Show as closes the options panel", async () => {
+		const { host } = await show(monitorsDraft(["m1"]));
+		await openTypeOptions("Chart options");
+		await page.getByRole("radio", { name: "Data table" }).click();
+		await expect.element(optionsPanel("Chart options")).not.toBeInTheDocument();
+		await page.getByRole("radio", { name: "Chart" }).click();
+		await expect.element(optionsButton("Chart options")).toHaveAttribute("aria-expanded", "false");
+		host.remove();
 	});
 
 	test("no options heading when there's nothing to set", async () => {
@@ -3288,7 +3371,7 @@ describe("a type's own options", () => {
 		for (const draft of drafts) {
 			const { screen, host } = await show(draft);
 			const names = column()
-				.getByRole("heading", { level: 2 })
+				.getByRole("button")
 				.elements()
 				.map((el) => el.textContent?.trim() ?? "");
 			expect(names.filter((n) => /options$|^Alert levels$/.test(n))).toEqual([]);
@@ -3302,11 +3385,11 @@ describe("a type's own options", () => {
 			type: "current-conditions",
 			data: { layers: [{ dataset: "air-quality", monitors: ["m1"] }] }
 		} as Draft);
-		expect(column().getByRole("heading", { name: "Alert levels" }).elements()).toHaveLength(0);
+		expect(optionsButton("Alert levels").elements()).toHaveLength(0);
 		await openSection(AIR);
 		await page.getByRole("checkbox", { name: "PM2.5" }).click();
-		await expect.element(optionsHeading("Alert levels")).toBeVisible();
-		expect(column().getByRole("combobox", { name: "Alert level" }).elements()).toHaveLength(1);
+		await openTypeOptions("Alert levels");
+		expect(page.getByRole("combobox", { name: "Alert level" }).elements()).toHaveLength(1);
 		host.remove();
 	});
 
@@ -3333,9 +3416,10 @@ describe("a type's own options", () => {
 		});
 		makeClient();
 		const { host } = await show(monitorsDraft(["m1"]));
-		await expect.element(optionsHeading("Chart options")).toBeVisible();
-		await expect.element(column().getByText(m.get_data_levels_unavailable())).toBeVisible();
-		await expect.element(column().getByRole("button", { name: m.get_data_retry() })).toBeVisible();
+		await openTypeOptions("Chart options");
+		const panel = optionsPanel("Chart options");
+		await expect.element(panel.getByText(m.get_data_levels_unavailable())).toBeVisible();
+		await expect.element(panel.getByRole("button", { name: m.get_data_retry() })).toBeVisible();
 		host.remove();
 	});
 
