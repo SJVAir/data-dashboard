@@ -383,6 +383,17 @@ test("Edit data on the starter while the types load: the copy it saves keeps sav
 
 const datesButton = () => page.getByRole("button", { name: /^Dates/ });
 
+/** Opens the air-quality What section (every section starts closed; this test has no catalog, so it carries its dataset key). */
+async function openAirQuality() {
+	const trigger = page.getByRole("button", { name: /^air.quality(?! forecasts)/i });
+	await expect.element(trigger).toBeVisible();
+	if (trigger.element().getAttribute("aria-expanded") === "false") {
+		await trigger.click();
+		await animationsSettled(document.body);
+	}
+	await expect.element(trigger).toHaveAttribute("aria-expanded", "true");
+}
+
 /** A draft change the Map offers while the catalog loads: its dates. */
 async function chooseLastWeek() {
 	await datesButton().click();
@@ -404,6 +415,7 @@ test("Edit data on the starter's Map: a change made while the types load survive
 		await chooseLastWeek();
 		answer();
 		await expect.poll(() => app.starterTypes).not.toBeNull();
+		await openAirQuality();
 		// The types swap left the draft alone.
 		await expect.element(page.getByRole("checkbox", { name: "BAM 1022" })).toBeVisible();
 		await expect.element(datesButton()).toHaveTextContent("Last 7 days");
@@ -527,6 +539,7 @@ test("Edit data on the starter's Map keeps exactly the types the person ticked",
 	try {
 		answer();
 		await expect.poll(() => app.starterTypes).not.toBeNull();
+		await openAirQuality();
 		await page.getByRole("checkbox", { name: "BAM 1022" }).click();
 		await saveButton().click();
 		const map = await savedWidget();

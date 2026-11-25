@@ -1790,13 +1790,16 @@ describe("now widgets", () => {
 		const first = await show(currentDraft());
 		await expect.element(page.getByRole("heading", { name: "Where", level: 2 })).toBeVisible();
 		expect(leftColumnHeadings()).toEqual(["Where", "What"]);
+		first.screen.unmount();
 		first.host.remove();
-		await show({
+		const second = await show({
 			type: "map",
 			data: { layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }] }
 		});
 		await expect.element(page.getByRole("heading", { name: "Where", level: 2 })).toBeVisible();
 		expect(leftColumnHeadings()).toEqual(["When", "Where", "What"]);
+		second.screen.unmount();
+		second.host.remove();
 	});
 
 	test("a Map's When offers Now and the date methods; Data resolution only with a range", async () => {
@@ -3315,15 +3318,17 @@ describe("a type's own options", () => {
 	});
 
 	test("no More options; What has no Alert level", async () => {
-		const { host } = await show(nowDraft("current-conditions"));
+		const { screen, host } = await show(nowDraft("current-conditions"));
 		expect(page.getByRole("button", { name: "More options" }).elements()).toHaveLength(0);
+		screen.unmount();
+		host.remove();
 		const chart = await show(monitorsDraft(["m1"]));
 		expect(page.getByRole("button", { name: "More options" }).elements()).toHaveLength(0);
+		chart.screen.unmount();
 		chart.host.remove();
 		expect(
 			page.getByTestId("get-data-choices").getByRole("combobox", { name: "Alert level" }).elements()
 		).toHaveLength(0);
-		host.remove();
 	});
 
 	test("a scale that can't load still shows the options section, with Retry", async () => {

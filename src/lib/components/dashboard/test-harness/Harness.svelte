@@ -19,7 +19,7 @@
 	setContext(ARRANGEMENT_PROBE_KEY, (arrangement: Arrangement) => onArrangement?.(arrangement));
 </script>
 
-<DashboardMenuButton />
+<div class="flex"><DashboardMenuButton /></div>
 <DashboardGrid {view} />
 <RenameDialog />
 <Toaster />
