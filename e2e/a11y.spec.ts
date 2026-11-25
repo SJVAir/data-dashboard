@@ -11,6 +11,7 @@ import {
 	makeOwnCopy,
 	openPicker,
 	openSection,
+	openTypeOptions,
 	shareLinkFor,
 	sharedDoc,
 	widgetMenuItem,
@@ -59,11 +60,15 @@ for (const colorScheme of ["light", "dark"] as const) {
 		}) => {
 			await page.goto("data");
 			await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
-			await expect(page.getByRole("button", { name: "Fill regions by" })).toBeDisabled();
+			// The Map's own settings aren't in a Chart's What at all.
+			await expect(page.getByRole("button", { name: "Fill regions by" })).toHaveCount(0);
 			await expectNoViolations(page);
 			await page.getByRole("radio", { name: "Map" }).click();
-			await expect(page.getByRole("button", { name: "Fill regions by" })).toBeEnabled();
 			await expect(page.getByRole("button", { name: /^Weather/ })).toBeDisabled();
+			await expectNoViolations(page);
+			// The Map's options panel, open.
+			await openTypeOptions(page, "Map options");
+			await expect(page.getByRole("heading", { name: "Points of interest" })).toBeVisible();
 			await expectNoViolations(page);
 		});
 

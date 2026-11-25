@@ -68,7 +68,8 @@
 	import ActionBar from "./ActionBar.svelte";
 	import type { AddTarget } from "./add";
 	import DataResolutionControl from "./DataResolutionControl.svelte";
-	import TypeOptions from "./TypeOptions.svelte";
+	import TypeOptionsButton from "./TypeOptionsButton.svelte";
+	import MapOptions, { hasMapOptions } from "./MapOptions.svelte";
 	import { hasAlertLevels, hasLevelLine } from "./type-options";
 	import { flushDraft, saveDraft, type Draft } from "./draft.svelte";
 	import type { GetDataMode } from "./mode";
@@ -91,6 +92,7 @@
 		mapShowingOnly,
 		setLocationTypes,
 		setMapFill,
+		locationsLayer,
 		setMapPesticideFilters,
 		setNotices,
 		setSmokeAndFire,
@@ -1008,11 +1010,39 @@
 			: []
 	);
 
-	/** The type's own options (level line or alert levels) have something to show. */
+	/** Whether the type's options panel is open; a type change closes it. */
+	let optionsOpen = $state(false);
+	// The type alone (a string): any other draft change, such as a level picked in the panel,
+	// doesn't close it.
+	const shownType = $derived(plain.type);
+	$effect(() => {
+		void shownType;
+		untrack(() => (optionsOpen = false));
+	});
+
+	/** The Map's ticked location types (saved order), for its options panel. */
+	const tickedLocations = $derived(locationsLayer(plain.data)?.locationTypes ?? []);
+	/**
+	 * The type's own options have something to show: the level line or alert levels, or the Map's
+	 * points of interest and fill.
+	 */
 	const showTypeOptions = $derived(
-		!!type?.thresholds &&
-			(isNow ? hasAlertLevels(nowAlerts) : hasLevelLine(shownLevels ?? undefined))
+		plain.type === MAP_TYPE
+			? hasMapOptions(locationGroups, tickedLocations, fillTypes, mapOptions(plain).fill)
+			: !!type?.thresholds &&
+					(isNow ? hasAlertLevels(nowAlerts) : hasLevelLine(shownLevels ?? undefined))
 	);
+	// The panel's last control gone (e.g. a dropped location type unticked): it closes, and focus,
+	// which was in it, goes to the chosen type in Show as rather than the page.
+	$effect(() => {
+		if (showTypeOptions || !untrack(() => optionsOpen)) return;
+		untrack(() => (optionsOpen = false));
+		const inPanel =
+			document.activeElement === document.body || !document.activeElement?.isConnected;
+		if (inPanel) {
+			document.querySelector<HTMLElement>("[data-show-as][aria-checked=true]")?.focus();
+		}
+	});
 	// A Chart's saved line is dropped once it can't be shown or edited: the type has no
 	// thresholds, or the main layer isn't a pollutant with levels.
 	$effect(() => {
@@ -1239,11 +1269,6 @@
 								useYears = undefined;
 								useYearsTry++;
 							},
-							fill: mapOptions(plain).fill,
-							fillTypes,
-							onfill: (type) => setMapFill(draft, type),
-							locationGroups,
-							onlocations: (types) => setLocationTypes(draft, types, locationGroups),
 							blocks: mapBlocks
 						}}
 					/>
@@ -1268,27 +1293,42 @@
 			data-testid="get-data-preview-column"
 			{@attach scrollFocusable}
 		>
-			<ShowAs types={showAs} value={plain.type} onchange={setType} />
-			{#if showTypeOptions && type?.optionsLabel}
-				<TypeOptions label={type.optionsLabel()}>
-					{#if isNow}
-						<!-- A now type's alert levels, one per pollutant (chosen in Air quality). -->
-						<NowControls
-							alerts={nowAlerts}
-							onthreshold={setThreshold}
-							onretry={(e) => void levelsOf(e)}
-						/>
-					{:else if shownLevels}
-						<ThresholdLineControl
-							levels={shownLevels}
-							thresholds={plain.thresholds}
-							onthreshold={setLineThreshold}
-							onretry={() => void levelsOf(lineEntryType)}
-							marks={isCalendarType(plain.type)}
-						/>
-					{/if}
-				</TypeOptions>
-			{/if}
+			<!-- Show as and the type's own options (a button opening a panel over the preview). The
+			     button sits at the row's bottom, so its panel opens below all of Show as. -->
+			<div class="flex flex-wrap items-end gap-2">
+				<div class="min-w-0 flex-1">
+					<ShowAs types={showAs} value={plain.type} onchange={setType} />
+				</div>
+				{#if showTypeOptions && type?.optionsLabel}
+					<TypeOptionsButton label={type.optionsLabel()} bind:open={optionsOpen}>
+						{#if plain.type === MAP_TYPE}
+							<MapOptions
+								groups={locationGroups}
+								ticked={tickedLocations}
+								onlocations={(types) => setLocationTypes(draft, types, locationGroups)}
+								fill={mapOptions(plain).fill}
+								{fillTypes}
+								onfill={(t) => setMapFill(draft, t)}
+							/>
+						{:else if isNow}
+							<!-- A now type's alert levels, one per pollutant (chosen in Air quality). -->
+							<NowControls
+								alerts={nowAlerts}
+								onthreshold={setThreshold}
+								onretry={(e) => void levelsOf(e)}
+							/>
+						{:else if shownLevels}
+							<ThresholdLineControl
+								levels={shownLevels}
+								thresholds={plain.thresholds}
+								onthreshold={setLineThreshold}
+								onretry={() => void levelsOf(lineEntryType)}
+								marks={isCalendarType(plain.type)}
+							/>
+						{/if}
+					</TypeOptionsButton>
+				{/if}
+			</div>
 			{#if overlayFor}
 				<label class="flex flex-wrap items-center gap-2 text-sm">
 					<span class="font-medium">{m.get_data_overlay_for()}</span>

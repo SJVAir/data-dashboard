@@ -16,7 +16,9 @@ import {
 	expectSaved,
 	makeOwnCopy,
 	nav,
+	expectNoViolations,
 	openSection,
+	openTypeOptions,
 	shareLinkFor,
 	titleBar,
 	widgetMenuItem,
@@ -155,7 +157,7 @@ test("adds PM2.5 with a weather strip and a filtered pesticide strip", async ({ 
 	await expect(page.getByText(/Temperature · CIMIS #80 - Fresno State/).first()).toBeVisible();
 
 	// One filtered pesticide layer: the chemical is searched by name, then picked.
-	await openSection(page, /^Pesticide Use/);
+	await openSection(page, /^Pesticides/);
 	await page.getByRole("button", { name: "Add a pesticide layer" }).click();
 	await page.getByRole("menuitem", { name: "Pounds Applied" }).click();
 	await page.getByRole("button", { name: "Filters" }).click();
@@ -347,7 +349,7 @@ test("downloads a CSV with station and filter columns", async ({ page }) => {
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
 	await openSection(page, /^Weather/);
 	await page.getByRole("checkbox", { name: "Temperature", exact: true }).check();
-	await openSection(page, /^Pesticide Use/);
+	await openSection(page, /^Pesticides/);
 	await page.getByRole("button", { name: "Add a pesticide layer" }).click();
 	await page.getByRole("menuitem", { name: "Pounds Applied" }).click();
 	await page.getByRole("button", { name: "Filters" }).click();
@@ -452,6 +454,7 @@ test("Add widget → Current conditions keeps the default alert level through Ed
 	await expect(picker).toBeHidden();
 	await expect(page.getByTestId("where-summary")).toHaveText("Fresno County");
 
+	await openTypeOptions(page, "Alert levels");
 	const alert = page.getByRole("combobox", { name: "Alert level" });
 	await expect(alert).toHaveValue(usg);
 	await expect(alert.locator("option:checked")).toHaveText(
@@ -466,6 +469,7 @@ test("Add widget → Current conditions keeps the default alert level through Ed
 	await widgetMenuItem(page, title, "Open in Data Portal", 1);
 	await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeFocused();
 	await expect(page.getByRole("radio", { name: "Current conditions" })).toBeChecked();
+	await openTypeOptions(page, "Alert levels");
 	await expect(page.getByRole("combobox", { name: "Alert level" })).toHaveValue(usg);
 	// Opening a saved now widget converts nothing.
 	await expect(page.getByText(/so they were left out/)).toHaveCount(0);
@@ -474,7 +478,9 @@ test("Add widget → Current conditions keeps the default alert level through Ed
 test("on two columns the left column scrolls under the top nav; the preview and actions stay", async ({
 	page
 }) => {
-	await page.setViewportSize({ width: 1280, height: 720 });
+	// Short enough that the open sections outgrow it (at 720 px a Chart's all fit, 2026-11-25).
+	const height = 520;
+	await page.setViewportSize({ width: 1280, height });
 	await page.goto("data");
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
 	const column = page.getByRole("group", { name: "What, When and Where" });
@@ -486,16 +492,44 @@ test("on two columns the left column scrolls under the top nav; the preview and 
 	while ((await closed.count()) > 0) await closed.first().click();
 	await expect.poll(() => column.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
 	// The page itself doesn't scroll: the view fills the screen below the nav.
-	expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(720);
+	expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(
+		height
+	);
 	await column.evaluate((el) => (el.scrollTop = el.scrollHeight));
 	const preview = await page.getByTestId("get-data-preview").boundingBox();
 	expect(preview!.y).toBeGreaterThanOrEqual(0);
-	expect(preview!.y).toBeLessThan(720);
+	expect(preview!.y).toBeLessThan(height);
 	const add = await addToButton(page).boundingBox();
-	expect(add!.y + add!.height).toBeLessThanOrEqual(720);
+	expect(add!.y + add!.height).toBeLessThanOrEqual(height);
 	// The top nav is still there above the view.
 	await expect(nav(page)).toBeInViewport();
 });
+
+for (const colorScheme of ["light", "dark"] as const) {
+	test(`on a phone the Map options panel fits the screen, scrolls inside, and passes axe (${colorScheme})`, async ({
+		page
+	}) => {
+		await page.emulateMedia({ colorScheme });
+		await page.setViewportSize({ width: 390, height: 844 });
+		await page.goto("data");
+		await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
+		await page.getByRole("radio", { name: "Map" }).click();
+		await openTypeOptions(page, "Map options");
+		const panel = page.getByRole("dialog", { name: "Map options" });
+		await expect(panel.getByRole("heading", { name: "Points of interest" })).toBeVisible();
+		// Measured once its opening zoom has finished (it starts at 95%).
+		await panel.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+		const box = (await panel.boundingBox())!;
+		expect(box.x).toBeGreaterThanOrEqual(0);
+		expect(box.x + box.width).toBeLessThanOrEqual(390);
+		// The screen's width less its 8 px margins.
+		expect(box.width).toBeGreaterThanOrEqual(390 - 16 - 1);
+		expect(box.y + box.height).toBeLessThanOrEqual(844);
+		// Taller content scrolls inside the panel, not the page.
+		expect(await panel.evaluate((el) => getComputedStyle(el).overflowY)).toBe("auto");
+		await expectNoViolations(page);
+	});
+}
 
 for (const width of [390, 320]) {
 	test(`at ${width} px the Data Portal fits the screen as a Chart and as a Map (no sideways scroll)`, async ({
@@ -508,8 +542,14 @@ for (const width of [390, 320]) {
 		expect(await scrollWidth()).toBeLessThanOrEqual(width);
 		await page.getByRole("radio", { name: "Map" }).click();
 		await expect(page.getByRole("radio", { name: "Map" })).toBeChecked();
-		await expect(page.getByRole("button", { name: "Fill regions by" })).toBeEnabled();
 		expect(await scrollWidth()).toBeLessThanOrEqual(width);
+		// The Map's options panel fits too, inside the screen.
+		await openTypeOptions(page, "Map options");
+		const panel = (await page.getByRole("dialog", { name: "Map options" }).boundingBox())!;
+		expect(panel.x).toBeGreaterThanOrEqual(0);
+		expect(panel.x + panel.width).toBeLessThanOrEqual(width);
+		expect(await scrollWidth()).toBeLessThanOrEqual(width);
+		await page.keyboard.press("Escape");
 		// The choices still work from the keyboard: arrows move along the group.
 		await page.getByRole("radio", { name: "Map" }).focus();
 		await page.keyboard.press("ArrowLeft");

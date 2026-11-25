@@ -14,6 +14,7 @@ import {
 	expectSaved,
 	makeOwnCopy,
 	openSection,
+	openTypeOptions,
 	shareLinkFor,
 	widgetMenuItem,
 	widgetTitles
@@ -123,6 +124,7 @@ test.describe("with ozone in the metadata", () => {
 		const ozone = page.getByRole("checkbox", { name: "Ozone", exact: true });
 		await expect(pm25).toBeChecked();
 		await ozone.check();
+		await openTypeOptions(page, "Alert levels");
 		await expect(page.getByRole("combobox", { name: "Alert level", exact: true })).toHaveCount(0);
 		const forPm25 = page.getByRole("combobox", { name: "Alert level for PM2.5" });
 		const forOzone = page.getByRole("combobox", { name: "Alert level for Ozone" });
@@ -146,7 +148,7 @@ test.describe("with ozone in the metadata", () => {
 		await expect(widgetTitles(page).last()).toHaveText(title);
 		await widgetMenuItem(page, title, "Open in Data Portal");
 		await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeFocused();
-		await openSection(page, AIR_QUALITY_SECTION);
+		await openTypeOptions(page, "Alert levels");
 		await expect(forPm25).toHaveValue("unhealthy");
 		await expect(forOzone).toHaveValue("very_unhealthy");
 

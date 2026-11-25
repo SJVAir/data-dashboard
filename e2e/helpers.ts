@@ -276,6 +276,14 @@ export async function expectNoViolations(page: Page): Promise<void> {
 	expect(results.violations).toEqual([]);
 }
 
+/** Opens the type's options panel (the button beside Show as, e.g. "Chart options") when closed. */
+export async function openTypeOptions(page: Page, name: string): Promise<void> {
+	const trigger = page.getByRole("button", { name, exact: true });
+	if ((await trigger.getAttribute("aria-expanded")) === "false") await trigger.click();
+	await expect(trigger).toHaveAttribute("aria-expanded", "true");
+	await expect(page.getByRole("dialog", { name })).toBeVisible();
+}
+
 /** The Air quality section's trigger name (not Air quality forecasts). */
 export const AIR_QUALITY_SECTION = /^Air quality(?! forecasts)/i;
 

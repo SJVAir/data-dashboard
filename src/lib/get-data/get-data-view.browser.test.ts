@@ -35,7 +35,7 @@ import {
 	fakeForecastsAdapter,
 	fakeNumberAdapter
 } from "$lib/widgets/shared/test-harness/fake-data";
-import { openSection } from "../../test/sections";
+import { openSection, openTypeOptions } from "../../test/sections";
 import { animationsSettled } from "../../test/animations";
 import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { makeDoc } from "$lib/sync/test-support";
@@ -412,13 +412,8 @@ async function openResolution() {
 }
 
 const AIR = /^Air quality(?! forecasts)/i;
-const USE = /^Pesticide Use/;
-const NOTICES = /^Pesticide Spray Notices/;
-const SCHOOLS = /^Schools/;
-const CHILD = /^Child care/;
+const PESTICIDES = /^Pesticides/;
 const SMOKE = new RegExp(`^${m.get_data_smoke_and_fire()}`);
-const FILL = new RegExp(`^${m.getdata_map_fill()}`);
-const GONE = new RegExp(`^${m.getdata_map_locations_gone()}`);
 
 async function chooseDates(name: string) {
 	await page.getByRole("button", { name: /^Dates/ }).click();
@@ -666,6 +661,7 @@ test("Data resolution is its own section after What, with a help button", async 
 		.toBeVisible();
 	// The level line sits under Show as, always open.
 	const line = page.getByRole("combobox", { name: m.get_data_line_at_level() });
+	await openTypeOptions("Chart options");
 	await expect.element(line).toBeVisible();
 	host.remove();
 });
@@ -720,7 +716,7 @@ test("adding pesticide use on Automatic says Automatic moved to Monthly; removin
 	const { host, current } = await show(monitorsDraft(["m1"]));
 	const note = page.getByTestId("resolution-note");
 	await expect.element(note).toHaveTextContent("");
-	await openSection(/^Pesticide Use/);
+	await openSection(PESTICIDES);
 	await page.getByRole("button", { name: m.get_data_pesticide_add_first() }).click();
 	await page.getByRole("menuitem", { name: "Pounds Applied" }).click();
 	await expect
@@ -864,35 +860,20 @@ test("get data view: the Map and the Chart render the same What", async () => {
 		[...host.querySelectorAll<HTMLElement>("[data-what-section]")].map(
 			(el) => el.dataset.whatSection
 		);
-	const fill = () => page.getByRole("button", { name: m.getdata_map_fill() });
-	await expect.element(fill()).toBeInTheDocument();
+	await expect.element(page.getByRole("button", { name: AIR })).toBeVisible();
 	const chart = sections();
-	// What a Chart can't show is greyed with its reason, never hidden.
-	await expect.element(fill()).toBeDisabled();
-	await expect
-		.element(fill())
-		.toHaveAccessibleDescription(m.get_data_section_only_for({ types: "Map" }));
 	await page.getByRole("radio", { name: "Map" }).click();
 	await expect.element(page.getByRole("radio", { name: "Map" })).toBeChecked();
-	await expect.element(fill()).toBeEnabled();
+	// The Map's own settings are in Map options, not What: What is the same list.
 	expect(sections()).toEqual(chart);
-	expect(chart).toContain("fill");
-	// Catalog order, the Map's own fill last.
-	expect(chart).toEqual([
-		"air-quality",
-		"forecasts",
-		"weather",
-		"pesticide-use",
-		"hms-smoke",
-		"pesticide-notices",
-		"locations:school",
-		"locations:child_care",
-		"fill"
-	]);
+	expect(chart).not.toContain("fill");
+	// Catalog order.
+	expect(chart).toEqual(["air-quality", "forecasts", "weather", "pesticides", "hms-smoke"]);
 });
 
 test("get data view: the left column scrolls and the preview stays in view", async () => {
-	await page.viewport(1280, 720);
+	// Short enough that the open sections outgrow it.
+	await page.viewport(1280, 480);
 	const { host } = await show(areasDraft(["06019"]));
 	await drawn(host);
 	const column = host.querySelector<HTMLElement>("[data-testid=get-data-choices]")!;
@@ -1282,16 +1263,75 @@ test("a mixed draft on Automatic blocks Add, naming the dataset the main layer c
 		.toHaveAccessibleDescription(
 			"Pesticide Use doesn't line up with the data resolution. Remove it or choose another data resolution."
 		);
-	await openSection(/^Pesticide Use/);
+	await openSection(PESTICIDES);
 	await page.getByRole("button", { name: /^Remove Pounds Applied/ }).click();
 	await expect.element(add).toBeEnabled();
+});
+
+describe("one Pesticides section", () => {
+	const part = (name: string) => page.getByRole("heading", { level: 4, name, exact: true });
+	const noticesSwitch = () => page.getByRole("switch", { name: m.getdata_map_notices_switch() });
+	const filters = () => page.getByRole("group", { name: m.getdata_map_pesticide_filters() });
+
+	test("the Map's Pesticides section switches use and notices, with one filter set below both", async () => {
+		const { current } = await show(monitorsDraft(["m1"], { type: "map" }));
+		expect(page.getByRole("button", { name: /^Pesticide Use/ }).elements()).toHaveLength(0);
+		await openSection(PESTICIDES);
+		await expect.element(part("Pesticide Use")).toBeVisible();
+		await expect.element(part("Pesticide Spray Notices")).toBeVisible();
+		await expect.element(filters()).not.toBeInTheDocument();
+		await noticesSwitch().click();
+		await expect.element(filters()).toBeVisible();
+		expect(filters().elements()).toHaveLength(1);
+		// Below both parts.
+		const box = (el: Element) => el.getBoundingClientRect();
+		expect(box(filters().element()).top).toBeGreaterThan(box(noticesSwitch().element()).top);
+		expect((await current()).data.layers.slice(1)).toEqual([{ dataset: "pesticide-notices" }]);
+	});
+
+	test("a Chart's Pesticides section adds use measures; Notices is greyed, Only for Map", async () => {
+		await show(withLayers(["m1"], { ...POUNDS }));
+		// Closed, the section names what's chosen.
+		await expect
+			.element(page.getByRole("button", { name: PESTICIDES }))
+			.toHaveAccessibleName("Pesticides Pounds Applied");
+		await openSection(PESTICIDES);
+		await expect.element(part("Pesticide Use")).toBeVisible();
+		await expect.element(noticesSwitch()).toBeDisabled();
+		await expect
+			.element(noticesSwitch())
+			.toHaveAccessibleDescription(m.get_data_section_only_for({ types: "Map" }));
+		await expect.element(filters()).not.toBeInTheDocument();
+		// Its heading is greyed with it.
+		const label = noticesSwitch().element().closest("label")!.querySelector("span")!;
+		expect(getComputedStyle(part("Pesticide Spray Notices").element()).color).toBe(
+			getComputedStyle(label).color
+		);
+	});
+
+	test("a calendar greys the whole Pesticides section with its reason", async () => {
+		await show({
+			type: "calendar-month",
+			data: {
+				dateRange: { kind: "to-date", unit: "month" },
+				layers: [{ dataset: "air-quality", entryType: "pm25", monitors: ["m1"] }]
+			}
+		});
+		const trigger = page.getByRole("button", { name: PESTICIDES });
+		await expect.element(trigger).toBeDisabled();
+		await expect
+			.element(trigger)
+			.toHaveAccessibleDescription(
+				m.get_data_section_only_for({ types: "Chart, Data table, and Map" })
+			);
+	});
 });
 
 test("at Daily, pesticide use is greyed: it's reported by month", async () => {
 	const draft = monitorsDraft(["m1"]);
 	draft.data.resolution = "day";
 	await show(draft);
-	await openSection(/^Pesticide Use/);
+	await openSection(PESTICIDES);
 	const addUse = page.getByRole("button", { name: m.get_data_pesticide_add_first() });
 	await expect.element(addUse).toBeDisabled();
 	await expect
@@ -1350,7 +1390,7 @@ test("on Automatic, only a dataset sharing no level with those chosen is greyed"
 	await openSection(/^Wildfire Smoke/);
 	const smoke = page.getByRole("checkbox", { name: "Smoke density" });
 	await expect.element(smoke).toBeEnabled();
-	await openSection(/^Pesticide Use/);
+	await openSection(PESTICIDES);
 	const addUse = page.getByRole("button", { name: m.get_data_pesticide_add_first() });
 	await expect.element(addUse).toBeEnabled();
 	// Smoke is reported by day and pesticide use by month: once smoke is on, use can't line up.
@@ -1542,7 +1582,7 @@ test("a filter search lists results after two letters and picks one", async () =
 	};
 	fake.names = { c1: "Chlorpyrifos" };
 	const { current } = await show(withLayers(["m1"], { ...POUNDS }));
-	await openSection(/^Pesticide Use/);
+	await openSection(PESTICIDES);
 	await expect.element(page.getByTestId("pesticide-summary")).toHaveTextContent("All pesticides");
 	await page.getByRole("button", { name: "Filters" }).click();
 	const chemical = page.getByRole("combobox", { name: "Chemical" });
@@ -1566,8 +1606,8 @@ test("a filter search lists results after two letters and picks one", async () =
 	expect(layers.slice(1)).toEqual([{ ...POUNDS, filters: { chemical: "c1" } }, { ...POUNDS }]);
 	// The section's heading names the measure once.
 	await expect
-		.element(page.getByRole("button", { name: /^Pesticide Use/ }))
-		.toHaveAccessibleName("Pesticide Use Pounds Applied");
+		.element(page.getByRole("button", { name: PESTICIDES }))
+		.toHaveAccessibleName("Pesticides Pounds Applied");
 	// At the overlay limit, no more can be added.
 	const add = page.getByRole("button", { name: "Add another pesticide layer" });
 	await expect.element(add).toBeDisabled();
@@ -1582,7 +1622,7 @@ test("a slow search's results never replace a newer one's", async () => {
 		more: false
 	};
 	await show(withLayers(["m1"], { ...POUNDS }));
-	await openSection(/^Pesticide Use/);
+	await openSection(PESTICIDES);
 	await page.getByRole("button", { name: "Filters" }).click();
 	const chemical = page.getByRole("combobox", { name: "Chemical" });
 	await chemical.click();
@@ -1611,7 +1651,7 @@ test("a long result list scrolls; its rows keep their full height and never over
 		more: true
 	};
 	await show(withLayers(["m1"], { ...POUNDS }));
-	await openSection(/^Pesticide Use/);
+	await openSection(PESTICIDES);
 	await page.getByRole("button", { name: "Filters" }).click();
 	await page.getByRole("combobox", { name: "Chemical" }).click();
 	await userEvent.keyboard("ch");
@@ -1662,7 +1702,7 @@ describe.each([
 		await page.viewport(width, height);
 		fake.stations = [{ id: "st1", name: "Fresno State", distance: 0, inside: true, active: true }];
 		const { host } = await show(withLayers(["m1"], { ...POUNDS, filters: { iarcGroup: "1" } }));
-		await openSection(/^Pesticide Use/);
+		await openSection(PESTICIDES);
 		await page.getByRole("button", { name: "Filters" }).click();
 		await expect.element(page.getByRole("combobox", { name: "Cancer group" })).toHaveValue("1");
 		await openSection(/^Weather/);
@@ -1714,6 +1754,7 @@ describe("now widgets", () => {
 		await expect.element(pollutant.getByRole("checkbox", { name: "PM10" })).not.toBeInTheDocument();
 		expect(pollutant.getByRole("radio").elements()).toHaveLength(0);
 		await expect.element(pollutant.getByText("None", { exact: true })).not.toBeInTheDocument();
+		await openTypeOptions("Alert levels");
 		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
 		const options = [...(alert().element() as HTMLSelectElement).options].map((o) => o.text);
 		expect(options).toEqual([
@@ -1738,6 +1779,8 @@ describe("now widgets", () => {
 			thresholds: [{ level: "unhealthy-sensitive", entryType: "pm25" }]
 		});
 		// The next edit takes the note away; Off stores no alert level.
+		// Reading the draft clicks Add, which closes the panel.
+		await openTypeOptions("Alert levels");
 		await alert().selectOptions("Off");
 		await expect.element(page.getByText(m.get_data_dates_left_out())).not.toBeInTheDocument();
 		expect("thresholds" in (await current())).toBe(false);
@@ -1849,7 +1892,7 @@ describe("now widgets", () => {
 			}
 		});
 		const use = page.getByRole("switch", { name: m.getdata_map_use_switch() });
-		await openSection(USE);
+		await openSection(PESTICIDES);
 		await expect.element(use).toBeDisabled();
 		await expect
 			.element(use)
@@ -1868,7 +1911,7 @@ describe("now widgets", () => {
 			.element(smoke)
 			.toHaveAccessibleDescription("Reported by day. Set the data resolution to Daily to add it.");
 		const notices = page.getByRole("switch", { name: m.getdata_map_notices_switch() });
-		await openSection(NOTICES);
+		await openSection(PESTICIDES);
 		await expect.element(notices).toBeDisabled();
 		await use.click();
 		expect((await current()).data.layers.slice(1)).toEqual([{ dataset: "pesticide-use" }]);
@@ -1917,10 +1960,11 @@ describe("now widgets", () => {
 
 	test("the Spray notices section switches the layer on and shows its filters", async () => {
 		const { current, host } = await show(monitorsDraft(["m1"], { type: "map" }));
+		await openSection(PESTICIDES);
 		await expect
 			.element(page.getByRole("heading", { name: "Pesticide Spray Notices" }))
 			.toBeVisible();
-		await openSection(NOTICES);
+		await openSection(PESTICIDES);
 		await expect.element(page.getByText("Notices of intent to spray.")).toBeVisible();
 		const notices = page.getByRole("switch", { name: m.getdata_map_notices_switch() });
 		await expect.element(notices).not.toBeChecked();
@@ -1949,7 +1993,7 @@ describe("now widgets", () => {
 				]
 			}
 		});
-		await openSection(NOTICES);
+		await openSection(PESTICIDES);
 		await expect.element(page.getByText(skipped)).toBeVisible();
 		// Only the commodity: the chemical applies.
 		expect(
@@ -1972,9 +2016,10 @@ describe("now widgets", () => {
 
 	test("the Pesticide use section switches the layer on, with no period of its own (the Map's stops are)", async () => {
 		const { current, host } = await show(monitorsDraft(["m1"], { type: "map" }));
+		await openSection(PESTICIDES);
 		await expect.element(page.getByRole("heading", { name: "Pesticide Use" })).toBeVisible();
 		const use = page.getByRole("switch", { name: m.getdata_map_use_switch() });
-		await openSection(USE);
+		await openSection(PESTICIDES);
 		await expect.element(use).not.toBeChecked();
 		await use.click();
 		await expect.element(use).toBeChecked();
@@ -1997,7 +2042,7 @@ describe("now widgets", () => {
 		};
 		const { current } = await show(monitorsDraft(["m1"], { type: "map" }));
 		const use = page.getByRole("switch", { name: m.getdata_map_use_switch() });
-		await openSection(USE);
+		await openSection(PESTICIDES);
 		await expect.element(page.getByText(m.getdata_map_use_years_unavailable())).toBeVisible();
 		await expect.element(use).toBeDisabled();
 		await expect.element(use).toHaveAccessibleDescription(m.getdata_map_use_years_unavailable());
@@ -2015,7 +2060,7 @@ describe("now widgets", () => {
 		fake.pesticideMeta = async () => ({ ...PESTICIDE_META, years: [] });
 		await show(monitorsDraft(["m1"], { type: "map" }));
 		const use = page.getByRole("switch", { name: m.getdata_map_use_switch() });
-		await openSection(USE);
+		await openSection(PESTICIDES);
 		await expect.element(page.getByText(m.getdata_map_use_no_years())).toBeVisible();
 		await expect.element(use).toBeDisabled();
 		expect(page.getByRole("button", { name: m.get_data_retry() }).query()).toBeNull();
@@ -2035,8 +2080,7 @@ describe("now widgets", () => {
 		// Notices (by day) and use (by month) never line up, and use isn't shown on Now: only a link
 		// can carry both, and it can't be added as it is.
 		await expect.element(page.getByRole("button", { name: "Add to Home" })).toBeDisabled();
-		await openSection(USE);
-		await openSection(NOTICES);
+		await openSection(PESTICIDES);
 		const group = page.getByRole("group", { name: m.getdata_map_pesticide_filters() });
 		await expect.element(group).toBeVisible();
 		expect(group.all()).toHaveLength(1);
@@ -2099,6 +2143,7 @@ describe("now widgets", () => {
 				]
 			}
 		});
+		await openSection(PESTICIDES);
 		await expect
 			.element(
 				page.getByRole("heading", { name: m.getdata_map_section_fallback({ section: "notices" }) })
@@ -2271,7 +2316,7 @@ describe("now widgets", () => {
 				type("zipcode", "ZIP code", "ZIP codes")
 			];
 			const { current } = await show(monitorsDraft(["m1"], { type: "map" }));
-			await openSection(FILL);
+			await openTypeOptions("Map options");
 			const none = fillGroup().getByRole("radio", { name: m.getdata_map_fill_none() });
 			await expect.element(none).toBeChecked();
 			await expect.element(fillGroup().getByRole("radio", { name: "Counties" })).toBeVisible();
@@ -2282,6 +2327,8 @@ describe("now widgets", () => {
 			expect(fillGroup().getByRole("radio").elements()).toHaveLength(3);
 			await fillGroup().getByRole("radio", { name: "ZIP codes" }).click();
 			expect((await current()).options).toEqual({ fill: "zipcode" });
+			// Reading the draft clicks Add, which closes the panel.
+			await openTypeOptions("Map options");
 			await none.click();
 			expect((await current()).options).toBeUndefined();
 		});
@@ -2291,13 +2338,13 @@ describe("now widgets", () => {
 			const { current } = await show(
 				monitorsDraft(["m1"], { type: "map", options: { fill: "zipcode" } })
 			);
-			await openSection(FILL);
+			await openTypeOptions("Map options");
 			await expect.element(fillGroup().getByRole("radio", { name: "ZIP codes" })).toBeChecked();
 			await page.getByRole("radio", { name: "Chart" }).click();
 			await expect.element(page.getByText(m.getdata_note_fill_dropped())).toBeVisible();
 			expect((await current()).options).toBeUndefined();
 			await page.getByRole("radio", { name: "Map" }).click();
-			await openSection(FILL);
+			await openTypeOptions("Map options");
 			await expect
 				.element(fillGroup().getByRole("radio", { name: m.getdata_map_fill_none() }))
 				.toBeChecked();
@@ -2310,7 +2357,7 @@ describe("now widgets", () => {
 			const { current } = await show(
 				monitorsDraft(["m1"], { type: "map", options: { fill: "zipcode" } })
 			);
-			await openSection(FILL);
+			await openTypeOptions("Map options");
 			await expect
 				.element(fillGroup().getByRole("radio", { name: m.getdata_map_fill_none() }))
 				.toBeVisible();
@@ -2321,37 +2368,43 @@ describe("now widgets", () => {
 
 	describe("Schools and child care", () => {
 		const box = (name: string) => page.getByRole("checkbox", { name, exact: true });
+		/** Ticks or unticks in Map options (reading the draft clicks Add, which closes the panel). */
+		const tick = async (name: string) => {
+			await openTypeOptions("Map options");
+			await box(name).click();
+		};
 		const none = () =>
 			page.getByRole("group", { name: "Air quality" }).getByRole("radio", { name: "None" });
 		const locations = async (current: () => Promise<Draft>) =>
 			(await current()).data.layers.find((l) => l.dataset === "locations");
 
 		test("a section per group, a checkbox per type; ticks save in the meta's order, unticking all removes the layer", async () => {
-			const { current, host } = await show(monitorsDraft(["m1"], { type: "map" }));
-			const schools = host.querySelector<HTMLElement>("[data-what-section='locations:school']");
-			const care = host.querySelector<HTMLElement>("[data-what-section='locations:child_care']");
-			await expect.element(page.getByRole("button", { name: "Schools" })).toBeEnabled();
-			await openSection(SCHOOLS);
-			await openSection(CHILD);
+			const { current } = await show(monitorsDraft(["m1"], { type: "map" }));
+			await openTypeOptions("Map options");
+			const panel = page.getByRole("dialog", { name: "Map options" });
+			await expect
+				.element(panel.getByRole("heading", { name: m.getdata_map_points_of_interest() }))
+				.toBeVisible();
+			const schools = panel.getByRole("group", { name: "Schools" });
+			const care = panel.getByRole("group", { name: "Child care" });
+			await expect.element(schools.getByRole("checkbox", { name: "Public school" })).toBeVisible();
+			await expect.element(schools.getByRole("checkbox", { name: "Private school" })).toBeVisible();
+			expect(care.getByRole("checkbox").elements()).toHaveLength(1);
+			await animationsSettled(document.body);
+			expect((await axe.run(panel.element())).violations).toEqual([]);
 			await openSection(AIR);
-			await expect.element(box("Public school")).toBeVisible();
-			expect(schools?.textContent).toContain("Private school");
-			expect(care?.querySelectorAll("input[type=checkbox]")).toHaveLength(1);
-			await animationsSettled(host);
-			const what = host.querySelector("[aria-labelledby$=-what]")!;
-			expect((await axe.run(what)).violations).toEqual([]);
 			await expect.element(none()).toBeEnabled();
-			await box("Child care").click();
+			await tick("Child care");
 			expect(await locations(current)).toEqual({
 				dataset: "locations",
 				locationTypes: ["child_care"]
 			});
 			await expect.element(none()).toBeEnabled();
-			await box("Public school").click();
+			await tick("Public school");
 			expect((await locations(current))?.locationTypes).toEqual(["public_school", "child_care"]);
 			await expect.element(none()).toBeEnabled();
-			await box("Public school").click();
-			await box("Child care").click();
+			await tick("Public school");
+			await tick("Child care");
 			expect(await locations(current)).toBeUndefined();
 			await expect.element(none()).toBeEnabled();
 		});
@@ -2362,26 +2415,57 @@ describe("now widgets", () => {
 			draft.options = { hiddenLocationGroups: ["child_care"] };
 			const { current } = await show(draft);
 			const hidden = async () => mapOptions(await current()).hiddenLocationGroups;
-			await openSection(SCHOOLS);
-			await openSection(CHILD);
-			await box("Public school").click();
+			await openTypeOptions("Map options");
+			await tick("Public school");
 			expect(await hidden()).toEqual(["child_care"]);
-			await box("Child care").click();
+			await tick("Child care");
 			expect(await hidden()).toBeUndefined();
-			await box("Child care").click();
+			await tick("Child care");
 			expect((await locations(current))?.locationTypes).toEqual(["public_school", "child_care"]);
 			expect(await hidden()).toBeUndefined();
 		});
 
-		test("a Chart shows the location sections greyed, Map only", async () => {
+		test("when the panel has nothing left to show it closes, and focus goes to the chosen type", async () => {
+			fake.metadata = fixtureMetadata({
+				catalog: async () => CATALOG,
+				guidelinePollutants: async () => ["pm25"],
+				locationGroups: async () => []
+			});
+			fake.regionTypes = async () => [];
+			const draft = monitorsDraft(["m1"], { type: "map" });
+			draft.data.layers.push({ dataset: "locations", locationTypes: ["gone_type"] });
+			await show(draft);
+			await openTypeOptions("Map options");
+			await box("gone_type").click();
+			await expect
+				.element(page.getByRole("button", { name: "Map options" }))
+				.not.toBeInTheDocument();
+			await expect
+				.element(page.getByRole("dialog", { name: "Map options" }))
+				.not.toBeInTheDocument();
+			await expect.element(page.getByRole("radio", { name: "Map" })).toHaveFocus();
+		});
+
+		test("with no groups and no fill types the Map has no options button", async () => {
+			fake.metadata = fixtureMetadata({
+				catalog: async () => CATALOG,
+				guidelinePollutants: async () => ["pm25"],
+				locationGroups: async () => []
+			});
+			fake.regionTypes = async () => [];
+			await show(monitorsDraft(["m1"], { type: "map" }));
+			await expect.element(page.getByRole("button", { name: AIR })).toBeVisible();
+			await animationsSettled(document.body);
+			expect(page.getByRole("button", { name: "Map options" }).elements()).toHaveLength(0);
+		});
+
+		test("a Chart's What lists no Map settings, greyed or not", async () => {
 			await show(areasDraft(["06019"]));
-			for (const name of ["Schools", "Child care"]) {
-				const trigger = page.getByRole("button", { name });
-				await expect.element(trigger).toBeDisabled();
-				await expect
-					.element(trigger)
-					.toHaveAccessibleDescription(m.get_data_section_only_for({ types: "Map" }));
+			await expect.element(page.getByRole("button", { name: AIR })).toBeVisible();
+			for (const name of ["Schools", "Child care", m.getdata_map_fill()]) {
+				expect(page.getByRole("button", { name }).elements()).toHaveLength(0);
 			}
+			expect(page.getByRole("button", { name: "Map options" }).elements()).toHaveLength(0);
 		});
 
 		test("a saved type no group offers shows greyed and ticked with its reason, and can be unticked", async () => {
@@ -2389,18 +2473,18 @@ describe("now widgets", () => {
 			draft.data.layers.push({ dataset: "locations", locationTypes: ["gone_type"] });
 			const platform = createMemoryPlatform();
 			setPlatform(platform);
-			const { current, host } = await show(draft);
+			const { current } = await show(draft);
 			const gone = box("gone_type");
-			await openSection(GONE);
+			await openTypeOptions("Map options");
+			const panel = page.getByRole("dialog", { name: "Map options" });
 			await expect.element(gone).toBeChecked();
 			await expect.element(gone).toBeEnabled();
 			await expect.element(gone).toHaveAccessibleDescription(m.getdata_map_location_type_gone());
 			await expect
-				.element(page.getByRole("button", { name: `${m.getdata_map_locations_gone()} gone_type` }))
+				.element(panel.getByRole("group", { name: m.getdata_map_locations_gone() }))
 				.toBeVisible();
-			await animationsSettled(host);
-			const what = host.querySelector("[aria-labelledby$=-what]")!;
-			expect((await axe.run(what)).violations).toEqual([]);
+			await animationsSettled(document.body);
+			expect((await axe.run(panel.element())).violations).toEqual([]);
 			await gone.click();
 			expect(await locations(current)).toBeUndefined();
 			await expect.element(gone).not.toBeInTheDocument();
@@ -2419,15 +2503,15 @@ describe("now widgets", () => {
 			});
 			const platform = createMemoryPlatform();
 			setPlatform(platform);
-			const { host } = await show(monitorsDraft(["m1"], { type: "map" }));
+			await show(monitorsDraft(["m1"], { type: "map" }));
 			await expect.poll(() => platform.errors.reports.length).toBeGreaterThan(0);
-			expect(host.querySelectorAll("[data-what-section^='locations']")).toHaveLength(0);
+			expect(page.getByRole("group", { name: "Schools" }).elements()).toHaveLength(0);
 			await openSection(AIR);
 			await expect.element(none()).toBeEnabled();
 			failing = false;
 			await page.getByRole("radio", { name: "Chart" }).click();
 			await page.getByRole("radio", { name: "Map" }).click();
-			await openSection(SCHOOLS);
+			await openTypeOptions("Map options");
 			await expect.element(box("Public school")).toBeVisible();
 		});
 
@@ -2440,7 +2524,7 @@ describe("now widgets", () => {
 
 		test("Show as a Chart names the ticked groups it leaves out, from the meta", async () => {
 			const { current } = await show(childCareMap());
-			await openSection(CHILD);
+			await openTypeOptions("Map options");
 			await expect.element(box("Child care")).toBeChecked();
 			await page.getByRole("radio", { name: "Chart" }).click();
 			await expect
@@ -2500,6 +2584,7 @@ describe("now widgets", () => {
 	test("Outside has the alert level but no pollutant control; the Forecast strip has neither", async () => {
 		const { current } = await show(areasDraft(["a1"]));
 		await page.getByRole("radio", { name: "Can we go outside?" }).click();
+		await openTypeOptions("Alert levels");
 		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
 		// Not a downloadable type.
 		await expect
@@ -2546,10 +2631,12 @@ describe("now widgets", () => {
 		});
 		makeClient();
 		const { current } = await show({ ...currentDraft([{ level: "unhealthy" }]), type: "outside" });
+		await openTypeOptions("Alert levels");
 		await expect.element(alert()).toHaveValue("unhealthy");
 		await openSection(AIR);
 		await page.getByRole("radio", { name: "Ozone" }).click();
 		// "unhealthy" isn't on the ozone scale: its default, with no note (the person chose).
+		await openTypeOptions("Alert levels");
 		await expect.element(alert()).toHaveValue("usg-o3");
 		await expect.element(page.getByText(/isn't one of this pollutant's/)).not.toBeInTheDocument();
 		await alert().selectOptions("good");
@@ -2572,6 +2659,7 @@ describe("now widgets", () => {
 		// No watcher: nothing in the dashboard's marks.
 		expect(Object.keys(thresholdMarks)).toEqual([]);
 		// Above the reading: no mark.
+		await openTypeOptions("Alert levels");
 		await alert().selectOptions("unhealthy");
 		await expect.poll(() => preview().querySelector("[data-mark]")).toBeNull();
 	});
@@ -2579,6 +2667,7 @@ describe("now widgets", () => {
 	test("a Chart's low line carried to a tile as its alert level is named", async () => {
 		const { current } = await show(monitorsDraft(["m1"], { thresholds: [{ level: "good" }] }));
 		await page.getByRole("radio", { name: "Current conditions" }).click();
+		await openTypeOptions("Alert levels");
 		await expect.element(alert()).toHaveValue("good");
 		const note = m.get_data_alert_level_from_low_line({ level: "Good" });
 		expect(note).toBe(
@@ -2590,6 +2679,7 @@ describe("now widgets", () => {
 
 	test("a saved level the scale no longer has shows its default, and says so", async () => {
 		await show(currentDraft([{ level: "gone", entryType: "pm25" }]));
+		await openTypeOptions("Alert levels");
 		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
 		await expect
 			.element(
@@ -2605,6 +2695,7 @@ describe("now widgets", () => {
 		await expect.element(page.getByText(m.get_data_dates_left_out())).toBeVisible();
 		await expect.element(page.getByText(m.get_data_extra_places_left_out())).toBeVisible();
 		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Area a1");
+		await openTypeOptions("Alert levels");
 		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
 	});
 
@@ -2647,6 +2738,7 @@ describe("now widgets", () => {
 
 	test("an Off alert level stays Off from Can we go outside? to Current conditions", async () => {
 		const { current } = await show({ ...currentDraft(), type: "outside" });
+		await openTypeOptions("Alert levels");
 		await expect.element(alert()).toHaveValue("");
 		await page.getByRole("radio", { name: "Current conditions" }).click();
 		await expect.element(page.getByRole("radio", { name: "Current conditions" })).toBeChecked();
@@ -2666,6 +2758,7 @@ describe("now widgets", () => {
 		const instead = m.get_data_pollutant_instead({ pollutant: "PM2.5", previous: "Ozone" });
 		expect(instead).toBe("This widget shows only PM2.5, so it uses that instead of Ozone.");
 		await expect.element(page.getByText(instead)).toBeVisible();
+		await openTypeOptions("Alert levels");
 		await expect.element(alert()).toHaveValue("");
 		await alert().selectOptions("unhealthy");
 		await expect.element(page.getByText(instead)).not.toBeInTheDocument();
@@ -2688,6 +2781,7 @@ describe("now widgets", () => {
 		makeClient();
 		const { current } = await show(monitorsDraft(["m1"]));
 		await page.getByRole("radio", { name: "Current conditions" }).click();
+		await openTypeOptions("Alert levels");
 		await expect.element(page.getByText(m.get_data_levels_unavailable())).toBeVisible();
 		await expect.element(alert()).not.toBeInTheDocument();
 		failing = false;
@@ -2740,6 +2834,7 @@ describe("now widgets", () => {
 			await expect.element(aq().getByRole("checkbox", { name: "PM2.5" })).toBeChecked();
 			await expect.element(aq().getByRole("checkbox", { name: "Ozone" })).not.toBeChecked();
 			await aq().getByRole("checkbox", { name: "Ozone" }).click();
+			await openTypeOptions("Alert levels");
 			await expect.element(forPm25()).toHaveValue("unhealthy-sensitive");
 			await expect.element(forOzone()).toHaveValue("usg-o3");
 			const out = await current();
@@ -2752,6 +2847,8 @@ describe("now widgets", () => {
 				{ level: "usg-o3", entryType: "o3" }
 			]);
 			// Each pollutant's level is its own.
+			// Reading the draft clicks Add, which closes the panel.
+			await openTypeOptions("Alert levels");
 			await forOzone().selectOptions("unhealthy-o3");
 			expect((await current()).thresholds).toEqual([
 				{ level: "unhealthy-sensitive", entryType: "pm25" },
@@ -2761,11 +2858,13 @@ describe("now widgets", () => {
 
 		test("unticking PM2.5 drops its alert level and keeps the searched monitor", async () => {
 			const { current } = await show(both());
+			await openTypeOptions("Alert levels");
 			await expect.element(forPm25()).toHaveValue("unhealthy");
 			await openSection(AIR);
 			await aq().getByRole("checkbox", { name: "PM2.5" }).click();
 			await expect.element(forPm25()).not.toBeInTheDocument();
 			// One pollutant left: its control reads as a single one does.
+			await openTypeOptions("Alert levels");
 			await expect
 				.element(page.getByRole("combobox", { name: "Alert level", exact: true }))
 				.toHaveValue("usg-o3");
@@ -2782,6 +2881,7 @@ describe("now widgets", () => {
 			await aq().getByRole("checkbox", { name: "PM2.5" }).click();
 			await expect.element(forPm25()).not.toBeInTheDocument();
 			await aq().getByRole("checkbox", { name: "PM2.5" }).click();
+			await openTypeOptions("Alert levels");
 			await expect.element(forPm25()).toHaveValue("unhealthy-sensitive");
 			const out = await current();
 			expect(out.data.layers).toEqual([
@@ -2818,12 +2918,14 @@ describe("now widgets", () => {
 			// Ticking one again gives it its default and unblocks Add.
 			await aq().getByRole("checkbox", { name: "Ozone" }).click();
 			await expect.element(add).toBeEnabled();
+			await openTypeOptions("Alert levels");
 			await expect.element(alert()).toHaveValue("usg-o3");
 		});
 
 		test("one pollutant's scale failing replaces only its control, with its own Retry", async () => {
 			ozoneFails.on = true;
 			const { current } = await show(both());
+			await openTypeOptions("Alert levels");
 			await expect.element(page.getByText(m.get_data_levels_unavailable())).toBeVisible();
 			await expect.element(forOzone()).not.toBeInTheDocument();
 			await expect.element(forPm25()).toHaveValue("unhealthy");
@@ -2835,6 +2937,7 @@ describe("now widgets", () => {
 				{ level: "usg-o3", entryType: "o3" }
 			]);
 			ozoneFails.on = false;
+			await openTypeOptions("Alert levels");
 			await page.getByRole("button", { name: m.get_data_retry() }).click();
 			await expect.element(forOzone()).toHaveValue("usg-o3");
 			await expect.element(page.getByText(m.get_data_levels_unavailable())).not.toBeInTheDocument();
@@ -2845,9 +2948,11 @@ describe("now widgets", () => {
 			const { current } = await show(currentDraft([{ level: "unhealthy", entryType: "pm25" }]));
 			await openSection(AIR);
 			await aq().getByRole("checkbox", { name: "Ozone" }).click();
+			await openTypeOptions("Alert levels");
 			await expect.element(page.getByText(m.get_data_levels_unavailable())).toBeVisible();
 			expect((await current()).thresholds).toEqual([{ level: "unhealthy", entryType: "pm25" }]);
 			ozoneFails.on = false;
+			await openTypeOptions("Alert levels");
 			await page.getByRole("button", { name: m.get_data_retry() }).click();
 			await expect.element(forOzone()).toHaveValue("usg-o3");
 			expect((await current()).thresholds).toEqual([
@@ -2864,9 +2969,11 @@ describe("now widgets", () => {
 			const { current } = await show(
 				currentDraft([{ level: "unhealthy-sensitive", entryType: "pm25" }])
 			);
+			await openTypeOptions("Alert levels");
 			await alert().selectOptions("good");
 			await page.getByRole("radio", { name: "Can we go outside?" }).click();
 			await expect.element(page.getByRole("radio", { name: "Can we go outside?" })).toBeChecked();
+			await openTypeOptions("Alert levels");
 			await expect.element(alert()).toHaveValue("good");
 			const out = await current();
 			expect(out.type).toBe("outside");
@@ -2879,6 +2986,7 @@ describe("now widgets", () => {
 		const note = page.getByText(
 			m.get_data_alert_level_replaced({ level: "Unhealthy for Sensitive Groups" })
 		);
+		await openTypeOptions("Alert levels");
 		await expect.element(note).toBeVisible();
 		const use = page.getByRole("button", {
 			name: m.get_data_alert_level_use({ level: "Unhealthy for Sensitive Groups" })
@@ -2905,6 +3013,7 @@ describe("now widgets", () => {
 		setPlatform(platform);
 		await page.getByRole("radio", { name: "Can we go outside?" }).click();
 		await expect.element(page.getByRole("radio", { name: "Can we go outside?" })).toBeChecked();
+		await openTypeOptions("Alert levels");
 		await expect.element(alert()).toHaveValue("unhealthy-sensitive");
 		expect(document.querySelectorAll("[data-no-guidelines]")).toHaveLength(0);
 		expect((await current()).data.layers).toEqual([{ dataset: "air-quality", entryType: "pm25" }]);
@@ -2932,6 +3041,7 @@ describe("now widgets", () => {
 
 	test("axe passes", async () => {
 		const { host } = await show(currentDraft([{ level: "gone", entryType: "pm25" }]));
+		await openTypeOptions("Alert levels");
 		await expect.element(alert()).toBeVisible();
 		await animationsSettled(host);
 		const results = await axe.run(host);
@@ -2942,11 +3052,16 @@ describe("now widgets", () => {
 test("a Chart's Threshold line defaults to Off and saves the chosen level", async () => {
 	const { host, current } = await show(monitorsDraft(["m1"]));
 	const select = page.getByRole("combobox", { name: m.get_data_line_at_level() });
+	await openTypeOptions("Chart options");
 	await expect.element(select).toBeVisible();
 	await expect.element(select).toHaveValue("");
 	expect(await current()).not.toHaveProperty("thresholds");
+	// Reading the draft clicks Add, which closes the panel.
+	await openTypeOptions("Chart options");
 	await select.selectOptions("unhealthy-sensitive");
 	expect((await current()).thresholds).toEqual([{ level: "unhealthy-sensitive" }]);
+	// Reading the draft clicks Add, which closes the panel.
+	await openTypeOptions("Chart options");
 	await select.selectOptions("");
 	expect(await current()).not.toHaveProperty("thresholds");
 	host.remove();
@@ -2955,6 +3070,7 @@ test("a Chart's Threshold line defaults to Off and saves the chosen level", asyn
 test("a saved level the scale lacks shows Off and says so", async () => {
 	const { host } = await show(monitorsDraft(["m1"], { thresholds: [{ level: "gone" }] }));
 	const select = page.getByRole("combobox", { name: m.get_data_line_at_level() });
+	await openTypeOptions("Chart options");
 	await expect.element(select).toHaveValue("");
 	await expect.element(page.getByText(m.chart_level_line_missing()).first()).toBeVisible();
 	host.remove();
@@ -2977,6 +3093,7 @@ test("Threshold line: Chart → Data table → Current conditions gets the defau
 	const { host, current } = await show(monitorsDraft(["m1"], { thresholds: [{ level: "gone" }] }));
 	await page.getByRole("radio", { name: "Data table" }).click();
 	await page.getByRole("radio", { name: "Current conditions" }).click();
+	await openTypeOptions("Alert levels");
 	await expect
 		.element(page.getByRole("combobox", { name: "Alert level" }))
 		.toHaveValue("unhealthy-sensitive");
@@ -2989,6 +3106,7 @@ test("Threshold line: Chart → Data table → Current conditions gets the defau
 test("Threshold line: Chart → Current conditions carries the line's level", async () => {
 	const { host } = await show(monitorsDraft(["m1"], { thresholds: [{ level: "unhealthy" }] }));
 	await page.getByRole("radio", { name: "Current conditions" }).click();
+	await openTypeOptions("Alert levels");
 	await expect
 		.element(page.getByRole("combobox", { name: "Alert level" }))
 		.toHaveValue("unhealthy");
@@ -3020,6 +3138,7 @@ describe("calendar types", () => {
 			...monthDraft(),
 			thresholds: [{ level: "gone" }]
 		});
+		await openTypeOptions("Calendar options");
 		await expect
 			.element(page.getByRole("combobox", { name: m.get_data_mark_days_at_level() }))
 			.toHaveValue("");
@@ -3236,21 +3355,21 @@ describe("What sections start closed", () => {
 			.toHaveAttribute("aria-expanded", "true");
 	});
 
-	test("a section listed later arrives closed", async () => {
+	test("the Map's options arrive closed once the groups load", async () => {
 		await show(monitorsDraft(["m1"], { type: "map" }));
 		// The location groups resolve after the catalog.
-		await expect.element(page.getByRole("button", { name: SCHOOLS })).toBeVisible();
-		await closed(SCHOOLS);
-		await closed(CHILD);
+		const button = page.getByRole("button", { name: "Map options", exact: true });
+		await expect.element(button).toHaveAttribute("aria-expanded", "false");
 		await expectAllClosed();
 	});
 });
 
 describe("a type's own options", () => {
 	const column = () => page.getByTestId("get-data-preview-column");
-	const optionsHeading = (name: string) => column().getByRole("heading", { name, exact: true });
+	const optionsButton = (name: string) => column().getByRole("button", { name, exact: true });
+	const optionsPanel = (name: string) => page.getByRole("dialog", { name });
 
-	test("each type's options sit under Show as", async () => {
+	test("each type's options open from the button beside Show as", async () => {
 		const month = monthCalendarDraft();
 		const cases: [Draft, string, string][] = [
 			[monitorsDraft(["m1"]), "Chart options", m.get_data_line_at_level()],
@@ -3263,13 +3382,100 @@ describe("a type's own options", () => {
 			[nowDraft("current-conditions"), "Alert levels", "Alert level"],
 			[nowDraft("outside"), "Alert levels", "Alert level"]
 		];
-		for (const [draft, heading, control] of cases) {
+		for (const [draft, name, control] of cases) {
 			const { screen, host } = await show(draft);
-			await expect.element(optionsHeading(heading)).toBeVisible();
-			await expect.element(column().getByRole("combobox", { name: control })).toBeVisible();
+			await expect.element(optionsButton(name)).toHaveAttribute("aria-expanded", "false");
+			expect(page.getByRole("combobox", { name: control }).elements()).toHaveLength(0);
+			await openTypeOptions(name);
+			await expect
+				.element(optionsPanel(name).getByRole("combobox", { name: control }))
+				.toBeVisible();
 			screen.unmount();
 			host.remove();
 		}
+	});
+
+	test("the panel floats over the preview; Escape closes it and focus returns to the button", async () => {
+		const { host } = await show(monitorsDraft(["m1"]));
+		const preview = () => page.getByTestId("get-data-preview").element();
+		await expect.element(optionsButton("Chart options")).toBeVisible();
+		const before = preview().getBoundingClientRect().top;
+		await openTypeOptions("Chart options");
+		expect(preview().getBoundingClientRect().top).toBe(before);
+		await userEvent.keyboard("{Escape}");
+		await expect.element(optionsPanel("Chart options")).not.toBeInTheDocument();
+		await expect.element(optionsButton("Chart options")).toHaveFocus();
+		host.remove();
+	});
+
+	test("the open panel never covers Show as, even when Show as wraps", async () => {
+		const { host } = await show(nowDraft("current-conditions"));
+		await openTypeOptions("Alert levels");
+		for (const radio of page.getByRole("radio").elements()) {
+			if (!radio.closest("[data-show-as]") && !radio.hasAttribute("data-show-as")) continue;
+			const r = radio.getBoundingClientRect();
+			const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+			expect(radio.contains(hit), radio.textContent ?? "").toBe(true);
+		}
+		host.remove();
+	});
+
+	test("choosing a level in the panel keeps it open", async () => {
+		const { host, latest } = await show(monitorsDraft(["m1"]));
+		await openTypeOptions("Chart options");
+		await page
+			.getByRole("combobox", { name: m.get_data_line_at_level() })
+			.selectOptions("unhealthy");
+		// Read without clicking Add (a click outside closes the panel).
+		await expect.poll(() => latest().thresholds).toEqual([{ level: "unhealthy" }]);
+		// A closing panel still shows while it animates out: the button says at once.
+		expect(optionsButton("Chart options").element().getAttribute("aria-expanded")).toBe("true");
+		host.remove();
+	});
+
+	test("clicking elsewhere with the panel open closes it, and focus goes where you clicked", async () => {
+		const { host } = await show(monitorsDraft(["m1"]));
+		await openTypeOptions("Chart options");
+		const air = page.getByRole("button", { name: AIR });
+		await air.click();
+		await expect.element(optionsPanel("Chart options")).not.toBeInTheDocument();
+		await expect.element(air).toHaveFocus();
+		host.remove();
+	});
+
+	test("switching Show as with the panel open leaves focus on the chosen type", async () => {
+		const { host } = await show(monitorsDraft(["m1"]));
+		await openTypeOptions("Chart options");
+		const table = page.getByRole("radio", { name: "Data table" });
+		await table.click();
+		await expect.element(optionsPanel("Chart options")).not.toBeInTheDocument();
+		await expect.element(table).toHaveFocus();
+		host.remove();
+	});
+
+	test("the panel doesn't trap Tab: tabbing past its last control leaves and closes it", async () => {
+		const { host } = await show(monitorsDraft(["m1"]));
+		await openTypeOptions("Chart options");
+		const line = page.getByRole("combobox", { name: m.get_data_line_at_level() });
+		line.element().focus();
+		// Past the panel's last control (the level line may have a hint link after it).
+		for (let i = 0; i < 4 && document.activeElement?.closest("[role=dialog]"); i++) {
+			await userEvent.keyboard("{Tab}");
+		}
+		expect(document.activeElement?.closest("[role=dialog]")).toBeNull();
+		expect(document.activeElement).not.toBe(document.body);
+		await expect.element(optionsPanel("Chart options")).not.toBeInTheDocument();
+		host.remove();
+	});
+
+	test("switching Show as closes the options panel", async () => {
+		const { host } = await show(monitorsDraft(["m1"]));
+		await openTypeOptions("Chart options");
+		await page.getByRole("radio", { name: "Data table" }).click();
+		await expect.element(optionsPanel("Chart options")).not.toBeInTheDocument();
+		await page.getByRole("radio", { name: "Chart" }).click();
+		await expect.element(optionsButton("Chart options")).toHaveAttribute("aria-expanded", "false");
+		host.remove();
 	});
 
 	test("no options heading when there's nothing to set", async () => {
@@ -3282,13 +3488,12 @@ describe("a type's own options", () => {
 					layers: [{ dataset: "forecasts" }]
 				}
 			},
-			areasDraft(["06019"], { type: "map" }),
 			withAreaLayers(["06019"], POUNDS)
 		];
 		for (const draft of drafts) {
 			const { screen, host } = await show(draft);
 			const names = column()
-				.getByRole("heading", { level: 2 })
+				.getByRole("button")
 				.elements()
 				.map((el) => el.textContent?.trim() ?? "");
 			expect(names.filter((n) => /options$|^Alert levels$/.test(n))).toEqual([]);
@@ -3302,11 +3507,11 @@ describe("a type's own options", () => {
 			type: "current-conditions",
 			data: { layers: [{ dataset: "air-quality", monitors: ["m1"] }] }
 		} as Draft);
-		expect(column().getByRole("heading", { name: "Alert levels" }).elements()).toHaveLength(0);
+		expect(optionsButton("Alert levels").elements()).toHaveLength(0);
 		await openSection(AIR);
 		await page.getByRole("checkbox", { name: "PM2.5" }).click();
-		await expect.element(optionsHeading("Alert levels")).toBeVisible();
-		expect(column().getByRole("combobox", { name: "Alert level" }).elements()).toHaveLength(1);
+		await openTypeOptions("Alert levels");
+		expect(page.getByRole("combobox", { name: "Alert level" }).elements()).toHaveLength(1);
 		host.remove();
 	});
 
@@ -3333,9 +3538,10 @@ describe("a type's own options", () => {
 		});
 		makeClient();
 		const { host } = await show(monitorsDraft(["m1"]));
-		await expect.element(optionsHeading("Chart options")).toBeVisible();
-		await expect.element(column().getByText(m.get_data_levels_unavailable())).toBeVisible();
-		await expect.element(column().getByRole("button", { name: m.get_data_retry() })).toBeVisible();
+		await openTypeOptions("Chart options");
+		const panel = optionsPanel("Chart options");
+		await expect.element(panel.getByText(m.get_data_levels_unavailable())).toBeVisible();
+		await expect.element(panel.getByRole("button", { name: m.get_data_retry() })).toBeVisible();
 		host.remove();
 	});
 

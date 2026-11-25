@@ -22,6 +22,8 @@ export const mapType: WidgetType = {
 	now: true,
 	span: { minDays: 1, maxStops: MAP_MAX_STOPS },
 	thresholds: false,
+	// Its points of interest and fill, in the Data Portal's options panel beside Show as.
+	optionsLabel: () => m.get_data_options_map(),
 	analyzable: false,
 	downloadable: false,
 	accepts: {

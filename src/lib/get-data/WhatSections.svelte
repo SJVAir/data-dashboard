@@ -5,11 +5,10 @@
 	import Toggletip from "$lib/components/Toggletip.svelte";
 	import { noticeFiltersSkipped } from "$lib/data/adapters/pesticides";
 	import { AIR_QUALITY, isPollutantLayer } from "$lib/data/layer-kind";
-	import type { CatalogEntry, EntryTypeMeta, LocationGroup } from "$lib/data/metadata";
+	import type { CatalogEntry, EntryTypeMeta } from "$lib/data/metadata";
 	import type { Layer, PesticideFilters as Filters, WidgetDataConfig } from "$lib/data/schema";
 	import { formatList, formatNumber } from "$lib/format";
 	import { m } from "$lib/paraglide/messages.js";
-	import type { RegionTypeInfo } from "$lib/places/types";
 	import { CURRENT_TYPE } from "$lib/widgets/current";
 	import { OUTSIDE_TYPE } from "$lib/widgets/outside";
 	import { FORECAST_TYPE } from "$lib/widgets/forecast";
@@ -25,7 +24,7 @@
 	import AirQualitySection from "./AirQualitySection.svelte";
 	import { PESTICIDE_FILTER_NAMES } from "./filter-names";
 	import { canAddLayer, WEATHER, type EntryPick } from "./layers";
-	import { hasNotices, hasSmokeAndFire, hasUse, locationsLayer, mapPesticideFilters } from "./map";
+	import { hasNotices, hasSmokeAndFire, hasUse, mapPesticideFilters } from "./map";
 	import { nowPollutants } from "./now";
 	import type { OfferedDataset } from "./offer";
 	import PesticideFilters from "./PesticideFilters.svelte";
@@ -33,14 +32,7 @@
 	import SectionTrigger from "./SectionTrigger.svelte";
 	import { pesticideMeta } from "./sources";
 	import StationChoice from "./StationChoice.svelte";
-	import {
-		FILL,
-		LOCATIONS_GONE,
-		sectionTypes,
-		toggledLocationTypes,
-		whatSections,
-		type WhatSection
-	} from "./what-sections";
+	import { PESTICIDES, sectionTypes, whatSections, type WhatSection } from "./what-sections";
 
 	/**
 	 * What, for every widget type (spec decision 16): one list of sections, in catalog order, the
@@ -132,19 +124,6 @@
 			onuse: (on: boolean) => void;
 			/** Asks for the years again after they couldn't be loaded. */
 			onretryyears: () => void;
-			/** The region type saved as the fill (missing: none). */
-			fill?: string;
-			/** The types the directory offers; undefined while loading or when it failed (None only). */
-			fillTypes?: RegionTypeInfo[];
-			/** A fill chosen (a region type), or none (undefined). */
-			onfill: (type: string | undefined) => void;
-			/**
-			 * The location groups (the regions meta's, by order), a section each; undefined while
-			 * loading or when they couldn't be loaded (no location sections then).
-			 */
-			locationGroups?: LocationGroup[];
-			/** The ticked location types after a change (in the meta's order; `[]`: none). */
-			onlocations: (types: string[]) => void;
 			/**
 			 * Why smoke and fire, the notices or use can't be switched on at the Map's data resolution
 			 * (or, for use, on Now); greyed with the reason, never hidden.
@@ -156,7 +135,7 @@
 	const uid = $props.id();
 
 	const isMap = $derived(type.type === MAP_TYPE);
-	const list = $derived(whatSections(catalog, sections, data.layers, map.locationGroups));
+	const list = $derived(whatSections(catalog, sections, data.layers));
 	/** Why `key` is greyed out for this type: the types that show it; undefined when it shows. */
 	function greyed(key: string): string | undefined {
 		const showing = sectionTypes(key, types);
@@ -238,27 +217,31 @@
 
 	/** What's chosen in a section, for its heading (so a closed section still says). */
 	function chosen(section: WhatSection): string | undefined {
-		if (section.key === FILL) return isMap ? fillShown?.plural : undefined;
-		if (section.group) {
-			const labels = section.group.types.filter((t) => ticked.includes(t.type)).map((t) => t.label);
+		if (section.key === PESTICIDES) {
+			const { use: usePart, notices: noticesPart } = section.parts ?? {};
+			const labels = usePart ? chosenLabels(usePart) : [];
+			// The Map's use switch holds no measure of its own: the part's name says it's on.
+			if (usePart && use && labels.length === 0) labels.push(labelOf(usePart));
+			if (noticesPart && notices) labels.push(labelOf(noticesPart));
 			return formatList(labels) || undefined;
 		}
-		if (section.gone)
-			return formatList(section.gone.filter((t) => ticked.includes(t))) || undefined;
+		return formatList(chosenLabels(section)) || undefined;
+	}
+
+	/** The chosen measures of a dataset section, each once, in layer order. */
+	function chosenLabels(section: WhatSection): string[] {
 		const entryTypes = section.entry?.entryTypes ?? [];
 		const labels = data.layers
 			.filter((l) => l.dataset === section.key)
 			.map((l) => entryTypes.find((e) => e.id === l.entryType)?.label)
 			.filter((label): label is string => label !== undefined);
 		// Two pesticide layers of one measure (different filters) name it once.
-		return formatList([...new Set(labels)]) || undefined;
+		return [...new Set(labels)];
 	}
 
 	/** A section's heading. */
 	function labelOf(section: WhatSection): string {
-		if (section.key === FILL) return m.getdata_map_fill();
-		if (section.group) return section.group.label;
-		if (section.key === LOCATIONS_GONE) return m.getdata_map_locations_gone();
+		if (section.key === PESTICIDES) return m.get_data_pesticides();
 		if (section.key === HMS_SMOKE && isMap) return m.get_data_smoke_and_fire();
 		if (section.entry) return section.entry.label;
 		if (section.key === HMS_SMOKE) return m.get_data_smoke_and_fire();
@@ -305,14 +288,6 @@
 	const noticesSkipped = $derived(
 		notices && noticeFilters ? noticeFiltersSkipped(noticeFiltersSaved ?? {}, noticeFilters) : []
 	);
-	/** The locations layer's ticked types (saved order). */
-	const ticked = $derived(locationsLayer(data)?.locationTypes ?? []);
-	function tickLocation(locationType: string, on: boolean): void {
-		map.onlocations(toggledLocationTypes(map.locationGroups ?? [], ticked, locationType, on));
-	}
-	const fillChoices = $derived(map.fillTypes ?? []);
-	/** The saved fill, only while it's offered (else None shows; the saved value stays). */
-	const fillShown = $derived(fillChoices.find((t) => t.type === map.fill));
 </script>
 
 {#snippet reason(id: string, text: string)}
@@ -469,6 +444,7 @@
 {/snippet}
 
 {#snippet noticesSection(section: WhatSection)}
+	{@const blockedNow = noticesBlocked ?? greyed(PESTICIDE_NOTICES)}
 	{@render description(section.entry?.description)}
 	<div class="flex min-h-6 flex-wrap items-center gap-x-2 text-sm">
 		<label class="flex items-center gap-2">
@@ -477,22 +453,18 @@
 				role="switch"
 				class="accent-primary size-4"
 				checked={notices}
-				disabled={!!noticesBlocked}
-				aria-describedby={noticesBlocked ? `${uid}-notices-blocked` : undefined}
+				disabled={!!blockedNow}
+				aria-describedby={blockedNow ? `${uid}-notices-blocked` : undefined}
 				onchange={(e) => map.onnotices(e.currentTarget.checked)}
 			/>
-			<span class={[noticesBlocked && "text-muted-foreground"]}>
+			<span class={[blockedNow && "text-muted-foreground"]}>
 				{m.getdata_map_notices_switch()}
 			</span>
 		</label>
-		{#if noticesBlocked}
-			{@render reason(`${uid}-notices-blocked`, noticesBlocked)}
+		{#if blockedNow}
+			{@render reason(`${uid}-notices-blocked`, blockedNow)}
 		{/if}
 	</div>
-	<!-- With use on, the one filter set shows in its section. -->
-	{#if notices && !use}
-		{@render filterSet()}
-	{/if}
 {/snippet}
 
 {#snippet useSection(section: WhatSection)}
@@ -522,9 +494,6 @@
 				<Button variant="outline" size="sm" onclick={map.onretryyears}>{m.get_data_retry()}</Button>
 			</div>
 		{/if}
-		{#if use}
-			{@render filterSet()}
-		{/if}
 	{:else if section.offered}
 		{@render description(section.entry?.description, {
 			label: m.get_data_pesticide_help_label(),
@@ -547,66 +516,27 @@
 	{/if}
 {/snippet}
 
-{#snippet locationsSection(section: WhatSection)}
-	<fieldset class="flex flex-col gap-1">
-		<legend class="sr-only">{labelOf(section)}</legend>
-		{#each section.group?.types ?? [] as locationType (locationType.type)}
-			<label class="flex min-h-6 items-center gap-2 text-sm">
-				<input
-					type="checkbox"
-					class="accent-primary size-4"
-					checked={ticked.includes(locationType.type)}
-					onchange={(e) => tickLocation(locationType.type, e.currentTarget.checked)}
-				/>
-				<span>{locationType.label}</span>
-			</label>
-		{/each}
-		{#each section.gone ?? [] as id (id)}
-			{@const reasonId = `${uid}-location-gone-${id}`}
-			<!-- Saved, but no meta group lists it any more: greyed with why, still untickable. -->
-			<div class="flex min-h-6 flex-wrap items-center gap-x-2 text-sm">
-				<label class="flex items-center gap-2">
-					<input
-						type="checkbox"
-						class="accent-primary size-4"
-						checked={ticked.includes(id)}
-						aria-describedby={reasonId}
-						onchange={(e) => tickLocation(id, e.currentTarget.checked)}
-					/>
-					<span class="text-muted-foreground">{id}</span>
-				</label>
-				{@render reason(reasonId, m.getdata_map_location_type_gone())}
-			</div>
-		{/each}
-	</fieldset>
-{/snippet}
-
-{#snippet fillSection()}
-	<fieldset class="flex flex-col gap-1">
-		<legend class="sr-only">{m.getdata_map_fill()}</legend>
-		<label class="flex min-h-6 items-center gap-2 text-sm">
-			<input
-				type="radio"
-				name="{uid}-fill"
-				class="accent-primary size-4"
-				checked={!fillShown}
-				onchange={() => map.onfill(undefined)}
-			/>
-			<span>{m.getdata_map_fill_none()}</span>
-		</label>
-		{#each fillChoices as choice (choice.type)}
-			<label class="flex min-h-6 items-center gap-2 text-sm">
-				<input
-					type="radio"
-					name="{uid}-fill"
-					class="accent-primary size-4"
-					checked={fillShown?.type === choice.type}
-					onchange={() => map.onfill(choice.type)}
-				/>
-				<span>{choice.plural}</span>
-			</label>
-		{/each}
-	</fieldset>
+<!-- Pesticide use and spray notices, one section (2026-11-25): each part under its own heading (the
+     catalog's label), then the Map's one filter set, below both, while either is on. -->
+{#snippet pesticidesSection(section: WhatSection)}
+	{#if section.parts?.use}
+		<div class="flex flex-col gap-2">
+			<h4 class="text-sm font-medium">{labelOf(section.parts.use)}</h4>
+			{@render useSection(section.parts.use)}
+		</div>
+	{/if}
+	{#if section.parts?.notices}
+		<div class="flex flex-col gap-2">
+			<!-- Greyed with its switch where notices aren't shown (off the Map). -->
+			<h4 class={["text-sm font-medium", greyed(PESTICIDE_NOTICES) && "text-muted-foreground"]}>
+				{labelOf(section.parts.notices)}
+			</h4>
+			{@render noticesSection(section.parts.notices)}
+		</div>
+	{/if}
+	{#if isMap && (use || notices)}
+		{@render filterSet()}
+	{/if}
 {/snippet}
 
 <Accordion.Root type="multiple" bind:value={open} class="flex flex-col gap-2" data-what-sections>
@@ -632,14 +562,8 @@
 						{@render airQuality(section)}
 					{:else if section.key === HMS_SMOKE}
 						{@render smokeSection(section)}
-					{:else if section.key === PESTICIDE_NOTICES}
-						{@render noticesSection(section)}
-					{:else if section.key === PESTICIDE_USE}
-						{@render useSection(section)}
-					{:else if section.key === FILL}
-						{@render fillSection()}
-					{:else if section.group || section.gone}
-						{@render locationsSection(section)}
+					{:else if section.key === PESTICIDES}
+						{@render pesticidesSection(section)}
 					{:else if section.offered}
 						{@render description(section.entry?.description)}
 						{#if type.type === FORECAST_TYPE}

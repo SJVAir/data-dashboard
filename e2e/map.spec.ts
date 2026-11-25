@@ -26,6 +26,7 @@ import {
 	newBlankDashboard,
 	openPicker,
 	openSection,
+	openTypeOptions,
 	openSharedDoc,
 	widgetMenuItem,
 	widgetTitles,
@@ -2212,10 +2213,11 @@ test.describe("schools and child care", () => {
 	async function tickInDataPortal(page: Page, title: string, types: string[]): Promise<void> {
 		await widgetMenuItem(page, title, "Open in Data Portal");
 		await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeVisible();
+		await openTypeOptions(page, "Map options");
 		for (const type of types) {
-			await openSection(page, type === "Child care" ? /^Child care/ : /^Schools/);
 			await page.getByRole("checkbox", { name: type, exact: true }).check();
 		}
+		await page.keyboard.press("Escape");
 		await page.getByRole("button", { name: "Save changes" }).click();
 		await expect(widgetTitles(page)).toHaveText([title]);
 		await expectSaved(page);

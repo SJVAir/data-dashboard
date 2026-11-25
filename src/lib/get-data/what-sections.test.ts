@@ -3,9 +3,8 @@ import type { CatalogEntry, LocationGroup } from "$lib/data/metadata";
 import type { WidgetType } from "$lib/widgets/registry";
 import type { OfferedDataset } from "./offer";
 import {
-	FILL,
-	LOCATIONS_GONE,
-	locationSectionKey,
+	goneTypes,
+	PESTICIDES,
 	sectionTypes,
 	toggledLocationTypes,
 	whatSections
@@ -58,15 +57,13 @@ const GROUPS: LocationGroup[] = [
 ];
 
 describe("whatSections", () => {
-	it("lists the offered datasets and the Map's own in catalog order, fire with smoke, fill last", () => {
+	it("lists the offered datasets and the Map's own in catalog order, fire with smoke; no Map settings", () => {
 		expect(whatSections(CATALOG, OFFERED, []).map((s) => s.key)).toEqual([
 			"air-quality",
 			"weather",
 			"hms-smoke",
-			"pesticide-use",
-			"pesticide-notices",
-			"forecasts",
-			FILL
+			PESTICIDES,
+			"forecasts"
 		]);
 	});
 
@@ -79,57 +76,58 @@ describe("whatSections", () => {
 		expect(whatSections(bare, [offer("weather")], []).map((s) => s.key)).toEqual([
 			"air-quality",
 			"weather",
-			"hms-smoke",
-			FILL
+			"hms-smoke"
 		]);
 		const on = [{ dataset: "pesticide-notices" }, { dataset: "pesticide-use" }];
 		expect(whatSections(bare, [offer("weather")], on).map((s) => s.key)).toEqual([
 			"air-quality",
 			"weather",
 			"hms-smoke",
-			"pesticide-use",
-			"pesticide-notices",
-			FILL
+			PESTICIDES
 		]);
 	});
 });
 
-describe("whatSections: location groups", () => {
-	it("lists a section per group, in order, after the pesticide sections and before the fill", () => {
-		const keys = whatSections(CATALOG, OFFERED, [], GROUPS).map((s) => s.key);
-		expect(keys.slice(-3)).toEqual(["locations:school", "locations:child_care", FILL]);
-		expect(keys.indexOf("pesticide-notices")).toBeLessThan(keys.indexOf("locations:school"));
-		const section = whatSections(CATALOG, OFFERED, [], GROUPS).find(
-			(s) => s.key === "locations:school"
-		);
-		expect(section?.group).toBe(GROUPS[0]);
+describe("whatSections: one Pesticides section", () => {
+	it("lists one Pesticides section where pesticide use is, with use and notices as parts", () => {
+		const sections = whatSections(CATALOG, OFFERED, []);
+		const keys = sections.map((s) => s.key);
+		expect(keys).not.toContain("pesticide-use");
+		expect(keys).not.toContain("pesticide-notices");
+		expect(keys.indexOf(PESTICIDES)).toBe(3);
+		const pesticides = sections.find((s) => s.key === PESTICIDES)!;
+		expect(pesticides.parts?.use?.key).toBe("pesticide-use");
+		expect(pesticides.parts?.use?.offered?.dataset.id).toBe("pesticide-use");
+		expect(pesticides.parts?.notices?.key).toBe("pesticide-notices");
 	});
 
-	it("lists none with no groups, or while they load (undefined)", () => {
-		const keys = (groups?: LocationGroup[]) =>
-			whatSections(CATALOG, OFFERED, [], groups).map((s) => s.key);
-		expect(keys([]).some((k) => k.startsWith("locations"))).toBe(false);
-		expect(keys(undefined).some((k) => k.startsWith("locations"))).toBe(false);
+	it("is left out when neither is offered or on, and holds only the one that is", () => {
+		const bare = [entry("weather")];
+		expect(whatSections(bare, [offer("weather")], []).map((s) => s.key)).not.toContain(PESTICIDES);
+		const notices = whatSections(bare, [offer("weather")], [{ dataset: "pesticide-notices" }]);
+		const section = notices.find((s) => s.key === PESTICIDES)!;
+		expect(section.parts?.notices).toBeDefined();
+		expect(section.parts?.use).toBeUndefined();
 	});
 
-	it("lists the saved types no group offers in one block after the groups (once the groups are known)", () => {
+	it("shows for the types that show either part", () => {
+		expect(sectionTypes(PESTICIDES, TYPES)).toEqual([CHART, MAP]);
+	});
+});
+
+describe("whatSections: the Map's settings are in Map options", () => {
+	it("never lists a location group, the types no longer offered, or Fill regions by", () => {
 		const layers = [{ dataset: "locations", locationTypes: ["public_school", "gone_type"] }];
-		const sections = whatSections(CATALOG, OFFERED, layers, GROUPS);
-		expect(sections.map((s) => s.key).slice(-4)).toEqual([
-			"locations:school",
-			"locations:child_care",
-			LOCATIONS_GONE,
-			FILL
-		]);
-		expect(sections.find((s) => s.key === LOCATIONS_GONE)?.gone).toEqual(["gone_type"]);
-		expect(whatSections(CATALOG, OFFERED, layers, []).map((s) => s.key)).toContain(LOCATIONS_GONE);
-		expect(whatSections(CATALOG, OFFERED, layers, undefined).map((s) => s.key)).not.toContain(
-			LOCATIONS_GONE
-		);
+		const keys = whatSections(CATALOG, OFFERED, layers).map((s) => s.key);
+		expect(keys.some((k) => k.startsWith("locations"))).toBe(false);
+		expect(keys).not.toContain("fill");
 	});
+});
 
-	it("keys a group's section by its key", () => {
-		expect(locationSectionKey("school")).toBe("locations:school");
+describe("goneTypes", () => {
+	it("is the saved types no group lists, in saved order", () => {
+		expect(goneTypes(GROUPS, ["gone_b", "public_school", "gone_a"])).toEqual(["gone_b", "gone_a"]);
+		expect(goneTypes([], ["public_school"])).toEqual(["public_school"]);
 	});
 });
 
@@ -164,13 +162,7 @@ describe("sectionTypes", () => {
 		expect(sectionTypes("hms-smoke", TYPES)).toEqual([CHART, MAP]);
 		expect(sectionTypes("pesticide-use", TYPES)).toEqual([CHART, MAP]);
 		expect(sectionTypes("pesticide-notices", TYPES)).toEqual([MAP]);
-		expect(sectionTypes(FILL, TYPES)).toEqual([MAP]);
 		expect(sectionTypes("forecasts", TYPES)).toEqual([CHART, STRIP]);
-	});
-
-	it("offers the location sections to the Map only", () => {
-		expect(sectionTypes(locationSectionKey("school"), TYPES)).toEqual([MAP]);
-		expect(sectionTypes(LOCATIONS_GONE, TYPES)).toEqual([MAP]);
 	});
 
 	it("gives the Forecast strip Air quality: its one monitor is searched there (decision 11)", () => {
