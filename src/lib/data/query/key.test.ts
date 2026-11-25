@@ -4,7 +4,11 @@ import type { DateRangeSpec } from "../schema";
 import type { Target } from "../types";
 import { keyRange, queryKey } from "./key";
 
-function keyFor(spec: DateRangeSpec, now: Date, target: Target = { kind: "all" }): string {
+function keyFor(
+	spec: DateRangeSpec,
+	now: Date,
+	target: Target = { kind: "regions", keys: ["county:06019"] }
+): string {
 	return queryKey({
 		dataset: "air-quality",
 		entryType: "pm25",

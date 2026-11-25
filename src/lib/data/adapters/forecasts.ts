@@ -130,12 +130,7 @@ async function fetchForecasts(
  */
 export const forecastsAdapter: DatasetAdapter = {
 	id: "forecasts",
-	async target(layer, ctx) {
-		const target = await layerTarget(layer, ctx);
-		return "unavailable" in target || target.kind !== "all"
-			? target
-			: { unavailable: "place-unsupported" };
-	},
+	target: (layer, ctx) => layerTarget(layer, ctx),
 	offered: (base) => offeredLevels("forecasts", base),
 	// One value per day, with levels: each entry type draws as day bands on any pollutant.
 	overlays: () => true,

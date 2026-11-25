@@ -15,7 +15,6 @@ export type HeatToday = {
 
 /** The target a heat request is about: a ZIP-covered place, or `null` when it has no ZIP. */
 function heatTarget(target: Target): Target | null {
-	if (target.kind === "all") return null;
 	if (target.kind !== "fallback") return target;
 	// A school or point answers for its ZIP only: a city or county would be a different place.
 	const zips = target.keys.filter((k) => k.startsWith("zipcode:"));

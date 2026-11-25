@@ -208,7 +208,7 @@ describe("smokeAdapter", () => {
 		await expect(smokeAdapter.fetch(request(county), ctx, signal)).rejects.toThrow("failed");
 	});
 
-	it("doesn't support the whole layer", async () => {
+	it("has nothing to target with no Where", async () => {
 		const result = await smokeAdapter.target(
 			{ dataset: "hms-smoke", entryType: "smoke-density", place: { kind: "all" } } as never,
 			ctx

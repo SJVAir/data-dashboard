@@ -159,11 +159,7 @@ export function createQueryClient(opts: QueryClientOptions): QueryClient {
 	): Choice | { unavailable: UnavailableReason } {
 		const spanDays = calendarSpanDays(spec, range);
 		const choice = fetchLevel(pick.resolution, offered);
-		if (!choice)
-			return { unavailable: target.kind === "all" ? "whole-layer-raw" : "no-resolution" };
-		if (target.kind === "all" && (choice.resolution === "raw" || choice.downsampleFromRaw)) {
-			return { unavailable: "whole-layer-raw" };
-		}
+		if (!choice) return { unavailable: "no-resolution" };
 		const { resolution, downsampleFromRaw } = choice;
 		const worstHour =
 			pick.worstHour &&

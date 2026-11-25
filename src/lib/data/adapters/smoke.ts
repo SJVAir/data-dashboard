@@ -102,12 +102,7 @@ async function fetchSmoke(
  */
 export const smokeAdapter: DatasetAdapter = {
 	id: "hms-smoke",
-	async target(layer, ctx) {
-		const target = await layerTarget(layer, ctx);
-		return "unavailable" in target || target.kind !== "all"
-			? target
-			: { unavailable: "place-unsupported" };
-	},
+	target: (layer, ctx) => layerTarget(layer, ctx),
 	offered: (base) => offeredLevels("hms-smoke", base),
 	// One density per day: draws as day bands on any pollutant.
 	overlays: () => true,

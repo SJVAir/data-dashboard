@@ -53,15 +53,8 @@ describe("monitorScope", () => {
 		});
 	});
 
-	it("ticked types with no Where are everywhere", async () => {
-		const s = await monitorScope(layer({}), ctx(known));
-		expect(s).toEqual({
-			kind: "monitor-set",
-			types: ["purpleair"],
-			regionIds: null,
-			ids: [],
-			key: "purpleair|*|"
-		});
+	it("ticked types with no Where have no regions to count them in", async () => {
+		expect(await monitorScope(layer({}), ctx(known))).toEqual({ unavailable: "place-unsupported" });
 	});
 
 	it("scopes a school or point to its region, and the key holds no coordinates", async () => {

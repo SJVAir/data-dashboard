@@ -1,7 +1,7 @@
 import { getWeatherStationsForPlace } from "@sjvair/sdk";
 import { untilAborted, type CatalogEntry } from "../metadata";
 import type { PlaceInfo, QueryData, QueryLayer, Series } from "../types";
-import { namedSummarySeries, summarySeries } from "./air-quality";
+import { summarySeries } from "./air-quality";
 import { offeredLevels } from "./offered";
 import type { AdapterContext, AdapterRequest, DatasetAdapter } from "./registry";
 import { isNotFound, layerTarget, placeCandidates, type PlaceRef } from "./targets";
@@ -109,59 +109,12 @@ async function aggregateOf(
 	return (await weatherEntry(ctx, signal))?.entryTypes.find((e) => e.id === entryType)?.aggregate;
 }
 
-/** The monitor types weather stations are (the catalog's `monitor_types`); none when unlisted. */
-async function stationTypes(
-	ctx: Pick<AdapterContext, "metadata">,
-	signal?: AbortSignal
-): Promise<string[]> {
-	return (await weatherEntry(ctx, signal))?.monitorTypes ?? [];
-}
-
-/**
- * No Where: every station, one series each, from the bulk monitor summaries of the catalog's
- * weather `monitor_types` (stations are monitors the monitors list leaves out, so each is named
- * from the response).
- */
-async function fetchEveryStation(
-	req: AdapterRequest,
-	ctx: AdapterContext,
-	signal: AbortSignal
-): Promise<QueryData> {
-	const [types, aggregate] = await Promise.all([
-		stationTypes(ctx, signal),
-		aggregateOf(ctx, req.entryType, signal)
-	]);
-	// `target()` refuses the whole layer when the catalog names no types: an empty list would
-	// ask for every public monitor type instead.
-	if (types.length === 0) throw new Error("The catalog names no weather station types");
-	const { series, names } = await namedSummarySeries(
-		req,
-		[],
-		[],
-		signal,
-		{ total: aggregate === "sum", completeness: true },
-		{ type: types }
-	);
-	return {
-		series,
-		places: series.map((s) => {
-			const id = s.place.slice("monitor:".length);
-			return { place: s.place, name: names.get(id) ?? id };
-		}),
-		resolution: req.resolution,
-		fromRaw: false,
-		processor: null,
-		fetchedAt: req.now.getTime()
-	};
-}
-
 async function fetchWeather(
 	req: AdapterRequest,
 	ctx: AdapterContext,
 	signal: AbortSignal
 ): Promise<QueryData> {
 	const { target } = req;
-	if (target.kind === "all") return fetchEveryStation(req, ctx, signal);
 	const [groups, aggregate] = await Promise.all([
 		placeCandidates(target, ctx, signal),
 		aggregateOf(ctx, req.entryType, signal)
@@ -209,19 +162,14 @@ async function fetchWeather(
 
 /**
  * CIMIS weather: summaries of the place's nearest station, drawn under the place's own key so the
- * series match the main layer's places; with no Where, every station (`fetchEveryStation`).
+ * series match the main layer's places (no Where: nothing).
  * Totals (precipitation, ETo) read `sum`, the rest `mean`, from the catalog's `aggregate`. There is
  * no "Every measurement": CIMIS readings are hourly, so hourly shows the same values, and entry
  * types with no other level (wind direction) aren't offered.
  */
 export const weatherAdapter: DatasetAdapter = {
 	id: "weather",
-	async target(layer, ctx) {
-		const target = await layerTarget(layer, ctx);
-		if ("unavailable" in target || target.kind !== "all") return target;
-		// Every station needs the catalog's station types to ask for.
-		return (await stationTypes(ctx)).length > 0 ? target : { unavailable: "place-unsupported" };
-	},
+	target: (layer, ctx) => layerTarget(layer, ctx),
 	offered: (base) => offeredLevels("weather", base),
 	overlays: () => true,
 	fetch: fetchWeather

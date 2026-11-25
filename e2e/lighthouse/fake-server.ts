@@ -24,7 +24,7 @@ import { gzipSync } from "node:zlib";
 import type { BrowserContext } from "@playwright/test";
 import { createFakeRemote } from "../../src/lib/sync/remote-fake";
 import { CSRF_TOKEN, routeDocuments } from "../documents-server";
-import { routeAccount, routeApiFixtures, routePesticideValley } from "../fixtures";
+import { routeAccount, routeApiFixtures } from "../fixtures";
 import { routeForecasts } from "../forecasts-server";
 import { routeHeat } from "../heat-server";
 import { routeMapData } from "../map-data-server";
@@ -277,7 +277,6 @@ export async function startFakeServer(): Promise<FakeServer> {
 	await routeHeat(context);
 	await routePlaces(context);
 	await routeMapData(context);
-	await routePesticideValley(context);
 	const account = await routeAccount(context, null);
 	const fake = createFakeRemote({ accountId: "nobody" });
 	await routeDocuments(context, fake, () => account.get()?.id ?? null, []);

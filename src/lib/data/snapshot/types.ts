@@ -30,9 +30,8 @@ export type Snapshot = {
 export type MonitorScope =
 	| { kind: "regions"; ids: string[] }
 	| { kind: "monitors"; ids: string[] }
-	| { kind: "all" }
 	/**
-	 * Every monitor of `types` inside the regions `regionIds` (server ids; `null`: everywhere),
-	 * plus the searched monitors `ids` wherever they are.
+	 * Every monitor of `types` inside the regions `regionIds` (server ids), plus the searched
+	 * monitors `ids` wherever they are.
 	 */
-	| { kind: "monitor-set"; types: string[]; regionIds: string[] | null; ids: string[] };
+	| { kind: "monitor-set"; types: string[]; regionIds: string[]; ids: string[] };

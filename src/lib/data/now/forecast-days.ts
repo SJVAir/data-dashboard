@@ -43,12 +43,10 @@ export function targetKey(target: Target): string {
 	switch (target.kind) {
 		case "monitors":
 			return `monitors:${target.ids.join(",")}`;
-		case "all":
-			return "all";
 		case "regions":
 			return `regions:${target.keys.join(",")}`;
 		case "monitor-set": {
-			const regions = target.regionKeys ? target.regionKeys.join(",") : "everywhere";
+			const regions = target.regionKeys.join(",");
 			return `monitor-set:${target.types.join(",")}:${regions}:${target.ids.join(",")}`;
 		}
 		default: {
@@ -164,7 +162,6 @@ export async function forecastDaysSource(
 ): Promise<NowSource<ForecastDays> | { unavailable: UnavailableReason }> {
 	const target = await layerTarget(layer, ctx, signal);
 	if ("unavailable" in target) return target;
-	if (target.kind === "all") return { unavailable: "place-unsupported" };
 	return {
 		key: `forecast-days:${targetKey(target)}`,
 		cadence: "hour",

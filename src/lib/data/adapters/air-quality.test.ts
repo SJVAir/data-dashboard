@@ -156,8 +156,12 @@ describe("airQualityAdapter.offered", () => {
 			"hour",
 			"day"
 		]);
-		expect(airQualityAdapter.offered(base, { kind: "all" })).toEqual(["hour", "day"]);
-		const set: Target = { kind: "monitor-set", ids: [], types: ["purpleair"], regionKeys: null };
+		const set: Target = {
+			kind: "monitor-set",
+			ids: [],
+			types: ["purpleair"],
+			regionKeys: ["county:06019"]
+		};
 		expect(airQualityAdapter.offered(base, set)).toEqual(["hour", "day"]);
 	});
 });
@@ -189,20 +193,6 @@ describe("airQualityAdapter.fetch monitor sets", () => {
 		// Series only for the monitors the typed request returned, named from the list.
 		expect(data.series.map((s) => [s.place, s.points.length])).toEqual([["monitor:m-pa", 1]]);
 		expect(data.places).toEqual([{ place: "monitor:m-pa", name: "Purple Air" }]);
-	});
-
-	it("a monitor-set with no regions asks everywhere, with its types", async () => {
-		vi.mocked(getMonitorSummariesBulkDaily).mockResolvedValue([] as never);
-		const target: Target = {
-			kind: "monitor-set",
-			ids: [],
-			types: ["purpleair", "airnow"],
-			regionKeys: null
-		};
-		await airQualityAdapter.fetch(request(target, "day", SEPTEMBER), ctx, signal);
-		const [config] = vi.mocked(getMonitorSummariesBulkDaily).mock.calls[0];
-		expect("region" in config).toBe(false);
-		expect(config).toMatchObject({ type: ["purpleair", "airnow"] });
 	});
 
 	it("searched monitors outside the areas are fetched one by one", async () => {
@@ -627,18 +617,20 @@ describe("airQualityAdapter.fetch", () => {
 		});
 	});
 
-	it("fetches the whole layer from the bulk monitor endpoint with no region", async () => {
+	it("a monitor set's bulk rows outside the range are dropped", async () => {
 		vi.mocked(getMonitorSummariesBulkDaily).mockResolvedValue([
 			{ id: "m-1", summaries: [row("2026-09-02T00:00:00-07:00", 1)] },
 			{ id: "m-2", summaries: [row("2026-08-31T00:00:00-07:00", 9)] }
 		] as never);
 		const data = await airQualityAdapter.fetch(
-			request({ kind: "all" }, "day", SEPTEMBER),
+			request(
+				{ kind: "monitor-set", ids: [], types: ["purpleair"], regionKeys: ["county:06019"] },
+				"day",
+				SEPTEMBER
+			),
 			ctx,
 			signal
 		);
-		const [config] = vi.mocked(getMonitorSummariesBulkDaily).mock.calls[0];
-		expect("region" in config).toBe(false);
 		// Rows outside the range are dropped.
 		expect(data.series.map((s) => [s.place, s.points.length])).toEqual([
 			["monitor:m-1", 1],
@@ -1195,7 +1187,7 @@ describe("airQualityAdapter.fetch open days", () => {
 		expect(getRegionSummariesBulkHourly).not.toHaveBeenCalled();
 	});
 
-	it("the whole layer's calendar request merges bulk open days, adding open-only monitors", async () => {
+	it("a monitor set's calendar request merges bulk open days, adding open-only monitors", async () => {
 		vi.mocked(getMonitorSummariesBulkDaily).mockResolvedValue([
 			{ id: "m-pa", summaries: stored }
 		] as never);
@@ -1204,13 +1196,18 @@ describe("airQualityAdapter.fetch open days", () => {
 			{ id: "m-new", summaries: open.slice(1) }
 		] as never);
 		const data = await airQualityAdapter.fetch(
-			request({ kind: "all" }, "day", OCTOBER, { figure: "mean_24h" }),
+			request(
+				{ kind: "monitor-set", ids: [], types: ["purpleair"], regionKeys: ["county:06019"] },
+				"day",
+				OCTOBER,
+				{ figure: "mean_24h" }
+			),
 			ctx,
 			signal
 		);
 		expect(getMonitorSummariesBulkDailyOpen).toHaveBeenCalledTimes(1);
 		const [config] = vi.mocked(getMonitorSummariesBulkDailyOpen).mock.calls[0];
-		expect(config).toEqual({ entryType: "pm25" });
+		expect(config).toEqual({ entryType: "pm25", region: ["sq1"], type: ["purpleair"] });
 		const byPlace = new Map(data.series.map((s) => [s.place, s.points]));
 		expect(byPlace.get("monitor:m-pa")?.map((p) => p.figure)).toEqual([8.1, 6.2, 4.4]);
 		expect(byPlace.get("monitor:m-new")?.map((p) => p.figure)).toEqual([4.4]);

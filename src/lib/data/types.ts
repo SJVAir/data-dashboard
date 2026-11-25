@@ -35,7 +35,7 @@ export type QuerySelection = { kind: "regions"; ids: string[] };
 export type QueryLayer = Pick<Layer, "dataset" | "entryType" | "station" | "filters"> & {
 	place?: QueryPlace;
 	selection?: QuerySelection;
-	/** Every monitor of these types inside `place`/`selection` (none: everywhere). */
+	/** Every monitor of these types inside `place`/`selection` (none: nothing; ticked types draw only inside a Where). */
 	monitorTypes?: string[];
 	/** Monitors picked one by one, wherever they are. */
 	monitors?: string[];
@@ -112,7 +112,6 @@ export const UNAVAILABLE_REASONS = [
 	"location-unresolved",
 	"point-outside",
 	"monitor-unlisted",
-	"whole-layer-raw",
 	"filter-gone",
 	/** Monitors asked for, none of them measuring the layer's pollutant: nothing to fetch. */
 	"none-measure"
@@ -129,14 +128,13 @@ export type QueryState =
 export type Target =
 	| { kind: "monitors"; ids: string[] }
 	/**
-	 * Every monitor of `types` inside the regions of `regionKeys` (`null`: everywhere), fetched in
-	 * bulk, plus the searched monitors `ids` wherever they are (one by one when the bulk lacks them).
+	 * Every monitor of `types` inside the regions of `regionKeys`, fetched in bulk, plus the
+	 * searched monitors `ids` wherever they are (one by one when the bulk lacks them).
 	 */
-	| { kind: "monitor-set"; ids: string[]; types: string[]; regionKeys: string[] | null }
+	| { kind: "monitor-set"; ids: string[]; types: string[]; regionKeys: string[] }
 	| { kind: "regions"; keys: string[] }
 	/** A point or a school: its region keys tried in order (ZIP, city, county); one series. */
-	| { kind: "fallback"; via: Via; keys: string[] }
-	| { kind: "all" };
+	| { kind: "fallback"; via: Via; keys: string[] };
 
 /**
  * `timeSubRange` only filters the data delivered (whole Pacific days for dates, `[start, end]`

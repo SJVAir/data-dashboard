@@ -36,11 +36,11 @@ function fakeAdapter(id = "air-quality") {
 		id,
 		async target(layer) {
 			if (layer.monitors?.length) return { kind: "monitors", ids: [...layer.monitors] };
-			if (layer.place) return { unavailable: "place-unsupported" };
-			return { kind: "all" };
+			return { unavailable: "place-unsupported" };
 		},
-		// Like air quality: no raw data for the whole layer.
-		offered: (base, target) => (target.kind === "all" ? base.filter((r) => r !== "raw") : base),
+		// Like air quality: raw only for monitors.
+		offered: (base, target) =>
+			target.kind === "monitors" ? base : base.filter((r) => r !== "raw"),
 		fetch(req, _ctx, signal) {
 			return new Promise((resolve, reject) => calls.push({ req, signal, resolve, reject }));
 		}
@@ -370,17 +370,8 @@ describe("createQueryClient", () => {
 		expect(r.last()).toEqual({ status: "unavailable", reason: "place-unsupported" });
 	});
 
-	it("whole layer at raw gives whole-layer-raw", async () => {
+	it("one monitor's raw-only pm100 is downsampled from raw", async () => {
 		const { client, calls } = setup();
-		const r = recorder();
-		client.subscribe(
-			{ ...input(), layer: { dataset: "air-quality", entryType: "pm100" } },
-			r.listener
-		);
-		await flush();
-		expect(r.last()).toEqual({ status: "unavailable", reason: "whole-layer-raw" });
-
-		// One monitor's pm100 is downsampled from raw instead.
 		client.subscribe(input("m-pa", "pm100"), () => {});
 		await flush();
 		expect(calls).toHaveLength(1);
