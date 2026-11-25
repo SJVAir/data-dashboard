@@ -1670,6 +1670,10 @@ django-resticus plans first)
 - Spec 3 (2026-11-24, the user): the dashboard's ⋯ moves into the top bar; the Data Portal's
   sections start closed in the order When, Where, What, Data resolution; a type's own options sit
   under Show as. Built; PR into `step-6` open (`step-6-spec-3`).
+- ✅ The user's parity review of `@sjvair/monitor-map` 5.0 against 4.3: done 2026-11-25 (on
+  `5.0.0-beta.6`; "the parity review is done"). Everything leaves beta before launch
+  (`@sjvair/map-sdk` `1.0.0`, monitor-map `5.0.0`, the SDK and mobile finals; DEFERRED deploy entry).
+  Still open: the user's iOS test of mobile 5.0 (with `mac-mobile`, 2026-11-25).
 - Go-live: enable the `sjvair.com/workspace/` route once Release 1 is complete.
 
 **Release 1: private preview (from about step 4)**
