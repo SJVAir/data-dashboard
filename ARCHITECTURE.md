@@ -179,7 +179,9 @@ now inside the dataset sections.
   (always shown; empty reads "Everywhere"; "Change" opens the shared place picker in `multiple`
   mode up to the widget type's `maxPlaces`, only the Map and the single-place types set one),
   **What** (one list of sections for every widget type, in catalog order; what a type can't show
-  is greyed out with its reason, never hidden), then **Data resolution** (when there are
+  is greyed out with its reason, never hidden; the Map's own settings, points of interest and the
+  fill, are in its options panel instead, since 2026-11-25; pesticide use and spray notices are one
+  **Pesticides** section, below), then **Data resolution** (when there are
   choices). **What is the data; When and Where filter it.** The column scrolls on its own
   (`scrollFocusable`) with the preview in view from `md:` up; on a phone the columns stack. The
   Air quality section is radios with None (never blocked) over the catalog's available
@@ -201,13 +203,30 @@ now inside the dataset sections.
   (`role="status"`) stays outside the collapsible part so a note that appears while it is
   closed is still announced.
 - **"More options" is gone (2026-11-24, the user; it held the threshold line since step 5 spec
-  7a).** A type's own settings sit in an always-open section under **Show as** in the preview
-  column, named by one whole message per type held on its registry entry (`optionsLabel`):
-  the **level line** for the Chart and both calendars, and the **alert levels** for Current
-  conditions and "Can we go outside?" (moved out of What). The section shows only when it has
-  a control to show right now (the level line needs its pollutant's scale; alert levels need a
-  ticked pollutant with levels), so no type shows an empty heading. The Map's options stay
-  data choices in What. No saved-document shape changed.
+  7a).** A type's own settings open from a **button beside Show as** (2026-11-25, the user: an
+  always-open section there took a row and pushed the preview down), named by one whole message
+  per type held on its registry entry (`optionsLabel`): the **level line** for the Chart and both
+  calendars ("Chart options", "Calendar options"), the **alert levels** for Current conditions
+  and "Can we go outside?" ("Alert levels"), and **"Map options"** (below). The button opens a
+  non-modal panel (bits-ui Popover, `role="dialog"`, named by the label) floating over the
+  preview, aligned to the button's end, kept 8 px off the screen edges and scrolling inside when
+  taller; Esc or a click outside closes it and focus returns to the button. It sits at the
+  bottom of the Show as row, so the panel never covers a wrapped Show as; a type change closes
+  it; changes apply live. The button shows only when the panel has a control to show right now
+  (the level line needs its pollutant's scale; alert levels need a ticked pollutant with levels;
+  the Map needs a location group, a type no group lists any more, a fill type, or a saved fill).
+  No saved-document shape changed.
+- **Map options** (2026-11-25, the user): plain headings, no accordions. **Points of interest**:
+  a checkbox group per location group (legend: the meta's label), then the "No longer offered"
+  group; **Fill regions by**: None and the fill types (a saved fill keeps None here even when the
+  directory offers none, so it can be removed). Other types' What no longer lists these, greyed
+  or not: they're Map settings, not data the type can't show.
+- **One Pesticides section** (2026-11-25, the user: use and notices shouldn't be split apart).
+  Where pesticide use is in the catalog order, shown when either dataset is offered or on: an
+  `h4` part per dataset (the catalog's labels), **Use** (on the Map its switch, period and retry;
+  elsewhere the pesticide layers) then **Notices** (its switch; greyed "Only for Map" on the
+  Chart and Data table), then, on the Map, the one shared filter set below both while either is
+  on. Types that show neither grey the whole section. Closed, it names what's chosen in both.
 - **Right:** a large live preview with a **Show as** switch (Chart | Data table today), then the
   type's own options (below), and a
   **"Dashboard size"** switch that shows it at the size it will land (the type's `defaultSize`).
@@ -1996,14 +2015,15 @@ shape.
   it still draws its other layers, and a region fill draws as outlines, uncoloured, with no
   legend section. _Single-place types_ (Current conditions, "Can we go outside?", the Forecast
   strip, the calendars) take one place in Where or one searched monitor, not both.
-- **Schools and child care are What on the Map** (step 5 spec 7c, built 2026-11-22). They are
+- **Schools and child care are the Map's points of interest** (step 5 spec 7c, built 2026-11-22;
+  in Map options rather than What since 2026-11-25, the rest unchanged). They are
   one place-less layer, `{ dataset: "locations", locationTypes: [...] }`, after the notices and
   ahead of the use (`setLocationTypes`, `src/lib/get-data/map.ts`), shown when at least one type
-  is ticked; unticking every type removes it. What has one section per location group
-  (`locations:<group key>`, from the regions meta; see "Metadata as source of truth"), a checkbox
-  per type, written in the meta's order. A saved type the meta no longer lists shows ticked and
-  greyed in a "No longer offered" block and can be unticked. The sections are greyed for every
-  other widget type ("Map only"), and every other reader of a widget's layers skips the locations
+  is ticked; unticking every type removes it. Map options has a checkbox group per location
+  group (from the regions meta; see "Metadata as source of truth"), a checkbox per type, written
+  in the meta's order. A saved type the meta no longer lists shows ticked and greyed in a "No
+  longer offered" group and can be unticked. Other widget types don't offer them, and every
+  other reader of a widget's layers skips the locations
   layer, as it skips the notices; "Show as" another type leaves it out with a note naming the
   ticked groups ("Schools: shown only on a map, so left out."). Where filters it like everything
   else: the sites inside Where's areas (a school or point: its fallback region, the first of ZIP,

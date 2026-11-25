@@ -32,6 +32,7 @@
 	</Popover.Trigger>
 	<Popover.Content
 		align="end"
+		collisionPadding={8}
 		role="dialog"
 		aria-label={label}
 		class="max-h-(--bits-popover-content-available-height) w-80 max-w-[calc(100vw-2rem)] overflow-y-auto motion-reduce:animate-none"

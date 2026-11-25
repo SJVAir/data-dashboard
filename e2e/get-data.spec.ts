@@ -16,6 +16,7 @@ import {
 	expectSaved,
 	makeOwnCopy,
 	nav,
+	expectNoViolations,
 	openSection,
 	openTypeOptions,
 	shareLinkFor,
@@ -503,6 +504,28 @@ test("on two columns the left column scrolls under the top nav; the preview and 
 	// The top nav is still there above the view.
 	await expect(nav(page)).toBeInViewport();
 });
+
+for (const colorScheme of ["light", "dark"] as const) {
+	test(`on a phone the Map options panel fits the screen, scrolls inside, and passes axe (${colorScheme})`, async ({
+		page
+	}) => {
+		await page.emulateMedia({ colorScheme });
+		await page.setViewportSize({ width: 390, height: 844 });
+		await page.goto("data");
+		await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
+		await page.getByRole("radio", { name: "Map" }).click();
+		await openTypeOptions(page, "Map options");
+		const panel = page.getByRole("dialog", { name: "Map options" });
+		await expect(panel.getByRole("heading", { name: "Points of interest" })).toBeVisible();
+		const box = (await panel.boundingBox())!;
+		expect(box.x).toBeGreaterThanOrEqual(0);
+		expect(box.x + box.width).toBeLessThanOrEqual(390);
+		expect(box.y + box.height).toBeLessThanOrEqual(844);
+		// Taller content scrolls inside the panel, not the page.
+		expect(await panel.evaluate((el) => getComputedStyle(el).overflowY)).toBe("auto");
+		await expectNoViolations(page);
+	});
+}
 
 for (const width of [390, 320]) {
 	test(`at ${width} px the Data Portal fits the screen as a Chart and as a Map (no sideways scroll)`, async ({
