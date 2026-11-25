@@ -2474,6 +2474,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   updates"). Later: full **cross-filtering** (e.g. clicking a map region filters a chart and
   calendar; a calendar selection narrows a chart). Both touch the document model, Widget
   Creation, and undo. **Revisit when** pilot or private-preview users ask for it.
+- **Closing the place bar can bring up the sync-conflict question.** _Deferred 2026-11-25 (nav and
+  place bar spec, final review; the user agreed to park it)._ "Hide place bar" is one
+  `replaceDocument` change (as the bar's own "Change place" is), and a whole-document change
+  overlaps any change made meanwhile in another tab or device (`changesOverlap`), so closing
+  the bar while the same dashboard is edited elsewhere, before they sync, asks "which version do
+  you want to keep?". It's a prompt, not lost work, and rare. A narrower change (a `setField`
+  path for the bar) would avoid it but touches the change format the server syncs. **Revisit
+  if** someone reports the prompt after closing the bar.
 - **A "Change place" bar for dashboards not made from the starter.** _Deferred 2026-11-10
   (step 4 spec 6, Task 8)._ "Duplicate for another place" works on any dashboard, but a copy of
   one without a bar doesn't gain one (only the starter and its copies have the bar), so such a
