@@ -527,14 +527,16 @@
 	/** The draft has ticked monitor types: its lines are a monitor set's monitors. */
 	const setLines = $derived(widgetMonitors(plain.data).types.length > 0);
 	/**
-	 * What Where says with no places, instead of "Everywhere": a single-place widget takes one place
-	 * or one monitor, so it asks for one, or says it shows its monitor.
+	 * What Where says with no places: "None" (nothing from Where), or that the searched monitors
+	 * show; a single-place widget takes one place or one monitor, so it asks for one, or says it
+	 * shows its monitor.
 	 */
 	const whereEmptyText = $derived.by(() => {
-		if (placeLimit(type) !== 1) return undefined;
-		return widgetMonitors(plain.data).monitors.length > 0
-			? m.get_data_where_one_monitor()
-			: m.get_data_where_place_or_monitor();
+		const searched = widgetMonitors(plain.data).monitors.length > 0;
+		if (placeLimit(type) === 1) {
+			return searched ? m.get_data_where_one_monitor() : m.get_data_where_place_or_monitor();
+		}
+		return searched ? m.get_data_where_none_monitors() : m.get_data_where_none();
 	});
 	/**
 	 * "Overlay for": a Chart choice, listing its lines (areas or monitors). With ticked types,

@@ -549,6 +549,8 @@ test("Overlay for appears only when places are in different zones", async () => 
 test("Overlay for lists a monitor set's monitors; the overlay is fetched for the one chosen", async () => {
 	const draft = monitorsDraft([], {}, ["burn-status"]);
 	draft.data.layers[0] = { dataset: "air-quality", entryType: "pm25", monitorTypes: ["purpleair"] };
+	// Ticked types draw only inside a Where.
+	draft.data.place = { kind: "region", type: "county", code: "06019" };
 	const { current } = await show(draft);
 	// Same zone or not, a set's monitors are listed: only the chosen one's overlay is fetched.
 	const choice = page.getByRole("combobox", { name: "Overlay for" });
@@ -932,20 +934,20 @@ test("get data view: None is never disabled", async () => {
 	}
 });
 
-test("get data view: Where shows with no pollutant and reads Everywhere", async () => {
+test("get data view: Where shows with no pollutant and reads None", async () => {
 	const draft = areasDraft(["06019"]);
 	draft.data.layers = [];
 	delete draft.data.place;
 	await show(draft);
 	await expect.element(page.getByRole("heading", { name: "Where" })).toBeVisible();
-	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Everywhere");
+	await expect.poll(() => page.getByTestId("where-summary").element().textContent).toBe("None");
 });
 
-test("get data view: Clear goes back to Everywhere, focuses Change places, says so", async () => {
+test("get data view: Clear goes back to None, focuses Change places, says so", async () => {
 	const { latest } = await show(areasDraft(["06019", "06029"]));
 	const clear = page.getByRole("button", { name: "Clear places" });
 	await clear.click();
-	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Everywhere");
+	await expect.poll(() => page.getByTestId("where-summary").element().textContent).toBe("None");
 	await expect.element(clear).not.toBeInTheDocument();
 	await expect.element(page.getByRole("button", { name: "Change places" })).toHaveFocus();
 	await expect
@@ -969,10 +971,12 @@ test("get data view: a single-place widget has no Clear (its empty Where asks fo
 	expect(page.getByRole("button", { name: "Clear places" }).elements()).toHaveLength(0);
 });
 
-test("get data view: searched monitors with no Where read Everywhere", async () => {
+test("get data view: searched monitors with no Where read None, showing the monitors", async () => {
 	await show(monitorsDraft(["m1", "m2"]));
 	await expect.poll(() => requests.length).toBeGreaterThan(0);
-	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Everywhere");
+	await expect
+		.element(page.getByTestId("where-summary"))
+		.toHaveTextContent("None: showing the monitors chosen in What");
 	await expect.poll(() => requests.length).toBeGreaterThan(0);
 	await expect.element(page.getByTestId("where-summary")).not.toHaveTextContent("Monitor");
 });
@@ -998,13 +1002,24 @@ test("get data view: a single-place widget with one monitor and no Where says so
 	expect(m.get_data_where_one_monitor()).toBe("None: this shows one monitor");
 });
 
-test("get data view: Reference-grade ticked with no Where reads Everywhere", async () => {
+test("get data view: Reference-grade ticked with no Where reads None, and the ticks say why", async () => {
 	const draft = areasDraft([]);
+	delete draft.data.selection;
 	draft.data.layers[0] = { dataset: "air-quality", entryType: "pm25", monitorTypes: ["airnow"] };
 	await show(draft);
-	await expect.poll(() => requests.length).toBeGreaterThan(0);
-	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Everywhere");
-	await expect.element(page.getByTestId("where-summary")).not.toHaveTextContent("Monitor");
+	await expect.poll(() => page.getByTestId("where-summary").element().textContent).toBe("None");
+	await openSection(AIR);
+	await expect.element(page.getByText(m.get_data_types_need_place())).toBeVisible();
+	expect(requests).toEqual([]);
+});
+
+test("get data view: ticks inside a Where have no hint", async () => {
+	const draft = areasDraft(["06019"]);
+	draft.data.layers[0] = { dataset: "air-quality", entryType: "pm25", monitorTypes: ["airnow"] };
+	await show(draft);
+	await openSection(AIR);
+	await expect.element(page.getByRole("checkbox", { name: "airnow" })).toBeChecked();
+	expect(page.getByText(m.get_data_types_need_place()).elements()).toHaveLength(0);
 });
 
 test("get data view: a county Where with ticked types names the county, not the monitors", async () => {
@@ -1180,7 +1195,7 @@ describe("Show as a Chart from a school (a Chart holds areas only)", () => {
 		const { latest } = await show(atSchool());
 		await page.getByRole("radio", { name: "Chart" }).click();
 		await expect.element(page.getByText(m.get_data_school_point_left_out())).toBeVisible();
-		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Everywhere");
+		await expect.poll(() => page.getByTestId("where-summary").element().textContent).toBe("None");
 		expect(latest().type).toBe("chart");
 		expect(latest().data.place).toBeUndefined();
 	});

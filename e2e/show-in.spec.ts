@@ -263,7 +263,7 @@ test.describe("shared by a live link", () => {
 		await widgetMenuItem(viewer.page, DRUMMOND_MAP, "Show in a chart");
 		await expect(viewer.page).toHaveURL(/\/workspace\/data$/);
 		await expect(viewer.page.getByRole("radio", { name: "Chart" })).toBeChecked();
-		await expect(whereSummary(viewer.page)).toHaveText("Everywhere");
+		await expect(whereSummary(viewer.page)).toHaveText("None: showing the monitors chosen in What");
 		await expect(addToButton(viewer.page)).toHaveText("Add to My dashboard");
 		await addToButton(viewer.page).click();
 		await expect(viewer.page).toHaveURL(own);
