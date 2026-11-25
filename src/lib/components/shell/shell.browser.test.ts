@@ -135,6 +135,23 @@ function tokenColor(token: string): string {
 	return color;
 }
 
+test("the Data Portal link is a button like the dashboard picker", async () => {
+	const { app } = await setup();
+	await renderNav(app);
+	const link = page.getByRole("link", { name: "Data Portal" }).element();
+	const picker = document.querySelector("[data-top-bar] nav [data-slot=dropdown-menu-trigger]");
+	expect(picker).not.toBeNull();
+	const box = (el: Element) => el.getBoundingClientRect().height;
+	expect(box(link)).toBe(box(picker!));
+	const a = getComputedStyle(link);
+	const b = getComputedStyle(picker!);
+	expect([a.fontWeight, a.paddingLeft, a.borderRadius]).toEqual([
+		b.fontWeight,
+		b.paddingLeft,
+		b.borderRadius
+	]);
+});
+
 test("the current page's link is marked and underlined: navy in light, sky in dark", async () => {
 	const { app } = await setup();
 	await navigate("/data");
