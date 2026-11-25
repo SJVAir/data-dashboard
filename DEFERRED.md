@@ -1460,6 +1460,13 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   mobile reports a wrong-account subscription. (4) Ruling: two cookie-only users
   (no `api_token`) switching in place don't remount the subscription control. **Revisit:** if mobile ever signs in
   without a token.
+- **Smoke and collocation tap cards unchecked on a phone.** _Found 2026-11-25 (mobile #120/#121
+  emulator QA, `mobile-d5`)._ With `tooltipOnTouch: false` on monitors and EV stations only, smoke,
+  fire and collocation sites should keep their tap cards; fire was checked on the Android emulator,
+  smoke and collocation weren't: the local stack had no smoke areas, and it has no collocation sites
+  (0 `Calibrator` rows; they come from sjvair.com's `auto_assign_calibrators` command or the admin).
+  They share fire's tap-card code path. **Why deferred:** no local data. **Revisit at** the user's
+  iOS test if smoke is on the map that day, or when the local stack gets collocation sites.
 - **iOS Safari: tap detection in `@sjvair/map-sdk` `0.1.0-beta.24` is unchecked on a real iPhone.**
   _Found 2026-11-25 (map-sdk #41, `map-sdk-20`)._ The tap flag reads the press, because iOS 18.2+
   reports a tap's click as a mouse click (WebKit bug 282988), and a mouse move within 4 px and 1 s
