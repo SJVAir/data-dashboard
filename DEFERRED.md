@@ -1460,19 +1460,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   mobile reports a wrong-account subscription. (4) Ruling: two cookie-only users
   (no `api_token`) switching in place don't remount the subscription control. **Revisit:** if mobile ever signs in
   without a token.
-- **monitor-map: the detail panel shows an empty county badge.** _Found 2026-11-15 (mobile #117
-  emulator QA, mobile-09; checked by the coordinator)._ `MonitorDetailPanel.svelte` renders
-  `badge("location-on", monitor.county)` unconditionally, so a monitor whose `county` is `""`
-  (e.g. "NEON D17 SJER", a PurpleAir; 613 of 801 monitors on the local stack) shows an empty
-  grey pill between the device and location badges. Not new in 5.0: 4.3.0's panel has the same
-  line. **Why deferred:** cosmetic and pre-existing (no hotfix urgency before go-live).
-  **Revisit with** the next monitor-map change to the detail panel, or before monitor-map 5.0.0
-  final; whether `county` should be filled server-side is a separate question.
-- **monitor-map: at 1024 px with a monitor panel open, the search button wraps below the
-  toolbar.** _Found 2026-11-15 (`monitor-map-78`, after #135)._ The toolbar keeps its dropdowns.
-  4.3 at 1024 px wasn't compared, so it may be pre-existing. **Why deferred:** untriaged, cosmetic.
-  **Revisit at** the parity review (compare 4.3 at 1024 px) or the next monitor-map toolbar or
-  search change.
 - **iOS Safari: tap detection in `@sjvair/map-sdk` `0.1.0-beta.24` is unchecked on a real iPhone.**
   _Found 2026-11-25 (map-sdk #41, `map-sdk-20`)._ The tap flag reads the press, because iOS 18.2+
   reports a tap's click as a mouse click (WebKit bug 282988), and a mouse move within 4 px and 1 s
