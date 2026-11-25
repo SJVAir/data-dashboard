@@ -158,6 +158,25 @@ test("the current page's link is marked and underlined: navy in light, sky in da
 	}
 });
 
+test("on phones the picker keeps room for its name (the buttons on the right wrap instead)", async () => {
+	try {
+		const { app } = await setup();
+		await renderNav(app);
+		const picker = page.getByRole("button", { name: "Untitled dashboard" }).element();
+		// Every phone width up to the sm breakpoint: at some of them the buttons on the right fit
+		// beside the logo and the Data Portal link, and must wrap rather than squeeze the picker.
+		for (let width = 320; width < 640; width += 10) {
+			await page.viewport(width, 800);
+			const box = picker.getBoundingClientRect();
+			// At least 24 × 24 (WCAG 2.5.8), and wide enough to read the name.
+			expect(box.width, `at ${width}px`).toBeGreaterThanOrEqual(120);
+			expect(box.height, `at ${width}px`).toBeGreaterThanOrEqual(24);
+		}
+	} finally {
+		await page.viewport(1280, 720);
+	}
+});
+
 describe("logo", () => {
 	afterEach(async () => {
 		document.documentElement.removeAttribute("data-theme");

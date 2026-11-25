@@ -37,7 +37,9 @@
 		>
 			{m.nav_data()}
 		</a>
-		<div class="flex min-w-0 flex-1 items-center gap-1 sm:flex-none">
+		<!-- min-w-40: on a phone the buttons on the right wrap to their own row rather than squeeze the
+		     picker (its basis is 0). -->
+		<div class="flex min-w-40 flex-1 items-center gap-1 sm:min-w-0 sm:flex-none">
 			<DashboardPicker />
 			<DashboardMenuButton />
 		</div>
