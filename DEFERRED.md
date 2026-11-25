@@ -1479,17 +1479,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   4.3 at 1024 px wasn't compared, so it may be pre-existing. **Why deferred:** untriaged, cosmetic.
   **Revisit at** the parity review (compare 4.3 at 1024 px) or the next monitor-map toolbar or
   search change.
-- **monitor-map 5.0 on phones: the EV station popup.** _Found 2026-11-25 (mobile #120 emulator
-  QA, mobile-d5, and the user; checked in code by the coordinator)._ (1) On touch, only the popup's
-  "x" closes it (`closeOnClick: false`), while a tapped monitor's card closes on a tap elsewhere;
-  the user wants the desktop behaviour kept and a tap elsewhere to close it on touch, decided per
-  tap. map-sdk's `featureclick` doesn't say whether it was a tap, so `@sjvair/map-sdk`
-  `0.1.0-beta.24` adds `touch`. (2) The close "x" is very small and sits on the card's edge. (3)
-  After a tap, the hover card covers the popup's title (owner to trace: monitor-map or map-sdk).
-  (4) A popup near a phone's left edge can run off-screen (`maxWidth: "none"`, MapLibre's anchor).
-  Not caused by `5.0.0-beta.4`. **Why deferred:** not a hotfix; the user chose to fix all four now
-  (2026-11-25), in `@sjvair/monitor-map` `5.0.0-beta.5` with map-sdk `0.1.0-beta.24`.
-  **Revisit:** in progress; leaves this file when `5.0.0-beta.5` is published.
+- **iOS Safari: tap detection in `@sjvair/map-sdk` `0.1.0-beta.24` is unchecked on a real iPhone.**
+  _Found 2026-11-25 (map-sdk #41, `map-sdk-20`)._ The tap flag reads the press, because iOS 18.2+
+  reports a tap's click as a mouse click (WebKit bug 282988), and a mouse move within 4 px and 1 s
+  of a tap counts as part of it (iOS's stray mouse events). Tested only in Chromium's touch
+  emulation and the Android emulator. **Why deferred:** needs a real device. **Revisit at** the
+  user's iOS test of mobile 5.0 (on `@sjvair/monitor-map` `5.0.0-beta.5`): tapping a monitor or an
+  EV station leaves no hover card, a tap elsewhere closes the station popup, and a desktop-style
+  click isn't mistaken for a tap.
 - **map-sdk: "MapTiler Cloud API key is not set" console warning (found 2026-11-09).** Every map open logs it, because
   map-sdk deliberately puts the key on each request (`maptilerKeyTransform` in `src/lib/view/create-gl-map.ts`) rather
   than on `@maptiler/sdk`'s global `config.apiKey`, so two maps with different keys don't clash. Maps work. **Why
