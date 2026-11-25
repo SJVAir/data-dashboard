@@ -991,6 +991,8 @@
 	"place_bar_showing_shared_location": "Showing a shared location",
 	"place_bar_showing_this_dashboards_place": "Showing this dashboard's place",
 	"place_bar_change": "Change place",
+	"place_bar_hide": "Hide place bar",
+	"place_bar_hidden": "Place bar hidden. Change place is in the dashboard's menu.",
 	"which_place_replace_title": "Which place do you want to replace?",
 	"which_place_replace_description": "The same number of widgets show each of these places. Choose the one to replace in the copy. You'll choose the new place next.",
 	"which_place_your_location": "Your location",
