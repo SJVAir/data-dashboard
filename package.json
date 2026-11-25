@@ -36,8 +36,8 @@
 		"test:csp-stack:webkit": "playwright test -c playwright.local.config.ts --project=csp-stack-webkit",
 		"test:e2e:podman": "bash scripts/e2e-podman.sh",
 		"perf:lighthouse": "playwright test -c playwright.lighthouse.config.ts",
-		"format": "prettier --write .",
-		"lint": "prettier --check . && eslint ."
+		"format": "prettier --write --cache .",
+		"lint": "prettier --check --cache . && eslint --cache --cache-location node_modules/.cache/eslint/ ."
 	},
 	"devDependencies": {
 		"@axe-core/playwright": "^4.14.0",
