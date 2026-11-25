@@ -14,7 +14,7 @@ export const outsideType: WidgetType = {
 	time: "now",
 	placePicker: true,
 	thresholds: true,
-	optionsLabel: () => m.get_data_options_outside(),
+	optionsLabel: () => m.get_data_options_alert_levels(),
 	analyzable: true,
 	downloadable: false,
 	accepts: { datasets: ["air-quality"], maxPlaces: 1 },

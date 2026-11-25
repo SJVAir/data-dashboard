@@ -2786,8 +2786,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   when** users ask to compare overlays across places, or with spec 5's chart work.
 - **Get data's Detail limits are estimates.** _Deferred 2026-11-05 (step 4 spec 3, Task 9)._
   "Data resolution" (a closed section in Get data's left column) greys out levels using guessed
-  limits: places × periods over 50 000 blocked, and 720 raw readings a day per place. No level has a range cap of its own: the
-  server's 31-day cap is per request, and the adapters ask a month (or 31 raw days) at a time
+  limits: places × periods over 50 000 blocked, and 720 raw readings a day per place. No level
+  has a range cap of its own: the server's 31-day cap is per request, and the adapters ask a
+  month (or 31 raw days) at a time
   (settled in the final review). **Revisit after** real use, or when the metadata gives reading
   intervals. _Reworded in step 6 spec 3 (2026-11-24): "More options" is gone; the limits are
   unchanged._
@@ -2842,10 +2843,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **The draft's debounce timer is module-level, shared across spaces.** **Revisit if** a
     draft is lost on a space switch.
   - **A `?type=` override keeps Chart options on a Data table draft** (harmless; Show as does
-    the same by design). _Looked at in step 6 spec 3 (2026-11-24): calendars now have a "Calendar options"
-    section, but the level line kept across Chart and calendar is the same one, kept by design;
-    the Data table still has no options, so a kept threshold there stays unused and harmless._ **Revisit when**
-    the Data table gains options of its own.
+    the same by design). _Looked at in step 6 spec 3 (2026-11-24): calendars now have a "Calendar
+    options" section, but the level line kept across Chart and calendar is the same one, kept by
+    design; the Data table still has no options, so a kept threshold there stays unused and
+    harmless._ **Revisit when** the Data table gains options of its own.
   - **Dashboard size measures the whole view's width,** so a wide `defaultSize` may clip.
     **Revisit with** spec 5's wider types.
   - **Rare storage failures when adding:** a failed starter hand-off keeps the add queued (a

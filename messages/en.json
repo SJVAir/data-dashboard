@@ -1019,7 +1019,7 @@
 	"get_data_what": "What",
 	"get_data_options_chart": "Chart options",
 	"get_data_options_calendar": "Calendar options",
-	"get_data_options_outside": "Alert levels",
+	"get_data_options_alert_levels": "Alert levels",
 	"get_data_loading": "Loading…",
 	"get_data_catalog_unavailable": "The list of data isn't available right now.",
 	"get_data_retry": "Try again",

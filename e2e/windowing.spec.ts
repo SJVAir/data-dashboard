@@ -11,6 +11,7 @@ import {
 	newBlankDashboard,
 	nav,
 	openSharedDoc,
+	saveRename,
 	sharedDoc,
 	taskbar,
 	taskbarItem,
@@ -273,5 +274,7 @@ test("the ⋯ follows the dashboard on screen across routes", async ({ page }) =
 	await newBlankDashboard(page);
 	await expect(actions).toBeVisible();
 	await actions.click();
-	await expect(page.getByRole("menuitem", { name: /^Rename dashboard/ })).toBeVisible();
+	await page.getByRole("menuitem", { name: /^Rename dashboard/ }).click();
+	await saveRename(page, "Second one");
+	await expect(page.getByRole("heading", { level: 1, name: "Second one" })).toBeVisible();
 });
