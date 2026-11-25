@@ -520,6 +520,8 @@ for (const colorScheme of ["light", "dark"] as const) {
 		const box = (await panel.boundingBox())!;
 		expect(box.x).toBeGreaterThanOrEqual(0);
 		expect(box.x + box.width).toBeLessThanOrEqual(390);
+		// The screen's width less its 8 px margins.
+		expect(box.width).toBeGreaterThanOrEqual(390 - 16 - 1);
 		expect(box.y + box.height).toBeLessThanOrEqual(844);
 		// Taller content scrolls inside the panel, not the page.
 		expect(await panel.evaluate((el) => getComputedStyle(el).overflowY)).toBe("auto");

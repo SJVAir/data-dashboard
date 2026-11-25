@@ -527,7 +527,10 @@
 	{/if}
 	{#if section.parts?.notices}
 		<div class="flex flex-col gap-2">
-			<h4 class="text-sm font-medium">{labelOf(section.parts.notices)}</h4>
+			<!-- Greyed with its switch where notices aren't shown (off the Map). -->
+			<h4 class={["text-sm font-medium", greyed(PESTICIDE_NOTICES) && "text-muted-foreground"]}>
+				{labelOf(section.parts.notices)}
+			</h4>
 			{@render noticesSection(section.parts.notices)}
 		</div>
 	{/if}

@@ -209,10 +209,13 @@ now inside the dataset sections.
   calendars ("Chart options", "Calendar options"), the **alert levels** for Current conditions
   and "Can we go outside?" ("Alert levels"), and **"Map options"** (below). The button opens a
   non-modal panel (bits-ui Popover, `role="dialog"`, named by the label) floating over the
-  preview, aligned to the button's end, kept 8 px off the screen edges and scrolling inside when
-  taller; Esc or a click outside closes it and focus returns to the button. It sits at the
-  bottom of the Show as row, so the panel never covers a wrapped Show as; a type change closes
-  it; changes apply live. The button shows only when the panel has a control to show right now
+  preview, aligned to the button's end, kept 8 px off the screen edges (on a phone, the screen's
+  width less those margins) and scrolling inside when taller. It follows the button in the page
+  (not portalled) and doesn't trap focus: Esc closes it and returns focus to the button; a click
+  elsewhere, or Tab past its last control, closes it and focus stays where the person put it. It
+  sits at the bottom of the Show as row, so the panel never covers a wrapped Show as; a type
+  change closes it, and so does losing its last control (focus then goes to the chosen type);
+  changes apply live. The button shows only when the panel has a control to show right now
   (the level line needs its pollutant's scale; alert levels need a ticked pollutant with levels;
   the Map needs a location group, a type no group lists any more, a fill type, or a saved fill).
   No saved-document shape changed.

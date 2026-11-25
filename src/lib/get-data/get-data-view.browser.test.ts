@@ -1302,6 +1302,11 @@ describe("one Pesticides section", () => {
 			.element(noticesSwitch())
 			.toHaveAccessibleDescription(m.get_data_section_only_for({ types: "Map" }));
 		await expect.element(filters()).not.toBeInTheDocument();
+		// Its heading is greyed with it.
+		const label = noticesSwitch().element().closest("label")!.querySelector("span")!;
+		expect(getComputedStyle(part("Pesticide Spray Notices").element()).color).toBe(
+			getComputedStyle(label).color
+		);
 	});
 
 	test("a calendar greys the whole Pesticides section with its reason", async () => {
@@ -2418,6 +2423,27 @@ describe("now widgets", () => {
 			expect(await hidden()).toBeUndefined();
 		});
 
+		test("when the panel has nothing left to show it closes, and focus goes to the chosen type", async () => {
+			fake.metadata = fixtureMetadata({
+				catalog: async () => CATALOG,
+				guidelinePollutants: async () => ["pm25"],
+				locationGroups: async () => []
+			});
+			fake.regionTypes = async () => [];
+			const draft = monitorsDraft(["m1"], { type: "map" });
+			draft.data.layers.push({ dataset: "locations", locationTypes: ["gone_type"] });
+			await show(draft);
+			await openTypeOptions("Map options");
+			await box("gone_type").click();
+			await expect
+				.element(page.getByRole("button", { name: "Map options" }))
+				.not.toBeInTheDocument();
+			await expect
+				.element(page.getByRole("dialog", { name: "Map options" }))
+				.not.toBeInTheDocument();
+			await expect.element(page.getByRole("radio", { name: "Map" })).toHaveFocus();
+		});
+
 		test("with no groups and no fill types the Map has no options button", async () => {
 			fake.metadata = fixtureMetadata({
 				catalog: async () => CATALOG,
@@ -3387,14 +3413,50 @@ describe("a type's own options", () => {
 	});
 
 	test("choosing a level in the panel keeps it open", async () => {
-		const { host, current } = await show(monitorsDraft(["m1"]));
+		const { host, latest } = await show(monitorsDraft(["m1"]));
 		await openTypeOptions("Chart options");
 		await page
 			.getByRole("combobox", { name: m.get_data_line_at_level() })
 			.selectOptions("unhealthy");
-		await expect.poll(async () => (await current()).thresholds).toEqual([{ level: "unhealthy" }]);
+		// Read without clicking Add (a click outside closes the panel).
+		await expect.poll(() => latest().thresholds).toEqual([{ level: "unhealthy" }]);
 		// A closing panel still shows while it animates out: the button says at once.
 		expect(optionsButton("Chart options").element().getAttribute("aria-expanded")).toBe("true");
+		host.remove();
+	});
+
+	test("clicking elsewhere with the panel open closes it, and focus goes where you clicked", async () => {
+		const { host } = await show(monitorsDraft(["m1"]));
+		await openTypeOptions("Chart options");
+		const air = page.getByRole("button", { name: AIR });
+		await air.click();
+		await expect.element(optionsPanel("Chart options")).not.toBeInTheDocument();
+		await expect.element(air).toHaveFocus();
+		host.remove();
+	});
+
+	test("switching Show as with the panel open leaves focus on the chosen type", async () => {
+		const { host } = await show(monitorsDraft(["m1"]));
+		await openTypeOptions("Chart options");
+		const table = page.getByRole("radio", { name: "Data table" });
+		await table.click();
+		await expect.element(optionsPanel("Chart options")).not.toBeInTheDocument();
+		await expect.element(table).toHaveFocus();
+		host.remove();
+	});
+
+	test("the panel doesn't trap Tab: tabbing past its last control leaves and closes it", async () => {
+		const { host } = await show(monitorsDraft(["m1"]));
+		await openTypeOptions("Chart options");
+		const line = page.getByRole("combobox", { name: m.get_data_line_at_level() });
+		line.element().focus();
+		// Past the panel's last control (the level line may have a hint link after it).
+		for (let i = 0; i < 4 && document.activeElement?.closest("[role=dialog]"); i++) {
+			await userEvent.keyboard("{Tab}");
+		}
+		expect(document.activeElement?.closest("[role=dialog]")).toBeNull();
+		expect(document.activeElement).not.toBe(document.body);
+		await expect.element(optionsPanel("Chart options")).not.toBeInTheDocument();
 		host.remove();
 	});
 

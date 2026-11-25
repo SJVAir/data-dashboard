@@ -1032,6 +1032,17 @@
 			: !!type?.thresholds &&
 					(isNow ? hasAlertLevels(nowAlerts) : hasLevelLine(shownLevels ?? undefined))
 	);
+	// The panel's last control gone (e.g. a dropped location type unticked): it closes, and focus,
+	// which was in it, goes to the chosen type in Show as rather than the page.
+	$effect(() => {
+		if (showTypeOptions || !untrack(() => optionsOpen)) return;
+		untrack(() => (optionsOpen = false));
+		const inPanel =
+			document.activeElement === document.body || !document.activeElement?.isConnected;
+		if (inPanel) {
+			document.querySelector<HTMLElement>("[data-show-as][aria-checked=true]")?.focus();
+		}
+	});
 	// A Chart's saved line is dropped once it can't be shown or edited: the type has no
 	// thresholds, or the main layer isn't a pollutant with levels.
 	$effect(() => {
