@@ -296,6 +296,54 @@ test.describe("the bar on a copy", () => {
 	});
 });
 
+test.describe("closing the bar", () => {
+	test("Hide place bar closes it; Change place… in the dashboard menu still works; a duplicate shows the bar again", async ({
+		page
+	}) => {
+		test.slow();
+		await page.goto("./");
+		await expect(widgetTitles(page)).toHaveText(STARTER_TITLES);
+		// The welcome Note says where Change place is once the bar is gone.
+		await expect(page.getByRole("region", { name: NOTE })).toContainText(
+			"Use Change place above, or in the dashboard's ⋯ menu, to pick"
+		);
+		await bar(page).getByRole("button", { name: "Hide place bar" }).click();
+		await expect(bar(page)).toBeHidden();
+		// Closing is the first edit: the starter is saved as the person's own copy, closed.
+		await expect(page).toHaveURL(DASHBOARD_URL);
+		const dashboardMenu = page.getByRole("button", { name: "Dashboard actions" });
+		await expect(dashboardMenu).toBeFocused();
+		await expectNoViolations(page);
+		await page.reload();
+		await expect(widgetTitles(page)).toHaveText(STARTER_TITLES);
+		await expect(bar(page)).toBeHidden();
+
+		await dashboardMenu.click();
+		await page.getByRole("menuitem", { name: "Change place…" }).click();
+		await picker(page)
+			.getByRole("button", { name: /^Counties/ })
+			.click();
+		await picker(page)
+			.getByRole("grid", { name: "Places in this list" })
+			.getByRole("row", { name: /Tulare County/ })
+			.click();
+		const done = picker(page).getByRole("button", { name: "Done" });
+		if (await done.isVisible()) await done.click();
+		await expect(picker(page)).toBeHidden();
+		await expect(widgetTitles(page)).toHaveText(TULARE_TITLES);
+		await expect(bar(page)).toBeHidden();
+		await expectSaved(page);
+
+		const original = page.url();
+		await dashboardMenu.click();
+		await page.getByRole("menuitem", { name: "Duplicate dashboard" }).click();
+		await expect(page).not.toHaveURL(original);
+		await expect(page).toHaveURL(DASHBOARD_URL);
+		await page.keyboard.press("Escape");
+		await expect(bar(page).getByText("Showing Tulare County")).toBeVisible();
+	});
+});
+
 test.describe("Duplicate for another place", () => {
 	test("makes a copy at the new place and leaves the original", async ({ page }) => {
 		await page.goto("./");

@@ -16,6 +16,7 @@
 		variant="ghost"
 		size="icon-sm"
 		aria-label={m.dashboard_menu()}
+		data-dashboard-menu-button
 		inert={dashboardMenu.inert}
 		{@attach menuScope(provider)}
 		onclick={() => more && openMenuFor(more)}

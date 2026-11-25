@@ -63,6 +63,16 @@ describe("DashboardSchema", () => {
 		expect(DashboardSchema.safeParse(dashboard({ name: "a".repeat(100) })).success).toBe(true);
 	});
 
+	it("takes a place bar with or without closed: true (older documents have none)", () => {
+		const place = { kind: "region", type: "county", code: "fresno" };
+		const withBar = (placeBar: unknown) => dashboard({ body: { ...dashboard().body, placeBar } });
+		expect(DashboardSchema.safeParse(withBar({ place })).success).toBe(true);
+		const closed = DashboardSchema.safeParse(withBar({ place, closed: true }));
+		expect(closed.success && closed.data.body.placeBar).toEqual({ place, closed: true });
+		// Only `true` is stored; an open bar has no flag.
+		expect(DashboardSchema.safeParse(withBar({ place, closed: false })).success).toBe(false);
+	});
+
 	it("rejects schemaVersion 2", () => {
 		expect(DashboardSchema.safeParse(dashboard({ schemaVersion: 2 })).success).toBe(false);
 	});

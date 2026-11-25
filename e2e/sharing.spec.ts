@@ -5,7 +5,7 @@ import {
 	DASHBOARD_URL,
 	dashboardHeading,
 	makeOwnCopy,
-	nav,
+	openAllDashboards,
 	openPicker,
 	shareLinkFor,
 	sharedDoc,
@@ -24,10 +24,7 @@ test("opening a link saves a copy and drops the fragment", async ({ page }) => {
 	await expect(widgetTitles(page)).toHaveText(["Alpha", "Beta"]);
 	await expect(page.getByText("Saved a copy to your dashboards")).toBeVisible();
 
-	await page
-		.getByRole("navigation", { name: "Main" })
-		.getByRole("link", { name: "Dashboards" })
-		.click();
+	await openAllDashboards(page, "Fresno schools");
 	await expect(page.getByRole("link", { name: "Fresno schools" })).toHaveCount(1);
 });
 
@@ -54,10 +51,7 @@ test("reopening the same link asks; Make a new copy makes a second one", async (
 	await expect(page).toHaveURL(DASHBOARD_URL);
 	expect(page.url()).not.toBe(first);
 
-	await page
-		.getByRole("navigation", { name: "Main" })
-		.getByRole("link", { name: "Dashboards" })
-		.click();
+	await openAllDashboards(page, "Fresno schools");
 	await expect(page.getByRole("link", { name: "Fresno schools" })).toHaveCount(2);
 });
 
@@ -140,7 +134,7 @@ test("sharing the starter saves it as your own dashboard first, then shares that
 	expect(await page.evaluate(() => history.length)).toBe(entries);
 	await page.keyboard.press("Escape");
 	await expect(dialog).toBeHidden();
-	await nav(page).getByRole("link", { name: "Dashboards" }).click();
+	await openAllDashboards(page, "My dashboard");
 	await expect(page.getByRole("list").getByRole("link")).toHaveCount(1);
 });
 
@@ -162,7 +156,7 @@ test("Export then Import makes a copy", async ({ page }) => {
 	expect(page.url()).not.toBe(first);
 	await expect(widgetTitles(page).first()).toHaveText("My first widget");
 
-	await nav(page).getByRole("link", { name: "Dashboards" }).click();
+	await openAllDashboards(page, "Copy of My dashboard");
 	await expect(page.getByRole("list").getByRole("link")).toHaveCount(2);
 });
 
