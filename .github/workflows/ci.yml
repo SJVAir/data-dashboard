@@ -43,8 +43,8 @@ jobs:
 
   # Chromium only, for PRs that don't run e2e-full (which covers Chromium too). Keep the
   # condition the exact opposite of e2e-full's.
+  # The E2E jobs start alongside the checks job, not after it (about 5 minutes sooner).
   e2e-chromium:
-    needs: checks
     if: ${{ !(github.event_name == 'workflow_dispatch' || github.base_ref == 'main' || github.base_ref == 'foundations' || github.base_ref == 'layout') }}
     runs-on: ubuntu-latest
     # Playwright's image (see the checks job).
@@ -68,7 +68,6 @@ jobs:
 
   e2e-full:
     name: e2e-full (${{ matrix.browser }})
-    needs: checks
     if: github.event_name == 'workflow_dispatch' || github.base_ref == 'main' || github.base_ref == 'foundations' || github.base_ref == 'layout'
     runs-on: ubuntu-latest
     # Playwright's image (see the checks job).
