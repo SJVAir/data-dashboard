@@ -2474,11 +2474,23 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   updates"). Later: full **cross-filtering** (e.g. clicking a map region filters a chart and
   calendar; a calendar selection narrows a chart). Both touch the document model, Widget
   Creation, and undo. **Revisit when** pilot or private-preview users ask for it.
+- **Closing the place bar can bring up the sync-conflict question.** _Deferred 2026-11-25 (nav and
+  place bar spec, final review; the user agreed to park it)._ "Hide place bar" is one
+  `replaceDocument` change (as the bar's own "Change place" is), and a whole-document change
+  overlaps any change made meanwhile in another tab or device (`changesOverlap`), so closing
+  the bar while the same dashboard is edited elsewhere, before they sync, asks "which version do
+  you want to keep?". It's a prompt, not lost work, and rare. A narrower change (a `setField`
+  path for the bar) would avoid it but touches the change format the server syncs. **Revisit
+  if** someone reports the prompt after closing the bar.
 - **A "Change place" bar for dashboards not made from the starter.** _Deferred 2026-11-10
   (step 4 spec 6, Task 8)._ "Duplicate for another place" works on any dashboard, but a copy of
   one without a bar doesn't gain one (only the starter and its copies have the bar), so such a
   copy is changed widget by widget afterwards. A dashboard-wide place belongs with "Linking
-  widgets" above. **Revisit with** "Linking widgets".
+  widgets" above. **Revisit with** "Linking widgets". _Changed 2026-11-25 (nav and place bar spec): dashboards with
+  a bar now have "Change place…" in their ⋯ and right-click menus, and the bar can be closed for
+  good. Offering it on any dashboard where most widgets share one place (asking which on a tie,
+  as "Duplicate for another place…" does) was considered and left out "for now" (the user); it
+  would start the dashboard-wide place that belongs with "Linking widgets". Revisit unchanged._
 - **Which widgets "Change place" moves isn't shown anywhere.** _Deferred 2026-11-11 (step 5
   spec 1; the user raised it as a dashboard-wide issue)._ A widget with one place follows the
   bar; a widget with several keeps its own, and nothing tells the person which did what. It

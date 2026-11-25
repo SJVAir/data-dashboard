@@ -37,7 +37,9 @@ for basic users, feature-rich for power users.
   "Widget catalog"). Multiple saved dashboards, selectable at minimum via a dropdown
   (decided 2026-09-24: a **dropdown in the top nav** for Release 1, with new / duplicate /
   rename / delete at its bottom; a visual thumbnail picker is deferred). "Add widget" picks a type
-  from the predefined list, then opens the Data Portal to configure its data.
+  from the predefined list, then opens the Data Portal to configure its data. The nav's links are the
+  Data Portal only: the dashboards list is the picker's **"All dashboards"** (the "Dashboards" link
+  was removed 2026-11-25, the user: it repeated the picker).
 - **Data Portal** — configures one widget's data (see below).
 - **Analysis** (Release 3; the nav shows no Analysis entry before then) — Collections,
   starter and user-defined analyses, notebooks (see "Analysis: Collections & engine",
@@ -81,14 +83,28 @@ Decided 2026-09-28. The dashboard a first-time visitor sees (not a blank page):
       A widget comparing several places, or holding a place-tied choice (a weather station),
       is never switched. The bar hides when no widget shows its place, and a live share link
       shows "Showing …" without "Change place".
+    - **The bar can be closed for good on a dashboard** (the user, 2026-11-25). Its ✕ ("Hide
+      place bar", for the owner only) sets `placeBar.closed: true` in the document as one
+      undoable change, so it holds in every tab and device and for viewers; on the built-in
+      starter it is a first edit like any other (the copy is saved closed). Focus moves to the
+      dashboard's ⋯ and the closing is announced. **"Change place…"** is in the dashboard's ⋯
+      and right-click menus whenever the open, editable dashboard has a bar, closed or not, and
+      does what the bar's button does (moving a closed bar keeps it closed); like the bar, it needs
+      a widget at the bar's place. A closed bar's place is still the dashboard's place for
+      "Duplicate for another place…" and a new Map. Only dashboards
+      with a bar have it ("for now", the user; `DEFERRED.md`). **Copies show the bar again**:
+      every clone (Duplicate, "Duplicate for another place…", New from starter, Import, copies
+      from share links) goes through `freshCopy`, which drops `closed`; "Save mine as a copy"
+      after a sync conflict and restoring an earlier version keep the document as it was. The
+      welcome Note says "Use **Change place** above, or in the dashboard's ⋯ menu".
     - **The bar's place travels with the dashboard** (links, Export, live shares, copies from
       shares) and is a place like a layer's, so the exact-point rules (point-to-region swap,
       live-link prompt, upload guard) cover it too.
     - **Sharing the starter copies it first** through `copyStarter`, the same hand-off as a
       first edit.
     - **"Duplicate for another place…"** (dashboard menu and list rows, any dashboard) asks for
-      a place and copies with the dashboard's main place replaced (the bar's place when there is
-      a visible bar; otherwise the place most switchable widgets show, asking on a tie). A copy
+      a place and copies with the dashboard's main place replaced (the bar's place when a widget
+      shows it, even with the bar closed; otherwise the place most switchable widgets show, asking on a tie). A copy
       of a starter copy keeps its bar; a copy of any other dashboard does not gain one. In the
       list it always shows, and toasts when there is nothing to replace.
     - `StarterHint` is gone: the bar and the welcome Note say what it said.

@@ -35,12 +35,14 @@ afterEach(() => {
 	input = null;
 });
 
-test("nav shows the app name, picker, saved status, and undo/redo", async () => {
+test("nav shows the app name, Data Portal, picker, saved status, and undo/redo; no Dashboards link", async () => {
 	const { app } = await setup();
 	await renderNav(app);
 	const nav = page.getByRole("navigation", { name: "Main" });
 	await expect.element(nav.getByText("SJVAir Dashboard")).toBeVisible();
-	await expect.element(nav.getByRole("link", { name: "Dashboards" })).toBeVisible();
+	await expect.element(nav.getByRole("link", { name: "Data Portal" })).toBeVisible();
+	// The picker's "All dashboards" opens the list.
+	expect(nav.getByRole("link", { name: "Dashboards" }).query()).toBeNull();
 	await expect.element(nav.getByRole("button", { name: "Untitled dashboard" })).toBeVisible();
 	await expect.element(nav.getByText("Saved")).toBeVisible();
 	await expect.element(nav.getByRole("button", { name: "Undo" })).toBeVisible();
@@ -135,9 +137,9 @@ function tokenColor(token: string): string {
 
 test("the current page's link is marked and underlined: navy in light, sky in dark", async () => {
 	const { app } = await setup();
-	await navigate("/dashboards");
+	await navigate("/data");
 	await renderNav(app);
-	const link = page.getByRole("link", { name: "Dashboards" });
+	const link = page.getByRole("link", { name: "Data Portal" });
 	await expect.element(link).toHaveAttribute("aria-current", "page");
 	try {
 		// Light: the navy primary carries the 3:1 cue (sky on white is only 2.27:1).
@@ -153,6 +155,25 @@ test("the current page's link is marked and underlined: navy in light, sky in da
 	} finally {
 		document.documentElement.removeAttribute("data-theme");
 		await navigate("/");
+	}
+});
+
+test("on phones the picker keeps room for its name (the buttons on the right wrap instead)", async () => {
+	try {
+		const { app } = await setup();
+		await renderNav(app);
+		const picker = page.getByRole("button", { name: "Untitled dashboard" }).element();
+		// Every phone width up to the sm breakpoint: at some of them the buttons on the right fit
+		// beside the logo and the Data Portal link, and must wrap rather than squeeze the picker.
+		for (let width = 320; width < 640; width += 10) {
+			await page.viewport(width, 800);
+			const box = picker.getBoundingClientRect();
+			// At least 24 × 24 (WCAG 2.5.8), and wide enough to read the name.
+			expect(box.width, `at ${width}px`).toBeGreaterThanOrEqual(120);
+			expect(box.height, `at ${width}px`).toBeGreaterThanOrEqual(24);
+		}
+	} finally {
+		await page.viewport(1280, 720);
 	}
 });
 

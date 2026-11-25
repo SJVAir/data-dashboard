@@ -371,3 +371,77 @@ test("on a copy, the bar's own place without Also change… does nothing", async
 	expect(placesOf(session.doc)).toEqual([[COUNTY], [CITY]]);
 	expect(session.canUndo).toBe(false);
 });
+
+const hideBar = () => bar().getByRole("button", { name: m.place_bar_hide() });
+
+test("on a copy, Hide place bar closes it for good: one undo step, focus on the dashboard's menu, announced", async () => {
+	const { session } = await showCopy([chart("a", at(COUNTY), 0)]);
+	await expect.poll(barText).toContain("Showing Fresno County");
+	const box = hideBar().element().getBoundingClientRect();
+	expect(box.width).toBeGreaterThanOrEqual(24);
+	expect(box.height).toBeGreaterThanOrEqual(24);
+	await hideBar().click();
+	await expect.element(bar()).not.toBeInTheDocument();
+	expect(session.doc.body.placeBar).toEqual({ place: COUNTY, closed: true });
+	expect(document.activeElement?.hasAttribute("data-dashboard-menu-button")).toBe(true);
+	await expect.poll(() => announcer.text).toBe(m.place_bar_hidden());
+	session.undo();
+	await expect.element(bar()).toBeVisible();
+	expect(session.doc.body.placeBar).toEqual({ place: COUNTY });
+	expect(session.canUndo).toBe(false);
+});
+
+test("a second tab opens the dashboard with the bar closed", async () => {
+	const { app, platform, session } = await showCopy([chart("a", at(COUNTY), 0)]);
+	await expect.poll(barText).toContain("Showing Fresno County");
+	await hideBar().click();
+	await session.flush();
+	const other = (await DocumentSession.open(platform, app.space, session.doc.id, "t3"))!;
+	expect(other.doc.body.placeBar).toEqual({ place: COUNTY, closed: true });
+});
+
+test("closing on the starter saves the copy with the bar closed", async () => {
+	const { app } = await showStarter();
+	await expect.poll(barText).toContain("Showing Fresno County");
+	await hideBar().click();
+	await expect.poll(() => app.current.isStarter).toBe(false);
+	const copy = app.current.session!;
+	await expect.poll(() => copy.doc.body.placeBar?.closed).toBe(true);
+	await expect.element(bar()).not.toBeInTheDocument();
+});
+
+test("a viewer gets no Hide place bar, and a closed bar shows to no one", async () => {
+	const { app } = await makeApp();
+	const starter = (await app.sessions.get(STARTER_ID))!.doc;
+	const view = { ...starter, id: "shared" };
+	const screen = await render(Harness, {
+		props: { view },
+		context: new Map([[APP_CONTEXT_KEY, app]])
+	});
+	await expect.poll(barText).toContain("Showing Fresno County");
+	expect(hideBar().query()).toBeNull();
+	await screen.rerender({
+		view: { ...view, body: { ...view.body, placeBar: { ...view.body.placeBar!, closed: true } } }
+	});
+	await expect.element(bar()).not.toBeInTheDocument();
+});
+
+test("with the bar closed, the dashboard menu's Change place… moves its place and keeps it closed", async () => {
+	const { session } = await showCopy([chart("a", at(COUNTY), 0), chart("b", at(CITY), 4)]);
+	await expect.poll(barText).toContain("Showing Fresno County");
+	await hideBar().click();
+	await expect.element(bar()).not.toBeInTheDocument();
+	const menuButton = page.getByRole("button", { name: m.dashboard_menu() });
+	await menuButton.click();
+	await page.getByRole("menuitem", { name: m.dashboard_change_place() }).click();
+	await expect.element(page.getByRole("combobox", { name: m.place_picker_label() })).toBeVisible();
+	await animationsSettled(dialog().element());
+	await pick(/ZIP 93721/);
+	expect(placesOf(session.doc)).toEqual([[ZIP], [CITY]]);
+	expect(session.doc.body.placeBar).toEqual({ place: ZIP, closed: true });
+	await expect.element(bar()).not.toBeInTheDocument();
+	await expect.element(menuButton).toHaveFocus();
+	// One step: Undo puts the place back, still closed.
+	session.undo();
+	expect(session.doc.body.placeBar).toEqual({ place: COUNTY, closed: true });
+});

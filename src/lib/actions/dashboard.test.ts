@@ -284,3 +284,54 @@ describe("Duplicate for another place", () => {
 		expect(duplicate).not.toHaveBeenCalled();
 	});
 });
+
+describe("Change place", () => {
+	const A: ChosenPlace = { kind: "region", type: "county", code: "06019" };
+
+	const atA: WidgetInstance = {
+		id: "w",
+		type: "chart",
+		title: null,
+		rect: { x: 0, y: 0, w: 6, h: 4 },
+		data: { place: A, layers: [{ dataset: "air-quality" }] }
+	};
+
+	function setup(
+		placeBar?: Dashboard["body"]["placeBar"],
+		readOnly: false | "newer" = false,
+		widgets: WidgetInstance[] = [atA]
+	) {
+		const doc = { id: "d1", body: { widgets, ...(placeBar ? { placeBar } : {}) } };
+		return {
+			current: { session: { doc, readOnly }, isStarter: false },
+			index: { names: new Map() }
+		} as unknown as AppContext;
+	}
+	const item = (app: AppContext, id?: string) =>
+		dashboardActions(app, id)(CTX).find((i) => i.id === "change-place");
+
+	it("is first among the manage items on a dashboard with a bar, open or closed", () => {
+		for (const bar of [{ place: A }, { place: A, closed: true as const }]) {
+			const items = dashboardActions(setup(bar))(CTX);
+			const found = items.find((i) => i.id === "change-place")!;
+			expect(found.label).toBe("Change place…");
+			expect(items.find((i) => i.group === "manage")).toBe(found);
+		}
+	});
+
+	it("is left out with no bar, when read-only, on a list row, and with no widget at the bar's place", () => {
+		expect(item(setup({ place: A, closed: true }, false, []))).toBeUndefined();
+		expect(item(setup())).toBeUndefined();
+		expect(item(setup({ place: A }, "newer"))).toBeUndefined();
+		expect(item(setup({ place: A }), "row-id")).toBeUndefined();
+	});
+
+	it("opens the dashboard's place picker once the menu has closed, focus back on its opener", () => {
+		const focus = vi.fn();
+		item(setup({ place: A }))!.run({ ...CTX, target: { focus } as unknown as Element });
+		expect(openPlacePicker).not.toHaveBeenCalled();
+		takeAfterMenuClose()?.();
+		expect(focus).toHaveBeenCalled();
+		expect(openPlacePicker).toHaveBeenCalledWith({ dashboardPlace: true });
+	});
+});

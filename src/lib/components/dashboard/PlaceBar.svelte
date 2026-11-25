@@ -1,13 +1,15 @@
 <script lang="ts">
 	import MapPin from "@lucide/svelte/icons/map-pin";
+	import X from "@lucide/svelte/icons/x";
 	import { getContext, untrack } from "svelte";
 	import { announce } from "$lib/a11y/announcer.svelte";
 	import { openPlacePicker } from "$lib/components/dialogs/lazy.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import type { Dashboard } from "$lib/documents/schema";
 	import { m } from "$lib/paraglide/messages.js";
-	import { barVisible } from "$lib/places/replace";
+	import { barClosedChange, barVisible } from "$lib/places/replace";
 	import { loadLazy } from "$lib/safety/lazy";
+	import { useApp } from "$lib/store/app.svelte";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "$lib/widgets/shared/viewer";
 
 	let {
@@ -24,6 +26,21 @@
 	} = $props();
 
 	const viewer = getContext<PlaceViewer | undefined>(PLACE_VIEWER_KEY) ?? "owner";
+	const app = useApp();
+
+	/**
+	 * Closes the bar for good on this dashboard (one undoable change; on the starter, its first
+	 * edit). Focus goes to the dashboard's menu, where "Change place…" now is.
+	 */
+	function hide(): void {
+		const session = app.current.session;
+		if (!session || session.readOnly) return;
+		const change = barClosedChange(session.doc, true);
+		if (!change) return;
+		session.apply(change);
+		document.querySelector<HTMLElement>("[data-dashboard-menu-button]")?.focus();
+		announce(m.place_bar_hidden());
+	}
 
 	const visible = $derived(barVisible(doc));
 	/** The bar's place, compared by value: an edit elsewhere doesn't name it again. */
@@ -84,6 +101,15 @@
 				onclick={() => openPlacePicker({ dashboardPlace: true })}
 			>
 				{m.place_bar_change()}
+			</Button>
+			<Button
+				variant="ghost"
+				size="icon-sm"
+				class="ml-auto"
+				aria-label={m.place_bar_hide()}
+				onclick={hide}
+			>
+				<X aria-hidden="true" />
 			</Button>
 		{/if}
 	</div>

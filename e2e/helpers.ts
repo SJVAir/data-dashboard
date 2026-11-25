@@ -134,6 +134,13 @@ export async function openPicker(page: Page, current: string): Promise<void> {
 	await expect(page.getByRole("menu")).toBeVisible();
 }
 
+/** Opens the dashboards list through the picker's "All dashboards" (the nav has no link to it). */
+export async function openAllDashboards(page: Page, current: string): Promise<void> {
+	await openPicker(page, current);
+	await page.getByRole("menuitem", { name: "All dashboards" }).click();
+	await expect(page).toHaveURL(/\/workspace\/dashboards$/);
+}
+
 /** From the starter: rename its welcome Note, which saves it as the person's own copy. */
 export async function makeOwnCopy(page: Page, title = "My first widget"): Promise<void> {
 	await page.goto("./");

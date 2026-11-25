@@ -283,6 +283,19 @@ describe("starter dashboard", () => {
 
 		for (const doc of [copy, blank, dup]) expect(DashboardSchema.safeParse(doc).success).toBe(true);
 	});
+
+	it("a copy of a dashboard whose bar was closed shows the bar again", () => {
+		const copy = copyOfStarter(NOW, SCHOOL, null, []);
+		expect(copy.body.placeBar).toEqual({ place: SCHOOL });
+		const source: Dashboard = {
+			...copy,
+			body: { ...copy.body, placeBar: { place: SCHOOL, closed: true } }
+		};
+		const dup = duplicateDashboard(source, NOW);
+		expect(dup.body.placeBar).toEqual({ place: SCHOOL });
+		// The original is untouched.
+		expect(source.body.placeBar).toEqual({ place: SCHOOL, closed: true });
+	});
 });
 
 describe("resolveHome", () => {

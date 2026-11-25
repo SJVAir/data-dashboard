@@ -5,7 +5,7 @@ import { placesToReplace } from "$lib/places/replace";
 import { DEFAULT_LAYER, DEFAULT_PLACE } from "../defaults";
 
 /**
- * A new Map's data: one PM2.5 layer at the bar's place when the bar shows, else the dashboard's most
+ * A new Map's data: one PM2.5 layer at the bar's place when a widget shows it (even closed), else the dashboard's most
  * common place, else the default place, with every monitor type in `types` ticked (spec decision
  * 8: a new Map draws every monitor in its Where, as a Map did before).
  */

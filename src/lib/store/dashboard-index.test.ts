@@ -192,6 +192,23 @@ describe("DashboardIndex", () => {
 			expect(left.map((w) => w.type)).toEqual(["chart"]);
 		});
 
+		it("a copy of a starter copy whose bar was closed shows the bar again, at the new place", async () => {
+			const platform = createMemoryPlatform();
+			const now = clock();
+			const mine = copyOfStarter(now(), FRESNO, null, []);
+			mine.body.placeBar = { place: FRESNO, closed: true };
+			await store(platform, mine, mine.id);
+			const index = new DashboardIndex({ platform, space: SPACE, now });
+			const id = await index.duplicate(mine.id, { from: FRESNO, to: KERN });
+			const copy = (await platform.documents.get(SPACE, id)) as Dashboard;
+			expect(copy.body.placeBar).toEqual({ place: KERN });
+			const plain = (await platform.documents.get(
+				SPACE,
+				await index.duplicate(mine.id)
+			)) as Dashboard;
+			expect(plain.body.placeBar).toEqual({ place: FRESNO });
+		});
+
 		it("the starter duplicates with its chosen place replaced", async () => {
 			const platform = createMemoryPlatform();
 			const now = clock();

@@ -4,9 +4,12 @@ import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { MAP_TYPE } from "$lib/widgets/map";
 import {
 	barChange,
+	barClosedChange,
+	barShowsPlace,
 	barVisible,
 	mainPlaces,
 	othersCount,
+	placesToReplace,
 	replaceChange,
 	replacePlace,
 	widgetPlace
@@ -261,5 +264,52 @@ describe("the bar's own place with Also change", () => {
 	it("with one other widget, is that widget's change", () => {
 		const d = doc([widget("a", at(A)), widget("b", at(B))], A);
 		expect(barChange(d, A, { others: true })?.op).toBe("setWidgetData");
+	});
+});
+
+describe("a closed bar", () => {
+	const closed = (d: Dashboard): Dashboard => ({
+		...d,
+		body: { ...d.body, placeBar: { ...d.body.placeBar!, closed: true } }
+	});
+	const open = doc([widget("a", at(A)), widget("b", at(B)), widget("c", at(B))], A);
+	const shut = closed(open);
+	const bodyTo = (change: unknown) => (change as { to: { body: Dashboard["body"] } }).to.body;
+
+	it("isn't visible, even with widgets at its place", () => {
+		expect(barVisible(shut)).toBe(false);
+	});
+	it("is still the dashboard's place for Duplicate for another place and a new Map", () => {
+		// B is the most common place, but the dashboard is about the bar's place, closed or not.
+		expect(placesToReplace(open)).toEqual([A]);
+		expect(placesToReplace(shut)).toEqual([A]);
+		expect(barShowsPlace(shut)).toBe(true);
+		// No widget at the bar's place: the main places, as with an open bar.
+		const gone = closed(doc([widget("b", at(B))], A));
+		expect(barShowsPlace(gone)).toBe(false);
+		expect(placesToReplace(gone)).toEqual([B]);
+	});
+	it("closes and reopens as one replaceDocument", () => {
+		const close = barClosedChange(open, true)!;
+		expect(close.op).toBe("replaceDocument");
+		expect(bodyTo(close).placeBar).toEqual({ place: A, closed: true });
+		expect(bodyTo(close).widgets).toBe(open.body.widgets);
+		const reopen = barClosedChange(shut, false)!;
+		expect(bodyTo(reopen).placeBar).toEqual({ place: A });
+	});
+	it("gives no change with no bar, or already so", () => {
+		expect(barClosedChange(doc([widget("a", at(A))]), true)).toBeNull();
+		expect(barClosedChange(shut, true)).toBeNull();
+		expect(barClosedChange(open, false)).toBeNull();
+	});
+	it("moving a closed bar keeps it closed", () => {
+		expect(replacePlace(shut, A, C, { others: false }).body.placeBar).toEqual({
+			place: C,
+			closed: true
+		});
+		expect(bodyTo(barChange(shut, C, { others: false })).placeBar).toEqual({
+			place: C,
+			closed: true
+		});
 	});
 });
