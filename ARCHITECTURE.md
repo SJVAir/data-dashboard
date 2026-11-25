@@ -157,7 +157,8 @@ now inside the dataset sections.
 
 - **Left column, top to bottom (changed in step 6 spec 3, 2026-11-24, the user; was What, When,
   Where, Data resolution and "More options" since step 5 spec 7a):** **When** (only for types
-  with a range; a now type and the Map on Now have none, so Where comes first), **Where**
+  with a range; the now-only types (Current conditions, "Can we go outside?", the Forecast) have
+  none, so Where comes first. The Map keeps When, since Now is a choice inside it), **Where**
   (always shown; empty reads "Everywhere"; "Change" opens the shared place picker in `multiple`
   mode up to the widget type's `maxPlaces`, only the Map and the single-place types set one),
   **What** (one list of sections for every widget type, in catalog order; what a type can't show
@@ -190,7 +191,8 @@ now inside the dataset sections.
   a control to show right now (the level line needs its pollutant's scale; alert levels need a
   ticked pollutant with levels), so no type shows an empty heading. The Map's options stay
   data choices in What. No saved-document shape changed.
-- **Right:** a large live preview with a **Show as** switch (Chart | Data table today) and a
+- **Right:** a large live preview with a **Show as** switch (Chart | Data table today), then the
+  type's own options (below), and a
   **"Dashboard size"** switch that shows it at the size it will land (the type's `defaultSize`).
   It's the real widget component in a view-only frame, so its states (loading, "No data",
   errors, retired) look exactly as on the dashboard. No drag-to-resize. Changes are announced

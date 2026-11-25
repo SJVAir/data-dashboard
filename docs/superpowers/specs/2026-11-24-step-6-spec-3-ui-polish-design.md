@@ -85,8 +85,8 @@ The user asked for four interface changes on 2026-11-24:
 
 Order, top to bottom:
 
-1. **When** (only for types with a range, as today: not for now-only types, and not for the
-   Map on Now). So for those types, Where comes first.
+1. **When** (only for types with a range, as today: not for now-only types). So for those
+   types, Where comes first. The Map on Now keeps When (build call, 2026-11-24).
 2. **Where**.
 3. **What**, its accordion sections as today, minus the now types' alert levels (moved, below).
 4. **Data resolution** (when there are choices, as today).
@@ -216,4 +216,26 @@ stays in order **(my call)**.
 
 ## Build calls
 
-(Filled in during the build.)
+- The ⋯: `src/lib/components/dashboard/dashboard-menu.svelte.ts` (`dashboardMenu`,
+  `publishDashboardMenu`) and `src/lib/components/shell/DashboardMenuButton.svelte`;
+  `DashboardHeader` renamed `BasedOnLine`; picker and ⋯ in one flex group so they wrap together;
+  a long credit now wraps instead of truncating.
+- The Map on Now keeps When (Now is a choice inside When; hiding it would strand the way back to
+  a range).
+- Data resolution reuses `SectionTrigger` (new `level` and `warning` props); a blocked choice's
+  reason shows under the name only while closed; an unknown stored level (e.g. "quarter") shows
+  "resolution unknown" as the warning, open or closed.
+- Type options: `TypeOptions.svelte`, `type-options.ts` (`hasLevelLine`, `hasAlertLevels`),
+  `optionsLabel` on the registry. Headings: "Chart options", "Calendar options", and "Alert
+  levels" for both now types (the user, 2026-11-24).
+- The pinned-calendar reason: `get_data_dataset_not_offered_pinned` ("Reported {by}, but this
+  calendar shows {level} data."); the `Resolution` → `DataLevel` cast kept (the union also has
+  quarter and season; no type pins those, nor raw).
+- A latent effect loop in `src/lib/widgets/titles.svelte.ts` (`setGeneratedTitle` read its own
+  key tracked; two previews on one id looped) fixed with an untracked read, found by this
+  spec's tests.
+- `@sjvair/map-sdk` re-pinned to `0.1.0-beta.23` with `childrenLoaded` (added by the user,
+  2026-11-24); the two lens DEFERRED entries closed.
+- Bundle: 216.8 KB initial (216.6 before; budget 250).
+- Shared browser-test helper `src/test/sections.ts` (`openSection`); E2E `openSection` and
+  `AIR_QUALITY_SECTION` in `e2e/helpers.ts`.
