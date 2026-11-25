@@ -288,8 +288,20 @@ describe("Duplicate for another place", () => {
 describe("Change place", () => {
 	const A: ChosenPlace = { kind: "region", type: "county", code: "06019" };
 
-	function setup(placeBar?: Dashboard["body"]["placeBar"], readOnly: false | "newer" = false) {
-		const doc = { id: "d1", body: { widgets: [], ...(placeBar ? { placeBar } : {}) } };
+	const atA: WidgetInstance = {
+		id: "w",
+		type: "chart",
+		title: null,
+		rect: { x: 0, y: 0, w: 6, h: 4 },
+		data: { place: A, layers: [{ dataset: "air-quality" }] }
+	};
+
+	function setup(
+		placeBar?: Dashboard["body"]["placeBar"],
+		readOnly: false | "newer" = false,
+		widgets: WidgetInstance[] = [atA]
+	) {
+		const doc = { id: "d1", body: { widgets, ...(placeBar ? { placeBar } : {}) } };
 		return {
 			current: { session: { doc, readOnly }, isStarter: false },
 			index: { names: new Map() }
@@ -307,7 +319,8 @@ describe("Change place", () => {
 		}
 	});
 
-	it("is left out with no bar, when read-only, and on a list row", () => {
+	it("is left out with no bar, when read-only, on a list row, and with no widget at the bar's place", () => {
+		expect(item(setup({ place: A, closed: true }, false, []))).toBeUndefined();
 		expect(item(setup())).toBeUndefined();
 		expect(item(setup({ place: A }, "newer"))).toBeUndefined();
 		expect(item(setup({ place: A }), "row-id")).toBeUndefined();

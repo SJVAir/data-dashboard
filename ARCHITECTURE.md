@@ -89,7 +89,9 @@ Decided 2026-09-28. The dashboard a first-time visitor sees (not a blank page):
       starter it is a first edit like any other (the copy is saved closed). Focus moves to the
       dashboard's ⋯ and the closing is announced. **"Change place…"** is in the dashboard's ⋯
       and right-click menus whenever the open, editable dashboard has a bar, closed or not, and
-      does what the bar's button does (moving a closed bar keeps it closed). Only dashboards
+      does what the bar's button does (moving a closed bar keeps it closed); like the bar, it needs
+      a widget at the bar's place. A closed bar's place is still the dashboard's place for
+      "Duplicate for another place…" and a new Map. Only dashboards
       with a bar have it ("for now", the user; `DEFERRED.md`). **Copies show the bar again**:
       every clone (Duplicate, "Duplicate for another place…", New from starter, Import, copies
       from share links) goes through `freshCopy`, which drops `closed`; "Save mine as a copy"
@@ -101,8 +103,8 @@ Decided 2026-09-28. The dashboard a first-time visitor sees (not a blank page):
     - **Sharing the starter copies it first** through `copyStarter`, the same hand-off as a
       first edit.
     - **"Duplicate for another place…"** (dashboard menu and list rows, any dashboard) asks for
-      a place and copies with the dashboard's main place replaced (the bar's place when there is
-      a visible bar; otherwise the place most switchable widgets show, asking on a tie). A copy
+      a place and copies with the dashboard's main place replaced (the bar's place when a widget
+      shows it, even with the bar closed; otherwise the place most switchable widgets show, asking on a tie). A copy
       of a starter copy keeps its bar; a copy of any other dashboard does not gain one. In the
       list it always shows, and toasts when there is nothing to replace.
     - `StarterHint` is gone: the bar and the welcome Note say what it said.

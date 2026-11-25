@@ -75,17 +75,24 @@ export function othersCount(doc: Dashboard, place: ChosenPlace, to?: ChosenPlace
 	}).length;
 }
 
-/** The bar is set, not closed, and at least one widget shows its place. */
-export function barVisible(doc: Dashboard): boolean {
+/**
+ * The bar is set and at least one widget shows its place, closed or not: the dashboard is about
+ * that place ("Change place…", "Duplicate for another place", a new Map's place).
+ */
+export function barShowsPlace(doc: Dashboard): boolean {
 	const bar = doc.body.placeBar;
 	return (
 		!!bar &&
-		!bar.closed &&
 		doc.body.widgets.some((w) => {
 			const p = single(w);
 			return p !== null && sameRef(p, bar.place);
 		})
 	);
+}
+
+/** The bar shows: it has a widget at its place and isn't closed. */
+export function barVisible(doc: Dashboard): boolean {
+	return barShowsPlace(doc) && !doc.body.placeBar?.closed;
 }
 
 /** The most common single places, all of a tie (first seen in reading order); empty if none. */
@@ -162,11 +169,11 @@ export function barChange(
 }
 
 /**
- * The places "Duplicate for another place" could replace: the bar's when it shows (that's what
- * the dashboard is about), else the main place, all of a tie (in reading order); empty when no
+ * The places "Duplicate for another place" could replace: the bar's when a widget shows it, even
+ * closed (that's what the dashboard is about), else the main place, all of a tie (in reading order); empty when no
  * widget shows a single place.
  */
 export function placesToReplace(doc: Dashboard): ChosenPlace[] {
 	const bar = doc.body.placeBar;
-	return bar && barVisible(doc) ? [bar.place] : mainPlaces(doc);
+	return bar && barShowsPlace(doc) ? [bar.place] : mainPlaces(doc);
 }

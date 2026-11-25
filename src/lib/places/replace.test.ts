@@ -5,6 +5,7 @@ import { MAP_TYPE } from "$lib/widgets/map";
 import {
 	barChange,
 	barClosedChange,
+	barShowsPlace,
 	barVisible,
 	mainPlaces,
 	othersCount,
@@ -278,9 +279,15 @@ describe("a closed bar", () => {
 	it("isn't visible, even with widgets at its place", () => {
 		expect(barVisible(shut)).toBe(false);
 	});
-	it("leaves Duplicate for another place the main places", () => {
+	it("is still the dashboard's place for Duplicate for another place and a new Map", () => {
+		// B is the most common place, but the dashboard is about the bar's place, closed or not.
 		expect(placesToReplace(open)).toEqual([A]);
-		expect(placesToReplace(shut)).toEqual([B]);
+		expect(placesToReplace(shut)).toEqual([A]);
+		expect(barShowsPlace(shut)).toBe(true);
+		// No widget at the bar's place: the main places, as with an open bar.
+		const gone = closed(doc([widget("b", at(B))], A));
+		expect(barShowsPlace(gone)).toBe(false);
+		expect(placesToReplace(gone)).toEqual([B]);
 	});
 	it("closes and reopens as one replaceDocument", () => {
 		const close = barClosedChange(open, true)!;

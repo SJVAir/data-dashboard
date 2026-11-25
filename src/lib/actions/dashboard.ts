@@ -22,7 +22,7 @@ import {
 } from "$lib/components/dialogs/lazy.svelte";
 import { afterMenuClose } from "$lib/components/menu/menu-state.svelte";
 import type { ChosenPlace } from "$lib/data/schema";
-import { placesToReplace } from "$lib/places/replace";
+import { barShowsPlace, placesToReplace } from "$lib/places/replace";
 import { sameRef } from "$lib/places/types";
 import { starterSource } from "$lib/starter/source";
 import { listEarlierVersions, restoreEarlierVersion } from "$lib/safety/restore-version";
@@ -486,8 +486,9 @@ export function dashboardActions(app: AppContext, id?: string): MenuProvider {
 				group: "create",
 				run: () => importDashboardFile(app)
 			},
-			// The open dashboard's place bar, closed or not: what its "Change place" does.
-			...(id === undefined && !locked && session?.doc.body.placeBar
+			// The open dashboard's place bar, closed or not, while a widget shows its place (as the bar
+			// itself): what its "Change place" does.
+			...(id === undefined && !locked && session && barShowsPlace(session.doc)
 				? [
 						{
 							id: "change-place",
