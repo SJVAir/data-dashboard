@@ -2295,12 +2295,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   BAMs is wanted on the map or the dashboard. monitor-map 5.0 goes live showing "BAM 1022" in its
   Monitors menu where 4.3 shows "SJVAir" (the user, 2026-11-13, in monitor-map's shared-toolbar
   spec): a known difference from 4.3 for the parity review.
-- **monitor-map 5.0 on phones: the legend covers the EV station popup, and Reset leaves a monitor
-  tooltip open.** _Deferred 2026-11-24 (the user: publish `@sjvair/monitor-map` `5.0.0-beta.3`
-  first, fix before 5.0.0)._ Both show in the parity comparison on the phone (`compare-5.0.html`,
-  2026-11-15 and 2026-11-24 runs); neither is traced yet to monitor-map or map-sdk. Why deferred:
-  beta.3 unblocks mobile's re-pin and the user's iOS test. **Revisit before** `@sjvair/monitor-map`
-  `5.0.0` final: trace each, fix it in the package that owns it, and recheck on the phone.
 - **The Monthly and Yearly legend line takes its units from the catalog.** _Deferred 2026-11-20
   (step 5 spec 6b, Task 11 review)._ map-sdk's own "(units)" line reads the monitors meta's scale
   units, while the Monthly or Yearly figure line that replaces it ("µg/m³ · Average of 24-hour
