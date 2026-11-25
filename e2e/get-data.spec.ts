@@ -517,6 +517,8 @@ for (const colorScheme of ["light", "dark"] as const) {
 		await openTypeOptions(page, "Map options");
 		const panel = page.getByRole("dialog", { name: "Map options" });
 		await expect(panel.getByRole("heading", { name: "Points of interest" })).toBeVisible();
+		// Measured once its opening zoom has finished (it starts at 95%).
+		await panel.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
 		const box = (await panel.boundingBox())!;
 		expect(box.x).toBeGreaterThanOrEqual(0);
 		expect(box.x + box.width).toBeLessThanOrEqual(390);

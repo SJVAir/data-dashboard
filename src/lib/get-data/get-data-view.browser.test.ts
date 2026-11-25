@@ -1779,6 +1779,8 @@ describe("now widgets", () => {
 			thresholds: [{ level: "unhealthy-sensitive", entryType: "pm25" }]
 		});
 		// The next edit takes the note away; Off stores no alert level.
+		// Reading the draft clicks Add, which closes the panel.
+		await openTypeOptions("Alert levels");
 		await alert().selectOptions("Off");
 		await expect.element(page.getByText(m.get_data_dates_left_out())).not.toBeInTheDocument();
 		expect("thresholds" in (await current())).toBe(false);
@@ -2845,6 +2847,8 @@ describe("now widgets", () => {
 				{ level: "usg-o3", entryType: "o3" }
 			]);
 			// Each pollutant's level is its own.
+			// Reading the draft clicks Add, which closes the panel.
+			await openTypeOptions("Alert levels");
 			await forOzone().selectOptions("unhealthy-o3");
 			expect((await current()).thresholds).toEqual([
 				{ level: "unhealthy-sensitive", entryType: "pm25" },
@@ -3052,8 +3056,12 @@ test("a Chart's Threshold line defaults to Off and saves the chosen level", asyn
 	await expect.element(select).toBeVisible();
 	await expect.element(select).toHaveValue("");
 	expect(await current()).not.toHaveProperty("thresholds");
+	// Reading the draft clicks Add, which closes the panel.
+	await openTypeOptions("Chart options");
 	await select.selectOptions("unhealthy-sensitive");
 	expect((await current()).thresholds).toEqual([{ level: "unhealthy-sensitive" }]);
+	// Reading the draft clicks Add, which closes the panel.
+	await openTypeOptions("Chart options");
 	await select.selectOptions("");
 	expect(await current()).not.toHaveProperty("thresholds");
 	host.remove();
