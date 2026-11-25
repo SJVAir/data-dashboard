@@ -611,15 +611,26 @@ test("map: a new Map's every type ticked draws every monitor in Where", async ()
 	);
 });
 
-test("with no Where, the ticked types draw every monitor of them, everywhere", async () => {
+test("with no Where, ticked types alone draw nothing: the Map asks for a place", async () => {
+	const screen = await show(mapWidget({ monitorTypes: ["purpleair"] }));
+	await expect.element(screen.getByText(m.map_empty_add_place())).toBeVisible();
+	await new Promise((r) => setTimeout(r, 100));
+	expect(fakeMaps.made).toHaveLength(0);
+	expect(getMonitors).not.toHaveBeenCalled();
+});
+
+test("with no Where, smoke and a searched monitor draw; the ticked types say they need a place", async () => {
 	vi.mocked(getMonitors).mockResolvedValue([
 		reading("p1"),
-		{ ...reading("n1"), type: "airnow" }
+		{ ...reading("s1"), type: "airnow" }
 	] as never);
-	await show(mapWidget({ monitorTypes: ["purpleair"] }));
+	const widget = mapWidget({ monitorTypes: ["purpleair"], monitors: ["s1"] });
+	widget.data.layers.push({ dataset: "hms-smoke" }, { dataset: "hms-fire" });
+	const screen = await show(widget);
 	const map = await madeMap();
-	await expect.poll(() => drawn(map)).toEqual(["p1"]);
-	expect(getMonitors).toHaveBeenCalledWith("pm25", undefined, expect.anything());
+	await expect.poll(() => drawn(map)).toEqual(["s1"]);
+	expect(pluginIds(map)).toContain("hms-smoke");
+	await expect.element(screen.getByText(m.widget_types_need_place())).toBeVisible();
 });
 
 test("the toolbar's monitor types are only those the Map asked for", async () => {
@@ -5182,6 +5193,16 @@ describe("schools and child care on the Map", () => {
 			expect(pluginIds(map).some((id) => id.startsWith("locations-"))).toBe(false);
 			await screen.unmount();
 		}
+		expect(getPesticideLocations).not.toHaveBeenCalled();
+	});
+
+	test("with no Where, ticked sites load nothing and say they need a place", async () => {
+		const widget = locationsMap(["child_care"], { monitors: ["s1"], monitorTypes: [] });
+		const screen = await show(widget);
+		await madeMap();
+		await expect
+			.element(screen.getByText(m.map_sites_need_place({ layers: "Child care" })))
+			.toBeVisible();
 		expect(getPesticideLocations).not.toHaveBeenCalled();
 	});
 

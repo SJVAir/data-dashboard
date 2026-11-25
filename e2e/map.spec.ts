@@ -2274,7 +2274,7 @@ test.describe("schools and child care", () => {
 		expect(locationRequests.map((p) => p.getAll("region"))).toEqual([["c85na"]]);
 	});
 
-	test("a Map with no Where and Child care ticked loads the valley once and draws every site", async ({
+	test("a Map with no Where and Child care ticked loads no sites and asks for a place", async ({
 		page
 	}) => {
 		const valleyDoc = structuredClone(rooseveltDoc);
@@ -2287,17 +2287,9 @@ test.describe("schools and child care", () => {
 			]
 		};
 		await openSharedDoc(page, valleyDoc);
-		const map = page.getByRole("region", { name: "PM2.5 map", exact: true }).first();
-		await expect(
-			legendOf(map).getByRole("heading", { level: 3, name: "Child care", exact: true })
-		).toBeVisible();
-		const list = await featureList(map);
-		await expect(list.getByRole("option", { name: /^EXAMPLE / })).toHaveCount(3);
-		await expect(list.getByRole("option", { name: /^(Example|Roosevelt) / })).toHaveCount(0);
-		await closeFeatureList(map);
-		// One valley-wide request: no area, no type.
-		expect(locationRequests).toHaveLength(1);
-		expect([...locationRequests[0].keys()]).toEqual([]);
+		// Ticked types and sites draw only inside a Where: nothing to draw, so it asks for one.
+		await expect(page.getByText("Choose a place for this map in Edit data.")).toBeVisible();
+		expect(locationRequests).toHaveLength(0);
 	});
 
 	test("Show as Chart from a Map with schools notes them left out", async ({ page }) => {

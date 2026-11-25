@@ -203,8 +203,8 @@ describe("locationAreas", () => {
 		expect(await locationAreas(starter)).toEqual({ unavailable: "place-unsupported" });
 	});
 
-	it("no Where is everywhere", async () => {
-		expect(await locationAreas(withWhere({}))).toBe("everywhere");
+	it("no Where has no areas", async () => {
+		expect(await locationAreas(withWhere({}))).toEqual([]);
 	});
 });
 
@@ -241,27 +241,23 @@ describe("locationsEntry", () => {
 		expect(get).not.toHaveBeenCalled();
 	});
 
-	it("no Where is one valley-wide call, with no area and no type", async () => {
-		const loaded = await load(withWhere({}));
-		expect(get).toHaveBeenCalledTimes(1);
-		const params = get.mock.calls[0][0] as unknown as Record<string, unknown> | undefined;
-		expect(params ?? {}).toEqual({});
-		expect(loaded.features.map((f) => f.id)).toEqual(["v1", "v2", "v3"]);
-		expect(((await sourceOf(withWhere({}))) as Src).key).toBe("map-locations:@valley");
+	it("no Where loads no sites and makes no request", async () => {
+		expect(await sourceOf(withWhere({}))).toBeNull();
+		expect(get).not.toHaveBeenCalled();
 	});
 
-	it("the valley's sites are fetched once and shared, never copied; a failure is fetched again", async () => {
-		const first = await load(withWhere({}));
+	it("an area's sites are fetched once and shared, never copied; a failure is fetched again", async () => {
+		const first = await load(withWhere(COUNTY));
 		const other: Layer = { dataset: "locations", locationTypes: ["b"] };
-		const second = await load(withWhere({}, [other]));
+		const second = await load(withWhere(COUNTY, [other]));
 		expect(get).toHaveBeenCalledTimes(1);
 		expect(second.features).toBe(first.features);
 
 		resetLocationsCache();
 		get.mockClear();
 		get.mockRejectedValueOnce(new Error("offline"));
-		await expect(load(withWhere({}))).rejects.toThrow("offline");
-		expect((await load(withWhere({}))).features.map((f) => f.id)).toEqual(["v1", "v2", "v3"]);
+		await expect(load(withWhere(COUNTY))).rejects.toThrow("offline");
+		expect((await load(withWhere(COUNTY))).features.map((f) => f.id)).toEqual(["s1", "s2"]);
 		expect(get).toHaveBeenCalledTimes(2);
 	});
 

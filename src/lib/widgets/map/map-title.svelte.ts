@@ -5,7 +5,7 @@ import type { Layer, PlaceRef, WidgetDataConfig } from "$lib/data/schema";
 import { placeName } from "$lib/places/bar-name";
 import { formatList, formatNumber } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";
-import { nowInput, singleMonitor, widgetMonitors } from "../shared/input";
+import { drawnMonitors, nowInput, singleMonitor } from "../shared/input";
 import type { PlaceViewer } from "../shared/viewer";
 import { placeLabel } from "../title";
 import { setGeneratedTitle } from "../titles.svelte";
@@ -57,8 +57,9 @@ export function syncMapTitle(input: MapTitleInput, viewer: PlaceViewer): void {
 		if (!input.layer) return 0;
 		const where = input.data.selection?.ids.length ?? (input.data.place ? 1 : 0);
 		if (where > 0 || !input.monitorsShown) return where;
-		// No Where: searched monitors alone are counted as places, as a Chart's lines are.
-		const { monitors, types } = widgetMonitors(input.data);
+		// No Where: searched monitors alone are counted as places, as a Chart's lines are (ticked
+		// types draw nothing with no Where).
+		const { monitors, types } = drawnMonitors(input.data);
 		return types.length === 0 && monitors.length > 1 ? monitors.length : 0;
 	});
 	/** A no-pollutant Map's one area or school, named by lookup rather than by a data request. */
@@ -117,7 +118,7 @@ export function syncMapTitle(input: MapTitleInput, viewer: PlaceViewer): void {
 			titled(lookup?.key === lookupKey ? lookup.name : null);
 			return;
 		}
-		// No Where and no lone monitor to name: everywhere, so what it shows alone.
+		// No Where and no lone monitor to name: what it shows alone.
 		if (!named) {
 			if (count === 0) titled(null);
 			return;
