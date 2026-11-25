@@ -442,7 +442,9 @@ test("Edit data on the starter's Map saved, then left before the types arrive: s
 		await chooseLastWeek();
 		await saveButton().click();
 		// Saved (shown on the starter at once); the copy waits for the types. Leaving doesn't ask.
-		await page.getByRole("link", { name: "Dashboards" }).click();
+		// The nav has no Dashboards link: the picker's "All dashboards" goes to the list.
+		await page.getByRole("button", { name: "Choose a dashboard" }).click();
+		await page.getByRole("menuitem", { name: "All dashboards" }).click();
 		await expect.poll(() => location.pathname).toBe("/workspace/dashboards");
 		expect(discardDialog().query()).toBeNull();
 		answer();

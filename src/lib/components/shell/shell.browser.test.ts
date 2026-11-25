@@ -35,12 +35,14 @@ afterEach(() => {
 	input = null;
 });
 
-test("nav shows the app name, picker, saved status, and undo/redo", async () => {
+test("nav shows the app name, Data Portal, picker, saved status, and undo/redo; no Dashboards link", async () => {
 	const { app } = await setup();
 	await renderNav(app);
 	const nav = page.getByRole("navigation", { name: "Main" });
 	await expect.element(nav.getByText("SJVAir Dashboard")).toBeVisible();
-	await expect.element(nav.getByRole("link", { name: "Dashboards" })).toBeVisible();
+	await expect.element(nav.getByRole("link", { name: "Data Portal" })).toBeVisible();
+	// The picker's "All dashboards" opens the list.
+	expect(nav.getByRole("link", { name: "Dashboards" }).query()).toBeNull();
 	await expect.element(nav.getByRole("button", { name: "Untitled dashboard" })).toBeVisible();
 	await expect.element(nav.getByText("Saved")).toBeVisible();
 	await expect.element(nav.getByRole("button", { name: "Undo" })).toBeVisible();
@@ -135,9 +137,9 @@ function tokenColor(token: string): string {
 
 test("the current page's link is marked and underlined: navy in light, sky in dark", async () => {
 	const { app } = await setup();
-	await navigate("/dashboards");
+	await navigate("/data");
 	await renderNav(app);
-	const link = page.getByRole("link", { name: "Dashboards" });
+	const link = page.getByRole("link", { name: "Data Portal" });
 	await expect.element(link).toHaveAttribute("aria-current", "page");
 	try {
 		// Light: the navy primary carries the 3:1 cue (sky on white is only 2.27:1).
