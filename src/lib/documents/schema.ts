@@ -47,8 +47,11 @@ export const DashboardBodySchema = z
 	.object({
 		widgets: z.array(WidgetInstanceSchema),
 		defaultCollectionId: z.string().optional(),
-		/** The "Change place" bar's place: the starter's chosen place, kept on copies of it. */
-		placeBar: z.object({ place: ChosenPlaceSchema }).optional()
+		/**
+		 * The "Change place" bar's place: the starter's chosen place, kept on copies of it.
+		 * `closed`: hidden for good on this dashboard (only `true` is stored; copies drop it).
+		 */
+		placeBar: z.object({ place: ChosenPlaceSchema, closed: z.literal(true).optional() }).optional()
 	})
 	.refine((b) => new Set(b.widgets.map((w) => w.id)).size === b.widgets.length, {
 		message: "Widget ids must be unique"

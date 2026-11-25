@@ -129,7 +129,7 @@ function swappedBar(
 	// Read defensively, as `pointWidgets` (a read-only document is unvalidated).
 	if (bar?.place?.kind !== "point") return bar;
 	const region = applied.find((s) => s.region && samePoint(bar.place, s))?.region;
-	return region ? { place: { kind: "region", ...region } } : undefined;
+	return region ? { ...bar, place: { kind: "region", ...region } } : undefined;
 }
 
 /**

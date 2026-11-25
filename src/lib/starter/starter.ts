@@ -154,6 +154,8 @@ function freshCopy(source: Dashboard, now: Date, copiedFrom?: string): Dashboard
 		updatedAt: time
 	};
 	delete copy.deletedAt;
+	// A copy shows the place bar again, even when the original's was closed.
+	delete copy.body.placeBar?.closed;
 	if (copiedFrom === undefined) delete copy.copiedFrom;
 	return copy;
 }

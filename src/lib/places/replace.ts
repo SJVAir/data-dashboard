@@ -58,7 +58,9 @@ export function replacePlace(
 		return sameRef(place, from) || opts.others ? moved(w, to) : w;
 	});
 	const bar = doc.body.placeBar;
-	const placeBar = bar && sameRef(bar.place, from) && !sameRef(bar.place, to) ? { place: to } : bar;
+	// A closed bar stays closed when it moves.
+	const placeBar =
+		bar && sameRef(bar.place, from) && !sameRef(bar.place, to) ? { ...bar, place: to } : bar;
 	return { ...doc, body: { ...doc.body, widgets, ...(placeBar ? { placeBar } : {}) } };
 }
 
@@ -73,11 +75,12 @@ export function othersCount(doc: Dashboard, place: ChosenPlace, to?: ChosenPlace
 	}).length;
 }
 
-/** The bar is set and at least one widget shows its place. */
+/** The bar is set, not closed, and at least one widget shows its place. */
 export function barVisible(doc: Dashboard): boolean {
 	const bar = doc.body.placeBar;
 	return (
 		!!bar &&
+		!bar.closed &&
 		doc.body.widgets.some((w) => {
 			const p = single(w);
 			return p !== null && sameRef(p, bar.place);
@@ -126,6 +129,22 @@ export function replaceChange(doc: Dashboard, next: Dashboard): Change | null {
 		};
 	}
 	return null;
+}
+
+/**
+ * Closes the bar for good on this dashboard (`closed`), or opens it again, as one undoable change;
+ * `null` with no bar, or when it already is so.
+ */
+export function barClosedChange(doc: Dashboard, closed: boolean): Change | null {
+	const bar = doc.body.placeBar;
+	if (!bar || !!bar.closed === closed) return null;
+	const placeBar = closed ? { ...bar, closed: true as const } : { place: bar.place };
+	return {
+		op: "replaceDocument",
+		target: {},
+		from: { name: doc.name, body: doc.body },
+		to: { name: doc.name, body: { ...doc.body, placeBar } }
+	};
 }
 
 /**

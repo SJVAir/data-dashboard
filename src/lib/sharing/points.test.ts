@@ -457,6 +457,16 @@ describe("the Change place bar's point", () => {
 		expect(hasPoints(swapped)).toBe(false);
 	});
 
+	it("a closed bar stays closed as its region", async () => {
+		const open = withBar(docWith(dataWidget("p", POINT)), POINT);
+		const doc = {
+			...open,
+			body: { ...open.body, placeBar: { place: POINT, closed: true as const } }
+		};
+		const swapped = withSwaps(doc, await pointSwaps(doc));
+		expect(swapped.body.placeBar).toEqual({ place: ZIP, closed: true });
+	});
+
 	it("is dropped when no layer holds its point", async () => {
 		const other = { ...POINT, lat: 36.8 };
 		for (const doc of [
