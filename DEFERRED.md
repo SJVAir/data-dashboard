@@ -513,6 +513,9 @@ string`) now get the union return type. The mobile app passes a string token, so
     not earlier.
     map-sdk must already be on npm by then: monitor-map 5.0 depends on it, and sjvair.com's
     deploy runs `npm i` on monitor-map `main`.
+    **Everything leaves beta before launch** (the user, 2026-11-25): map-sdk is released as
+    `1.0.0`, and monitor-map, the SDK and mobile as their finals, in the release order above. Map-sdk
+    1.0 readiness is not a go-live blocker beyond that release.
     The server also drops `monitors/meta/`'s legacy `levels` dict (the user, 2026-11-04, in the
     hardcoded-value cleanup, spec 5), so every consumer must read `scale` first: monitor-map
     (tooltips, legend, clusters, charts, subscription manager), mobile
