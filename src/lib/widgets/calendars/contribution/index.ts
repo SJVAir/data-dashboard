@@ -13,6 +13,7 @@ export const contributionCalendarType: WidgetType = {
 	defaultSize: { w: 12, h: 4 },
 	time: "range",
 	thresholds: true,
+	optionsLabel: () => m.get_data_options_calendar(),
 	analyzable: true,
 	downloadable: true,
 	accepts: {

@@ -88,6 +88,14 @@ describe("datasetBlockText", () => {
 	});
 });
 
+describe("datasetBlockText for a pinned type", () => {
+	it("says the calendar sets the level", () => {
+		expect(datasetBlockText({ kind: "not-offered", at: "day", suggest: "month" }, true)).toBe(
+			"Reported by month, but this calendar shows daily data."
+		);
+	});
+});
+
 describe("wholePeriodRange", () => {
 	it("stores a month range's first and last days", () => {
 		expect(wholePeriodRange("2026-03", "2026-02", "month")).toEqual({

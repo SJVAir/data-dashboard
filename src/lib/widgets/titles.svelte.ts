@@ -1,3 +1,4 @@
+import { untrack } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
 
 /**
@@ -8,7 +9,9 @@ import { SvelteMap } from "svelte/reactivity";
 const titles = new SvelteMap<string, string>();
 
 export function setGeneratedTitle(widgetId: string, title: string): void {
-	if (titles.get(widgetId) !== title) titles.set(widgetId, title);
+	// Read untracked: this runs inside each widget's title effect, and two writers on one id (the
+	// Get data preview's) would otherwise wake each other forever.
+	if (untrack(() => titles.get(widgetId)) !== title) titles.set(widgetId, title);
 }
 
 export function generatedTitle(widgetId: string): string | undefined {

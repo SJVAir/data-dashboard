@@ -276,6 +276,19 @@ export class UseBlock {
 		return id ? townshipBlock(id, this.#townshipBounds).map(townshipRef) : [];
 	}
 
+	/**
+	 * Whether the lens source already holds every section of the township `refKey` names, so the
+	 * lens can keep it drawn while it arrives instead of clearing it. False for a section ref, with
+	 * no lens, or for a lens of another key. Reads the reactive lens, so the lens re-checks when
+	 * a block lands.
+	 */
+	childrenLoaded(refKey: string): boolean {
+		const id = townshipIdOf(refKey);
+		const lens = this.#lens;
+		if (!id || !lens || lens.key !== this.#key) return false;
+		return [...lens.blocks].some((b) => townshipBlock(b, this.#townshipBounds).includes(id));
+	}
+
 	/** A section's township refKey; null for a township. */
 	parentOf(props: UseProps): string | null {
 		return props.level === "section" ? townshipRef(props.township) : null;

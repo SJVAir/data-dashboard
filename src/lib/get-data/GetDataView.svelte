@@ -68,7 +68,8 @@
 	import ActionBar from "./ActionBar.svelte";
 	import type { AddTarget } from "./add";
 	import DataResolutionControl from "./DataResolutionControl.svelte";
-	import MoreOptions from "./MoreOptions.svelte";
+	import TypeOptions from "./TypeOptions.svelte";
+	import { hasAlertLevels, hasLevelLine } from "./type-options";
 	import { flushDraft, saveDraft, type Draft } from "./draft.svelte";
 	import type { GetDataMode } from "./mode";
 	import {
@@ -412,8 +413,8 @@
 	 * Why a dataset (`candidate`, its layers) can't be chosen, or undefined: on a Map on Now,
 	 * pesticide use (Now has no resolution); with a specific resolution, a dataset that isn't
 	 * reported at it; on Automatic, one that shares no level with those chosen (less `without`, the
-	 * layer it would replace, and any that already don't line up). A pinned type (a calendar) and
-	 * the Map's levels count as Automatic within them. Greyed, never hidden.
+	 * layer it would replace, and any that already don't line up). A pinned type (a calendar) checks
+	 * against its level; the Map's levels count as Automatic within them. Greyed, never hidden.
 	 */
 	function datasetReason(candidate: Layer[], without?: Layer): string | undefined {
 		if (!known) return undefined;
@@ -436,10 +437,12 @@
 			chosen,
 			catalog: known,
 			place: placeKind,
-			resolution: pinned ? undefined : (plain.data.resolution as DataLevel | undefined),
+			resolution: pinned
+				? (type?.resolution as DataLevel | undefined)
+				: (plain.data.resolution as DataLevel | undefined),
 			within: isMap ? MAP_LEVELS : LEVELS
 		});
-		return block ? datasetBlockText(block) : undefined;
+		return block ? datasetBlockText(block, pinned) : undefined;
 	}
 	/** The Map's place-less datasets' reasons (smoke and fire go together). */
 	const mapBlocks = $derived(
@@ -1005,6 +1008,11 @@
 			: []
 	);
 
+	/** The type's own options (level line or alert levels) have something to show. */
+	const showTypeOptions = $derived(
+		!!type?.thresholds &&
+			(isNow ? hasAlertLevels(nowAlerts) : hasLevelLine(shownLevels ?? undefined))
+	);
 	// A Chart's saved line is dropped once it can't be shown or edited: the type has no
 	// thresholds, or the main layer isn't a pollutant with levels.
 	$effect(() => {
@@ -1154,6 +1162,44 @@
 				{/if}
 			{/snippet}
 
+			{#if !nowOnly}
+				<section class="flex flex-col gap-2" aria-labelledby="{uid}-when">
+					<h2 id="{uid}-when" class="text-primary text-sm font-semibold">{m.get_data_when()}</h2>
+					{#if type}
+						<!-- A type with `now` (the Map) passes no range for Now. -->
+						<WhenControl
+							{type}
+							value={type.now ? plain.data.dateRange : range}
+							{now}
+							{resolution}
+							{resolutionFor}
+							onchange={setRange}
+						/>
+					{/if}
+					<!-- Always mounted, so a new note is announced. -->
+					<p
+						role="status"
+						class={["text-muted-foreground text-xs", !widenedNote && "sr-only"]}
+						data-testid="range-widened-note"
+					>
+						{widenedNote ?? ""}
+					</p>
+				</section>
+			{/if}
+
+			<section class="flex flex-col gap-2" aria-labelledby="{uid}-where">
+				<h2 id="{uid}-where" class="text-primary text-sm font-semibold">{m.get_data_where()}</h2>
+				<WhereControl
+					{picks}
+					max={placeLimit(type)}
+					offer={areasOnly(plain.type) ? "areas" : "where"}
+					purpose={wherePurpose(plain.data, known)}
+					emptyText={whereEmptyText}
+					clearable={placeLimit(type) !== 1}
+					onchange={setPlaces}
+				/>
+			</section>
+
 			<section class="flex flex-col gap-2" aria-labelledby="{uid}-what">
 				<h2 id="{uid}-what" class="text-primary text-sm font-semibold">{m.get_data_what()}</h2>
 				{#if !known || !type}
@@ -1201,53 +1247,7 @@
 							blocks: mapBlocks
 						}}
 					/>
-					{#if isNow && type.thresholds}
-						<!-- A now type's alert levels, one per pollutant (chosen in Air quality). -->
-						<NowControls
-							alerts={nowAlerts}
-							onthreshold={setThreshold}
-							onretry={(e) => void levelsOf(e)}
-						/>
-					{/if}
 				{/if}
-			</section>
-
-			{#if !nowOnly}
-				<section class="flex flex-col gap-2" aria-labelledby="{uid}-when">
-					<h2 id="{uid}-when" class="text-primary text-sm font-semibold">{m.get_data_when()}</h2>
-					{#if type}
-						<!-- A type with `now` (the Map) passes no range for Now. -->
-						<WhenControl
-							{type}
-							value={type.now ? plain.data.dateRange : range}
-							{now}
-							{resolution}
-							{resolutionFor}
-							onchange={setRange}
-						/>
-					{/if}
-					<!-- Always mounted, so a new note is announced. -->
-					<p
-						role="status"
-						class={["text-muted-foreground text-xs", !widenedNote && "sr-only"]}
-						data-testid="range-widened-note"
-					>
-						{widenedNote ?? ""}
-					</p>
-				</section>
-			{/if}
-
-			<section class="flex flex-col gap-2" aria-labelledby="{uid}-where">
-				<h2 id="{uid}-where" class="text-primary text-sm font-semibold">{m.get_data_where()}</h2>
-				<WhereControl
-					{picks}
-					max={placeLimit(type)}
-					offer={areasOnly(plain.type) ? "areas" : "where"}
-					purpose={wherePurpose(plain.data, known)}
-					emptyText={whereEmptyText}
-					clearable={placeLimit(type) !== 1}
-					onchange={setPlaces}
-				/>
 			</section>
 
 			{#if choices}
@@ -1259,31 +1259,6 @@
 					onchange={setDetail}
 				/>
 			{/if}
-
-			{#if !isNow && type?.thresholds && shownLevels}
-				{#if type.resolution}
-					<!-- A type with a pinned resolution (a calendar): its level control stands alone. -->
-					<section>
-						<ThresholdLineControl
-							levels={shownLevels}
-							thresholds={plain.thresholds}
-							onthreshold={setLineThreshold}
-							onretry={() => void levelsOf(lineEntryType)}
-							marks={isCalendarType(plain.type)}
-						/>
-					</section>
-				{:else}
-					<MoreOptions>
-						<ThresholdLineControl
-							levels={shownLevels}
-							thresholds={plain.thresholds}
-							onthreshold={setLineThreshold}
-							onretry={() => void levelsOf(lineEntryType)}
-							marks={isCalendarType(plain.type)}
-						/>
-					</MoreOptions>
-				{/if}
-			{/if}
 		</div>
 
 		<div
@@ -1294,6 +1269,26 @@
 			{@attach scrollFocusable}
 		>
 			<ShowAs types={showAs} value={plain.type} onchange={setType} />
+			{#if showTypeOptions && type?.optionsLabel}
+				<TypeOptions label={type.optionsLabel()}>
+					{#if isNow}
+						<!-- A now type's alert levels, one per pollutant (chosen in Air quality). -->
+						<NowControls
+							alerts={nowAlerts}
+							onthreshold={setThreshold}
+							onretry={(e) => void levelsOf(e)}
+						/>
+					{:else if shownLevels}
+						<ThresholdLineControl
+							levels={shownLevels}
+							thresholds={plain.thresholds}
+							onthreshold={setLineThreshold}
+							onretry={() => void levelsOf(lineEntryType)}
+							marks={isCalendarType(plain.type)}
+						/>
+					{/if}
+				</TypeOptions>
+			{/if}
 			{#if overlayFor}
 				<label class="flex flex-wrap items-center gap-2 text-sm">
 					<span class="font-medium">{m.get_data_overlay_for()}</span>

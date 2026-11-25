@@ -308,6 +308,28 @@ describe("UseBlock", () => {
 		t.block.destroy();
 	});
 
+	it("childrenLoaded is true only for a township whose block the lens holds", async () => {
+		const t = setup();
+		await flush();
+		// No lens yet.
+		expect(t.block.childrenLoaded(ref("T-0"))).toBe(false);
+		t.set({ lensCenter: ref("T-1") });
+		await vi.advanceTimersByTimeAsync(50);
+		await flush();
+		// The block around T-1 is T-0, T-1 and T-2.
+		expect(t.block.childrenLoaded(ref("T-0"))).toBe(true);
+		expect(t.block.childrenLoaded(ref("T-2"))).toBe(true);
+		// Townships outside the loaded block.
+		expect(t.block.childrenLoaded(ref("T-3"))).toBe(false);
+		expect(t.block.childrenLoaded(ref("T-4"))).toBe(false);
+		// A section ref is not a township.
+		expect(t.block.childrenLoaded(encodeRef({ kind: "feature", id: "section:s1" }))).toBe(false);
+		// A lens of another key holds nothing for the new key.
+		t.set({ query: query({ year: 2023, month: 7 }) });
+		expect(t.block.childrenLoaded(ref("T-0"))).toBe(false);
+		t.block.destroy();
+	});
+
 	it("a new period gives a new scale ref and drops the old features", async () => {
 		const t = setup();
 		await flush();

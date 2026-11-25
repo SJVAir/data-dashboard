@@ -271,7 +271,8 @@ string`) now get the union return type. The mobile app passes a string token, so
     plan)._ The shared response carries no `copied_from` (by design: it's the owner's data), so
     a shared copy of a copy shows only the made-by bar. Copies people make still show "Based on
     …" for the dashboard they copied. **Revisit if** people ask where a shared dashboard came
-    from.
+    from. _Looked at in step 6 spec 3 (2026-11-24): the credit row now exists only with a credit;
+    this still describes the behaviour._
   - **Each open shared page polls on its own** (no one-tab-per-browser leader as signed-in
     dashboards have). _Deferred 2026-11-02 (sync spec 3 plan)._ Viewers are mostly signed out on
     one tab each, and the sync design's cost estimate already counts one request per viewer per
@@ -291,6 +292,8 @@ string`) now get the union return type. The mobile app passes a string token, so
   - **"Based on …" looked up while offline stays hidden until the next page load.**
     _Deferred 2026-11-02 (sync spec 3, final review)._ The answer is cached per page load, so a
     lookup that failed offline is not retried. **Revisit if** people report a missing credit.
+    _Looked at in step 6 spec 3 (2026-11-24): the credit row now exists only with a credit; this
+    still describes the behaviour._
   - **The Help menu's feedback link still opens sjvair.com's contact form with no topic
     pre-filled.** _Deferred 2026-11-02 (sync spec 3, final review)._ The server pre-fills only
     the shared-page report. This was part of the removed "Pre-filling sjvair.com's contact form"
@@ -1809,11 +1812,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   catalog's label, which is title case. Why: labels come from the metadata (never rewritten in the
   dashboard), so a sentence-case label is a server catalog change. **Revisit when** the server
   catalog's labels are next edited, or with a copy review.
-- **A pinned calendar's lone dataset isn't greyed in What.** _Deferred 2026-11-19 (step 5 spec 6a,
-  final review)._ A calendar (pinned to Daily) with one dataset that doesn't offer Daily isn't
-  greyed in Get data's What section; the type block ("Show as") catches it instead, so it can't
-  be saved. Why: the person is still told, just in another place. **Revisit when** Get data's
-  What section is next reworked, or someone is confused by it.
 - **The Data table's notes aren't `role="status"`.** _Deferred 2026-11-19 (step 5 spec 6a, final
   review)._ The notes under a Data table (a layer that doesn't line up, a failed overlay) aren't
   announced when they appear. Why: graded minor; they sit just above the table, so a screen
@@ -2303,23 +2301,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   2026-11-15 and 2026-11-24 runs); neither is traced yet to monitor-map or map-sdk. Why deferred:
   beta.3 unblocks mobile's re-pin and the user's iOS test. **Revisit before** `@sjvair/monitor-map`
   `5.0.0` final: trace each, fix it in the package that owns it, and recheck on the phone.
-- **map-sdk: arriving townships go clear for 3–6 frames on a block's first visit.** _Deferred
-  2026-11-20 (the user; found by the scripted lens check on `@sjvair/map-sdk` `0.1.0-beta.22`)._ On
-  the first visit to a block (5 of 30 moves per run, 32–77 ms), map-sdk first draws the sections
-  it already holds for the new block. Those include a few edge sections of the arriving
-  townships, and one drawn section hides its whole township, so the interior shows clear until
-  the full block arrives (the dashboard's 50 ms `LENS_WAIT` plus the fetch). Real data does this
-  too: sjvair.com selects sections by bounding-box overlap (`bboverlaps`), which includes boxes
-  that only touch. Fix in map-sdk: hide a township only once its whole block has loaded. Short
-  and not urgent. **Revisit with** the next `@sjvair/map-sdk` beta that step 6 needs (spec 7 stayed
-  on `0.1.0-beta.22`);
-  check it with `.superpowers/lens-check/` in map-sdk. Fixed in `@sjvair/map-sdk` `0.1.0-beta.23` (map-sdk #40) for hosts that pass `shapesLens`'s `childrenLoaded`; this entry closes when step 6 spec 3's re-pin (Task 8) lands it in the dashboard.
-- **map-sdk: a township the lens leaves goes clear for 1 frame.** _Deferred 2026-11-20 (the user;
-  found by the same check)._ New in `0.1.0-beta.21`/`beta.22` from map-sdk #38: a leaving
-  township's sections are gone from the drawn tiles, but it shows again only at `sourcedata` or
-  `idle`, a frame later (8–14 of 30 moves per run; `0.1.0-beta.19` didn't do this). Fix in
-  map-sdk: show it again on the same frame its sections go. **Revisit with** the next
-  `@sjvair/map-sdk` beta that step 6 needs, with the entry above. Fixed in `@sjvair/map-sdk` `0.1.0-beta.23` (map-sdk #40); closes with the same re-pin.
 - **The Monthly and Yearly legend line takes its units from the catalog.** _Deferred 2026-11-20
   (step 5 spec 6b, Task 11 review)._ map-sdk's own "(units)" line reads the monitors meta's scale
   units, while the Monthly or Yearly figure line that replaces it ("µg/m³ · Average of 24-hour
@@ -2798,11 +2779,13 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   picks which place's overlay it draws (the Data table and CSV have every place's). **Revisit
   when** users ask to compare overlays across places, or with spec 5's chart work.
 - **Get data's Detail limits are estimates.** _Deferred 2026-11-05 (step 4 spec 3, Task 9)._
-  "More options" → Detail greys out levels using guessed limits: places × periods over 50 000
-  blocked, and 720 raw readings a day per place. No level has a range cap of its own: the
-  server's 31-day cap is per request, and the adapters ask a month (or 31 raw days) at a time
+  "Data resolution" (a closed section in Get data's left column) greys out levels using guessed
+  limits: places × periods over 50 000 blocked, and 720 raw readings a day per place. No level
+  has a range cap of its own: the server's 31-day cap is per request, and the adapters ask a
+  month (or 31 raw days) at a time
   (settled in the final review). **Revisit after** real use, or when the metadata gives reading
-  intervals.
+  intervals. _Reworded in step 6 spec 3 (2026-11-24): "More options" is gone; the limits are
+  unchanged._
 - **A possible bug in the custom date range picker with the year calendar.** _Noted
   2026-11-09 (the user, after spec 5)._ The user saw what looks like an error when choosing a
   custom range of 8/10/24 to 10/09/24 (read as Aug 10 – Oct 9, 2024) while the year calendar
@@ -2854,7 +2837,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **The draft's debounce timer is module-level, shared across spaces.** **Revisit if** a
     draft is lost on a space switch.
   - **A `?type=` override keeps Chart options on a Data table draft** (harmless; Show as does
-    the same by design). **Revisit when** a non-Chart type has options of its own.
+    the same by design). _Looked at in step 6 spec 3 (2026-11-24): calendars now have a "Calendar
+    options" section, but the level line kept across Chart and calendar is the same one, kept by
+    design; the Data table still has no options, so a kept threshold there stays unused and
+    harmless._ **Revisit when** the Data table gains options of its own.
   - **Dashboard size measures the whole view's width,** so a wide `defaultSize` may clip.
     **Revisit with** spec 5's wider types.
   - **Rare storage failures when adding:** a failed starter hand-off keeps the add queued (a

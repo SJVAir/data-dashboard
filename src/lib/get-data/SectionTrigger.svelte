@@ -5,7 +5,9 @@
 	let {
 		label,
 		detail,
-		reasonId
+		reasonId,
+		level = 3,
+		warning
 	}: {
 		/** The section's name. */
 		label: string;
@@ -13,18 +15,28 @@
 		detail?: string;
 		/** A greyed-out section (its item disabled): the id of the text saying why. */
 		reasonId?: string;
+		/** The heading level (3 inside a section group, 2 for a section of its own). */
+		level?: 2 | 3;
+		/** A problem with the choice, shown under it in the destructive colour. */
+		warning?: string;
 	} = $props();
 </script>
 
-<Accordion.Header level={3}>
+<Accordion.Header {level}>
 	<Accordion.Trigger
 		aria-describedby={reasonId}
-		class="enabled:hover:bg-secondary disabled:text-muted-foreground flex min-h-8 w-full items-center gap-2 rounded-(--radius-control) px-2 py-1 text-left text-sm font-medium [&[data-state=open]>svg]:rotate-180"
+		class={[
+			"enabled:hover:bg-secondary disabled:text-muted-foreground flex min-h-8 w-full items-center gap-2 rounded-(--radius-control) px-2 py-1 text-left text-sm [&[data-state=open]>svg]:rotate-180",
+			level === 2 ? "text-primary font-semibold" : "font-medium"
+		]}
 	>
 		<span class="flex min-w-0 flex-1 flex-col">
 			<span>{label}</span>
 			{#if detail}
 				<span class="text-muted-foreground text-xs font-normal">{detail}</span>
+			{/if}
+			{#if warning}
+				<span class="text-destructive text-xs font-normal">{warning}</span>
 			{/if}
 		</span>
 		{#if !reasonId}

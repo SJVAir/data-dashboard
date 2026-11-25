@@ -7,7 +7,11 @@ import {
 	expectSaved,
 	fullscreenFrame,
 	liveRegion,
+	makeOwnCopy,
+	newBlankDashboard,
+	nav,
 	openSharedDoc,
+	saveRename,
 	sharedDoc,
 	taskbar,
 	taskbarItem,
@@ -237,4 +241,40 @@ test("fullscreen animates without reduced motion", async ({ page, browserName })
 		(el) => el.getAnimations().filter((a) => a.playState !== "finished").length
 	);
 	expect(live).toBeGreaterThan(0);
+});
+
+test("the top bar keeps the picker and ⋯ together at 390 px", async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await makeOwnCopy(page);
+	const picker = nav(page).getByRole("button", { name: "My dashboard", exact: true });
+	const actions = nav(page).getByRole("button", { name: "Dashboard actions", exact: true });
+	await expect(picker).toBeVisible();
+	await expect(actions).toBeVisible();
+	const a = (await picker.boundingBox())!;
+	const b = (await actions.boundingBox())!;
+	expect(Math.abs(a.y + a.height / 2 - (b.y + b.height / 2))).toBeLessThanOrEqual(2);
+	const apart = a.x + a.width <= b.x || b.x + b.width <= a.x;
+	expect(apart).toBe(true);
+	const overflowing = await nav(page).evaluate(
+		(el) =>
+			[...el.querySelectorAll("*")].filter(
+				(n) => n.getBoundingClientRect().right > innerWidth + 0.5
+			).length
+	);
+	expect(overflowing).toBe(0);
+});
+
+test("the ⋯ follows the dashboard on screen across routes", async ({ page }) => {
+	const actions = nav(page).getByRole("button", { name: "Dashboard actions", exact: true });
+	await makeOwnCopy(page);
+	await expect(actions).toBeVisible();
+	await nav(page).getByRole("link", { name: "Data Portal", exact: true }).click();
+	await expect(page).toHaveURL(/\/workspace\/data$/);
+	await expect(actions).toHaveCount(0);
+	await newBlankDashboard(page);
+	await expect(actions).toBeVisible();
+	await actions.click();
+	await page.getByRole("menuitem", { name: /^Rename dashboard/ }).click();
+	await saveRename(page, "Second one");
+	await expect(page.getByRole("heading", { level: 1, name: "Second one" })).toBeVisible();
 });

@@ -7,6 +7,7 @@ import { readFile } from "node:fs/promises";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 import {
+	AIR_QUALITY_SECTION,
 	CHART_TITLE,
 	DASHBOARD_URL,
 	STARTER_TITLES,
@@ -15,6 +16,7 @@ import {
 	expectSaved,
 	makeOwnCopy,
 	nav,
+	openSection,
 	shareLinkFor,
 	titleBar,
 	widgetMenuItem,
@@ -95,7 +97,7 @@ test("Edit data → Save changes, Undo restores", async ({ page }) => {
 test("Download CSV from the draft has overlay rows", async ({ page }) => {
 	await page.goto("data");
 	await expect(page.getByRole("heading", GET_DATA)).toBeVisible();
-	await page.getByRole("button", { name: /^Air Quality Forecasts/ }).click();
+	await openSection(page, /^Air Quality Forecasts/);
 	await page.getByRole("checkbox", { name: "Burn Status" }).check();
 	// The Chart draws burn status as day bands, named in its legend.
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
@@ -139,11 +141,6 @@ test("Add widget → Chart on the starter makes a copy", async ({ page }) => {
 	await page.getByRole("menuitem", { name: "New from starter" }).click();
 	await expect(widgetTitles(page)).toHaveText(STARTER_TITLES);
 });
-
-/** Opens a Get data section (Weather, Pesticide Use, …) by its heading. */
-async function openSection(page: Page, name: RegExp): Promise<void> {
-	await page.getByRole("button", { name }).click();
-}
 
 test("adds PM2.5 with a weather strip and a filtered pesticide strip", async ({ page }) => {
 	await makeOwnCopy(page);
@@ -189,6 +186,7 @@ test("adds a temperature-only chart", async ({ page }) => {
 	await expect(page.getByRole("heading", GET_DATA)).toBeVisible();
 	await openSection(page, /^Weather/);
 	await page.getByRole("checkbox", { name: "Temperature", exact: true }).check();
+	await openSection(page, AIR_QUALITY_SECTION);
 	await page.getByRole("radio", { name: "None" }).check();
 	await expect(page.getByRole("radio", { name: "None" })).toBeChecked();
 	// The last number layer can be unchecked too (a widget may hold nothing); it stays on here.
@@ -480,9 +478,9 @@ test("on two columns the left column scrolls under the top nav; the preview and 
 	await page.goto("data");
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
 	const column = page.getByRole("group", { name: "What, When and Where" });
-	// What comes first, then When and Where, then Data resolution and More options.
+	// When and Where come first, then What, then Data resolution.
 	const headings = column.getByRole("heading", { level: 2 });
-	await expect(headings).toHaveText(["What", "When", "Where", "Data resolution", /^More options/]);
+	await expect(headings).toHaveText(["When", "Where", "What", /^Data resolution/]);
 	// Open every section the Chart shows, so the column is taller than the screen.
 	const closed = column.locator("[data-what-section] h3 button[aria-expanded=false]:enabled");
 	while ((await closed.count()) > 0) await closed.first().click();
@@ -525,6 +523,7 @@ test("Show as keeps the ticked monitor types from a Map to a Chart, and a calend
 	await page.clock.install({ time: "2026-11-15T12:00:00-08:00" });
 	await page.goto("data");
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
+	await openSection(page, AIR_QUALITY_SECTION);
 	const purple = page.getByRole("checkbox", { name: "PurpleAir" });
 	// A new Chart starts with none ticked; a new Map with every type (decision 8).
 	await expect(purple).not.toBeChecked();
@@ -545,6 +544,7 @@ test("Show as keeps the ticked monitor types from a Map to a Chart, and a calend
 		)
 	).toBeVisible();
 	await expect(page.getByTestId("where-summary")).toHaveText("Fresno County");
+	await openSection(page, AIR_QUALITY_SECTION);
 	await expect(page.getByRole("checkbox", { name: "PurpleAir" })).toHaveCount(0);
 });
 
@@ -555,6 +555,7 @@ test("a Chart of Fresno County with PurpleAir ticked asks once per period for th
 	await page.goto("data");
 	await expect(page.getByRole("group", { name: "Chart of Fresno County" })).toBeVisible();
 
+	await openSection(page, AIR_QUALITY_SECTION);
 	const asked: URL[] = [];
 	page.on("request", (r) => {
 		const url = new URL(r.url());

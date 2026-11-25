@@ -16,6 +16,7 @@ import type { Browser, Locator, Page } from "@playwright/test";
 import type { AccountUser } from "../src/lib/account/identity";
 import { expect, test } from "./fixtures";
 import {
+	AIR_QUALITY_SECTION,
 	DASHBOARD_URL,
 	expectNoViolations,
 	expectSaved,
@@ -24,6 +25,7 @@ import {
 	nav,
 	newBlankDashboard,
 	openPicker,
+	openSection,
 	openSharedDoc,
 	widgetMenuItem,
 	widgetTitles,
@@ -225,6 +227,7 @@ test("a Map from Add widget has every monitor type ticked in its Data Portal, an
 	await expect(list.getByRole("option", { name: /Fresno - Drummond Street/ })).toBeVisible();
 	await widgetMenuItem(page, FRESNO_MAP, "Open in Data Portal");
 	await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeVisible();
+	await openSection(page, AIR_QUALITY_SECTION);
 	const types = page.getByRole("group", { name: "Monitors" }).getByRole("checkbox");
 	await expect(types.first()).toBeVisible();
 	// Every type the Data Portal offers is ticked, among them each fixture network.
@@ -993,9 +996,11 @@ test.describe("with ozone and smoke and fire in the metadata", () => {
 		await widgetMenuItem(page, FRESNO_MAP, "Open in Data Portal");
 		await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeVisible();
 		// One pollutant: Ozone replaces PM2.5, and PM2.5 comes back the same way.
+		await openSection(page, AIR_QUALITY_SECTION);
 		await page.getByRole("radio", { name: "Ozone" }).check();
 		await expect(page.getByRole("radio", { name: "PM2.5" })).not.toBeChecked();
 		await page.getByRole("radio", { name: "PM2.5" }).check();
+		await openSection(page, /^Smoke and fire/);
 		await page.getByRole("checkbox", { name: "Smoke and fire" }).check();
 		await page.getByRole("button", { name: "Save changes" }).click();
 		await expect(widgetTitles(page)).toHaveText([FRESNO_MAP]);
@@ -1012,8 +1017,10 @@ test.describe("with ozone and smoke and fire in the metadata", () => {
 
 		await widgetMenuItem(page, FRESNO_MAP, "Open in Data Portal");
 		await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeVisible();
+		await openSection(page, AIR_QUALITY_SECTION);
 		await expect(page.getByRole("radio", { name: "PM2.5" })).toBeChecked();
 		await expect(page.getByRole("radio", { name: "Ozone" })).not.toBeChecked();
+		await openSection(page, /^Smoke and fire/);
 		await expect(page.getByRole("checkbox", { name: "Smoke and fire" })).toBeChecked();
 	});
 
@@ -2205,7 +2212,10 @@ test.describe("schools and child care", () => {
 	async function tickInDataPortal(page: Page, title: string, types: string[]): Promise<void> {
 		await widgetMenuItem(page, title, "Open in Data Portal");
 		await expect(page.getByRole("heading", { level: 1, name: "Data Portal" })).toBeVisible();
-		for (const type of types) await page.getByRole("checkbox", { name: type, exact: true }).check();
+		for (const type of types) {
+			await openSection(page, type === "Child care" ? /^Child care/ : /^Schools/);
+			await page.getByRole("checkbox", { name: type, exact: true }).check();
+		}
 		await page.getByRole("button", { name: "Save changes" }).click();
 		await expect(widgetTitles(page)).toHaveText([title]);
 		await expectSaved(page);

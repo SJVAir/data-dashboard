@@ -14,6 +14,7 @@ export const chartType: WidgetType = {
 	time: "range",
 	// A display-only line per Chart; the watcher watches only "now" types, so none are watched.
 	thresholds: true,
+	optionsLabel: () => m.get_data_options_chart(),
 	analyzable: true,
 	downloadable: true,
 	accepts: {
