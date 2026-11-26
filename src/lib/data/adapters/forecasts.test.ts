@@ -197,7 +197,7 @@ describe("forecastsAdapter", () => {
 		).rejects.toThrow("failed");
 	});
 
-	it("doesn't support the whole layer", async () => {
+	it("has nothing to target with no Where", async () => {
 		const layer = { dataset: "forecasts" } as never;
 		expect(await forecastsAdapter.target(layer, ctx)).toEqual({ unavailable: "place-unsupported" });
 	});

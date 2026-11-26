@@ -638,7 +638,8 @@ string`) now get the union return type. The mobile app passes a string token, so
     (data-dashboard #63).
   - **Slow-CI fix, bulk `type`, location groups (sjvair.com #348–#350, merged 2026-11-21; #351,
     merged 2026-11-22, 1af05307):** nothing to run (no migration, command or cache step). **After the deploy,
-    check #351's valley-wide `pesticides/locations/` (no area) is cached:** its cached value is
+    check #351's valley-wide `pesticides/locations/` (no area) is cached** (the dashboard no longer
+    asks for it since 2026-11-25, `where-empty`; check only if another client uses it): its cached value is
     about 1–1.5 MB, and whether the hosted memcached keeps it (1 MB item limit, bmemcached
     compression) is unverified. A refused set only logs "Could not cache", and every request
     becomes a ~0.8 s miss. A second GET should show `X-Cache-Status: HIT` (session `sjvair-com-6f`).
@@ -1204,10 +1205,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   wrong after a pollutant change.
 
 - **The Map's schools and child care sites are kept for the session.** _Deferred 2026-11-22
-  (step 5 spec 7c)._ Sites are fetched once per session per region, and once valley-wide (a Map
-  with no Where), shared across Maps and kept in memory, with no expiry and no size bound. Why:
-  sites rarely change, the server caches its answers for 24 hours, and the valley-wide list is
-  about 1.5 MB raw (2,782 sites), too much to fetch again per Map. **Revisit if** long-open tabs
+  (step 5 spec 7c; since 2026-11-25 there is no valley-wide list: a Map with no Where loads no
+  sites)._ Sites are fetched once per session per region, shared across Maps and kept in memory,
+  with no expiry and no size bound. Why: sites rarely change, the server caches its answers for 24
+  hours, and refetching them per Map costs a request for nothing. **Revisit if** long-open tabs
   show stale sites, or memory grows with many regions visited.
 
 - **Comparing mixed kinds of place in one widget.** _Deferred 2026-11-04 (step 4 spec 2);
@@ -1791,14 +1792,14 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 
 ## Analysis & data
 
-- **Overlays with no Where.** _Deferred 2026-11-22 (step 5 spec 7a, Task 14; the session
-  lead's ruling)._ A Chart's or Table's weather or pesticide-use main draws with no Where (every
-  station, the valley-wide total), but its overlays aren't fetched: the whole layer is for main
-  layers only (`everywhereMain` and `overlayInputsFor` in `src/lib/widgets/shared/overlays.ts`),
-  and the widget says "Add a place to show {layer} beside it." Why: an everywhere main and an
-  everywhere overlay have no meaningful pairing, and overlays pair by index, so the valley's use
-  would sit beside the first station only (or one station's weather beside the valley), which
-  would mislead. **Revisit when** someone asks for overlays with no Where.
+- **The Data Portal preview not updating after Clear → Fresno County (not reproduced).**
+  _Set aside 2026-11-25 by the user (`where-empty`)._ The user saw the preview not update after
+  clearing Where and picking Fresno County (the default Chart, on the local stack's `/workspace/`).
+  It couldn't be reproduced on the dev server or the stack (signed in), for every Show as type, by
+  search and by Browse → Counties, and with every request slowed by 3 s (Clear while loading). Why
+  set aside: the same change makes an empty Where mean nothing, so the state it was in no longer
+  exists. One related defect was fixed: the preview's title kept the old place after Clear.
+  **Revisit if** it is seen again: note the type, what the preview showed, and the steps.
 - **A weekly data resolution.** _Deferred 2026-11-18 (step 5 spec 6a)._ The Data Portal offers
   Every measurement, Hourly, Daily, Monthly and Yearly. Why: the server has no weekly summaries;
   it would need server work, with weeks starting Sunday in Pacific time, and the dashboard
@@ -2736,8 +2737,11 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   Map (5.3 s and 8.7 s). The local stack's saved dashboard had 10.35 s. Compressing the uploads or
   loading the Map later doesn't fix it; a smaller first chunk, or painting the Note before the
   rest of the app runs, might. Numbers and the chain's timings:
-  `docs/reference/lighthouse-2026-11-23.md`. **Revisit** shortly after launch (the user,
-  2026-11-23: launch doesn't wait for it; it was "at go-live").
+  `docs/reference/lighthouse-2026-11-23.md`. Since 2026-11-25 (`where-empty`, the user's new
+  starter layout) the starter's Map is second, above the fold on every screen, so its code loads
+  up front again: the 2026-11-23 "Map fetched up front" numbers are the ones that apply; re-measure
+  at the revisit. **Revisit** shortly after launch (the user, 2026-11-23: launch doesn't wait for
+  it; it was "at go-live").
 
 - **Additional widget types.** _Deferred 2026-09-23 (IDEA.md Q8)._ Brainstormed but not in
   the first-release widget set (see `ARCHITECTURE.md` → "Widget catalog"). **Revisit

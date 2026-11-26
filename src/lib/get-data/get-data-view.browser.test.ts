@@ -1,3 +1,4 @@
+import { setGeneratedTitle } from "$lib/widgets/titles.svelte";
 import "../../app.css";
 import axe from "axe-core";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
@@ -41,7 +42,7 @@ import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { makeDoc } from "$lib/sync/test-support";
 import { defaultDraft, type Draft } from "./draft.svelte";
 import { editDraft, saveEdit } from "./edit";
-import GetDataView from "./GetDataView.svelte";
+import GetDataView, { PREVIEW_ID } from "./GetDataView.svelte";
 
 type Hit = { id: string; name: string; detail: string; placeholder?: boolean };
 type Station = { id: string; name: string; distance: number; inside: boolean; active: boolean };
@@ -546,9 +547,21 @@ test("Overlay for appears only when places are in different zones", async () => 
 	expect((await second.current()).options).toEqual({ overlayFor: { kind: "monitor", id: "m2" } });
 });
 
+test("idle ticks (no Where) don't make searched monitors in one zone a set: no Overlay for", async () => {
+	const draft = monitorsDraft(["m1", "m2"], {}, ["burn-status"]);
+	draft.data.layers[0].monitorTypes = ["airnow"];
+	const { host } = await show(draft);
+	await drawn(host);
+	await expect.poll(() => forecastRequests.length).toBeGreaterThan(0);
+	await animationsSettled(host);
+	expect(page.getByRole("combobox", { name: "Overlay for" }).elements()).toHaveLength(0);
+});
+
 test("Overlay for lists a monitor set's monitors; the overlay is fetched for the one chosen", async () => {
 	const draft = monitorsDraft([], {}, ["burn-status"]);
 	draft.data.layers[0] = { dataset: "air-quality", entryType: "pm25", monitorTypes: ["purpleair"] };
+	// Ticked types draw only inside a Where.
+	draft.data.place = { kind: "region", type: "county", code: "06019" };
 	const { current } = await show(draft);
 	// Same zone or not, a set's monitors are listed: only the chosen one's overlay is fetched.
 	const choice = page.getByRole("combobox", { name: "Overlay for" });
@@ -684,6 +697,30 @@ test("Air quality's monitor types and searched monitors edit the draft's air-qua
 		.click();
 	expect(latest().data.layers[0]).not.toHaveProperty("monitors");
 	host.remove();
+});
+
+test("with Forecast chosen, the calendars are offered; one shows PM2.5 with a note", async () => {
+	const { latest } = await show({
+		type: "forecast-strip",
+		data: {
+			place: { kind: "region", type: "county", code: "06019" },
+			layers: [{ dataset: "forecasts" }]
+		}
+	});
+	const month = page.getByRole("radio", { name: "Month calendar" });
+	const year = page.getByRole("radio", { name: "Year calendar" });
+	await expect.element(month).toBeEnabled();
+	await expect.element(year).toBeEnabled();
+	await month.click();
+	await expect.poll(() => latest().type).toBe("calendar-month");
+	expect(latest().data.layers).toEqual([{ dataset: "air-quality", entryType: "pm25" }]);
+	await expect
+		.element(
+			page.getByText(
+				"Air Quality Forecasts has no pollutant of its own, so this shows PM2.5. Change the pollutant in What."
+			)
+		)
+		.toBeVisible();
 });
 
 test("a Forecast strip searches one monitor, saved on its forecasts layer; it replaces the Where", async () => {
@@ -932,20 +969,20 @@ test("get data view: None is never disabled", async () => {
 	}
 });
 
-test("get data view: Where shows with no pollutant and reads Everywhere", async () => {
+test("get data view: Where shows with no pollutant and reads None", async () => {
 	const draft = areasDraft(["06019"]);
 	draft.data.layers = [];
 	delete draft.data.place;
 	await show(draft);
 	await expect.element(page.getByRole("heading", { name: "Where" })).toBeVisible();
-	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Everywhere");
+	await expect.poll(() => page.getByTestId("where-summary").element().textContent).toBe("None");
 });
 
-test("get data view: Clear goes back to Everywhere, focuses Change places, says so", async () => {
+test("get data view: Clear goes back to None, focuses Change places, says so", async () => {
 	const { latest } = await show(areasDraft(["06019", "06029"]));
 	const clear = page.getByRole("button", { name: "Clear places" });
 	await clear.click();
-	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Everywhere");
+	await expect.poll(() => page.getByTestId("where-summary").element().textContent).toBe("None");
 	await expect.element(clear).not.toBeInTheDocument();
 	await expect.element(page.getByRole("button", { name: "Change places" })).toHaveFocus();
 	await expect
@@ -954,6 +991,37 @@ test("get data view: Clear goes back to Everywhere, focuses Change places, says 
 	const data = latest().data;
 	expect(data.place).toBeUndefined();
 	expect(data.selection).toBeUndefined();
+});
+
+test("get data view: the preview's title never drops its place while it loads", async () => {
+	// Titles are kept by widget id and every preview shares one: start this one from a blank.
+	setGeneratedTitle(PREVIEW_ID, "");
+	const seen: string[] = [];
+	// This test's preview is the last on the page (an earlier test's may still be there).
+	const latestTitle = () =>
+		[...document.querySelectorAll("[data-testid=get-data-preview] h3")].at(-1)?.textContent;
+	const before = document.querySelectorAll("[data-testid=get-data-preview]").length;
+	const observer = new MutationObserver(() => {
+		if (document.querySelectorAll("[data-testid=get-data-preview]").length <= before) return;
+		const t = latestTitle();
+		if (t) seen.push(t);
+	});
+	observer.observe(document.body, { subtree: true, childList: true, characterData: true });
+	try {
+		await show(areasDraft(["06019"]));
+		await expect.poll(latestTitle).toBe("PM2.5 · Area 06019 · Last 30 days");
+		expect(seen).not.toContain("PM2.5 · Last 30 days");
+	} finally {
+		observer.disconnect();
+	}
+});
+
+test("get data view: Clear drops the place from the preview's title", async () => {
+	await show(areasDraft(["06019"]));
+	const title = () => document.querySelector("[data-testid=get-data-preview] h3")?.textContent;
+	await expect.poll(title).toBe("PM2.5 · Area 06019 · Last 30 days");
+	await page.getByRole("button", { name: "Clear places" }).click();
+	await expect.poll(title).toBe("PM2.5 · Last 30 days");
 });
 
 test("get data view: a single-place widget has no Clear (its empty Where asks for one)", async () => {
@@ -969,10 +1037,12 @@ test("get data view: a single-place widget has no Clear (its empty Where asks fo
 	expect(page.getByRole("button", { name: "Clear places" }).elements()).toHaveLength(0);
 });
 
-test("get data view: searched monitors with no Where read Everywhere", async () => {
+test("get data view: searched monitors with no Where read None, showing the monitors", async () => {
 	await show(monitorsDraft(["m1", "m2"]));
 	await expect.poll(() => requests.length).toBeGreaterThan(0);
-	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Everywhere");
+	await expect
+		.element(page.getByTestId("where-summary"))
+		.toHaveTextContent("None: showing the monitors chosen in What");
 	await expect.poll(() => requests.length).toBeGreaterThan(0);
 	await expect.element(page.getByTestId("where-summary")).not.toHaveTextContent("Monitor");
 });
@@ -998,13 +1068,24 @@ test("get data view: a single-place widget with one monitor and no Where says so
 	expect(m.get_data_where_one_monitor()).toBe("None: this shows one monitor");
 });
 
-test("get data view: Reference-grade ticked with no Where reads Everywhere", async () => {
+test("get data view: Reference-grade ticked with no Where reads None, and the ticks say why", async () => {
 	const draft = areasDraft([]);
+	delete draft.data.selection;
 	draft.data.layers[0] = { dataset: "air-quality", entryType: "pm25", monitorTypes: ["airnow"] };
 	await show(draft);
-	await expect.poll(() => requests.length).toBeGreaterThan(0);
-	await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Everywhere");
-	await expect.element(page.getByTestId("where-summary")).not.toHaveTextContent("Monitor");
+	await expect.poll(() => page.getByTestId("where-summary").element().textContent).toBe("None");
+	await openSection(AIR);
+	await expect.element(page.getByText(m.get_data_types_need_place())).toBeVisible();
+	expect(requests).toEqual([]);
+});
+
+test("get data view: ticks inside a Where have no hint", async () => {
+	const draft = areasDraft(["06019"]);
+	draft.data.layers[0] = { dataset: "air-quality", entryType: "pm25", monitorTypes: ["airnow"] };
+	await show(draft);
+	await openSection(AIR);
+	await expect.element(page.getByRole("checkbox", { name: "airnow" })).toBeChecked();
+	expect(page.getByText(m.get_data_types_need_place()).elements()).toHaveLength(0);
 });
 
 test("get data view: a county Where with ticked types names the county, not the monitors", async () => {
@@ -1180,7 +1261,7 @@ describe("Show as a Chart from a school (a Chart holds areas only)", () => {
 		const { latest } = await show(atSchool());
 		await page.getByRole("radio", { name: "Chart" }).click();
 		await expect.element(page.getByText(m.get_data_school_point_left_out())).toBeVisible();
-		await expect.element(page.getByTestId("where-summary")).toHaveTextContent("Everywhere");
+		await expect.poll(() => page.getByTestId("where-summary").element().textContent).toBe("None");
 		expect(latest().type).toBe("chart");
 		expect(latest().data.place).toBeUndefined();
 	});
@@ -1383,6 +1464,20 @@ test("with weather chosen, Every measurement says weather has no individual meas
 	const raw = page.getByRole("radio", { name: m.get_data_resolution_raw() });
 	await expect.element(raw).toBeDisabled();
 	await expect.element(raw).toHaveAccessibleDescription("Weather has no individual measurements");
+});
+
+test("at an area, Every measurement says the area is summarized by the hour", async () => {
+	const draft = areasDraft(["06019"]);
+	draft.data.dateRange = { kind: "trailing", amount: 2, unit: "day" };
+	await show(draft);
+	await openResolution();
+	const raw = page.getByRole("radio", { name: m.get_data_resolution_raw() });
+	await expect.element(raw).toBeDisabled();
+	await expect
+		.element(raw)
+		.toHaveAccessibleDescription(
+			"Air quality for an area is summarized by the hour. Search for monitors in What to see every measurement."
+		);
 });
 
 test("on Automatic, only a dataset sharing no level with those chosen is greyed", async () => {

@@ -37,11 +37,11 @@ function resolveAll(refs: (RegionRef | null)[], signal?: AbortSignal) {
 	);
 }
 
-type Areas = string[] | "everywhere" | { unavailable: UnavailableReason };
+type Areas = string[] | { unavailable: UnavailableReason };
 
 /**
- * The region sqids the layer loads for `data`'s Where (sorted, each once); "everywhere" with no
- * Where; `{ unavailable }` when a pick has no region on the server. A region is itself, each of a
+ * The region sqids the layer loads for `data`'s Where (sorted, each once); none with no Where
+ * (sites are shown only inside a Where); `{ unavailable }` when a pick has no region on the server. A region is itself, each of a
  * selection's areas too; a school is the first of its fallback keys (ZIP, city, county) whose
  * region the server has, and gone only when none has one; a point is the
  * region `placeRegion` gives, looked up for the Map's pollutant (PM2.5 without one, as a shared
@@ -70,7 +70,7 @@ export async function locationAreas(data: WidgetDataConfig, signal?: AbortSignal
 		// The starter's unresolved `default-place` isn't fetched.
 		return { unavailable: "place-unsupported" };
 	} else {
-		return "everywhere";
+		return [];
 	}
 	// Looked up together; the first that can't be, in the Where's order, says why.
 	const ids: string[] = [];
@@ -83,21 +83,17 @@ export async function locationAreas(data: WidgetDataConfig, signal?: AbortSignal
 }
 
 /**
- * Each region's sites, by sqid, and the whole valley's under `VALLEY`: fetched once a session and
+ * Each region's sites, by sqid: fetched once a session and
  * shared by every Map (sites change rarely). A failed fetch is forgotten, so the next load asks
  * again. The shared fetch carries no caller's signal, so one caller's abort rejects only its own
  * load.
  */
 const areaSites = new Map<string, Promise<PesticideLocationFeature[]>>();
 
-/** The key of the valley-wide list (about 2,800 sites), for no Where; never a sqid (no `@`). */
-const VALLEY = "@valley";
-
 function sitesIn(area: string): Promise<PesticideLocationFeature[]> {
 	let request = areaSites.get(area);
 	if (!request) {
-		const params = area === VALLEY ? {} : { region: area };
-		request = getPesticideLocations(params).then((c) => c.features);
+		request = getPesticideLocations({ region: area }).then((c) => c.features);
 		const made = request;
 		made.catch(() => {
 			if (areaSites.get(area) === made) areaSites.delete(area);
@@ -107,7 +103,7 @@ function sitesIn(area: string): Promise<PesticideLocationFeature[]> {
 	return request;
 }
 
-/** Forgets every area's sites, and the valley's (for tests). */
+/** Forgets every area's sites (for tests). */
 export function resetLocationsCache(): void {
 	areaSites.clear();
 }
@@ -128,16 +124,16 @@ async function sitesInAreas(areas: string[], signal: AbortSignal): Promise<Locat
  * The schools and child care sites in the Map's Where, every type (ticking a type filters what's
  * loaded, never refetches): nothing without the layer or with no type ticked. Sites have no time,
  * so the day showing is ignored and the key holds only the areas' sqids; the Map never polls it.
- * With no Where it loads the whole valley's sites (one shared list; each Map filters it, never
- * copies it).
+ * With no Where it loads nothing (the Map's notes say to add a place).
  */
 export const locationsEntry: MapDataEntry<LocationsData, never, { locations: SchoolsSource }> = {
 	id: "locations",
 	async source({ data }, signal) {
 		if (!locationsLayer(data)?.locationTypes?.length) return null;
 		const found = await locationAreas(data, signal);
-		if (!Array.isArray(found) && found !== "everywhere") return found;
-		const areas = found === "everywhere" ? [VALLEY] : found;
+		if (!Array.isArray(found)) return found;
+		if (found.length === 0) return null;
+		const areas = found;
 		return {
 			key: `map-locations:${areas.join(",")}`,
 			cadence: "hour",

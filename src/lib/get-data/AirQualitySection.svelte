@@ -15,6 +15,7 @@
 	import { m } from "$lib/paraglide/messages.js";
 	import { report } from "$lib/safety/report";
 	import { DEFAULT_LAYER } from "$lib/widgets/defaults";
+	import { idleTypes } from "$lib/widgets/shared/input";
 	import type { EntryPick } from "./layers";
 	import {
 		monitorGroups,
@@ -94,6 +95,8 @@
 	);
 	const entryType = $derived(strip ? DEFAULT_LAYER.entryType : layer?.entryType);
 	const ticked = $derived(layer?.monitorTypes ?? []);
+	/** Ticked types draw only inside Where's places: with no Where, the ticks say so. */
+	const typesIdle = $derived(idleTypes(data, catalog).length > 0);
 	/** With `multiple`: the ticked pollutants, in layer order. */
 	const pollutantsTicked = $derived(
 		multiple
@@ -249,6 +252,11 @@
 		{#if anyBlockedNoPollutant}
 			<p id={noPollutantId} class="text-muted-foreground text-xs">
 				{m.get_data_monitor_type_no_pollutant()}
+			</p>
+		{/if}
+		{#if !single && typesIdle}
+			<p class="text-muted-foreground text-xs" data-types-need-place>
+				{m.get_data_types_need_place()}
 			</p>
 		{/if}
 		{#if !single}

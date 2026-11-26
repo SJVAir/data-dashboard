@@ -133,7 +133,7 @@ export function snapshotScope(scope: MonitorScope): { scope: SnapshotScope; scop
 /**
  * The latest readings of a scope's monitors. A monitor set: those of its types (kept by type
  * here: the readings endpoints have no type filter, spec decision 35) at `timestamp` inside its
- * regions, or currently everywhere, plus its searched monitors from the current list. Searched
+ * regions, plus its searched monitors from the current list. Searched
  * monitors alone: the current list kept to their ids.
  */
 async function scopeReadings(
@@ -148,13 +148,11 @@ async function scopeReadings(
 	const wanted = new Set(scope.ids);
 	if (scope.kind === "monitors") return (await current()).filter((m) => wanted.has(m.id));
 	const types = new Set(scope.types);
-	const inside = scope.regionIds
-		? ((await getMonitors(
-				type,
-				{ timestamp, region: scope.regionIds },
-				{ signal }
-			)) as MonitorLatest[])
-		: await current();
+	const inside = (await getMonitors(
+		type,
+		{ timestamp, region: scope.regionIds },
+		{ signal }
+	)) as MonitorLatest[];
 	const found = inside.filter((m) => types.has(m.type));
 	const have = new Set(found.map((m) => m.id));
 	const missing = scope.ids.filter((id) => !have.has(id));

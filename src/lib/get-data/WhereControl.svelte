@@ -31,13 +31,13 @@
 		offer: Exclude<PickerOffer, "monitors">;
 		purpose: { dataset: string; entryType: string };
 		/**
-		 * What the summary says with no picks instead of "Everywhere" (a single-place widget with no
-		 * monitor asks for one; with its one monitor it says so).
+		 * What the summary says with no picks: "None", or what shows instead (searched monitors), or
+		 * for a single-place widget a request for one place or monitor.
 		 */
-		emptyText?: string;
+		emptyText: string;
 		/**
-		 * Whether a "Clear" action goes back to no places (a type whose empty Where means
-		 * everywhere; not a single-place type, whose empty Where asks for one). It calls `onchange`
+		 * Whether a "Clear" action goes back to no places (nothing from Where; not a single-place
+		 * type, whose empty Where asks for one). It calls `onchange`
 		 * with no picks.
 		 */
 		clearable?: boolean;
@@ -111,7 +111,7 @@
 	});
 
 	const summary = $derived.by(() => {
-		if (picks.length === 0) return emptyText ?? m.get_data_where_everywhere();
+		if (picks.length === 0) return emptyText;
 		if (named?.key !== picksKey) return m.get_data_places_loading();
 		if (named.names) return formatList(named.names);
 		return m.get_data_places_count({

@@ -28,11 +28,18 @@ function once<T>(load: () => Promise<T>): () => Promise<T> {
 /** Requests in flight at once for one query. */
 const CONCURRENCY = 3;
 
+/**
+ * The bulk monitor request a monitor set makes (every monitor of its types in its regions): this
+ * adapter's own, never a layer's target (`Target` has no "everything").
+ */
+type BulkTarget = { kind: "bulk" };
+type AqRequest = Omit<AdapterRequest, "target"> & { target: Target | BulkTarget };
+
 /** A place in the result: its series key and its server id (monitor id or region sqid). */
 type Place = { place: string; id: string };
 
 async function placesOf(
-	target: Target,
+	target: Target | BulkTarget,
 	ctx: AdapterContext,
 	signal: AbortSignal
 ): Promise<{ places: Place[]; info: PlaceInfo[] }> {
@@ -43,7 +50,7 @@ async function placesOf(
 			info: target.ids.map((id) => ({ place: `monitor:${id}`, name: names.get(id) ?? id }))
 		};
 	}
-	if (target.kind === "all" || target.kind === "monitor-set") return { places: [], info: [] };
+	if (target.kind === "bulk" || target.kind === "monitor-set") return { places: [], info: [] };
 	const found = await resolveRegionKeys(target.keys, ctx.regions, signal);
 	const places: Place[] = [];
 	const info: PlaceInfo[] = [];
@@ -76,7 +83,7 @@ async function publishedProcessor(
 
 /** Each place's processor: the published one for monitors; `null` for regions and bulk. */
 function placeProcessors(
-	req: AdapterRequest,
+	req: AqRequest,
 	ctx: AdapterContext,
 	signal: AbortSignal
 ): Promise<Array<string | null>> {
@@ -117,7 +124,7 @@ async function collect(
 
 /** Raw entries of each monitor's published series over the range so far. */
 function rawFetch(
-	req: AdapterRequest,
+	req: AqRequest,
 	places: Place[],
 	processors: Array<string | null>,
 	signal: AbortSignal
@@ -132,7 +139,7 @@ function rawFetch(
 
 /** Raw entries as they are, or downsampled (in a worker) to the requested resolution. */
 async function rawSeries(
-	req: AdapterRequest,
+	req: AqRequest,
 	places: Place[],
 	processors: Array<string | null>,
 	signal: AbortSignal
@@ -160,7 +167,7 @@ async function rawSeries(
  * response lacks it (its rollup hasn't run yet); it is complete data, so not partial. A place a
  * response leaves out has no data: an empty series.
  *
- * `opts` (totals, completeness) is for monitors only, one by one or the whole layer's bulk
+ * `opts` (totals, completeness) is for monitors only, one by one or a monitor set's bulk
  * monitor rows (each its monitor's own summary, with its `sum`): region rows are means, and
  * summing them would be wrong.
  *
@@ -169,10 +176,10 @@ async function rawSeries(
  * at `month` and `year`, the stored rows (the current period's nightly row included). Nothing is
  * filled or backfilled from finer levels, so no figure is computed here.
  *
- * `bulk` scopes the whole layer's (`all`) bulk monitor requests by region and monitor type.
+ * `bulk` scopes the bulk monitor requests (`bulk`) by region and monitor type.
  */
 export async function summarySeries(
-	req: AdapterRequest,
+	req: AqRequest,
 	places: Place[],
 	processors: Array<string | null>,
 	signal: AbortSignal,
@@ -184,10 +191,10 @@ export async function summarySeries(
 
 /**
  * `summarySeries`, with the names the bulk monitor responses give their monitors (by id): the
- * whole layer's monitors may be ones the monitors list doesn't have (weather stations).
+ * bulk's monitors may be ones the monitors list doesn't have (weather stations).
  */
-export async function namedSummarySeries(
-	req: AdapterRequest,
+async function namedSummarySeries(
+	req: AqRequest,
 	places: Place[],
 	processors: Array<string | null>,
 	signal: AbortSignal,
@@ -196,9 +203,9 @@ export async function namedSummarySeries(
 ): Promise<{ series: Series[]; names: Map<string, string> }> {
 	const { target, entryType, now } = req;
 	const names = new Map<string, string>();
-	// Monitor rows (one by one, or the whole layer's bulk) are each monitor's own summaries;
+	// Monitor rows (one by one, or a monitor set's bulk) are each monitor's own summaries;
 	// region rows are means, so only monitors read sums.
-	const monitorRows = target.kind === "monitors" || target.kind === "all";
+	const monitorRows = target.kind === "monitors" || target.kind === "bulk";
 	const how = opts?.total && monitorRows ? "sum" : "mean";
 	const figure = !!opts?.figure;
 	const segments = planSegments({
@@ -220,7 +227,7 @@ export async function namedSummarySeries(
 
 	// Region rows are means: only the figure applies to them, not totals or completeness.
 	const bulkOpts: SummaryOptions | undefined =
-		target.kind === "all" ? opts : opts?.figure ? { figure: opts.figure } : undefined;
+		target.kind === "bulk" ? opts : opts?.figure ? { figure: opts.figure } : undefined;
 
 	// Tasks for a segment; `only` limits monitors to some ids (bulk requests can't be limited).
 	const tasksFor = (seg: Segment, only?: Set<string>): FetchTask[] => {
@@ -232,7 +239,7 @@ export async function namedSummarySeries(
 			);
 		}
 		// Monitors one by one, each with its own published series: the bulk monitor endpoint
-		// can't be scoped to monitor ids, so it is used only for the whole layer.
+		// can't be scoped to monitor ids, so it is used only for the bulk request.
 		if (target.kind === "monitors") {
 			return chosen.flatMap((p, i) =>
 				monitorSummaryTasks(
@@ -269,7 +276,7 @@ export async function namedSummarySeries(
 	);
 	const to = req.resolution as Period;
 	const knownIds = (): string[] =>
-		target.kind === "all"
+		target.kind === "bulk"
 			? [...new Set([...complete.keys(), ...fill.keys()])]
 			: places.map((p) => p.id);
 
@@ -316,7 +323,7 @@ export async function namedSummarySeries(
 	}
 
 	const all =
-		target.kind === "all"
+		target.kind === "bulk"
 			? [...new Set([...complete.keys(), ...fill.keys(), ...backfill.keys()])].map((id) => ({
 					place: `monitor:${id}`,
 					id
@@ -340,7 +347,7 @@ export async function namedSummarySeries(
 const FIGURE_LEVELS: ReadonlySet<string> = new Set(["day", "month", "year"]);
 
 /** Summary options asking for the figure, only at the levels that have one. */
-function figureOpts(req: AdapterRequest): SummaryOptions | undefined {
+function figureOpts(req: AqRequest): SummaryOptions | undefined {
 	return req.figure && FIGURE_LEVELS.has(req.resolution) ? { figure: req.figure } : undefined;
 }
 
@@ -349,7 +356,7 @@ function figureOpts(req: AdapterRequest): SummaryOptions | undefined {
  * query run again at hour resolution (a failure fails the whole query, never partial data).
  */
 async function summarySeriesWithWorstHour(
-	req: AdapterRequest,
+	req: AqRequest,
 	places: Place[],
 	processors: Array<string | null>,
 	signal: AbortSignal,
@@ -358,7 +365,7 @@ async function summarySeriesWithWorstHour(
 	if (!req.worstHour || req.resolution !== "day") {
 		return summarySeries(req, places, processors, signal, figureOpts(req), bulk);
 	}
-	const hourlyReq: AdapterRequest = {
+	const hourlyReq: AqRequest = {
 		...req,
 		resolution: "hour",
 		worstHour: false,
@@ -392,27 +399,26 @@ async function monitorNames(
 
 /**
  * A monitor set's data: one bulk request per period for every monitor of its types inside its
- * regions (everywhere with none), then each searched monitor the bulk didn't return fetched one by
+ * regions (always some), then each searched monitor the bulk didn't return fetched one by
  * one (`monitors`, today's path). One series per monitor, bulk ones first; names from the list.
  */
 async function fetchMonitorSet(
-	req: AdapterRequest,
+	req: AqRequest,
 	ctx: AdapterContext,
 	signal: AbortSignal
 ): Promise<QueryData> {
 	const { target } = req;
 	if (target.kind !== "monitor-set") throw new Error("Not a monitor set");
-	let region: string[] | undefined;
-	if (target.regionKeys) {
-		const found = await resolveRegionKeys(target.regionKeys, ctx.regions, signal);
-		region = found.map((r, i) => {
-			if (r === null) throw new Error(`Region ${target.regionKeys![i]} can't be looked up`);
-			return r.id;
-		});
-	}
-	const bulkReq: AdapterRequest = { ...req, target: { kind: "all" } };
+	// Never a bulk request with no region: that would be every monitor of the types.
+	if (target.regionKeys.length === 0) throw new Error("A monitor set needs at least one region");
+	const found = await resolveRegionKeys(target.regionKeys, ctx.regions, signal);
+	const region = found.map((r, i) => {
+		if (r === null) throw new Error(`Region ${target.regionKeys[i]} can't be looked up`);
+		return r.id;
+	});
+	const bulkReq: AqRequest = { ...req, target: { kind: "bulk" } };
 	const bulk = await summarySeriesWithWorstHour(bulkReq, [], [], signal, {
-		...(region && { region }),
+		region,
 		type: target.types
 	});
 	const have = new Set(bulk.map((s) => s.place));
@@ -439,7 +445,7 @@ async function fetchMonitorSet(
 }
 
 async function fetchTarget(
-	req: AdapterRequest,
+	req: AqRequest,
 	ctx: AdapterContext,
 	signal: AbortSignal
 ): Promise<QueryData> {
@@ -456,17 +462,9 @@ async function fetchTarget(
 		req.resolution === "raw" || req.downsampleFromRaw
 			? await rawSeries(req, places, processors, signal)
 			: await summarySeriesWithWorstHour(req, places, processors, signal);
-	let placeInfo = info;
-	if (req.target.kind === "all") {
-		const names = await monitorNames(ctx, signal);
-		placeInfo = series.map((s) => ({
-			place: s.place,
-			name: names.get(s.place.slice("monitor:".length)) ?? s.place.slice("monitor:".length)
-		}));
-	}
 	return {
 		series,
-		places: placeInfo,
+		places: info,
 		resolution: req.resolution,
 		fromRaw: req.downsampleFromRaw,
 		processor,
@@ -480,7 +478,7 @@ async function fetchTarget(
  * candidate's (empty) data when none has any. `key` is the region used. One series, never several.
  */
 export async function fallbackFetch(
-	req: AdapterRequest,
+	req: AqRequest,
 	ctx: AdapterContext,
 	signal: AbortSignal
 ): Promise<{ key: string; data: QueryData }> {
@@ -501,7 +499,7 @@ export async function fallbackFetch(
 }
 
 async function fetchAirQuality(
-	req: AdapterRequest,
+	req: AqRequest,
 	ctx: AdapterContext,
 	signal: AbortSignal
 ): Promise<QueryData> {
@@ -515,8 +513,7 @@ async function fetchAirQuality(
 export const airQualityAdapter: DatasetAdapter = {
 	id: "air-quality",
 	target: (layer, ctx) => layerTarget(layer, ctx),
-	// Regions (and so points and schools), the whole layer and a monitor set (fetched in bulk) have
-	// no raw entries.
+	// Regions (and so points and schools) and a monitor set (fetched in bulk) have no raw entries.
 	offered: (base, target) => (target.kind === "monitors" ? base : base.filter((r) => r !== "raw")),
 	// No overlays yet: its temperature and humidity are raw-only, which regions can't serve, and
 	// have no scale to draw as bands (they wait for the weather summaries).

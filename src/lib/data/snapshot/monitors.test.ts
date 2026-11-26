@@ -43,8 +43,8 @@ function source(over: { scope?: MonitorScope; figure?: Figure | null } = {}) {
 	return monitorDaySource({
 		entryType: "pm25",
 		day: DAY,
-		scope: over.scope ?? { kind: "all" },
-		scopeKey: "all",
+		scope: over.scope ?? { kind: "regions", ids: ["r1"] },
+		scopeKey: "regions:r1",
 		figure: over.figure === undefined ? figure : over.figure,
 		levels,
 		today: () => TODAY
@@ -64,17 +64,20 @@ beforeEach(() => {
 describe("monitorDaySource", () => {
 	it("keys by entry type, scope and day, on the hourly cadence", () => {
 		const s = source();
-		expect(s.key).toBe("snapshot:monitors:pm25:all:2026-11-09");
+		expect(s.key).toBe("snapshot:monitors:pm25:regions:r1:2026-11-09");
 		expect(s.cadence).toBe("hour");
 	});
 
-	it("requests the one day, with no region for all", async () => {
+	it("requests the one day, with the regions scope", async () => {
 		await source().fetch(signal);
 		expect(stub).toHaveBeenCalledTimes(1);
-		expect(stub).toHaveBeenCalledWith({ entryType: "pm25", start: DAY, end: DAY }, { signal });
+		expect(stub).toHaveBeenCalledWith(
+			{ entryType: "pm25", start: DAY, end: DAY, region: ["r1"] },
+			{ signal }
+		);
 	});
 
-	it("a monitor set asks for its types in its regions, and its searched monitors valley-wide", async () => {
+	it("a monitor set asks for its types in its regions, and its searched monitors wherever they are", async () => {
 		stub.mockImplementation(async (config: { type?: string[] }) =>
 			config.type
 				? [{ id: "a", summaries: [row(DAY, 5)] }]
@@ -98,20 +101,6 @@ describe("monitorDaySource", () => {
 		expect([...snap.figures.keys()]).toEqual(["a", "far"]);
 		// The typed request's row wins for a monitor both return.
 		expect(snap.figures.get("a")?.value).toBe(5);
-	});
-
-	it("a monitor set with no regions sends only its types", async () => {
-		const scope: MonitorScope = {
-			kind: "monitor-set",
-			types: ["airnow"],
-			regionIds: null,
-			ids: []
-		};
-		await source({ scope }).fetch(signal);
-		expect(stub).toHaveBeenCalledExactlyOnceWith(
-			{ entryType: "pm25", start: DAY, end: DAY, type: ["airnow"] },
-			{ signal }
-		);
 	});
 
 	it("sends the region ids for a regions scope", async () => {
@@ -150,8 +139,8 @@ describe("monitorDaySource", () => {
 		const snap = await monitorDaySource({
 			entryType: "pm25",
 			day: TODAY,
-			scope: { kind: "all" },
-			scopeKey: "all",
+			scope: { kind: "regions", ids: ["r1"] },
+			scopeKey: "regions:r1",
 			figure,
 			levels,
 			today: () => TODAY
@@ -220,8 +209,8 @@ describe("monitorPeriodSource", () => {
 		return monitorPeriodSource({
 			entryType: "pm25",
 			at: over.at ?? OCT,
-			scope: over.scope ?? { kind: "all" },
-			scopeKey: "all",
+			scope: over.scope ?? { kind: "regions", ids: ["r1"] },
+			scopeKey: "regions:r1",
 			figure: over.figure === undefined ? periodFigure : over.figure,
 			levels,
 			today: () => over.today ?? TODAY
@@ -238,7 +227,7 @@ describe("monitorPeriodSource", () => {
 	});
 
 	it("keys by entry type, scope and period, on the hourly cadence", () => {
-		expect(period().key).toBe("snapshot:monitors:pm25:all:month:2026-10-01");
+		expect(period().key).toBe("snapshot:monitors:pm25:regions:r1:month:2026-10-01");
 		expect(period().cadence).toBe("hour");
 	});
 
@@ -256,7 +245,7 @@ describe("monitorPeriodSource", () => {
 		const snap = await period({ at: { start: "2025-01-01", resolution: "year" } }).fetch(signal);
 		expect(monthly).not.toHaveBeenCalled();
 		expect(yearly).toHaveBeenCalledWith(
-			{ entryType: "pm25", start: "2025-01-01", end: "2025-12-31" },
+			{ entryType: "pm25", start: "2025-01-01", end: "2025-12-31", region: ["r1"] },
 			{ signal }
 		);
 		expect(snap.figures.get("a")).toEqual({ value: 8, level: levels[0], kind: "rated" });

@@ -81,10 +81,10 @@ export const MAP_TITLE = "PM2.5 map · Fresno County";
 /** The starter's widgets' generated titles, in reading order (PM2.5 in Fresno County). */
 export const STARTER_TITLES = [
 	NOTE,
+	MAP_TITLE,
 	"PM2.5 · Fresno County",
 	"Can we go outside? · Fresno County",
 	"Forecast · Fresno County",
-	MAP_TITLE,
 	CHART_TITLE,
 	"PM2.5 · Fresno County · This month so far"
 ];

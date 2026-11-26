@@ -75,20 +75,25 @@ describe("layerTarget", () => {
 		});
 	});
 
-	it("no Where and types give a monitor-set with regionKeys null", async () => {
+	it("types with an empty area list have no place either (never every monitor of them)", async () => {
+		const layer = {
+			...base,
+			selection: { kind: "regions", ids: [] },
+			monitorTypes: ["purpleair"]
+		} as unknown as QueryLayer;
+		expect(await layerTarget(layer, ctx)).toEqual({ unavailable: "place-unsupported" });
+	});
+
+	it("types with no Where have no place to count them in", async () => {
 		const layer: QueryLayer = { ...base, monitorTypes: ["purpleair", "airnow"] };
-		expect(await layerTarget(layer, ctx)).toEqual({
-			kind: "monitor-set",
-			ids: [],
-			types: ["purpleair", "airnow"],
-			regionKeys: null
-		});
+		expect(await layerTarget(layer, ctx)).toEqual({ unavailable: "place-unsupported" });
 	});
 
 	it("ticked types and searched monitors that don't measure the pollutant aren't fetched", async () => {
 		// PurpleAir and the BAM measure PM2.5, not ozone; AirNow isn't in the meta (unknown: kept).
 		const ozone: QueryLayer = {
 			...base,
+			place: { kind: "region", type: "county", code: "06019" },
 			entryType: "o3",
 			monitorTypes: ["purpleair", "airnow"],
 			monitors: ["m-bam"]
@@ -97,7 +102,7 @@ describe("layerTarget", () => {
 			kind: "monitor-set",
 			ids: [],
 			types: ["airnow"],
-			regionKeys: null
+			regionKeys: ["county:06019"]
 		});
 		// Every ticked type dropped: never an empty type list (the bulk endpoint would send every type),
 		// and nothing fetched: the widget says none of them measure it.
@@ -107,7 +112,12 @@ describe("layerTarget", () => {
 		expect(
 			await layerTarget({ ...ozone, monitorTypes: ["bam1022"], monitors: ["m-bam", "m-x"] }, ctx)
 		).toEqual({ unavailable: "monitor-unlisted" });
-		const pm25: QueryLayer = { ...base, monitorTypes: ["purpleair"], monitors: ["m-bam"] };
+		const pm25: QueryLayer = {
+			...base,
+			place: { kind: "region", type: "county", code: "06019" },
+			monitorTypes: ["purpleair"],
+			monitors: ["m-bam"]
+		};
 		expect(await layerTarget(pm25, ctx)).toMatchObject({ types: ["purpleair"], ids: ["m-bam"] });
 	});
 
@@ -275,8 +285,8 @@ describe("layerTarget", () => {
 		expect(await layerTarget(layer, ctx)).toEqual({ unavailable: "region-unresolved" });
 	});
 
-	it("targets the whole layer with neither a place nor a selection", async () => {
-		expect(await layerTarget(base, ctx)).toEqual({ kind: "all" });
+	it("has nothing to target with neither a place nor a selection", async () => {
+		expect(await layerTarget(base, ctx)).toEqual({ unavailable: "place-unsupported" });
 	});
 });
 

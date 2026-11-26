@@ -73,7 +73,6 @@
 				: m.widget_state_unavailable_no_resolution_view(),
 		"place-unsupported": () => m.widget_state_unavailable_place_unsupported(),
 		"point-outside": () => m.widget_state_unavailable_point_outside(),
-		"whole-layer-raw": () => m.widget_state_unavailable_whole_layer_raw(),
 		"none-measure": () =>
 			pollutant
 				? m.widget_state_unavailable_none_measure({ pollutant })

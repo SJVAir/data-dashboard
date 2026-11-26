@@ -15,6 +15,13 @@ from a worktree off `origin/main`. Server sessions message the coordinator. Duri
 spec docs until it merges into `main` (the user, 2026-11-04); **each step 4 spec starts by merging
 `origin/main` into `step-4`**, so cross-track docs on `main` don't pile up into one conflict.
 
+**`where-empty` (2026-11-25, branch from `main` bf60f91; spec
+`docs/superpowers/specs/2026-11-25-where-empty-design.md`):** an empty Where means nothing from
+Where, the raw-resolution reason names the place, Forecast → the calendars, the nav's "Data
+Portal" as a ghost button, the Map legend starting folded, a fullscreen Map zooming without Ctrl
+(`@sjvair/map-sdk` `0.1.0-beta.26`), the user's new starter layout, and the Forecast strip fitting
+its 3×4 minimum. PR into `main` (the merge needs the user's yes).
+
 **Now (2026-11-24):** step 5, the Map widget, is complete and **✅ merged into `main`**
 (PR [#68](https://github.com/SJVAir/data-dashboard/pull/68), 325e44e, 2026-11-23, the user's yes;
 specs #53, #56–#66 and the WebKit E2E fix #67; history in the step 5 row below). Pinned:

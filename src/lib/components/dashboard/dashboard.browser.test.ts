@@ -761,9 +761,9 @@ test("the dashboard ⋯ shows on a read-only dashboard", async () => {
 test("the starter's narrow widgets render at most 320px wide on a desktop", async () => {
 	const { app } = await seed(starterDashboard(FRESNO, null, []).body.widgets);
 	await renderGrid(app);
-	await expect.element(frame("starter-3")).toBeVisible();
-	// Current conditions and "Can we go outside?", three columns each.
-	for (const id of ["starter-2", "starter-3"]) {
+	await expect.element(frame("starter-4")).toBeVisible();
+	// Current conditions, "Can we go outside?" and the Forecast strip, three columns each.
+	for (const id of ["starter-3", "starter-4", "starter-5"]) {
 		expect(frame(id).element().getBoundingClientRect().width).toBeLessThanOrEqual(320);
 	}
 });

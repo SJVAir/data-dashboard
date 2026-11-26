@@ -5,11 +5,11 @@ import type { placeRegion } from "$lib/data";
 
 /**
  * Which monitors the Map draws: every monitor of `types` inside the regions `regionIds` (server
- * ids; `null` for everywhere) plus the searched monitors `ids` wherever they are, or (no ticked
+ * ids; ticked types need a Where) plus the searched monitors `ids` wherever they are, or (no ticked
  * types) exactly the searched monitors.
  */
 export type MonitorScope =
-	| { kind: "monitor-set"; types: string[]; regionIds: string[] | null; ids: string[]; key: string }
+	| { kind: "monitor-set"; types: string[]; regionIds: string[]; ids: string[]; key: string }
 	| { kind: "monitors"; ids: string[]; key: string };
 
 export type ScopeContext = { regions: RegionResolver; placeRegion: typeof placeRegion };
@@ -21,13 +21,14 @@ function sorted(ids: string[]): string[] {
 
 /**
  * The server ids of the regions a Where stands for: its regions; a school or point's
- * `placeRegion` region (the one the frame uses); `null` for no Where (everywhere).
+ * `placeRegion` region (the one the frame uses). Ticked types draw only inside a Where, so with
+ * none there is nothing to count them in (`queryLayer` doesn't pass them then).
  */
 async function whereRegionIds(
 	layer: QueryLayer,
 	ctx: ScopeContext,
 	signal?: AbortSignal
-): Promise<string[] | null | { unavailable: UnavailableReason }> {
+): Promise<string[] | { unavailable: UnavailableReason }> {
 	const { place, selection } = layer;
 	let refs: { type: string; code: string }[];
 	if (selection) {
@@ -46,7 +47,7 @@ async function whereRegionIds(
 		// The starter's unresolved `default-place` isn't fetched.
 		return { unavailable: "place-unsupported" };
 	} else {
-		return null;
+		return { unavailable: "place-unsupported" };
 	}
 	const ids: string[] = [];
 	for (const ref of refs) {
@@ -60,7 +61,7 @@ async function whereRegionIds(
 
 /**
  * The monitors a Map's air-quality layer asks for (spec decision 10): its ticked types inside the
- * Where's regions (every monitor of them with no Where) plus its searched monitors; only the
+ * Where's regions plus its searched monitors; only the
  * searched monitors with no ticked types; `null` (no monitors drawn) with neither, as for a
  * layer whose `queryLayer` carries none (no pollutant chosen). The key holds server ids, types
  * and monitor ids, never coordinates.
@@ -76,8 +77,8 @@ export async function monitorScope(
 		return ids.length > 0 ? { kind: "monitors", ids, key: ids.join(",") } : null;
 	}
 	const found = await whereRegionIds(layer, ctx, signal);
-	if (found && !Array.isArray(found)) return found;
-	const regionIds = found ? sorted(found) : null;
-	const key = [types.join(","), regionIds ? regionIds.join(",") : "*", ids.join(",")].join("|");
+	if (!Array.isArray(found)) return found;
+	const regionIds = sorted(found);
+	const key = [types.join(","), regionIds.join(","), ids.join(",")].join("|");
 	return { kind: "monitor-set", types, regionIds, ids, key };
 }

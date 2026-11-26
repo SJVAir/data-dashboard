@@ -27,13 +27,8 @@ import {
 test.use({ reducedMotion: "reduce" });
 
 const TULARE_TITLES = STARTER_TITLES.map((t) => t.replace("Fresno County", "Tulare County"));
-/** Where the Map's title is in reading order (the fifth widget, under the now row). */
-const MAP_INDEX = 4;
-/**
- * The titles on a phone before the Map is scrolled near: its code (which works out its generated
- * title) loads only once its frame nears the screen, so until then it reads its type's label.
- */
-const PHONE_TITLES = STARTER_TITLES.with(MAP_INDEX, "Map");
+/** Where the Map's title is in reading order (the second widget, under the welcome Note). */
+const MAP_INDEX = 1;
 
 function bar(page: Page): Locator {
 	return page.getByRole("region", { name: "This dashboard's place" });
@@ -111,7 +106,7 @@ function starterMap(page: Page, place = "Fresno County"): Locator {
 }
 
 test.describe("the starter's Map", () => {
-	test("shows full width under the now row, with smoke and fire", async ({
+	test("shows on the left under the Note, beside the now widgets, with smoke and fire", async ({
 		page,
 		context,
 		browserName
@@ -126,18 +121,19 @@ test.describe("the starter's Map", () => {
 		await expect(map).toBeVisible();
 		const main = (await page.getByRole("main").boundingBox())!;
 		const frame = (await map.boundingBox())!;
-		// Full width: it spans the grid, whatever the page's padding.
-		expect(frame.width).toBeGreaterThan(main.width * 0.85);
-		// Under the now row: below the Forecast, the last of the three above it.
-		const forecast = (await titleBar(page, STARTER_TITLES[3]).boundingBox())!;
-		expect(frame.y).toBeGreaterThan(forecast.y + forecast.height);
+		// Half the grid, on the left; Current conditions is on its row, to its right.
+		expect(frame.width).toBeGreaterThan(main.width * 0.4);
+		expect(frame.width).toBeLessThan(main.width * 0.6);
+		const current = (await titleBar(page, STARTER_TITLES[2]).boundingBox())!;
+		expect(current.x).toBeGreaterThan(frame.x + frame.width - 1);
+		expect(current.y).toBeLessThan(frame.y + frame.height / 2);
 		const toolbar = map.getByRole("group", { name: "Map options", exact: true });
-		const layers = toolbar.getByRole("button", { name: "Layers", exact: true });
+		// At half the grid the toolbar folds into one button: open it first.
+		await toolbar.getByRole("button", { name: "Open map options", exact: true }).click();
+		const layers = page.getByRole("button", { name: "Layers", exact: true });
 		await expect(layers).toBeVisible();
 		await layers.click();
-		await expect(
-			toolbar.getByRole("checkbox", { name: "Fire & Smoke", exact: true })
-		).toBeChecked();
+		await expect(page.getByRole("checkbox", { name: "Fire & Smoke", exact: true })).toBeChecked();
 	});
 
 	test("Change place moves the Map", async ({ page }) => {
@@ -147,7 +143,7 @@ test.describe("the starter's Map", () => {
 		if (webgl) await expect(starterMap(page)).toBeVisible();
 		await changeBarPlace(page, "Tulare County");
 		await expect(widgetTitles(page)).toHaveText(TULARE_TITLES);
-		await expect(widgetTitles(page).nth(4)).toHaveText("PM2.5 map · Tulare County");
+		await expect(widgetTitles(page).nth(MAP_INDEX)).toHaveText("PM2.5 map · Tulare County");
 		if (webgl) await expect(starterMap(page, "Tulare County")).toBeVisible();
 	});
 
@@ -168,12 +164,10 @@ test.describe("the starter's Map", () => {
 	test("on a phone it is full width", async ({ page }) => {
 		await page.setViewportSize({ width: 390, height: 844 });
 		await page.goto("./");
-		await expect(widgetTitles(page)).toHaveText(PHONE_TITLES);
-		// Below the fold, its code waits until it's scrolled near.
-		await titleBar(page, "Map").scrollIntoViewIfNeeded();
+		// Second in reading order, its code loads at once.
 		await expect(widgetTitles(page)).toHaveText(STARTER_TITLES);
 		// The widget's frame, which a browser with no WebGL shows too (it has no map region).
-		const map = page.getByTestId("widget-starter-5");
+		const map = page.getByTestId("widget-starter-2");
 		if (await hasWebGL(page)) await expect(starterMap(page)).toBeVisible();
 		await expect(map).toBeVisible();
 		const frame = (await map.boundingBox())!;
@@ -447,22 +441,18 @@ for (const colorScheme of ["light", "dark"] as const) {
 		test.describe(`${colorScheme} mode, ${size}`, () => {
 			test.use({ colorScheme, viewport });
 
-			test("the starter has no violations and reads Note, Current, Outside, Forecast, Map, Chart, Calendar", async ({
+			test("the starter has no violations and reads Note, Map, Current, Outside, Forecast, Chart, Calendar", async ({
 				page
 			}) => {
 				await page.goto("./");
-				// On a phone the Map is below the fold: until it's scrolled near, its code hasn't
-				// loaded and its title is its type's label.
-				const titles = size === "phone" ? PHONE_TITLES : STARTER_TITLES;
+				const titles = STARTER_TITLES;
 				await expect(widgetTitles(page)).toHaveText(titles);
 				await expect(bar(page)).toBeVisible();
 				await expectNoViolations(page);
 				// The headings are in document order, so this is the reading order.
 				await expect(widgetTitles(page)).toHaveText(titles);
 				if (size === "phone") {
-					// Scrolled near, the Map loads and takes its full title; checked again with it.
-					await titleBar(page, "Map").scrollIntoViewIfNeeded();
-					await expect(widgetTitles(page)).toHaveText(STARTER_TITLES);
+					// The Map, second on a phone, loads at once; checked again with it drawn.
 					if (await hasWebGL(page)) await expect(starterMap(page)).toBeVisible();
 					await expectNoViolations(page);
 					// The welcome Note grows to fit its text on a phone (WCAG reflow): none of it is

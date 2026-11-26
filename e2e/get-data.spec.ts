@@ -207,141 +207,44 @@ test("adds a temperature-only chart", async ({ page }) => {
 	await expect(added.getByText(/PM2\.5/)).toHaveCount(0);
 });
 
-test("with no Where, weather draws every station and pesticide use the whole valley", async ({
+test("with no Where, weather and pesticide use show nothing and say what to add", async ({
 	page
 }) => {
 	const range = { kind: "trailing", amount: 12, unit: "month" };
-	const widget = (id: string, x: number, layer: object) => ({
+	const widget = (id: string, x: number, layers: object[]) => ({
 		id,
 		type: "data-table",
 		title: null,
-		rect: { x, y: 0, w: 6, h: 6 },
-		data: { dateRange: range, resolution: "month", layers: [layer] }
+		rect: { x, y: 0, w: 4, h: 6 },
+		data: { dateRange: range, resolution: "month", layers }
 	});
 	const doc = {
 		kind: "dashboard",
 		schemaVersion: 1,
 		id: "no-where-1",
-		name: "Everywhere",
+		name: "No Where",
 		body: {
 			widgets: [
-				widget("w0", 0, { dataset: "weather", entryType: "temperature" }),
-				widget("w1", 6, { dataset: "pesticide-use", entryType: "pounds-applied" })
+				widget("w0", 0, [{ dataset: "weather", entryType: "temperature" }]),
+				widget("w1", 4, [{ dataset: "pesticide-use", entryType: "pounds-applied" }]),
+				widget("w2", 8, [
+					{ dataset: "pesticide-use", entryType: "pounds-applied" },
+					{ dataset: "weather", entryType: "temperature" }
+				])
 			]
 		}
 	};
-	// Every station from bulk requests naming the catalog's weather type; the valley's use from
-	// a request naming no place.
-	const stations = page.waitForRequest((r) =>
-		/\/monitors\/temperature\/summaries\/monthly\/\?.*type=cimis/.test(r.url())
-	);
-	const valley = page.waitForRequest(
-		(r) =>
-			/\/pesticides\/place\/\?/.test(r.url()) && !new URL(r.url()).searchParams.has("region_type")
-	);
-	await page.goto(shareLinkFor(doc));
-	await expect(page).toHaveURL(DASHBOARD_URL);
-	await Promise.all([stations, valley]);
-	const tables = page.getByRole("table");
-	// One column per station, named from the response; one for the valley.
-	await expect(
-		tables.getByRole("columnheader", { name: /CIMIS #80 - Fresno State/ }).first()
-	).toBeVisible();
-	await expect(
-		tables.getByRole("columnheader", { name: /CIMIS #15 - Stratford/ }).first()
-	).toBeVisible();
-	await expect(tables.getByRole("columnheader", { name: /Whole valley/ }).first()).toBeVisible();
-});
-
-test("with no Where, a weather overlay on the valley's pesticide use says to add a place", async ({
-	page
-}) => {
-	const doc = {
-		kind: "dashboard",
-		schemaVersion: 1,
-		id: "no-where-2",
-		name: "Everywhere",
-		body: {
-			widgets: [
-				{
-					id: "w0",
-					type: "chart",
-					title: null,
-					rect: { x: 0, y: 0, w: 12, h: 8 },
-					data: {
-						dateRange: { kind: "trailing", amount: 12, unit: "month" },
-						resolution: "month",
-						layers: [
-							{ dataset: "pesticide-use", entryType: "pounds-applied" },
-							{ dataset: "weather", entryType: "temperature" }
-						]
-					}
-				}
-			]
-		}
-	};
-	const weather: string[] = [];
+	const fetched: string[] = [];
 	page.on("request", (r) => {
-		if (
-			/\/monitors\/(weather\/place|temperature\/summaries)|\/summaries\/temperature\//.test(r.url())
-		) {
-			weather.push(r.url());
+		if (/\/pesticides\/place\/|\/temperature\/summaries\/|\/weather\/place/.test(r.url())) {
+			fetched.push(r.url());
 		}
 	});
-	const valley = page.waitForRequest(
-		(r) =>
-			/\/pesticides\/place\/\?/.test(r.url()) && !new URL(r.url()).searchParams.has("region_type")
-	);
 	await page.goto(shareLinkFor(doc));
 	await expect(page).toHaveURL(DASHBOARD_URL);
-	await valley;
-	// The main draws the valley; the overlay isn't fetched and says why.
-	await expect(page.getByText(/Whole valley/).first()).toBeVisible();
-	await expect(page.getByText("Add a place to show Temperature beside it.")).toBeVisible();
-	expect(weather).toEqual([]);
-});
-
-test("with no Where, a pesticide overlay on every station says to add a place", async ({
-	page
-}) => {
-	const doc = {
-		kind: "dashboard",
-		schemaVersion: 1,
-		id: "no-where-3",
-		name: "Everywhere",
-		body: {
-			widgets: [
-				{
-					id: "w0",
-					type: "chart",
-					title: null,
-					rect: { x: 0, y: 0, w: 12, h: 8 },
-					data: {
-						dateRange: { kind: "trailing", amount: 12, unit: "month" },
-						resolution: "month",
-						layers: [
-							{ dataset: "weather", entryType: "temperature" },
-							{ dataset: "pesticide-use", entryType: "pounds-applied" }
-						]
-					}
-				}
-			]
-		}
-	};
-	const pesticides: string[] = [];
-	page.on("request", (r) => {
-		if (/\/pesticides\/place\//.test(r.url())) pesticides.push(r.url());
-	});
-	const stations = page.waitForRequest((r) =>
-		/\/monitors\/temperature\/summaries\/monthly\/\?.*type=cimis/.test(r.url())
-	);
-	await page.goto(shareLinkFor(doc));
-	await expect(page).toHaveURL(DASHBOARD_URL);
-	await stations;
-	// The main draws every station; the overlay isn't fetched and says why.
-	await expect(page.getByText(/CIMIS #15 - Stratford/).first()).toBeVisible();
-	await expect(page.getByText("Add a place to show Pounds Applied beside it.")).toBeVisible();
-	expect(pesticides).toEqual([]);
+	// Each says what to add; nothing is fetched for a widget with no Where.
+	await expect(page.getByText("Add a place, or choose which monitors to show.")).toHaveCount(3);
+	expect(fetched).toEqual([]);
 });
 
 test("downloads a CSV with station and filter columns", async ({ page }) => {

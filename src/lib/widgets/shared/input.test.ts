@@ -8,7 +8,9 @@ import {
 } from "$lib/data/testing/dataset-catalog";
 import {
 	chartInput,
+	drawnMonitors,
 	hasPlaces,
+	idleTypes,
 	mainLayer,
 	queryLayer,
 	singleMonitor,
@@ -86,7 +88,10 @@ describe("widgetPlaceKind", () => {
 			"monitor-types"
 		);
 		expect(
-			widgetPlaceKind({ layers: [{ ...PM, monitors: ["m1"], monitorTypes: ["airnow"] }] })
+			widgetPlaceKind({
+				place: FRESNO,
+				layers: [{ ...PM, monitors: ["m1"], monitorTypes: ["airnow"] }]
+			})
 		).toBe("monitor-types");
 		expect(widgetPlaceKind({ place: FRESNO, layers: [PM] })).toBe("regions");
 		expect(widgetPlaceKind({ layers: [PM] })).toBe("none");
@@ -101,6 +106,12 @@ describe("widgetPlaceKind", () => {
 		expect(kind({ selection: { kind: "regions", ids: ["county:06019"] } })).toBe("regions");
 		expect(kind({ place: { kind: "point", lat: 36.7, lon: -119.8 } })).toBe("regions");
 		expect(kind({ place: { kind: "location", source: "cde-public", code: "1" } })).toBe("regions");
+	});
+	it("ticked types with no Where don't count: monitors with searched ones, else none", () => {
+		expect(
+			widgetPlaceKind({ layers: [{ ...PM, monitors: ["m1"], monitorTypes: ["airnow"] }] })
+		).toBe("monitors");
+		expect(widgetPlaceKind({ layers: [{ ...PM, monitorTypes: ["airnow"] }] })).toBe("none");
 	});
 	it("none with no Where (or the starter's unresolved one)", () => {
 		expect(kind({})).toBe("none");
@@ -263,6 +274,11 @@ describe("queryLayer", () => {
 		expect(result.selection).not.toBe(selection);
 	});
 
+	it("with no Where, the layer carries its searched monitors but not its ticked types", () => {
+		const layer: Layer = { ...PM, monitors: ["m1"], monitorTypes: ["airnow"] };
+		expect(queryLayer({ layers: [layer] }, layer)).toEqual({ ...PM, monitors: ["m1"] });
+	});
+
 	it("a widget with no Where gives the layer none", () => {
 		const result = queryLayer({ layers: [PM] }, PM);
 		expect(result).toEqual(PM);
@@ -315,7 +331,12 @@ describe("a humidity air-quality overlay never takes the monitors", () => {
 	});
 
 	it("a Chart's main query asks for them on the pollutant, the overlay at its places", () => {
-		const inputs = widgetInputs({ type: "chart", data }, WITH_HUMIDITY, "monitor-types");
+		// Inside a Where, where ticked types draw.
+		const inputs = widgetInputs(
+			{ type: "chart", data: { ...data, place: FRESNO } },
+			WITH_HUMIDITY,
+			"monitor-types"
+		);
 		expect(inputs.main?.layer).toMatchObject({
 			entryType: "pm25",
 			monitors: ["m1", "m2"],
@@ -374,24 +395,45 @@ describe("chartInput", () => {
 		expect(chartInput({ layers: [PM], place: FRESNO }, CATALOG, "day").empty).toBe(undefined);
 	});
 
-	it("weather or pesticide use with no Where asks for the whole layer", () => {
-		// Every station; the valley's total (the adapters read no Where as the whole layer).
+	it("weather or pesticide use with no Where asks for nothing and says what to add", () => {
 		const weather = chartInput({ layers: [TEMP] }, CATALOG, "day");
-		expect(weather.input?.layer).toEqual(TEMP);
-		expect(weather.empty).toBeUndefined();
+		expect(weather.input).toBeNull();
+		expect(weather.empty).toBe("add-where-or-monitors");
 		const use = { dataset: "pesticide-use", entryType: "pounds-applied" };
-		expect(chartInput({ layers: [use] }, CATALOG, "month").input?.layer).toEqual(use);
-		// Under a pollutant, the main is the pollutant: it still asks for a Where or monitors.
+		expect(chartInput({ layers: [use] }, CATALOG, "month").empty).toBe("add-where-or-monitors");
 		expect(chartInput({ layers: [PM, TEMP] }, CATALOG, "day").empty).toBe("add-where-or-monitors");
 	});
 
-	it("a Chart with Reference-grade ticked and no Where asks for every reference monitor", () => {
+	it("ticked types alone with no Where ask for nothing and say what to add", () => {
 		const layer: Layer = { ...PM, monitorTypes: ["airnow"] };
 		const { input, empty } = chartInput({ layers: [layer] }, CATALOG, "day");
-		expect(empty).toBeUndefined();
-		expect(input?.layer).toEqual(layer);
-		expect(input?.layer.place).toBeUndefined();
-		expect(input?.layer.selection).toBeUndefined();
+		expect(input).toBeNull();
+		expect(empty).toBe("add-where-or-monitors");
+	});
+
+	it("ticked types and searched monitors with no Where ask for the monitors only", () => {
+		const layer: Layer = { ...PM, monitors: ["m1"], monitorTypes: ["airnow"] };
+		const { input } = chartInput({ layers: [layer] }, CATALOG, "day");
+		expect(input?.layer).toEqual({ ...PM, monitors: ["m1"] });
+	});
+});
+
+describe("drawnMonitors and idleTypes", () => {
+	const ticked: Layer = { ...PM, monitors: ["m1"], monitorTypes: ["airnow"] };
+	it("ticked types draw only inside a Where", () => {
+		expect(drawnMonitors({ layers: [ticked] })).toEqual({ monitors: ["m1"], types: [] });
+		expect(drawnMonitors({ place: FRESNO, layers: [ticked] })).toEqual({
+			monitors: ["m1"],
+			types: ["airnow"]
+		});
+	});
+	it("idle types are the ticked ones with no Where", () => {
+		expect(idleTypes({ layers: [ticked] })).toEqual(["airnow"]);
+		expect(idleTypes({ place: FRESNO, layers: [ticked] })).toEqual([]);
+		// With the pollutant on None the ticks fetch nothing anyway: not idle for want of a Where.
+		expect(idleTypes({ layers: [{ dataset: "air-quality", monitorTypes: ["airnow"] }] })).toEqual(
+			[]
+		);
 	});
 });
 

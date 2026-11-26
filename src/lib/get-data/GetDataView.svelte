@@ -52,6 +52,7 @@
 		mainLayer,
 		wherePurpose,
 		widgetEffective,
+		drawnMonitors,
 		widgetMonitors,
 		widgetPlaceKind
 	} from "$lib/widgets/shared/input";
@@ -75,6 +76,7 @@
 	import type { GetDataMode } from "./mode";
 	import {
 		fromRangeDraft,
+		fromNowDraft,
 		isNowShaped,
 		keptThreshold,
 		nowPollutant,
@@ -340,6 +342,14 @@
 			? mapShowingOnly(plain, known).draft.data
 			: firstPollutantOnly(plain).data
 	);
+	/** The draft's type is a now type other than the Map: Show as converts it with `fromNowDraft`. */
+	const fromNow = $derived(!!type && offersNow(type) && plain.type !== MAP_TYPE);
+	/**
+	 * What a range type `t` is checked with: what switching produces (a Forecast becomes PM2.5,
+	 * `fromNowDraft`), else `blockData`.
+	 */
+	const rangeBlockData = (t: WidgetType) =>
+		fromNow ? fromNowDraft(plain as Draft, t).draft.data : blockData;
 	const showAs = $derived(
 		dataTypes().map((t) => {
 			if (!known) return { type: t, block: null };
@@ -349,10 +359,10 @@
 				? t.type === MAP_TYPE && resolutionBlock(t, plain.data)
 					? ("resolution" as const)
 					: null
-				: typeBlock(t, blockData, known, now);
+				: typeBlock(t, rangeBlockData(t), known, now);
 			const level =
 				block === "resolution"
-					? (resolutionBlock(t, offersNow(t) ? plain.data : blockData) ?? undefined)
+					? (resolutionBlock(t, offersNow(t) ? plain.data : rangeBlockData(t)) ?? undefined)
 					: undefined;
 			return { type: t, block, ...(level ? { level } : {}) };
 		})
@@ -524,17 +534,19 @@
 	});
 	const data = new DataWidget(() => namesWidget);
 
-	/** The draft has ticked monitor types: its lines are a monitor set's monitors. */
-	const setLines = $derived(widgetMonitors(plain.data).types.length > 0);
+	/** The draft's ticked types draw (inside a Where): its lines are a monitor set's monitors. */
+	const setLines = $derived(drawnMonitors(plain.data).types.length > 0);
 	/**
-	 * What Where says with no places, instead of "Everywhere": a single-place widget takes one place
-	 * or one monitor, so it asks for one, or says it shows its monitor.
+	 * What Where says with no places: "None" (nothing from Where), or that the searched monitors
+	 * show; a single-place widget takes one place or one monitor, so it asks for one, or says it
+	 * shows its monitor.
 	 */
 	const whereEmptyText = $derived.by(() => {
-		if (placeLimit(type) !== 1) return undefined;
-		return widgetMonitors(plain.data).monitors.length > 0
-			? m.get_data_where_one_monitor()
-			: m.get_data_where_place_or_monitor();
+		const searched = widgetMonitors(plain.data).monitors.length > 0;
+		if (placeLimit(type) === 1) {
+			return searched ? m.get_data_where_one_monitor() : m.get_data_where_place_or_monitor();
+		}
+		return searched ? m.get_data_where_none_monitors() : m.get_data_where_none();
 	});
 	/**
 	 * "Overlay for": a Chart choice, listing its lines (areas or monitors). With ticked types,
@@ -720,6 +732,13 @@
 		}
 		if (what.includes("monitor-types")) out.push(m.get_data_monitor_types_left_out());
 		if (what.includes("area")) out.push(m.get_data_school_point_left_out());
+		if (what.includes("forecast")) {
+			const forecast = known?.find((d) => d.id === "forecasts")?.label;
+			const pollutant = entryMeta(known, DEFAULT_LAYER)?.entryType.label;
+			if (forecast && pollutant) {
+				out.push(m.get_data_forecast_as_pollutant({ forecast, pollutant }));
+			}
+		}
 		if (pollutant) {
 			const label = (dataset: string, entryType: string) =>
 				entryMeta(known, { dataset, entryType })?.entryType.label ?? entryType;

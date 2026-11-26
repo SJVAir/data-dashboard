@@ -138,6 +138,25 @@ test("shows Today and Tomorrow with level chips, AQI text, burn status and foote
 	await expect.poll(() => generatedTitle(widget.id)).toBe("Forecast · Fresno County");
 });
 
+test("at its minimum size nothing overlaps: the days start at the top and the body scrolls", async () => {
+	// Smaller than its content, as a 3×4 strip on a desktop grid is (its burn chips wrap).
+	frame.style.width = "260px";
+	frame.style.height = "150px";
+	const screen = await show(widgetFor());
+	await expect.element(screen.getByText(m.forecast_today()), { timeout: 5000 }).toBeVisible();
+	const list = frame.querySelector("ul")!;
+	const days = [...frame.querySelectorAll("[data-forecast-day]")];
+	const zone = screen.getByText(m.forecast_zone({ zone: "Fresno County" })).element();
+	const box = (e: Element) => e.getBoundingClientRect();
+	// The days never rise above the widget, nor run into the lines under them.
+	expect(box(days[0]).top).toBeGreaterThanOrEqual(box(frame).top);
+	expect(box(days[days.length - 1]).bottom).toBeLessThanOrEqual(box(zone).top);
+	// What doesn't fit scrolls inside the widget.
+	const body = list.parentElement!;
+	expect(body.scrollHeight).toBeGreaterThan(body.clientHeight);
+	expect(getComputedStyle(body).overflowY).toBe("auto");
+});
+
 test("one monitor and no Where shows its zone's forecast", async () => {
 	const widget = widgetFor();
 	widget.data = { layers: [{ dataset: "forecasts", monitors: ["m-bam"] }] };

@@ -2,6 +2,7 @@
 	import logoCompact from "$lib/assets/logos/sjvair-parts/sjvair-icon.webp?no-inline";
 	import logoWhite from "$lib/assets/logos/sjvair-white.svg?no-inline";
 	import logo from "$lib/assets/logos/sjvair.svg?no-inline";
+	import { buttonVariants } from "$lib/components/ui/button";
 	import { fullscreenOpen } from "$lib/layout/fullscreen-view.svelte";
 	import { m } from "$lib/paraglide/messages.js";
 	import { HOME_HREF } from "$lib/routing";
@@ -33,7 +34,10 @@
 		<a
 			href={p("/data")}
 			aria-current={isActive("/data") ? "page" : undefined}
-			class="text-foreground hover:text-primary aria-[current=page]:text-primary py-1 text-sm aria-[current=page]:shadow-[inset_0_-2px_var(--color-primary)] dark:aria-[current=page]:shadow-[inset_0_-2px_var(--color-highlight)]"
+			class={[
+				buttonVariants({ variant: "ghost" }),
+				"aria-[current=page]:shadow-[inset_0_-2px_var(--color-primary)] dark:aria-[current=page]:shadow-[inset_0_-2px_var(--color-highlight)]"
+			]}
 		>
 			{m.nav_data()}
 		</a>

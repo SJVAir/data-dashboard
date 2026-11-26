@@ -1,12 +1,22 @@
-import { LEVELS, layerOffers, type Level, type PlaceKind } from "$lib/data/dataset-rules";
+import {
+	LEVELS,
+	layerOffers,
+	rawCause,
+	type Level,
+	type PlaceKind,
+	type RawCause
+} from "$lib/data/dataset-rules";
 import type { CatalogEntry } from "$lib/data/metadata";
 import type { DateRangeSpec, Layer, WidgetDataConfig } from "$lib/data/schema";
 import { calendarSpanDays, resolveRange } from "$lib/format/range";
 
 export type ResolutionChoice = {
 	level: "auto" | Level;
-	/** Why it can't be chosen: the point budget, or a chosen layer that isn't reported at it. */
-	blocked: "too-many-points" | { notOffered: Layer } | null;
+	/**
+	 * Why it can't be chosen: the point budget, or a chosen layer that isn't reported at it (at raw,
+	 * with the place's `cause` and the `finest` level offered there when the place is why).
+	 */
+	blocked: "too-many-points" | { notOffered: Layer; cause?: RawCause; finest?: Level } | null;
 };
 
 /**
@@ -53,11 +63,15 @@ export function resolutionChoices(args: {
 	for (const level of LEVELS) {
 		if (!within.includes(level)) continue;
 		const misfit = offers.find((o) => !o.levels.includes(level));
+		const cause = misfit && level === "raw" ? rawCause(misfit.layer, catalog, place) : null;
 		const points = Math.max(1, places) * days * PER_DAY[level];
 		choices.push({
 			level,
 			blocked: misfit
-				? { notOffered: misfit.layer }
+				? {
+						notOffered: misfit.layer,
+						...(cause ? { cause, ...(misfit.levels[0] ? { finest: misfit.levels[0] } : {}) } : {})
+					}
 				: points > MAX_POINTS
 					? "too-many-points"
 					: null

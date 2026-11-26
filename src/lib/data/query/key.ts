@@ -23,13 +23,11 @@ function sortedTarget(target: Target): Target {
 				kind: "monitor-set",
 				ids: [...target.ids].sort(),
 				types: [...target.types].sort(),
-				regionKeys: target.regionKeys ? [...target.regionKeys].sort() : null
+				regionKeys: [...target.regionKeys].sort()
 			};
 		// A fallback's keys are tried in order, so their order is part of the request.
 		case "fallback":
 			return target;
-		default:
-			return { kind: "all" };
 	}
 }
 

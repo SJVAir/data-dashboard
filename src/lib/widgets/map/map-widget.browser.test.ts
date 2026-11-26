@@ -611,15 +611,36 @@ test("map: a new Map's every type ticked draws every monitor in Where", async ()
 	);
 });
 
-test("with no Where, the ticked types draw every monitor of them, everywhere", async () => {
+test("with no Where, ticked types alone draw nothing: the Map asks for a place", async () => {
+	const screen = await show(mapWidget({ monitorTypes: ["purpleair"] }));
+	await expect.element(screen.getByText(m.map_empty_add_place())).toBeVisible();
+	await new Promise((r) => setTimeout(r, 100));
+	expect(fakeMaps.made).toHaveLength(0);
+	expect(getMonitors).not.toHaveBeenCalled();
+});
+
+test("with no Where, smoke and a searched monitor draw; the ticked types say they need a place", async () => {
 	vi.mocked(getMonitors).mockResolvedValue([
 		reading("p1"),
-		{ ...reading("n1"), type: "airnow" }
+		{ ...reading("s1"), type: "airnow" }
 	] as never);
-	await show(mapWidget({ monitorTypes: ["purpleair"] }));
+	const widget = mapWidget({ monitorTypes: ["purpleair"], monitors: ["s1"] });
+	widget.data.layers.push({ dataset: "hms-smoke" }, { dataset: "hms-fire" });
+	const screen = await show(widget);
 	const map = await madeMap();
-	await expect.poll(() => drawn(map)).toEqual(["p1"]);
-	expect(getMonitors).toHaveBeenCalledWith("pm25", undefined, expect.anything());
+	await expect.poll(() => drawn(map)).toEqual(["s1"]);
+	expect(pluginIds(map)).toContain("hms-smoke");
+	await expect.element(screen.getByText(m.widget_types_need_place())).toBeVisible();
+});
+
+test("with no Where, ticked types beside smoke (no searched monitors) say they need a place", async () => {
+	const widget = mapWidget({ monitorTypes: ["purpleair"] });
+	widget.data.layers.push({ dataset: "hms-smoke" }, { dataset: "hms-fire" });
+	const screen = await show(widget);
+	const map = await madeMap();
+	await expect.poll(() => pluginIds(map)).toContain("hms-smoke");
+	await expect.element(screen.getByText(m.widget_types_need_place())).toBeVisible();
+	expect(getMonitors).not.toHaveBeenCalled();
 });
 
 test("the toolbar's monitor types are only those the Map asked for", async () => {
@@ -1007,10 +1028,35 @@ test("a pollutant Map of several searched monitors and no Where counts them", as
 	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 map · 3 places");
 });
 
+test("with no Where, idle ticks don't stop a lone searched monitor naming the Map", async () => {
+	const alone = mapWidget({ monitors: ["a"], monitorTypes: [] });
+	const first = await show(alone);
+	await expect.poll(() => generatedTitle(alone.id)).not.toBe("PM2.5 map");
+	const named = generatedTitle(alone.id);
+	await first.unmount();
+	const ticked = mapWidget({ monitors: ["a"], monitorTypes: ["purpleair"] });
+	await show(ticked);
+	await expect.poll(() => generatedTitle(ticked.id)).toBe(named);
+});
+
 test("a Map with a pollutant and no Where is titled by its pollutant alone", async () => {
 	const widget = mapWidget({});
 	await show(widget);
 	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 map");
+});
+
+test("fullscreen turns cooperative gestures off, and back on when it ends", async () => {
+	const widget = mapWidget(region("019"));
+	await openSession(widget);
+	const screen = await render(MapWidget, {
+		target: frame,
+		props: { widget, fullscreen: true },
+		context: new Map<unknown, unknown>([[APP_CONTEXT_KEY, shownApp]])
+	});
+	const map = await madeMap();
+	await expect.poll(() => map.cooperativeGestures).toBe(false);
+	await screen.rerender({ widget, fullscreen: false });
+	await expect.poll(() => map.cooperativeGestures).toBe(true);
 });
 
 test("shows unavailable with no key", async () => {
@@ -1126,7 +1172,7 @@ test("a failed place lookup shows the error, and a retry looks it up again", asy
 	await expect.poll(() => screen.getByText(m.widget_state_error()).query()).toBeNull();
 });
 
-test("the legend sits in the widget's card, folds at any width, and starts folded when narrow", async () => {
+test("the legend sits in the widget's card, starts folded at any width, and keeps the choice", async () => {
 	const screen = await show(mapWidget(region("019")));
 	const map = await madeMap();
 	map.ready = true;
@@ -1135,14 +1181,16 @@ test("the legend sits in the widget's card, folds at any width, and starts folde
 		.toBe("false");
 	const legend = () => frame.querySelector<HTMLElement>("[data-legend]")!;
 	const toggle = screen.getByRole("button", { name: m.map_legend_toggle() });
-	// Wide: open, and the header folds it.
-	await expect.element(toggle).toHaveAttribute("aria-expanded", "true");
+	// Wide: folded until the header opens it.
+	await expect.element(toggle).toHaveAttribute("aria-expanded", "false");
 	const controls = toggle.element().getAttribute("aria-controls")!;
 	expect(document.getElementById(controls)?.contains(legend())).toBe(true);
+	await expect.poll(() => legend().checkVisibility()).toBe(false);
+	await toggle.click();
+	await expect.element(toggle).toHaveAttribute("aria-expanded", "true");
 	await expect.poll(() => legend().checkVisibility()).toBe(true);
 	await toggle.click();
 	await expect.element(toggle).toHaveAttribute("aria-expanded", "false");
-	await expect.poll(() => legend().checkVisibility()).toBe(false);
 	await toggle.click();
 	await expect.element(toggle).toHaveAttribute("aria-expanded", "true");
 	await expect.poll(() => legend().checkVisibility()).toBe(true);
@@ -5066,7 +5114,9 @@ test("at about 300 px tall the legend fits under the toolbar and scrolls", async
 	const screen = await show(mapWidget(region("019")));
 	const map = await madeMap();
 	map.ready = true;
-	await expect.poll(() => frame.querySelector("[data-legend]")).toBeTruthy();
+	// It starts folded: open it.
+	await screen.getByRole("button", { name: m.map_legend_toggle() }).click();
+	await expect.poll(() => frame.querySelector("[data-legend]")?.checkVisibility()).toBe(true);
 	const card = frame.querySelector("[data-legend]")!.parentElement!;
 	// A legend taller than the map, as with several layers.
 	const tall = document.createElement("div");
@@ -5182,6 +5232,16 @@ describe("schools and child care on the Map", () => {
 			expect(pluginIds(map).some((id) => id.startsWith("locations-"))).toBe(false);
 			await screen.unmount();
 		}
+		expect(getPesticideLocations).not.toHaveBeenCalled();
+	});
+
+	test("with no Where, ticked sites load nothing and say they need a place", async () => {
+		const widget = locationsMap(["child_care"], { monitors: ["s1"], monitorTypes: [] });
+		const screen = await show(widget);
+		await madeMap();
+		await expect
+			.element(screen.getByText(m.map_sites_need_place({ layers: "Child care" })))
+			.toBeVisible();
 		expect(getPesticideLocations).not.toHaveBeenCalled();
 	});
 

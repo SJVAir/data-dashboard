@@ -169,7 +169,7 @@ export const LayerSchema = z.object({
 	monitors: uniqueIds("Monitor ids must be unique").optional(),
 	/**
 	 * The air-quality layer's ticked monitor types (the monitors meta's type keys): every monitor of
-	 * them inside the widget's Where, or everywhere with no Where. Meaningful only on the
+	 * them inside the widget's Where (none with no Where: they need a place). Meaningful only on the
 	 * air-quality layer.
 	 */
 	monitorTypes: uniqueIds("Monitor types must be unique").optional(),
@@ -187,7 +187,7 @@ export const WidgetDataConfigSchema = z
 		 * which is never stored.
 		 */
 		resolution: ResolutionSchema.optional(),
-		/** Where: one place, or several (`selection`); neither is everywhere. */
+		/** Where: one place, or several (`selection`); neither is nothing from Where. */
 		place: PlaceRefSchema.optional(),
 		selection: SpatialSelectionSchema.optional(),
 		layers: z.array(LayerSchema).max(LIMITS.LAYERS_MAX)

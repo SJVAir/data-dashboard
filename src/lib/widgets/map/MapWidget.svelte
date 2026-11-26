@@ -33,7 +33,10 @@
 	import { m } from "$lib/paraglide/messages.js";
 	import { useApp } from "$lib/store/app.svelte";
 	import {
+		drawnMonitors,
 		entryMeta,
+		hasWhere,
+		idleTypes,
 		mainLayer,
 		wherePurpose,
 		widgetEffective,
@@ -96,8 +99,6 @@
 	let { widget, fullscreen = false }: { widget: WidgetInstance; fullscreen?: boolean } = $props();
 	const app = useApp();
 
-	/** Below this widget width the legend folds into a "Legend" button. */
-	const NARROW_PX = 360;
 	/** Below this widget width (the toolbar's narrow breakpoint) the day stepper drops its slider. */
 	const STEPPER_NARROW_REM = 48;
 
@@ -326,22 +327,28 @@
 	 * layer's types and monitors with none). A pollutant is optional (spec decision 6).
 	 */
 	const hasPollutant = $derived(!!pollutantLayer(widget.data, known)?.entryType);
+	/** The Map has a Where: with none, nothing that needs a place draws (ticked types, sites). */
+	const whereSet = $derived(hasWhere(widget.data));
+	/** Ticked monitor types that draw nothing for want of a Where. */
+	const typesIdle = $derived(hasPollutant ? idleTypes(widget.data, known) : []);
+	/** Ticked sites that draw nothing for want of a Where. */
+	const sitesIdle = $derived(drawsLocations && !whereSet);
 	/**
-	 * The Map has something to draw: a pollutant, smoke and fire, spray notices, pesticide use or
-	 * a region fill. With none, it says what to add.
+	 * The Map has something to draw: a pollutant (inside a Where, or its searched monitors), smoke
+	 * and fire, spray notices, sites inside a Where, pesticide use or a region fill. With none, it
+	 * says what to add: a place, when one would make something draw.
 	 */
 	const drawsAnything = $derived(
-		hasPollutant ||
+		(hasPollutant && (whereSet || drawnMonitors(widget.data, known).monitors.length > 0)) ||
 			hasSmokeAndFire(widget.data) ||
 			hasNotices(widget.data) ||
-			drawsLocations ||
+			(drawsLocations && whereSet) ||
 			!!useLayer ||
 			!!savedFill
 	);
-	/**
-	 * No map is made: nothing to draw, or only the starter's unresolved place. No Where is
-	 * everywhere (spec decision 1), never idle.
-	 */
+	/** A place would make something draw: ticked types or sites idle for want of a Where. */
+	const needsPlace = $derived(typesIdle.length > 0 || sitesIdle);
+	/** No map is made: nothing to draw, or only the starter's unresolved place. */
 	const idle = $derived(!drawsAnything || widget.data.place?.kind === "default-place");
 	/**
 	 * Whether the map can show a pollutant of the tile: none the server's map offers is never drawn.
@@ -832,6 +839,12 @@
 
 	const onScreen = new OnScreen(() => body, { activity: app.platform.activity });
 	onDestroy(() => onScreen.destroy());
+	// Fullscreen, the map takes the wheel and one finger (no Ctrl needed); on the dashboard it
+	// keeps cooperative gestures, so the page scrolls past it. Reads `fullscreen` and `map` only.
+	$effect(() => {
+		const on = !fullscreen;
+		map?.setCooperativeGestures(on);
+	});
 	// Live data polls only while the map is worth drawing (on screen, the page visible).
 	$effect(() => {
 		const on = onScreen.active;
@@ -855,8 +868,9 @@
 			get monitorsShown() {
 				return hasPollutant;
 			},
+			// Waiting only for a place, it's still titled by what it shows ("PM2.5 map").
 			get idle() {
-				return idle;
+				return idle && !needsPlace;
 			},
 			get supported() {
 				return supported;
@@ -1019,6 +1033,24 @@
 				...(markable && { action: { label: m.widget_edit_data(), onclick: editData } })
 			});
 		}
+		// Ticked types or sites with no Where draw nothing: say what's missing.
+		// The Map still draws its other layers (smoke, a searched monitor), so it says so whenever
+		// its ticks draw nothing, unlike a Chart or Table whose empty message covers it.
+		if (typesIdle.length > 0) {
+			notes.push({
+				message: markable ? m.widget_types_need_place() : m.widget_types_need_place_view(),
+				hook: "map-types-need-place"
+			});
+		}
+		if (sitesIdle && tickedGroups.length) {
+			const layers = formatList(tickedGroups.map((g) => g.label));
+			notes.push({
+				message: markable
+					? m.map_sites_need_place({ layers })
+					: m.map_sites_need_place_view({ layers }),
+				hook: "map-sites-need-place"
+			});
+		}
 		if (locationTypes.length && locationGroups === "failed") {
 			notes.push({
 				message: m.map_locations_groups_failed(),
@@ -1114,7 +1146,6 @@
 		else if (data.monitorsState.status === "error") data.retryMonitors();
 	}
 
-	const narrow = $derived(width > 0 && width < NARROW_PX);
 	/** The toolbar's narrow breakpoint (48rem), which the day stepper follows. */
 	const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
 	const stepperNarrow = $derived(width > 0 && width < STEPPER_NARROW_REM * remPx);
@@ -1161,7 +1192,7 @@
 
 {#snippet overlays()}
 	{#if map}
-		<MapLegendOverlay {map} {narrow} bind:open={legendOpen} />
+		<MapLegendOverlay {map} bind:open={legendOpen} />
 	{/if}
 	{#if map && (!map.ready || data.monitorsLoading)}
 		<!-- Over the map and its legend, under the notes (the toolbar and list stay usable). -->
@@ -1264,8 +1295,14 @@
 			state={instead}
 			{widget}
 			onretry={retry}
-			onchoose={drawsAnything ? () => openPlacePicker({ widgetId: widget.id }) : undefined}
-			idleText={drawsAnything ? undefined : m.map_empty_add_layers()}
+			onchoose={drawsAnything || needsPlace
+				? () => openPlacePicker({ widgetId: widget.id })
+				: undefined}
+			idleText={drawsAnything
+				? undefined
+				: needsPlace
+					? m.map_empty_add_place()
+					: m.map_empty_add_layers()}
 			children={nothing}
 		/>
 	{:else if map}

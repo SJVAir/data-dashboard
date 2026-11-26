@@ -2,8 +2,10 @@ import {
 	LEVELS,
 	datasetOffers,
 	layerOffers,
+	rawCause,
 	type Level,
-	type PlaceKind
+	type PlaceKind,
+	type RawCause
 } from "$lib/data/dataset-rules";
 import type { CatalogEntry } from "$lib/data/metadata";
 import type { DateRangeSpec, Layer } from "$lib/data/schema";
@@ -13,8 +15,11 @@ import { LEVEL_BY, LEVEL_LABEL, LEVEL_LOWER } from "./level-phrases";
 
 /** Why a dataset can't be chosen at the widget's data resolution. */
 export type DatasetBlock =
-	/** An explicit level `at` it isn't reported at; `suggest` is the nearest level it is. */
-	| { kind: "not-offered"; at: Level; suggest: Level }
+	/**
+	 * An explicit level `at` it isn't reported at; `suggest` is the nearest level it is. At raw,
+	 * `cause` says when the place (an area, ticked types), not the dataset, is why.
+	 */
+	| { kind: "not-offered"; at: Level; suggest: Level; cause?: RawCause }
 	/** On Automatic, it shares no level with the datasets already chosen; reported `by`. */
 	| { kind: "no-common"; by: Level };
 
@@ -48,7 +53,8 @@ export function datasetBlock(args: {
 					Math.abs(rank(a) - rank(resolution)) - Math.abs(rank(b) - rank(resolution)) ||
 					rank(b) - rank(a)
 			)[0];
-			return { kind: "not-offered", at: resolution, suggest };
+			const cause = resolution === "raw" ? rawCause(layer, catalog, place) : null;
+			return { kind: "not-offered", at: resolution, suggest, ...(cause ? { cause } : {}) };
 		}
 		return null;
 	}
@@ -76,6 +82,8 @@ export function datasetBlockText(block: DatasetBlock, pinned?: boolean): string 
 		});
 	}
 	const level = LEVEL_LABEL[block.suggest]();
+	if (block.cause === "area") return m.get_data_dataset_raw_area({ level });
+	if (block.cause === "monitor-types") return m.get_data_dataset_raw_types({ level });
 	return block.at === "raw"
 		? m.get_data_dataset_not_offered_raw({ level })
 		: m.get_data_dataset_not_offered({ by: LEVEL_BY[block.suggest](), level });

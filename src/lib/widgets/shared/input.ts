@@ -5,7 +5,6 @@ import {
 	type Level,
 	type PlaceKind
 } from "$lib/data/dataset-rules";
-import { drawnWithNoWhere } from "$lib/data/adapters/offered";
 import type { CatalogEntry, EntryTypeMeta, Figure } from "$lib/data/metadata";
 import { AIR_QUALITY, isPollutantLayer, layerKind } from "$lib/data/layer-kind";
 import { currentInput } from "$lib/data/now/current";
@@ -72,7 +71,7 @@ export function wherePurpose(
 /** A JSON-shaped value's deep copy; unlike `structuredClone`, it also copies a reactive draft. */
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
-/** A widget's Where: its place or selection (a copy), or neither (everywhere). */
+/** A widget's Where: its place or selection (a copy), or neither (no Where: nothing from Where). */
 export function widgetWhere(data: WidgetDataConfig): {
 	place?: PlaceRef;
 	selection?: SpatialSelection;
@@ -143,7 +142,10 @@ export function queryLayer(
 	if (aq || isStripLayer(data, layer)) {
 		if (monitors && monitors.length > 0) out.monitors = [...monitors];
 	}
-	if (aq && monitorTypes && monitorTypes.length > 0) out.monitorTypes = [...monitorTypes];
+	// Ticked types are counted only inside Where's areas: with no Where they draw nothing.
+	if (aq && hasWhere(data) && monitorTypes && monitorTypes.length > 0) {
+		out.monitorTypes = [...monitorTypes];
+	}
 	return out;
 }
 
@@ -164,6 +166,23 @@ export function widgetMonitors(
 }
 
 /**
+ * The monitors a widget draws: its searched monitors wherever they are, and its ticked types only
+ * inside its Where (with no Where they draw nothing; see `idleTypes`).
+ */
+export function drawnMonitors(
+	data: WidgetDataConfig,
+	catalog?: CatalogEntry[]
+): { monitors: string[]; types: string[] } {
+	const { monitors, types } = widgetMonitors(data, catalog);
+	return { monitors, types: hasWhere(data) ? types : [] };
+}
+
+/** The ticked types that draw nothing because the widget has no Where (its notes say so). */
+export function idleTypes(data: WidgetDataConfig, catalog?: CatalogEntry[]): string[] {
+	return hasWhere(data) ? [] : widgetMonitors(data, catalog).types;
+}
+
+/**
  * A single-place widget's monitor: its air-quality layer's one searched monitor when it has no
  * ticked types (spec decision 11), else `undefined`.
  */
@@ -172,10 +191,9 @@ export function singleMonitor(data: WidgetDataConfig): string | undefined {
 	return monitors.length === 1 && types.length === 0 ? monitors[0] : undefined;
 }
 
-/** Whether a widget has a place to fetch: a Where, or monitors on its air-quality layer. */
+/** Whether a widget has a place to fetch: a Where, or searched monitors on its air-quality layer. */
 export function hasPlaces(data: WidgetDataConfig): boolean {
-	const { monitors, types } = widgetMonitors(data);
-	return hasWhere(data) || monitors.length > 0 || types.length > 0;
+	return hasWhere(data) || drawnMonitors(data).monitors.length > 0;
 }
 
 /**
@@ -189,13 +207,13 @@ export function nowInput(data: WidgetDataConfig, layer: Layer | undefined): Quer
 
 /**
  * Where a widget's places are fetched for, as the dataset rules count it (`PlaceKind`):
- * `monitor-types` when its air-quality layer (with an entry type) has ticked types; `monitors`
- * for searched monitors alone; else `regions` for any Where (a point or a school resolves to
+ * `monitor-types` when its air-quality layer (with an entry type) has ticked types inside a Where;
+ * `monitors` for searched monitors otherwise (ticked types with no Where draw nothing); else `regions` for any Where (a point or a school resolves to
  * regions), else `none` (also for only the starter's unresolved `default-place`, which isn't
  * fetched).
  */
 export function widgetPlaceKind(data: WidgetDataConfig): PlaceKind {
-	const { monitors, types } = widgetMonitors(data);
+	const { monitors, types } = drawnMonitors(data);
 	if (types.length > 0) return "monitor-types";
 	if (monitors.length > 0) return "monitors";
 	if (data.selection) return "regions";
@@ -245,8 +263,7 @@ export type ChartEmpty = "add-where-or-monitors" | "add-layers";
  * `resolution` (the dataset's), with each day's worst hour, at every place of its Where (there is
  * no cap on a Chart's lines or a Table's columns). A widget with no Where and no monitors
  * asks for nothing (`input` is null) and says what to add (`empty`): monitors or a Where, or, with
- * no layers at all, what to show; unless its main is drawn everywhere (`drawnWithNoWhere`: every
- * weather station, the valley's pesticide use).
+ * no layers at all, what to show (no Where means nothing from Where, for every dataset).
  */
 export function chartInput(
 	data: WidgetDataConfig,
@@ -255,7 +272,7 @@ export function chartInput(
 ): { layer: Layer | undefined; input: QueryInput | null; empty?: ChartEmpty } {
 	const layer = mainLayer(data, catalog);
 	if (data.layers.length === 0) return { layer, input: null, empty: "add-layers" };
-	if (!hasPlaces(data) && !(layer && drawnWithNoWhere(layer.dataset))) {
+	if (!hasPlaces(data)) {
 		return { layer, input: null, empty: "add-where-or-monitors" };
 	}
 	if (!layer) return { layer, input: null };

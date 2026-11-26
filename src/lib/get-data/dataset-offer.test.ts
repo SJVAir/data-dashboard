@@ -117,3 +117,39 @@ describe("wholePeriodRange", () => {
 		});
 	});
 });
+
+describe("a raw block caused by the place", () => {
+	it("names the area, or the ticked types, and the level to set", () => {
+		const block = datasetBlock({
+			catalog,
+			place: "regions",
+			candidate: [pm25],
+			chosen: [],
+			resolution: "raw"
+		});
+		expect(block).toEqual({ kind: "not-offered", at: "raw", suggest: "hour", cause: "area" });
+		expect(datasetBlockText(block!)).toBe(
+			"Air quality for an area is summarized. Set the data resolution to Hourly to add it."
+		);
+		const types = datasetBlock({
+			catalog,
+			place: "monitor-types",
+			candidate: [pm25],
+			chosen: [],
+			resolution: "raw"
+		});
+		expect(datasetBlockText(types!)).toBe(
+			"Ticked monitor types are summarized. Set the data resolution to Hourly to add it."
+		);
+	});
+	it("weather keeps its own reason", () => {
+		const block = datasetBlock({
+			catalog,
+			place: "regions",
+			candidate: [temperature],
+			chosen: [],
+			resolution: "raw"
+		});
+		expect(block).not.toHaveProperty("cause");
+	});
+});

@@ -212,6 +212,8 @@ test("adds a Map from Add widget at the dashboard's place", async ({ page, mapTi
 	const map = mapOf(page, FRESNO_MAP);
 	await expect(map.locator("canvas")).toBeVisible();
 	await expect(inView(map)).toHaveText(FRESNO_VIEW);
+	// The legend starts folded; its button opens it.
+	await openLegend(map);
 	await expect(map.getByRole("region", { name: "Legend" })).toBeVisible();
 	// The basemap came from the stub.
 	expect(mapTiler.stubbed).toContain("api.maptiler.com/maps/streets-v4/style.json");
@@ -930,6 +932,7 @@ test.describe("a Map's days", () => {
 		await expect(inView(map)).toHaveText("PM2.5: 1 Good");
 		// The figure is named by the scale's period_statistic_label: in the legend, with the units
 		// under the title (in place of "(µg/m³)"), and in the feature list's note, above the rows.
+		await openLegend(map);
 		const legend = legendOf(map);
 		await expect(legend.getByRole("heading", { level: 3 })).toHaveText("PM2.5");
 		await expect(
@@ -1250,6 +1253,7 @@ test.describe("a Map's region fill", () => {
 
 		// One legend section, titled by the pollutant once it has loaded (it starts with the scale's
 		// label), shared by the monitors and the fill, with a No data row.
+		await openLegend(map);
 		const legend = legendOf(map);
 		const titles = legend.getByRole("heading", { level: 3 });
 		await expect(titles).toHaveCount(1);
@@ -1322,6 +1326,7 @@ test.describe("a Map's region fill", () => {
 		await expect(daySlider(page)).toHaveAttribute("aria-valuetext", /November 11, 2026$/);
 		// The day's monitor is drawn too (Drummond Street, USG that day), under the same one section.
 		await expect(inView(map)).toHaveText("PM2.5: 1 Unhealthy for Sensitive Groups");
+		await openLegend(map);
 		const legend = legendOf(map);
 		const titles = legend.getByRole("heading", { level: 3 });
 		await expect(titles).toHaveCount(1);
@@ -1392,6 +1397,7 @@ test.describe("a Map's region fill", () => {
 		);
 		// One section for the monitors and the fill: the units and the scale's
 		// period_statistic_label on the line under the title, in place of "(µg/m³)".
+		await openLegend(map);
 		const legend = legendOf(map);
 		const titles = legend.getByRole("heading", { level: 3 });
 		await expect(titles).toHaveCount(1);
@@ -1481,6 +1487,13 @@ function legendOf(map: Locator): Locator {
 	return map.getByRole("region", { name: "Legend", exact: true });
 }
 
+/** Opens the map's legend (it starts folded); one already open is left alone. */
+async function openLegend(map: Locator): Promise<void> {
+	const toggle = map.getByRole("button", { name: "Legend", exact: true });
+	if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+	await expect(toggle).toHaveAttribute("aria-expanded", "true");
+}
+
 async function expectNoViolationsInBothThemes(page: Page): Promise<void> {
 	await page.emulateMedia({ colorScheme: "light" });
 	await expectNoViolations(page);
@@ -1567,6 +1580,7 @@ test.describe("a Map's spray notices", () => {
 
 		// The legend's notices section: titled by the catalog's name for the layer (not the scale's),
 		// the scale's one level, what a marker's number means, and the explainer linking out.
+		await openLegend(map);
 		const legend = legendOf(map);
 		await expect(
 			legend.getByRole("heading", { level: 3, name: NOTICES_META.catalogLabel, exact: true })
@@ -1624,6 +1638,7 @@ test.describe("a Map's spray notices", () => {
 		}
 
 		// The legend names the filters that apply, and says the crop doesn't.
+		await openLegend(map);
 		const legend = legendOf(map);
 		await expect(legend.getByText("Filtered by Sulfur · Fumigant", { exact: true })).toBeVisible();
 		await expect(
@@ -1727,6 +1742,7 @@ test.describe("a Map's spray notices", () => {
 	test("the Layers row hides notices", async ({ page }) => {
 		await openSharedDoc(page, noticesDoc());
 		const map = mapOf(page, FRESNO_MAP);
+		await openLegend(map);
 		const legend = legendOf(map);
 		const title = legend.getByRole("heading", {
 			level: 3,
@@ -1821,6 +1837,7 @@ test.describe("a Map's pesticide use", () => {
 	async function openUseMap(page: Page): Promise<Locator> {
 		await openSharedDoc(page, useDoc());
 		const map = useMapOf(page);
+		await openLegend(map);
 		await expect(
 			legendOf(map).getByRole("heading", { level: 3, name: "Pounds Applied, 2023", exact: true })
 		).toBeVisible();
@@ -1883,6 +1900,7 @@ test.describe("a Map's pesticide use", () => {
 	}) => {
 		const map = await openUseMap(page);
 		// Titled by the figure and the period, not the catalog's name for the data set.
+		await openLegend(map);
 		const legend = legendOf(map);
 		await expect(
 			legend.getByRole("heading", { level: 3, name: "Pounds Applied, 2023", exact: true })
@@ -1928,6 +1946,7 @@ test.describe("a Map's pesticide use", () => {
 		const range = { kind: "custom", start: "2023-06-01", end: "2023-07-31" };
 		await openSharedDoc(page, useDoc(2023, "month", range));
 		const map = useMapOf(page);
+		await openLegend(map);
 		const legend = legendOf(map);
 		await expect(
 			legend.getByRole("heading", { level: 3, name: "Pounds Applied, July 2023", exact: true })
@@ -2138,6 +2157,7 @@ test.describe("a Map's pesticide use", () => {
 	}) => {
 		await openSharedDoc(page, useDoc(2017));
 		const map = useMapOf(page);
+		await openLegend(map);
 		const legend = legendOf(map);
 		// One row, under the layer's title, with the server's notes under it.
 		const none = "No pesticide use reported for 2017 yet.";
@@ -2229,6 +2249,7 @@ test.describe("schools and child care", () => {
 		const map = await addMap(page);
 		await tickInDataPortal(page, FRESNO_MAP, ["Public school"]);
 
+		await openLegend(map);
 		const legend = legendOf(map);
 		await expect(
 			legend.getByRole("heading", { level: 3, name: "Schools", exact: true })
@@ -2247,6 +2268,7 @@ test.describe("schools and child care", () => {
 
 		// Child care too: drawn from what's loaded, asking nothing more.
 		await tickInDataPortal(page, FRESNO_MAP, ["Child care"]);
+		await openLegend(map);
 		await expect(
 			legend.getByRole("heading", { level: 3, name: "Child care", exact: true })
 		).toBeVisible();
@@ -2274,7 +2296,7 @@ test.describe("schools and child care", () => {
 		expect(locationRequests.map((p) => p.getAll("region"))).toEqual([["c85na"]]);
 	});
 
-	test("a Map with no Where and Child care ticked loads the valley once and draws every site", async ({
+	test("a Map with no Where and Child care ticked loads no sites and asks for a place", async ({
 		page
 	}) => {
 		const valleyDoc = structuredClone(rooseveltDoc);
@@ -2287,17 +2309,9 @@ test.describe("schools and child care", () => {
 			]
 		};
 		await openSharedDoc(page, valleyDoc);
-		const map = page.getByRole("region", { name: "PM2.5 map", exact: true }).first();
-		await expect(
-			legendOf(map).getByRole("heading", { level: 3, name: "Child care", exact: true })
-		).toBeVisible();
-		const list = await featureList(map);
-		await expect(list.getByRole("option", { name: /^EXAMPLE / })).toHaveCount(3);
-		await expect(list.getByRole("option", { name: /^(Example|Roosevelt) / })).toHaveCount(0);
-		await closeFeatureList(map);
-		// One valley-wide request: no area, no type.
-		expect(locationRequests).toHaveLength(1);
-		expect([...locationRequests[0].keys()]).toEqual([]);
+		// Ticked types and sites draw only inside a Where: nothing to draw, so it asks for one.
+		await expect(page.getByText("Choose a place for this map in Edit data.")).toBeVisible();
+		expect(locationRequests).toHaveLength(0);
 	});
 
 	test("Show as Chart from a Map with schools notes them left out", async ({ page }) => {

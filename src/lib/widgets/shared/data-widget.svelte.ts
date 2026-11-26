@@ -293,14 +293,19 @@ export class DataWidget {
 
 		$effect(() => {
 			// Only from ready data: while a new input loads, the old places would pair with the new range.
+			// A widget that asks for nothing (no Where, no monitors) is titled with no place, so an old
+			// place never stays on it.
 			const s = query.state;
 			const meta = this.meta;
-			if (s.status !== "ready" || !meta) return;
+			// Only a widget that asks for nothing (`chartInput`'s `empty`), never one whose input waits
+			// (a figure being looked up).
+			const empty = !!this.picked.empty;
+			if ((!empty && s.status !== "ready") || !meta) return;
 			setGeneratedTitle(
 				widget().id,
 				dataTitle({
 					entryLabel: meta.entryType.label,
-					places: s.data.places,
+					places: empty || s.status !== "ready" ? [] : s.data.places,
 					viewer,
 					range: widget().data.dateRange ?? DEFAULT_RANGE
 				})

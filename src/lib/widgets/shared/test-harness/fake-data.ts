@@ -35,8 +35,8 @@ function fakePlaces(target: AdapterRequest["target"]): { place: string; name: st
 }
 
 /**
- * A fake target: ticked types (a monitor set over the Where's region keys), else the searched
- * monitors, else the Where's regions, else unavailable.
+ * A fake target: ticked types (a monitor set over the Where's region keys; unavailable with no
+ * region), else the searched monitors, else the Where's regions, else unavailable.
  */
 async function fakeTarget(layer: QueryLayer): Promise<Target | { unavailable: UnavailableReason }> {
 	if (layer.monitorTypes?.length) {
@@ -45,6 +45,7 @@ async function fakeTarget(layer: QueryLayer): Promise<Target | { unavailable: Un
 			: layer.place?.kind === "region"
 				? [`${layer.place.type}:${layer.place.code}`]
 				: null;
+		if (!regionKeys) return { unavailable: "place-unsupported" };
 		return {
 			kind: "monitor-set",
 			ids: [...(layer.monitors ?? [])],

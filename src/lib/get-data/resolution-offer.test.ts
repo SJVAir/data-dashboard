@@ -86,7 +86,7 @@ describe("resolutionChoices", () => {
 	});
 
 	test("regions have no Every measurement", () => {
-		expect(blocked(choices([pm25], days(7), 1, { place: "regions" }), "raw")).toEqual({
+		expect(blocked(choices([pm25], days(7), 1, { place: "regions" }), "raw")).toMatchObject({
 			notOffered: pm25
 		});
 	});
@@ -142,5 +142,24 @@ describe("resolutionChoices", () => {
 		expect(blocked(choices([pm25], last90), "raw")).toBe("too-many-points");
 		const last24: DateRangeSpec = { kind: "trailing", amount: 24, unit: "hour" };
 		expect(blocked(choices([pm25], last24), "raw")).toBeNull();
+	});
+});
+
+describe("raw greyed by the place", () => {
+	test("names the area's cause and its finest level", () => {
+		const got = choices([pm25], days(3), 1, { place: "regions" });
+		expect(got?.find((c) => c.level === "raw")?.blocked).toEqual({
+			notOffered: pm25,
+			cause: "area",
+			finest: "hour"
+		});
+		const types = choices([pm25], days(3), 1, { place: "monitor-types" });
+		expect(types?.find((c) => c.level === "raw")?.blocked).toMatchObject({
+			cause: "monitor-types"
+		});
+	});
+	test("weather's raw names no place", () => {
+		const got = choices([temperature], days(3), 1, { place: "regions" });
+		expect(got?.find((c) => c.level === "raw")?.blocked).toEqual({ notOffered: temperature });
 	});
 });

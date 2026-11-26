@@ -12,13 +12,13 @@ import { periodEnd, periodFigure, periodHolds, type PeriodAt } from "./period";
 import { numberOf, rowDate } from "./rows";
 import type { MonitorScope, Snapshot, SnapshotFigure } from "./types";
 
-/** One bulk request a scope makes: its scoping fields, and the monitor ids it keeps (all: null). */
+/** One bulk request a scope makes: its scoping fields, and the monitor ids it keeps (null: all). */
 type ScopeRequest = { scoping: { region?: string[]; type?: string[] }; wanted: Set<string> | null };
 
 /**
- * The bulk requests for a scope: one for regions, monitors or everything; a monitor set's types
- * inside its regions (everywhere with none, through the SDK's `type` filter), and one more
- * valley-wide request kept to its searched monitors when it has any.
+ * The bulk requests for a scope: one for regions or monitors; a monitor set's types inside its
+ * regions (through the SDK's `type` filter), and one more request kept to its searched monitors
+ * when it has any.
  */
 function scopeRequests(scope: MonitorScope): ScopeRequest[] {
 	switch (scope.kind) {
@@ -26,11 +26,9 @@ function scopeRequests(scope: MonitorScope): ScopeRequest[] {
 			return [{ scoping: { region: scope.ids }, wanted: null }];
 		case "monitors":
 			return [{ scoping: {}, wanted: new Set(scope.ids) }];
-		case "all":
-			return [{ scoping: {}, wanted: null }];
 		case "monitor-set": {
 			const typed: ScopeRequest = {
-				scoping: { ...(scope.regionIds && { region: scope.regionIds }), type: scope.types },
+				scoping: { region: scope.regionIds, type: scope.types },
 				wanted: null
 			};
 			return scope.ids.length > 0 ? [typed, { scoping: {}, wanted: new Set(scope.ids) }] : [typed];

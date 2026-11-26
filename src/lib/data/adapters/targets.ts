@@ -60,16 +60,17 @@ async function anyUnlisted(
 
 /**
  * The region keys a Where stands for, to scope monitors of ticked types: its areas; a school or
- * point's first resolvable region (ZIP, then city, then county); `null` for no Where (everywhere).
+ * point's first resolvable region (ZIP, then city, then county). With no Where there are none to
+ * count them in (`place-unsupported`): ticked types draw only inside a Where.
  */
 async function whereRegionKeys(
 	layer: QueryLayer,
 	ctx: Pick<AdapterContext, "regions" | "locations" | "points">,
 	signal?: AbortSignal
-): Promise<string[] | null | { unavailable: UnavailableReason }> {
+): Promise<string[] | { unavailable: UnavailableReason }> {
 	const { place, selection } = layer;
 	if (selection) return [...selection.ids];
-	if (!place) return null;
+	if (!place) return { unavailable: "place-unsupported" };
 	const fallback = await fallbackTarget(place, ctx, signal);
 	// Ticked types with a school or point Where use its first resolvable region only (ZIP, else
 	// city, else county), not the fallback chain a by-place query tries in turn.
@@ -151,12 +152,12 @@ async function measuring(
 
 /**
  * What a layer asks for. Its monitors come first: ticked types make a `monitor-set` (those types
- * inside the Where's regions, or everywhere, plus the searched monitors); searched monitors alone
+ * inside the Where's regions, plus the searched monitors); searched monitors alone
  * are those monitors, wherever they are (Where doesn't narrow them). With neither, its Where:
  * regions stay keyed by their document reference (`<type>:<code>`), so cache keys and series
  * never carry the server's per-database id; they are resolved here only to check that they can
  * be. A point or a school becomes its region keys to try in order, so its coordinates never reach
- * a cache key or a request beyond the point lookup. No Where and no monitors: the whole layer.
+ * a cache key or a request beyond the point lookup. No Where and no monitors: nothing (`place-unsupported`).
  * Ticked types and searched monitors that don't measure the pollutant are left out (`measuring`);
  * with none left, nothing is fetched (`none-measure`).
  */
@@ -178,11 +179,11 @@ export async function layerTarget(
 	}
 	if (types.length > 0) {
 		const regionKeys = await whereRegionKeys(layer, ctx, signal);
-		if (regionKeys && !Array.isArray(regionKeys)) return regionKeys;
-		if (regionKeys) {
-			const found = await resolveRegionKeys(regionKeys, ctx.regions, signal);
-			if (found.some((r) => r === null)) return { unavailable: "region-unresolved" };
-		}
+		if (!Array.isArray(regionKeys)) return regionKeys;
+		// No areas is no place: never a bulk request with no region (every monitor of the types).
+		if (regionKeys.length === 0) return { unavailable: "place-unsupported" };
+		const found = await resolveRegionKeys(regionKeys, ctx.regions, signal);
+		if (found.some((r) => r === null)) return { unavailable: "region-unresolved" };
 		return { kind: "monitor-set", ids, types, regionKeys };
 	}
 	if (ids.length > 0) return { kind: "monitors", ids };
@@ -196,7 +197,8 @@ export async function layerTarget(
 	} else if (selection) {
 		keys = [...selection.ids];
 	} else {
-		return { kind: "all" };
+		// No Where and no monitors: nothing to fetch (widgets don't ask; see `chartInput`).
+		return { unavailable: "place-unsupported" };
 	}
 	const found = await resolveRegionKeys(keys, ctx.regions, signal);
 	if (found.some((r) => r === null)) return { unavailable: "region-unresolved" };
@@ -237,7 +239,6 @@ export async function placeCandidates(
 			{ ref: { monitor: id }, info: { place: `monitor:${id}`, name: names.get(id) ?? id } }
 		]);
 	}
-	if (target.kind === "all") return [];
 	// Only the air-quality layer has ticked types, and it fetches them in bulk.
 	if (target.kind === "monitor-set") throw new Error("A monitor set has no by-place candidates");
 	const found = await resolveRegionKeys(target.keys, ctx.regions, signal);

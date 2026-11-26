@@ -129,6 +129,8 @@ describe("Show as, every pair, from a county, PM2.5, two ticked types and one mo
 	for (const from of CALENDARS) {
 		for (const to of [CURRENT, OUTSIDE, FORECAST]) DROPS[`${from}>${to}`] = ["dates"];
 	}
+	// The forecast has no pollutant of its own: a range type shows PM2.5, with a note.
+	for (const to of [CHART, TABLE, ...CALENDARS]) DROPS[`${FORECAST}>${to}`] = ["forecast"];
 
 	for (const fromType of ALL) {
 		for (const toType of ALL) {

@@ -1,3 +1,4 @@
+import { readingOrder } from "$lib/layout/engine";
 import { describe, expect, it, vi } from "vitest";
 import type { Change } from "$lib/changes/types";
 import type { DashboardSummary } from "$lib/documents/names";
@@ -72,10 +73,10 @@ const PLACES: ChosenPlace[] = [
 const SCHOOL = PLACES[2];
 const TYPES: WidgetType[] = [
 	noteType,
+	mapType,
 	currentType,
 	outsideType,
 	forecastType,
-	mapType,
 	chartType,
 	monthCalendarType
 ];
@@ -121,26 +122,21 @@ describe("starter template", () => {
 		for (const p of shown) expect(p).toEqual({ kind: "default-place" });
 	});
 
-	it("lays the widgets out in rows, each at least its type's minimum, with no overlaps", () => {
-		const [note, current, outside, forecast, map, chart, calendar] =
-			starterTemplate().body.widgets.map((w) => w.rect);
-		expect(note).toEqual({ x: 0, y: 0, w: 12, h: 2 });
-		// The "now" row: one height that fits "Can we go outside?".
-		expect([current.w, outside.w, forecast.w]).toEqual([3, 3, 6]);
-		expect(new Set([current.h, outside.h, forecast.h]).size).toBe(1);
-		expect(new Set([current.y, outside.y, forecast.y])).toEqual(new Set([note.y + note.h]));
-		expect(current.h).toBeGreaterThanOrEqual(outsideType.minSize.h);
-		expect([current.x, outside.x, forecast.x]).toEqual([0, 3, 6]);
-		// The Map spans the grid under the "now" row.
-		expect(map).toEqual({ x: 0, y: 9, w: 12, h: 7 });
-		// The chart and the month calendar share one height of at least 6.
-		expect([chart.w, calendar.w]).toEqual([8, 4]);
-		expect([chart.x, calendar.x]).toEqual([0, 8]);
-		expect(chart.y).toBe(16);
-		expect(chart.y).toBe(map.y + map.h);
-		expect(calendar.y).toBe(chart.y);
-		expect(chart.h).toBe(calendar.h);
-		expect(chart.h).toBeGreaterThanOrEqual(6);
+	it("lays the widgets out as the 2026-11-25 layout, each at least its type's minimum, with no overlaps", () => {
+		const rects = starterTemplate().body.widgets.map((w) => w.rect);
+		expect(rects).toEqual([
+			{ x: 0, y: 0, w: 12, h: 2 },
+			{ x: 0, y: 2, w: 6, h: 7 },
+			{ x: 6, y: 2, w: 3, h: 3 },
+			{ x: 9, y: 2, w: 3, h: 7 },
+			{ x: 6, y: 5, w: 3, h: 4 },
+			{ x: 0, y: 9, w: 6, h: 7 },
+			{ x: 6, y: 9, w: 6, h: 7 }
+		]);
+		// Sixteen rows; the template is in reading order (row, then column), as phones stack it.
+		expect(Math.max(...rects.map((r) => r.y + r.h))).toBe(16);
+		const template = starterTemplate().body.widgets.map((w, i) => ({ ...w, id: String(i) }));
+		expect(readingOrder(template).map((w) => w.type)).toEqual(TYPES.map((t) => t.type));
 
 		const widgets = starterTemplate().body.widgets;
 		for (const w of widgets) {
@@ -154,7 +150,7 @@ describe("starter template", () => {
 
 	it("each widget's data is what Get data stores for its type (PM2.5, Fresno County)", () => {
 		const resolved = resolveDefaultPlace(starterTemplate(), FRESNO);
-		const [, current, outside, forecast, map, chart, calendar] = resolved.body.widgets;
+		const [, map, current, outside, forecast, chart, calendar] = resolved.body.widgets;
 		const draft = defaultDraft();
 		const now = (type: WidgetType) => toNowDraft(draft, type, CATALOG, PM25_LEVELS).draft.data;
 		expect(current.data).toEqual(now(currentType));
@@ -167,7 +163,7 @@ describe("starter template", () => {
 		};
 		expect(map.data).toEqual(withSmoke(mapStartData(resolved, [])));
 		const typed = starterDashboard(FRESNO, null, ["a", "b"]);
-		expect(typed.body.widgets[4].data).toEqual(withSmoke(mapStartData(typed, ["a", "b"])));
+		expect(typed.body.widgets[1].data).toEqual(withSmoke(mapStartData(typed, ["a", "b"])));
 		expect(map.options).toBeUndefined();
 		expect(map.data.dateRange).toBeUndefined();
 		expect(chart.data).toEqual(draft.data);
