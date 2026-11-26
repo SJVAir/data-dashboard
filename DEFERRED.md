@@ -519,7 +519,8 @@ string`) now get the union return type. The mobile app passes a string token, so
     call); `CLAUDE.md`'s "recheck on an iOS device" chart line stays until a device check.
     **Mobile v5.0.0 is already released** (the user's call, 2026-11-25, ahead of the deploy: mobile #125
     2809ca2, release `v5.0.0`, run 45747211420 to TestFlight and the Play beta track). Until sjvair.com
-    `develop` is deployed, its map can't load against production: deploy promptly.
+    `develop` is deployed, its map can't load against production: deploy promptly. The user released early because Apple and
+    Google review the builds before they reach the beta channels; the deploy is planned before then.
     **monitor-map `main` is already 5.0.0** (#146 merged by the user 2026-11-25, 6e62d8c), so from now
     on any sjvair.com production deploy, including unrelated ones (other people's merges into
     sjvair.com `main`, e.g. open #261), builds monitor-map 5.0, which can't run against the old
