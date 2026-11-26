@@ -1686,7 +1686,10 @@ django-resticus plans first)
 - ✅ **`@sjvair/monitor-map` `5.0.0` published 2026-11-25** (monitor-map #145 → `release/5.0.0`, merge
   e7ada3d; release `v5.0.0`, run 45741931197, npm `latest` 5.0.0; session `monitor-map-ec`) on map-sdk
   `1.0.0` and SDK `5.0.0` (peer `^5.0.0`). `release/5.0.0` → `main` is PR #146, to merge right before
-  the sjvair.com deploy (sjvair.com builds monitor-map `main` unpinned). Next: the dashboard and mobile re-pin.
+  the sjvair.com deploy (sjvair.com builds monitor-map `main` unpinned; the user merged #146 early, 6e62d8c).
+- ✅ **Mobile on the finals 2026-11-25:** `release/5.0.0` c1d4ba8 (#123, session `mobile-e7`, the user merged it)
+  pins `@sjvair/monitor-map` `5.0.0` and `@sjvair/sdk` `5.0.0`; no CHANGELOG bullet for the chart fix (the user).
+  The dashboard's re-pin is next (session `data-dashboard-90`).
 - ✅ The user's parity review of `@sjvair/monitor-map` 5.0 against 4.3: done 2026-11-25 (on
   `5.0.0-beta.6`; "the parity review is done"). Everything leaves beta before launch
   (`@sjvair/map-sdk` `1.0.0`, monitor-map `5.0.0`, the SDK and mobile finals; DEFERRED deploy entry).

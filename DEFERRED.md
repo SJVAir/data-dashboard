@@ -515,9 +515,8 @@ string`) now get the union return type. The mobile app passes a string token, so
     deploy runs `npm i` on monitor-map `main`.
     **Mobile on launch day** (from `mobile-68`, 2026-11-25): re-pin `release/5.0.0` from
     `@sjvair/monitor-map` `5.0.0-beta.7` (#122, merged) to `5.0.0` final in a PR, rerun the gates and a
-    dev-build emulator check, update the `CLAUDE.md` pin line and check whether the `@sjvair/sdk` pin
-    moves; decide whether the 5.0.0 CHANGELOG needs a bullet for the chart fix (whether 4.x users had
-    the bug is unchecked); drop `CLAUDE.md`'s "recheck on an iOS device" chart line after an iOS check.
+    dev-build emulator check (✅ done early: #123, c1d4ba8, 2026-11-25; no CHANGELOG bullet, the user's
+    call); `CLAUDE.md`'s "recheck on an iOS device" chart line stays until a device check.
     **monitor-map `main` is already 5.0.0** (#146 merged by the user 2026-11-25, 6e62d8c), so from now
     on any sjvair.com production deploy, including unrelated ones (other people's merges into
     sjvair.com `main`, e.g. open #261), builds monitor-map 5.0, which can't run against the old
