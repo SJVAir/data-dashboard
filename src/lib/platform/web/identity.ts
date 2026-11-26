@@ -188,6 +188,7 @@ export function createWebIdentity(deps: WebIdentityDeps): IdentitySource {
 		},
 		deletedAccount: () => deletedAccount,
 		signInUrl: (returnPath) => `/account/login/?next=${encodeURIComponent(returnPath)}`,
-		accountUrl: () => "/account/"
+		accountUrl: () => "/account/",
+		siteHomeUrl: () => "/"
 	};
 }

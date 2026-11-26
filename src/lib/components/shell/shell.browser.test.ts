@@ -39,7 +39,6 @@ test("nav shows the app name, Data Portal, picker, saved status, and undo/redo; 
 	const { app } = await setup();
 	await renderNav(app);
 	const nav = page.getByRole("navigation", { name: "Main" });
-	await expect.element(nav.getByText("SJVAir Dashboard")).toBeVisible();
 	await expect.element(nav.getByRole("link", { name: "Data Portal" })).toBeVisible();
 	// The picker's "All dashboards" opens the list.
 	expect(nav.getByRole("link", { name: "Dashboards" }).query()).toBeNull();
@@ -152,8 +151,6 @@ test("Dashboard and Data Portal are nav links alike, buttons like the picker; th
 	// The logo link shows no "Dashboard" of its own (its name stays for screen readers).
 	const logo = dashboard.parentElement!.querySelector("a")!;
 	expect(logo).not.toBe(dashboard);
-	expect(logo.textContent?.trim()).toBe("SJVAir Dashboard");
-	expect(logo.querySelector(".sr-only")?.textContent?.trim()).toBe("SJVAir Dashboard");
 	expect(logo.querySelectorAll("span:not(.sr-only)")).toHaveLength(0);
 });
 

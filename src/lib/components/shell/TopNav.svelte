@@ -6,6 +6,7 @@
 	import { fullscreenOpen } from "$lib/layout/fullscreen-view.svelte";
 	import { m } from "$lib/paraglide/messages.js";
 	import { HOME_HREF } from "$lib/routing";
+	import { useApp } from "$lib/store/app.svelte";
 	import { isActive, p } from "../../../router";
 	import AccountMenu from "./AccountMenu.svelte";
 	import DashboardMenuButton from "./DashboardMenuButton.svelte";
@@ -13,6 +14,8 @@
 	import HelpMenu from "./HelpMenu.svelte";
 	import SavedIndicator from "./SavedIndicator.svelte";
 	import UndoRedo from "./UndoRedo.svelte";
+
+	const app = useApp();
 
 	/** A dashboard is showing: home, a saved dashboard, or a shared one. */
 	const onDashboard = $derived(
@@ -37,11 +40,11 @@
 	data-top-bar
 >
 	<nav aria-label={m.nav_label()} class="flex flex-wrap items-center gap-2 px-4 py-2">
-		<a href={HOME_HREF} class="mr-2 flex items-center gap-2">
+		<a href={app.platform.identity.siteHomeUrl()} class="mr-2 flex items-center gap-2">
 			<img data-logo="compact" src={logoCompact} alt="" class="size-8 sm:hidden" />
 			<img data-logo="full" src={logo} alt="" class="hidden h-7 w-auto sm:block dark:sm:hidden" />
 			<img data-logo="white" src={logoWhite} alt="" class="hidden h-7 w-auto dark:sm:block" />
-			<span class="sr-only">{m.app_name()}</span>
+			<span class="sr-only">{m.nav_site_home()}</span>
 		</a>
 		<!-- The two views, alike: the current one is underlined (a shape, not colour alone) and
 		     marked for screen readers. -->

@@ -156,7 +156,8 @@ export function createMemoryIdentity(
 			return true;
 		},
 		signInUrl: (returnPath) => `/account/login/?next=${encodeURIComponent(returnPath)}`,
-		accountUrl: () => "/account/"
+		accountUrl: () => "/account/",
+		siteHomeUrl: () => "/"
 	};
 	return source;
 }
