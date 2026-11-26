@@ -1,7 +1,6 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
 	"app_name": "SJVAir Dashboard",
-	"app_name_product": "Dashboard",
 	"dashboard_untitled": "Untitled dashboard",
 	"dashboard_untitled_numbered": "Untitled dashboard {number}",
 	"dashboard_my": "My dashboard",
@@ -18,6 +17,7 @@
 	"page_title_list": "Your dashboards · SJVAir Dashboard",
 	"nav_label": "Main",
 	"nav_dashboards": "Dashboards",
+	"nav_dashboard": "Dashboard",
 	"nav_data": "Data Portal",
 	"get_data_heading": "Data Portal",
 	"edit_data_heading": "Data Portal",

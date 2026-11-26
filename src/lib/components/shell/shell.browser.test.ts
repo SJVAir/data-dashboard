@@ -135,21 +135,55 @@ function tokenColor(token: string): string {
 	return color;
 }
 
-test("the Data Portal link is a button like the dashboard picker", async () => {
+test("Dashboard and Data Portal are nav links alike, buttons like the picker; the logo stands alone", async () => {
 	const { app } = await setup();
 	await renderNav(app);
-	const link = page.getByRole("link", { name: "Data Portal" }).element();
-	const picker = document.querySelector("[data-top-bar] nav [data-slot=dropdown-menu-trigger]");
+	const nav = page.getByRole("navigation", { name: "Main" });
+	const dashboard = nav.getByRole("link", { name: "Dashboard", exact: true }).element();
+	const portal = nav.getByRole("link", { name: "Data Portal", exact: true }).element();
+	const picker = document.querySelector("[data-top-bar] nav [data-slot=dropdown-menu-trigger]")!;
 	expect(picker).not.toBeNull();
-	const box = (el: Element) => el.getBoundingClientRect().height;
-	expect(box(link)).toBe(box(picker!));
-	const a = getComputedStyle(link);
-	const b = getComputedStyle(picker!);
-	expect([a.fontWeight, a.paddingLeft, a.borderRadius]).toEqual([
-		b.fontWeight,
-		b.paddingLeft,
-		b.borderRadius
-	]);
+	const look = (el: Element) => {
+		const c = getComputedStyle(el);
+		return [el.getBoundingClientRect().height, c.fontSize, c.fontWeight, c.color, c.paddingLeft];
+	};
+	expect(look(dashboard)).toEqual(look(portal));
+	expect(look(portal)).toEqual(look(picker));
+	// The logo link shows no "Dashboard" of its own (its name stays for screen readers).
+	const logo = dashboard.parentElement!.querySelector("a")!;
+	expect(logo).not.toBe(dashboard);
+	expect(logo.textContent?.trim()).toBe("SJVAir Dashboard");
+	expect(logo.querySelector(".sr-only")?.textContent?.trim()).toBe("SJVAir Dashboard");
+	expect(logo.querySelectorAll("span:not(.sr-only)")).toHaveLength(0);
+});
+
+test("the current page's nav link is marked: Dashboard on a dashboard, Data Portal in it", async () => {
+	const { app } = await setup();
+	await renderNav(app);
+	const nav = page.getByRole("navigation", { name: "Main" });
+	const dashboard = nav.getByRole("link", { name: "Dashboard", exact: true });
+	const portal = nav.getByRole("link", { name: "Data Portal", exact: true });
+	const current = async () => [
+		dashboard.element().getAttribute("aria-current"),
+		portal.element().getAttribute("aria-current")
+	];
+	try {
+		for (const [path, marks] of [
+			["/", ["page", null]],
+			["/dashboards/d1", ["page", null]],
+			["/shared/t1", ["page", null]],
+			["/data", [null, "page"]],
+			["/dashboards/d1/widgets/new", [null, "page"]],
+			["/dashboards/d1/widgets/w1/edit", [null, "page"]],
+			["/dashboards", [null, null]],
+			["/import", [null, null]]
+		] as const) {
+			await navigate(path as never);
+			await expect.poll(current, { message: path }).toEqual(marks);
+		}
+	} finally {
+		await navigate("/");
+	}
 });
 
 test("the current page's link is marked and underlined: navy in light, sky in dark", async () => {

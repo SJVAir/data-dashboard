@@ -13,6 +13,21 @@
 	import HelpMenu from "./HelpMenu.svelte";
 	import SavedIndicator from "./SavedIndicator.svelte";
 	import UndoRedo from "./UndoRedo.svelte";
+
+	/** A dashboard is showing: home, a saved dashboard, or a shared one. */
+	const onDashboard = $derived(
+		isActive("/") || isActive("/dashboards/:id") || isActive("/shared/:token")
+	);
+	/** The Data Portal is showing: on its own, or adding or editing a dashboard's widget. */
+	const inDataPortal = $derived(
+		isActive("/data") ||
+			isActive("/dashboards/:id/widgets/new") ||
+			isActive("/dashboards/:id/widgets/:widgetId/edit")
+	);
+	const views = $derived([
+		{ href: HOME_HREF, label: m.nav_dashboard(), current: onDashboard },
+		{ href: p("/data"), label: m.nav_data(), current: inDataPortal }
+	]);
 </script>
 
 <!-- While a widget is fullscreen it stays on screen (sticky keeps it in the flow, so the page
@@ -27,20 +42,21 @@
 			<img data-logo="full" src={logo} alt="" class="hidden h-7 w-auto sm:block dark:sm:hidden" />
 			<img data-logo="white" src={logoWhite} alt="" class="hidden h-7 w-auto dark:sm:block" />
 			<span class="sr-only">{m.app_name()}</span>
-			<span aria-hidden="true" class="text-primary hidden font-medium sm:inline">
-				{m.app_name_product()}
-			</span>
 		</a>
-		<a
-			href={p("/data")}
-			aria-current={isActive("/data") ? "page" : undefined}
-			class={[
-				buttonVariants({ variant: "ghost" }),
-				"aria-[current=page]:shadow-[inset_0_-2px_var(--color-primary)] dark:aria-[current=page]:shadow-[inset_0_-2px_var(--color-highlight)]"
-			]}
-		>
-			{m.nav_data()}
-		</a>
+		<!-- The two views, alike: the current one is underlined (a shape, not colour alone) and
+		     marked for screen readers. -->
+		{#each views as view (view.href)}
+			<a
+				href={view.href}
+				aria-current={view.current ? "page" : undefined}
+				class={[
+					buttonVariants({ variant: "ghost" }),
+					"aria-[current=page]:shadow-[inset_0_-2px_var(--color-primary)] dark:aria-[current=page]:shadow-[inset_0_-2px_var(--color-highlight)]"
+				]}
+			>
+				{view.label}
+			</a>
+		{/each}
 		<!-- min-w-40: on a phone the buttons on the right wrap to their own row rather than squeeze the
 		     picker (its basis is 0). -->
 		<div class="flex min-w-40 flex-1 items-center gap-1 sm:min-w-0 sm:flex-none">
