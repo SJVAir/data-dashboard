@@ -16,8 +16,8 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
   `workflow_dispatch`, so PRs into `release/5.0.0` show no checks (#62 and #63 had none). Each
   session runs the tests, `deno fmt --check`, lint, check and `deno publish --dry-run` locally on
   the last commit before asking for a merge. The fix is a small PR workflow running the same
-  steps. **Revisit before** `@sjvair/sdk` 5.0.0 final, or sooner if a merge breaks something a
-  local run would have caught.
+  steps. **Revisit after launch** (retargeted 2026-11-25 by the user from "before `@sjvair/sdk`
+  5.0.0 final"), or sooner if a merge breaks something a local run would have caught.
 - **Initial bundle: the hand-kept `BARRELED` list and further trims.** _Deferred 2026-11-04
   (step 4 spec 1, Task 15)._ The build keeps the app chunk's modules in one file
   (`appGroup()` in `vite.config.ts`), found by walking the static imports from `src/main.ts`.
@@ -743,7 +743,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     (the normal `invoke build` covers it). `levels` is gone from `monitors/meta/`, so this deploy
     goes out the same day as the map-sdk, monitor-map and mobile releases (the plan above).
   - **After:** the dashboard is live behind `beta_tools` at `/workspace/`; @sjvair/sdk 5.0.0
-    final (renamed from 4.8.0, 2026-11-04; betas only until then) can be cut (with the user's yes) once #293 and #302 are in production (from sdk-js #39, `getRegionsMeta` reads #302's `location_types`; SDK and server go live together, no compatibility shim, the user's call 2026-11-04). Note: JSR's npm mirror (npm.jsr.io) lists the newest beta as `dist-tags.latest` (5.0.0-beta.3 on
+    final (renamed from 4.8.0, 2026-11-04; betas only until then) can be cut (with the user's yes) once #293 and #302 are in production. _Changed 2026-11-25 (the user, "We are launching"): the 5.0.0 final is cut first in the launch order, before the deploy (`release/5.0.0` → `main` by PR, then the `v5.0.0` tag)._ Originally: once #293 and #302 are in production (from sdk-js #39, `getRegionsMeta` reads #302's `location_types`; SDK and server go live together, no compatibility shim, the user's call 2026-11-04). Note: JSR's npm mirror (npm.jsr.io) lists the newest beta as `dist-tags.latest` (5.0.0-beta.3 on
     2026-11-05) while JSR's own `latest` stays 4.7.0, so an unpinned `npm i @jsr/sjvair__sdk` gets the
     beta; ranges and exact pins are unaffected. Check both read 5.0.0 after the final release.
   - **Closest-monitor timing, after the deploy:** sample `monitors/pm25/closest/` (Fresno,
