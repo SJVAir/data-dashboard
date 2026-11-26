@@ -513,6 +513,9 @@ string`) now get the union return type. The mobile app passes a string token, so
     not earlier.
     map-sdk must already be on npm by then: monitor-map 5.0 depends on it, and sjvair.com's
     deploy runs `npm i` on monitor-map `main`.
+    **Everything leaves beta before launch** (the user, 2026-11-25): map-sdk is released as
+    `1.0.0`, and monitor-map, the SDK and mobile as their finals, in the release order above. Map-sdk
+    1.0 readiness is not a go-live blocker beyond that release.
     The server also drops `monitors/meta/`'s legacy `levels` dict (the user, 2026-11-04, in the
     hardcoded-value cleanup, spec 5), so every consumer must read `scale` first: monitor-map
     (tooltips, legend, clusters, charts, subscription manager), mobile
@@ -1468,19 +1471,31 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   (0 `Calibrator` rows; they come from sjvair.com's `auto_assign_calibrators` command or the admin).
   They share fire's tap-card code path. **Why deferred:** no local data. **Revisit at** the user's
   iOS test if smoke is on the map that day, or when the local stack gets collocation sites.
+- **monitor-map: the monitor chart calls `Element.moveBefore()`, which WebKit lacks.** _Found
+  2026-11-25 (the user's iOS test on the simulator, `mac-mobile`; code checked by the
+  coordinator)._ `src/lib/data-chart/DataChart.svelte`'s chart action (lines ~226–249) calls
+  `moveBefore` on mount (a no-op move) and on expand, so on iOS every monitor panel logs
+  `TypeError: parent.moveBefore is not a function`; the user saw no visible effect, and expanding
+  likely fails (mobile's `CLAUDE.md`: "The entries chart's fullscreen toggle doesn't work"). From
+  6cdd890 (2026-05-21), so 4.3.0 in production has it too. Fix: use `moveBefore` where it
+  exists, else `insertBefore`, and skip the no-op move on mount. **Why deferred:** the user, 2026-11-25
+  ("defer the moveBefore fix for now"); no visible effect seen. **Revisit:** before
+  `@sjvair/monitor-map` `5.0.0` final, or when the chart's expand is reported broken.
 - **iOS Safari: tap detection in `@sjvair/map-sdk` `0.1.0-beta.24` is unchecked on a real iPhone.**
   _Found 2026-11-25 (map-sdk #41, `map-sdk-20`)._ The tap flag reads the press, because iOS 18.2+
   reports a tap's click as a mouse click (WebKit bug 282988), and a mouse move within 4 px and 1 s
   of a tap counts as part of it (iOS's stray mouse events). Tested only in Chromium's touch
-  emulation and the Android emulator. **Why deferred:** needs a real device. **Revisit at** the
-  user's iOS test of mobile 5.0 (on `@sjvair/monitor-map` `5.0.0-beta.5`): tapping a monitor or an
-  EV station leaves no hover card, a tap elsewhere closes the station popup, and a desktop-style
-  click isn't mistaken for a tap. Also unverified: Safari's `pointerType` for `element.click()` and VoiceOver activation (map-sdk treats `""` as never a tap).
+  emulation, the Android emulator and the iOS simulator (the user's iOS test of mobile 5.0 on
+  `5.0.0-beta.6`, 2026-11-25, iPhone 17 Pro simulator, iOS 26.5; the simulator turns clicks into
+  touches, so it only partly covers a real finger). **Why deferred:** no real iPhone is available
+  (the user, 2026-11-25). **Revisit at** the private preview if a tester has an iPhone, or on any
+  iPhone report after launch: tapping a monitor or an EV station leaves no hover card, a tap
+  elsewhere closes the station popup, and a desktop-style click isn't mistaken for a tap. Also unverified: Safari's `pointerType` for `element.click()` and VoiceOver activation (map-sdk treats `""` as never a tap).
 - **map-sdk: "MapTiler Cloud API key is not set" console warning (found 2026-11-09).** Every map open logs it, because
   map-sdk deliberately puts the key on each request (`maptilerKeyTransform` in `src/lib/view/create-gl-map.ts`) rather
   than on `@maptiler/sdk`'s global `config.apiKey`, so two maps with different keys don't clash. Maps work. **Why
   deferred:** console noise only, and the design is intended. **Revisit:** if a map-sdk feature starts relying on the
-  global config, or before map-sdk's first stable release, to silence the warning.
+  global config, or after launch (before map-sdk 1.1), to silence the warning. _(Retargeted 2026-11-25, the user: map-sdk ships as `1.0.0` at launch, and this isn't a go-live blocker.)_
 
 - **map-sdk: Tab order to a click-pinned card.** _Deferred 2026-11-11 (map-sdk part 1, pinned
   card, final review; [map-sdk #23](https://github.com/SJVAir/map-sdk/pull/23))._ After a mouse
@@ -2207,8 +2222,8 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - Readings are cut to whole numbers on every map. A ppm-scale entry type such as CO would read
     "4" in Moderate's color.
 
-  **Revisit when** the Map widget or monitor-map 5.0 hits one of these, before map-sdk 1.0, or
-  if the dashboard shows a ppm-scale entry type.
+  **Revisit when** the Map widget or monitor-map 5.0 hits one of these, after launch (before map-sdk 1.1), or
+  if the dashboard shows a ppm-scale entry type. _(Retargeted 2026-11-25, the user: map-sdk ships as `1.0.0` at launch, and this isn't a go-live blocker.)_
 
 - **map-sdk List button options leftovers.** _Deferred 2026-11-05 (map-sdk #5 review)._ Edge
   cases of the new `featureList` position and reveal that monitor-map's top-right setup and
@@ -2226,7 +2241,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
     those names would move it.
 
   **Revisit when** the Map widget allows very short maps or bottom-corner lists, data credits
-  become non-blank, or before map-sdk 1.0.
+  become non-blank, or after launch (before map-sdk 1.1). _(Retargeted 2026-11-25, the user: map-sdk ships as `1.0.0` at launch, and this isn't a go-live blocker.)_
 
 - **map-sdk: plugin effects added from inside a host `$effect` can stop.** _Deferred 2026-11-05
   (the user; map-sdk #7)._ **✅ Fixed 2026-11-07 ([map-sdk
@@ -2307,7 +2322,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   tooltip and ViewSummary for no-figure outlines, the unfilled list swatch, and the Legend's
   no-figure swatch on `--swatch-outline-*`. The trigger below fired with beta.16 and wasn't raised
   then (the prompt didn't carry it); the user set the new trigger on 2026-11-15. Why: the user wants the demo
-  updated, but not in that PR. The demo isn't shipped, so the package is unaffected. `0.1.0-beta.22` (map-sdk #39) shows its own new options in the demo, and the older ones listed stay missing. **Revisit when** the user asks, or before map-sdk's 1.0 release.
+  updated, but not in that PR. The demo isn't shipped, so the package is unaffected. `0.1.0-beta.22` (map-sdk #39) shows its own new options in the demo, and the older ones listed stay missing. **Revisit when** the user asks, or after launch (before map-sdk 1.1). _(Retargeted 2026-11-25, the user: map-sdk ships as `1.0.0` at launch, and this isn't a go-live blocker.)_
 - **map-sdk: one frame of tint at a tile edge when the lens recentres.** _Deferred 2026-11-17 (the
   user, map-sdk `0.1.0-beta.21`, session `map-sdk-f0`)._ From beta.21 the lens hides its townships
   once the sections' source has loaded, so it no longer flashes them clear. But MapLibre swaps a
