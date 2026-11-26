@@ -594,7 +594,7 @@ string`) now get the union return type. The mobile app passes a string token, so
     1. **Deploy** away from :40–:50 and with no `SummaryBackfillJob` running. The release phase runs
        `summaries/0007_summary_peaks`, which sets `lock_timeout` to 10 s, so a blocked migration fails the release fast; rerun
        it at a quiet time.
-    2. **AirNow -999 hours already stored** (found 2026-11-09): the importer has skipped AirNow's -999 missing-value code
+    2. ✅ _Done (the user, 2026-11-25: "that's been done")._ **AirNow -999 hours already stored** (found 2026-11-09): the importer has skipped AirNow's -999 missing-value code
        since sjvair.com a7507e9d (2026-10-22, already on `main`), but earlier hours stay. Public data from www.sjvair.com
        showed an O3 hourly summary of -999 (count 1, `is_complete` true) for Fresno – Garland at 2026-09-24 17:00 PT (spec 5
        session, one read-only pull, with the user's yes). Run `backfill_airnow` (scoped) over the -999 range, then rebuild
