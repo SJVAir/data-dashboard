@@ -556,7 +556,7 @@ string`) now get the union return type. The mobile app passes a string token, so
     #27, the bad-id 404s and the 400 body, merge with it at go-live, as agreed with the code owner,
     the user, 2026-11-06); the
     credentialed-CORS review below; the Heroku config vars from #295 (`VITE_SENTRY_DSN`,
-    `WORKSPACE_CSP_REPORT_URI`); run `import_forecast_zones` first or clear the
+    `WORKSPACE_CSP_REPORT_URI`; ✅ set, the user said 2026-11-25, with `VITE_MAPTILER_KEY`, `VITE_NREL_KEY`, `WORKSPACE_CSP_ENFORCE=0`); run `import_forecast_zones` first or clear the
     `forecast_zone_for:` cache keys after (see "Production deploy step for the place
     endpoints" below).
   - **MapTiler key** (step 5 spec 1, 2026-11-11): confirm `VITE_MAPTILER_KEY` reaches
