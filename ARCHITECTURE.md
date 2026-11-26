@@ -2510,8 +2510,11 @@ for the data that tile holds.
 **The dashboard's Map widget (step 5 spec 1, built 2026-11-11).** How the dashboard hosts map-sdk
 (code in `src/lib/widgets/map/`, the host pieces in `host/`):
 
-- **Pinned exactly:** `@sjvair/map-sdk` `0.1.0-beta.21` and `@sjvair/sdk` `5.0.0-beta.15`
-  (`npm:@jsr/sjvair__sdk@5.0.0-beta.15`), never a range or a dist-tag. The moves:
+- **Pinned exactly:** `@sjvair/map-sdk` `1.0.0` and `@sjvair/sdk` `5.0.0`
+  (`npm:@jsr/sjvair__sdk@5.0.0`), never a range or a dist-tag. The finals (2026-11-25):
+  `@sjvair/map-sdk` `1.0.0` is `0.1.0-beta.26`'s API with peer `@sjvair/sdk` `^5.0.0` (no SDK
+  betas), and `@sjvair/sdk` `5.0.0` is `5.0.0-beta.17`'s code, so both moved in one change. The
+  beta moves:
   - map-sdk `0.1.0-beta.16` (step 5 spec 4, 2026-11-15): region fills.
   - map-sdk `0.1.0-beta.17` (step 5 spec 5a, 2026-11-16): shapes `zoomRange`, the lens, count
     markers, and the legend's units line and note slot.
@@ -3604,7 +3607,7 @@ rest are the builder's calls, and the user kept them.
     quietly when this device has no unsynced changes. With unsynced changes it asks "This
     dashboard was permanently deleted from your account. Keep your version as a new
     dashboard, or discard it?" Keep uploads a copy with a new id.
-15. **The SDK pin** is `npm:@jsr/sjvair__sdk@5.0.0-beta.8` (exact). The documents client lives
+15. **The SDK pin** is `npm:@jsr/sjvair__sdk@5.0.0` (exact). The documents client lives
     in this repo, in `src/lib/api/documents/` (copied 2026-11-11 from sdk-js 819d152, the code in
     `@sjvair/sdk` 5.0.0-beta.8, when it left the public SDK; see "The dashboard's own API code").
 
