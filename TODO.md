@@ -1679,7 +1679,10 @@ django-resticus plans first)
   under Show as. Built; PR into `step-6` open (`step-6-spec-3`).
 - ✅ **`@sjvair/sdk` `5.0.0` published 2026-11-25** (sdk-js #72 `release/5.0.0` → `main`, merge 49a828b;
   signed tag `v5.0.0`; publish run 45736642501; JSR `latest` 5.0.0; session `sdk-js-78`), first in
-  the launch order (the user). Next: `@sjvair/map-sdk` `1.0.0`.
+  the launch order (the user).
+- ✅ **`@sjvair/map-sdk` `1.0.0` published 2026-11-25** (map-sdk #44, merge 8b04de7, release
+  `v1.0.0`, run 45739287224, npm `latest` 1.0.0; session `map-sdk-54`): beta.26's API on `@sjvair/sdk`
+  `5.0.0` (peer `^5.0.0`, so consumers move to the SDK final with it). Next: `@sjvair/monitor-map` `5.0.0`.
 - ✅ The user's parity review of `@sjvair/monitor-map` 5.0 against 4.3: done 2026-11-25 (on
   `5.0.0-beta.6`; "the parity review is done"). Everything leaves beta before launch
   (`@sjvair/map-sdk` `1.0.0`, monitor-map `5.0.0`, the SDK and mobile finals; DEFERRED deploy entry).
