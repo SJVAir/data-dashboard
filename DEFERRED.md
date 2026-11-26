@@ -1471,21 +1471,6 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   (0 `Calibrator` rows; they come from sjvair.com's `auto_assign_calibrators` command or the admin).
   They share fire's tap-card code path. **Why deferred:** no local data. **Revisit at** the user's
   iOS test if smoke is on the map that day, or when the local stack gets collocation sites.
-- **monitor-map: the monitor chart calls `Element.moveBefore()`, which WebKit lacks.** _Found
-  2026-11-25 (the user's iOS test on the simulator, `mac-mobile`; code checked by the
-  coordinator)._ `src/lib/data-chart/DataChart.svelte`'s chart action (lines ~226–249) calls
-  `moveBefore` on mount (a no-op move) and on expand, so on iOS every monitor panel logs
-  `TypeError: parent.moveBefore is not a function`; the user saw no visible effect, and expanding
-  likely fails (mobile's `CLAUDE.md`: "The entries chart's fullscreen toggle doesn't work"). From
-  6cdd890 (2026-05-21), so 4.3.0 in production has it too. Fix: use `moveBefore` where it
-  exists, else `insertBefore`, and skip the no-op move on mount. **Why deferred:** the user, 2026-11-25
-  ("defer the moveBefore fix for now"), before the delay was traced; **un-deferred the same day**
-  (the user's yes): fixed in `@sjvair/monitor-map` `5.0.0-beta.7` (`prompt-monitor-map-movebefore.txt`). **Revisit:** before
-  `@sjvair/monitor-map` `5.0.0` final, or when the chart's expand is reported broken.
-  _Confirmed 2026-11-25 as the cause of the chart's ~60 s delay on iOS:_ the throw interrupts the
-  chart's first update, so its data request waits for the monitors poll to re-render the panel.
-  In Chromium against the stack (beta.6), an in-app panel open sends the request at 0.3 s and
-  draws at 0.6 s; with `moveBefore` deleted, nothing is requested within 75 s.
 - **iOS Safari: tap detection in `@sjvair/map-sdk` `0.1.0-beta.24` is unchecked on a real iPhone.**
   _Found 2026-11-25 (map-sdk #41, `map-sdk-20`)._ The tap flag reads the press, because iOS 18.2+
   reports a tap's click as a mouse click (WebKit bug 282988), and a mouse move within 4 px and 1 s
