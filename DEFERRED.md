@@ -3300,6 +3300,13 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
 
 ## UI & UX
 
+- **The top bar is three rows on a phone.** _Deferred 2026-11-25 (the user, after #77)._ With the
+  logo on its own and "Dashboard" and "Data Portal" as ghost-button nav links
+  (`src/lib/components/shell/TopNav.svelte`), a phone-width top bar wraps to three rows: the logo and
+  nav, the dashboard picker and ⋯, then Saved, Undo/Redo, Help and Account. The user saw it in the
+  mock-up and chose this layout. **Why deferred:** the user's call; a fix needs a phone top-bar design
+  (e.g. folding the right-hand buttons or the nav into a menu below `sm`). **Revisit when** someone
+  reports the phone top bar taking too much room, or at the next top-bar change.
 - **Command palette (Ctrl+K) and per-action keyboard shortcuts** (beyond undo/redo and
   menu-opening keys, which ship in Release 1). _Deferred 2026-09-23 (IDEA.md
   Q5)._ The shared action registry is designed to feed these. **Revisit when** the action
