@@ -1477,8 +1477,9 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   `TypeError: parent.moveBefore is not a function`; the user saw no visible effect, and expanding
   likely fails (mobile's `CLAUDE.md`: "The entries chart's fullscreen toggle doesn't work"). From
   6cdd890 (2026-05-21), so 4.3.0 in production has it too. Fix: use `moveBefore` where it
-  exists, else `insertBefore`, and skip the no-op move on mount. **Why deferred:** found today;
-  the fix waits on the user's call. **Revisit:** before `@sjvair/monitor-map` `5.0.0` final.
+  exists, else `insertBefore`, and skip the no-op move on mount. **Why deferred:** the user, 2026-11-25
+  ("defer the moveBefore fix for now"); no visible effect seen. **Revisit:** before
+  `@sjvair/monitor-map` `5.0.0` final, or when the chart's expand is reported broken.
 - **iOS Safari: tap detection in `@sjvair/map-sdk` `0.1.0-beta.24` is unchecked on a real iPhone.**
   _Found 2026-11-25 (map-sdk #41, `map-sdk-20`)._ The tap flag reads the press, because iOS 18.2+
   reports a tap's click as a mouse click (WebKit bug 282988), and a mouse move within 4 px and 1 s
