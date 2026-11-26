@@ -238,10 +238,10 @@ describe("logo", () => {
 		compact: root.querySelector<HTMLImageElement>("img[data-logo=compact]")!
 	});
 
-	test("the home link is named by the app name and holds a decorative image", async () => {
+	test("the logo link (the site's home) is named SJVAir home and holds a decorative image", async () => {
 		const { app } = await setup();
 		await renderNav(app);
-		const link = page.getByRole("link", { name: "SJVAir Dashboard" });
+		const link = page.getByRole("link", { name: "SJVAir home" });
 		await expect.element(link).toBeInTheDocument();
 		const el = link.element();
 		for (const img of Object.values(logos(el))) expect(img.getAttribute("alt")).toBe("");
@@ -251,7 +251,7 @@ describe("logo", () => {
 		await page.viewport(1280, 720);
 		const { app } = await setup();
 		await renderNav(app);
-		const el = page.getByRole("link", { name: "SJVAir Dashboard" }).element();
+		const el = page.getByRole("link", { name: "SJVAir home" }).element();
 		const l = logos(el);
 		expect(visible(l.full)).toBe(true);
 		expect(visible(l.white)).toBe(false);
@@ -265,7 +265,7 @@ describe("logo", () => {
 		await page.viewport(390, 800);
 		const { app } = await setup();
 		await renderNav(app);
-		const l = logos(page.getByRole("link", { name: "SJVAir Dashboard" }).element());
+		const l = logos(page.getByRole("link", { name: "SJVAir home" }).element());
 		expect(visible(l.compact)).toBe(true);
 		expect(visible(l.full)).toBe(false);
 		expect(visible(l.white)).toBe(false);
