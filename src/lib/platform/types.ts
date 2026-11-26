@@ -138,6 +138,8 @@ export interface IdentitySource {
 	/** `/account/login/?next=` plus the encoded path. */
 	signInUrl(returnPath: string): string;
 	accountUrl(): string;
+	/** The SJVAir site's home page (the logo's link). */
+	siteHomeUrl(): string;
 }
 
 /**
