@@ -11,6 +11,15 @@ Each entry records **why** it was deferred and **what should trigger revisiting 
 
 ## Platform & infrastructure
 
+- **The CSP walk and other stack runs leave their dashboards in the test account.** _Found
+  2026-11-25 (the coordinator, go-live CSP walk)._ Each run of `e2e-local/csp-stack.spec.ts` (and the
+  other stack suites) creates dashboards in the seeded `WORKSPACE_E2E_*` account and never deletes
+  them. At the server's 50-document limit, saves get 403 `limit_documents`, the dashboard stays
+  "Saved in this browser", and the walk times out waiting for "Restore an earlier version…" (WebKit,
+  2026-11-25, after Chromium and Firefox used the last slots). The user had the account's 51
+  dashboards deleted. **Why deferred:** a test-hygiene fix, not a launch blocker. **Revisit when** a
+  stack run next hits `limit_documents`, or at the next change to the stack suites: delete what the
+  run created in an `afterAll`, or clear the account before the run.
 - **sdk-js has no pull-request CI.** _Deferred 2026-11-15 (the user; noticed on sdk-js #63,
   session sdk-js-c0)._ Its only workflow, `.github/workflows/publish.yml`, runs on `v*` tags and
   `workflow_dispatch`, so PRs into `release/5.0.0` show no checks (#62 and #63 had none). Each
