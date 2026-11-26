@@ -518,6 +518,11 @@ string`) now get the union return type. The mobile app passes a string token, so
     dev-build emulator check, update the `CLAUDE.md` pin line and check whether the `@sjvair/sdk` pin
     moves; decide whether the 5.0.0 CHANGELOG needs a bullet for the chart fix (whether 4.x users had
     the bug is unchecked); drop `CLAUDE.md`'s "recheck on an iOS device" chart line after an iOS check.
+    **monitor-map `main` is already 5.0.0** (#146 merged by the user 2026-11-25, 6e62d8c), so from now
+    on any sjvair.com production deploy, including unrelated ones (other people's merges into
+    sjvair.com `main`, e.g. open #261), builds monitor-map 5.0, which can't run against the old
+    production API: the public map breaks until `develop` is deployed. Until then: no sjvair.com
+    production deploy except the `develop` one, or revert #146 on monitor-map `main` first.
     **Everything leaves beta before launch** (the user, 2026-11-25): map-sdk is released as
     `1.0.0`, and monitor-map, the SDK and mobile as their finals, in the release order above. Map-sdk
     1.0 readiness is not a go-live blocker beyond that release.
@@ -1476,6 +1481,12 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   (0 `Calibrator` rows; they come from sjvair.com's `auto_assign_calibrators` command or the admin).
   They share fire's tap-card code path. **Why deferred:** no local data. **Revisit at** the user's
   iOS test if smoke is on the map that day, or when the local stack gets collocation sites.
+- **monitor-map: a WebKit timeout in `legend-stacking`.** _Found 2026-11-25 (#146's CI,
+  `monitor-map-ec`)._ The new `webkit` CI job failed once on "paints the narrow options panel above
+  the legend" (a timeout); #145 passed WebKit on the same code, so it looks like a timing flake. Not
+  rerun (the user's call: the release CI had passed). **Why deferred:** one failure, same code passed.
+  **Revisit if** it fails again in WebKit CI; check the spec parks the pointer and waits for the toolbar's
+  frame.
 - **iOS Safari: tap detection in `@sjvair/map-sdk` `0.1.0-beta.24` is unchecked on a real iPhone.**
   _Found 2026-11-25 (map-sdk #41, `map-sdk-20`)._ The tap flag reads the press, because iOS 18.2+
   reports a tap's click as a mouse click (WebKit bug 282988), and a mouse move within 4 px and 1 s
