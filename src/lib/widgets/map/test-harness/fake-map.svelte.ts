@@ -86,6 +86,14 @@ export class FakeMap {
 	camera = $state({ center: [-119.7, 36.7] as [number, number], zoom: 8, bearing: 0, pitch: 0 });
 	bounds = $state.raw<{ west: number; south: number; east: number; north: number } | null>(null);
 	destroyed = false;
+	/** map-sdk's reactive cooperative-gestures setting (on at creation, `host/config.ts`). */
+	cooperativeGestures = $state(true);
+	/** Every `setCooperativeGestures` call, in order. */
+	gestureCalls: boolean[] = [];
+	setCooperativeGestures(on: boolean): void {
+		this.gestureCalls.push(on);
+		this.cooperativeGestures = on;
+	}
 	/** What the last MapView showing this map was given. */
 	view = $state.raw<Record<string, unknown>>({});
 	/** The host's messages, as `createMap` was given them. */

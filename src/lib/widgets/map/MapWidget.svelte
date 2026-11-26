@@ -840,6 +840,12 @@
 
 	const onScreen = new OnScreen(() => body, { activity: app.platform.activity });
 	onDestroy(() => onScreen.destroy());
+	// Fullscreen, the map takes the wheel and one finger (no Ctrl needed); on the dashboard it
+	// keeps cooperative gestures, so the page scrolls past it. Reads `fullscreen` and `map` only.
+	$effect(() => {
+		const on = !fullscreen;
+		map?.setCooperativeGestures(on);
+	});
 	// Live data polls only while the map is worth drawing (on screen, the page visible).
 	$effect(() => {
 		const on = onScreen.active;

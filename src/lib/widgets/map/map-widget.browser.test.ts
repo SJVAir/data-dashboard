@@ -1024,6 +1024,20 @@ test("a Map with a pollutant and no Where is titled by its pollutant alone", asy
 	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 map");
 });
 
+test("fullscreen turns cooperative gestures off, and back on when it ends", async () => {
+	const widget = mapWidget(region("019"));
+	await openSession(widget);
+	const screen = await render(MapWidget, {
+		target: frame,
+		props: { widget, fullscreen: true },
+		context: new Map<unknown, unknown>([[APP_CONTEXT_KEY, shownApp]])
+	});
+	const map = await madeMap();
+	await expect.poll(() => map.cooperativeGestures).toBe(false);
+	await screen.rerender({ widget, fullscreen: false });
+	await expect.poll(() => map.cooperativeGestures).toBe(true);
+});
+
 test("shows unavailable with no key", async () => {
 	vi.mocked(mapConfig).mockReturnValue(null);
 	const screen = await show(mapWidget(region("019")));
