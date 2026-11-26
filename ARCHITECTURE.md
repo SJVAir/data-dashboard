@@ -37,9 +37,13 @@ for basic users, feature-rich for power users.
   "Widget catalog"). Multiple saved dashboards, selectable at minimum via a dropdown
   (decided 2026-09-24: a **dropdown in the top nav** for Release 1, with new / duplicate /
   rename / delete at its bottom; a visual thumbnail picker is deferred). "Add widget" picks a type
-  from the predefined list, then opens the Data Portal to configure its data. The nav's links are the
-  Data Portal only: the dashboards list is the picker's **"All dashboards"** (the "Dashboards" link
-  was removed 2026-11-25, the user: it repeated the picker).
+  from the predefined list, then opens the Data Portal to configure its data. After the logo (which stands
+  alone), the nav's links are **"Dashboard"** and **"Data Portal"**, alike (ghost buttons like the
+  picker, the user's choice of mock-ups, 2026-11-25): the current one is underlined and
+  `aria-current` ("Dashboard" on home, a saved or a shared dashboard; "Data Portal" on `/data` and
+  when adding or editing a widget; neither on the list or Import). The dashboards list is the
+  picker's **"All dashboards"** (the "Dashboards" link was removed 2026-11-25, the user: it repeated
+  the picker).
 - **Data Portal** — configures one widget's data (see below).
 - **Analysis** (Release 3; the nav shows no Analysis entry before then) — Collections,
   starter and user-defined analyses, notebooks (see "Analysis: Collections & engine",
