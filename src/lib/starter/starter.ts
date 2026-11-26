@@ -37,9 +37,10 @@ const PM25 = { place: TEMPLATE_PLACE, layers: [DEFAULT_LAYER] };
 
 /**
  * The starter's widgets, in reading order, with each widget's data as Get data stores it for the
- * type (PM2.5; `starter.test.ts` checks they match). Rows of the 12-column grid: the welcome Note;
- * the "now" row, as tall as "Can we go outside?" fits; the Map; then the chart and the month
- * calendar. The Map's monitor types aren't here: `starterDashboard` ticks the catalog's.
+ * type (PM2.5; `starter.test.ts` checks they match). The 12-column grid (the user's layout,
+ * 2026-11-25), in reading order: the welcome Note across the top; the Map beside Current
+ * conditions over the Forecast strip, and "Can we go outside?"; then the chart and the month
+ * calendar side by side. The Map's monitor types aren't here: `starterDashboard` ticks the catalog's.
  */
 function starterWidgets(): Omit<WidgetInstance, "id" | "title">[] {
 	return [
@@ -49,16 +50,9 @@ function starterWidgets(): Omit<WidgetInstance, "id" | "title">[] {
 			data: { layers: [] },
 			options: { message: "starter_note_welcome" }
 		},
-		{ type: CURRENT_TYPE, rect: { x: 0, y: 2, w: 3, h: 7 }, data: PM25 },
-		{ type: OUTSIDE_TYPE, rect: { x: 3, y: 2, w: 3, h: 7 }, data: PM25 },
-		{
-			type: FORECAST_TYPE,
-			rect: { x: 6, y: 2, w: 6, h: 7 },
-			data: { place: TEMPLATE_PLACE, layers: [{ dataset: "forecasts" }] }
-		},
 		{
 			type: MAP_TYPE,
-			rect: { x: 0, y: 9, w: 12, h: 7 },
+			rect: { x: 0, y: 2, w: 6, h: 7 },
 			data: {
 				place: TEMPLATE_PLACE,
 				layers: [
@@ -68,14 +62,21 @@ function starterWidgets(): Omit<WidgetInstance, "id" | "title">[] {
 				]
 			}
 		},
+		{ type: CURRENT_TYPE, rect: { x: 6, y: 2, w: 3, h: 3 }, data: PM25 },
+		{ type: OUTSIDE_TYPE, rect: { x: 9, y: 2, w: 3, h: 7 }, data: PM25 },
+		{
+			type: FORECAST_TYPE,
+			rect: { x: 6, y: 5, w: 3, h: 4 },
+			data: { place: TEMPLATE_PLACE, layers: [{ dataset: "forecasts" }] }
+		},
 		{
 			type: CHART_TYPE,
-			rect: { x: 0, y: 16, w: 8, h: 6 },
+			rect: { x: 0, y: 9, w: 6, h: 7 },
 			data: { dateRange: DEFAULT_RANGE, ...PM25 }
 		},
 		{
 			type: MONTH_CALENDAR_TYPE,
-			rect: { x: 8, y: 16, w: 4, h: 6 },
+			rect: { x: 6, y: 9, w: 6, h: 7 },
 			data: { dateRange: { kind: "to-date", unit: "month" }, ...PM25 }
 		}
 	];

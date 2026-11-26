@@ -215,12 +215,12 @@ test("a keyboard pickup shows the outline and key hint", async ({ page }) => {
 });
 
 /** The starter's Current conditions. */
-const CURRENT = STARTER_TITLES[1];
+const CURRENT = STARTER_TITLES[2];
 
 test("a drop on the starter makes the copy", async ({ page }) => {
 	await page.goto("./");
 	await expect(widgetTitles(page)).toHaveCount(STARTER_TITLES.length);
-	// Current conditions, one column to the right, over "Can we go outside?".
+	// Current conditions, one column to the right, over "Can we go outside?" (beside it).
 	await titleBar(page, CURRENT, 0).focus();
 	await page.keyboard.press("Enter");
 	await page.keyboard.press("ArrowRight");
@@ -228,18 +228,18 @@ test("a drop on the starter makes the copy", async ({ page }) => {
 
 	await expect(page).toHaveURL(DASHBOARD_URL);
 	await expect(liveRegion(page)).toHaveText(
-		"Dropped PM2.5 · Fresno County at column 2, row 3. 4 other widgets moved."
+		"Dropped PM2.5 · Fresno County at column 8, row 3. 2 other widgets moved."
 	);
-	const moved = page.getByTestId("widget-starter-2");
+	const moved = page.getByTestId("widget-starter-3");
 	await expect(moved.getByRole("group", { name: CURRENT, exact: true })).toBeFocused();
 	const [current, outside] = await Promise.all(
-		["widget-starter-2", "widget-starter-3"].map((id) => box(page, id))
+		["widget-starter-3", "widget-starter-4"].map((id) => box(page, id))
 	);
 	expect(outside.y).toBeGreaterThan(current.y);
 	await expectSaved(page);
 	await page.reload();
-	expect((await box(page, "widget-starter-3")).y).toBeGreaterThan(
-		(await box(page, "widget-starter-2")).y
+	expect((await box(page, "widget-starter-4")).y).toBeGreaterThan(
+		(await box(page, "widget-starter-3")).y
 	);
 });
 
