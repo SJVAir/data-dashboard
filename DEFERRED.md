@@ -749,7 +749,7 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   - **After:** the dashboard is live behind `beta_tools` at `/workspace/`; @sjvair/sdk 5.0.0
     final (renamed from 4.8.0, 2026-11-04; betas only until then) can be cut (with the user's yes) once #293 and #302 are in production. _Changed 2026-11-25 (the user, "We are launching"): the 5.0.0 final is cut first in the launch order, before the deploy (`release/5.0.0` → `main` by PR, then the `v5.0.0` tag)._ Originally: once #293 and #302 are in production (from sdk-js #39, `getRegionsMeta` reads #302's `location_types`; SDK and server go live together, no compatibility shim, the user's call 2026-11-04). Note: JSR's npm mirror (npm.jsr.io) lists the newest beta as `dist-tags.latest` (5.0.0-beta.3 on
     2026-11-05) while JSR's own `latest` stays 4.7.0, so an unpinned `npm i @jsr/sjvair__sdk` gets the
-    beta; ranges and exact pins are unaffected. Check both read 5.0.0 after the final release.
+    beta; ranges and exact pins are unaffected. Check both read 5.0.0 after the final release. _Checked 2026-11-25: JSR's `latest` is 5.0.0; the npm.jsr.io mirror's `latest` still said `5.0.0-beta.17` an hour after the publish (18:43 PT; code identical to 5.0.0). Recheck 2026-11-26; if still stale, report it to JSR._
   - **Closest-monitor timing, after the deploy:** sample `monitors/pm25/closest/` (Fresno,
     Bakersfield, Stockton) and `monitors/` from production with curl, spaced out, and compare
     with the 2026-10-08 numbers (0.5–6.5 s; about 3 s for the list) and the local before/after
