@@ -513,9 +513,11 @@ string`) now get the union return type. The mobile app passes a string token, so
     not earlier.
     map-sdk must already be on npm by then: monitor-map 5.0 depends on it, and sjvair.com's
     deploy runs `npm i` on monitor-map `main`.
-    **Mobile's PR #122** (`release/5.0.0`, pins `@sjvair/monitor-map` `5.0.0-beta.7`) is held open
-    until monitor-map `5.0.0` final, then re-pinned to it on the same PR before the mobile release
-    (the user, 2026-11-25: no new code reaches mobile from a beta.8).
+    **Mobile on launch day** (from `mobile-68`, 2026-11-25): re-pin `release/5.0.0` from
+    `@sjvair/monitor-map` `5.0.0-beta.7` (#122, merged) to `5.0.0` final in a PR, rerun the gates and a
+    dev-build emulator check, update the `CLAUDE.md` pin line and check whether the `@sjvair/sdk` pin
+    moves; decide whether the 5.0.0 CHANGELOG needs a bullet for the chart fix (whether 4.x users had
+    the bug is unchecked); drop `CLAUDE.md`'s "recheck on an iOS device" chart line after an iOS check.
     **Everything leaves beta before launch** (the user, 2026-11-25): map-sdk is released as
     `1.0.0`, and monitor-map, the SDK and mobile as their finals, in the release order above. Map-sdk
     1.0 readiness is not a go-live blocker beyond that release.
