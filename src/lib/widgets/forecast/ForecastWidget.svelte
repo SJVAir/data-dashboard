@@ -172,7 +172,8 @@
 {#snippet body()}
 	{#if days}
 		{@const shownDays = days.days.filter((d) => d.date >= today)}
-		<div class="flex h-full flex-col gap-2">
+		<!-- When the days don't fit (a small strip), the body scrolls; nothing overlaps. -->
+		<div class="flex h-full flex-col gap-2 overflow-y-auto">
 			{#if days.airAlert}
 				<p
 					data-air-alert
@@ -194,7 +195,8 @@
 			{#if shownDays.length === 0}
 				{@render message(days.zone ? m.forecast_none_yet() : m.forecast_none_here())}
 			{:else}
-				<ul class="flex min-h-0 flex-1 flex-col justify-center gap-3">
+				<!-- Centred when there's room, from the top when there isn't (safe centring). -->
+				<ul class="flex flex-1 shrink-0 flex-col justify-center-safe gap-3">
 					{#each shownDays as day (day.date)}
 						<li
 							data-forecast-day={day.date}
