@@ -1470,6 +1470,15 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   (0 `Calibrator` rows; they come from sjvair.com's `auto_assign_calibrators` command or the admin).
   They share fire's tap-card code path. **Why deferred:** no local data. **Revisit at** the user's
   iOS test if smoke is on the map that day, or when the local stack gets collocation sites.
+- **monitor-map: the monitor chart calls `Element.moveBefore()`, which WebKit lacks.** _Found
+  2026-11-25 (the user's iOS test on the simulator, `mac-mobile`; code checked by the
+  coordinator)._ `src/lib/data-chart/DataChart.svelte`'s chart action (lines ~226–249) calls
+  `moveBefore` on mount (a no-op move) and on expand, so on iOS every monitor panel logs
+  `TypeError: parent.moveBefore is not a function`; the user saw no visible effect, and expanding
+  likely fails (mobile's `CLAUDE.md`: "The entries chart's fullscreen toggle doesn't work"). From
+  6cdd890 (2026-05-21), so 4.3.0 in production has it too. Fix: use `moveBefore` where it
+  exists, else `insertBefore`, and skip the no-op move on mount. **Why deferred:** found today;
+  the fix waits on the user's call. **Revisit:** before `@sjvair/monitor-map` `5.0.0` final.
 - **iOS Safari: tap detection in `@sjvair/map-sdk` `0.1.0-beta.24` is unchecked on a real iPhone.**
   _Found 2026-11-25 (map-sdk #41, `map-sdk-20`)._ The tap flag reads the press, because iOS 18.2+
   reports a tap's click as a mouse click (WebKit bug 282988), and a mouse move within 4 px and 1 s

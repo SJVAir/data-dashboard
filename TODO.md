@@ -1673,7 +1673,9 @@ django-resticus plans first)
 - ✅ The user's parity review of `@sjvair/monitor-map` 5.0 against 4.3: done 2026-11-25 (on
   `5.0.0-beta.6`; "the parity review is done"). Everything leaves beta before launch
   (`@sjvair/map-sdk` `1.0.0`, monitor-map `5.0.0`, the SDK and mobile finals; DEFERRED deploy entry).
-  Still open: the user's iOS test of mobile 5.0 (with `mac-mobile`, 2026-11-25).
+  ✅ The user's iOS test of mobile 5.0: passed overall 2026-11-25 (`mac-mobile`, iPhone 17 Pro
+  simulator, iOS 26.5, `release/5.0.0` c7817c3 on monitor-map `5.0.0-beta.6`, against the local stack;
+  no real iPhone available). Found: the monitor chart's `moveBefore` error (DEFERRED).
 - Go-live: enable the `sjvair.com/workspace/` route once Release 1 is complete.
 
 **Release 1: private preview (from about step 4)**
