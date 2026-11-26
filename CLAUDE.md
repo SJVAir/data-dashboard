@@ -85,7 +85,7 @@ reuse existing code only if it's exactly what the new design needs.
   integrations). This repo no longer depends on it (the v1 Monitors tab that embedded its
   `MapShell` was removed in Foundations spec 1). The new dashboard does not use it; see below.
   **Planned split (decided 2026-09-24):** a new `@sjvair/map-sdk` (sibling repo
-  `../map-sdk`, created 2026-11-03 as `SJVAir/map-sdk`; milestones 1 and 2 merged, published betas through `0.1.0-beta.26`) holds the per-map core, plugins, `MapView`, and data
+  `../map-sdk`, created 2026-11-03 as `SJVAir/map-sdk`; milestones 1 and 2 merged, `1.0.0` published 2026-11-25) holds the per-map core, plugins, `MapView`, and data
   stores, while monitor-map is rebuilt on it (as its **5.0**) as the monitor-map
   _experience_ (MapShell, routes, panels, options toolbar, legend, the standalone build
   sjvair.com imports), keeping the `/core` and `/routes` entry points the mobile app uses. **Dashboard map widgets use
@@ -163,28 +163,28 @@ by being done or explicitly dropped by the user (recorded under "Dropped").
 
 Installed:
 
-| Library                            | Purpose                                                                    |
-| ---------------------------------- | -------------------------------------------------------------------------- |
-| `sv-router`                        | Client-side routing                                                        |
-| `@sjvair/sdk`                      | Air quality data API                                                       |
-| `date-fns`                         | Date handling                                                              |
-| `@date-fns/tz`                     | Pacific-time date math (via the `format` module)                           |
-| Paraglide JS (inlang)              | UI message catalog (English-only today)                                    |
-| `zod`                              | Validating every incoming document                                         |
-| `idb`                              | IndexedDB (inside the platform adapter only)                               |
-| `lz-string`                        | URL-fragment document sharing                                              |
-| shadcn-svelte / bits-ui            | Accessible UI primitives                                                   |
-| `svelte-sonner`                    | Toasts (via shadcn-svelte's `sonner`)                                      |
-| `@lucide/svelte`                   | Icons                                                                      |
-| `@sveltejs/enhanced-img`           | Optimized images                                                           |
-| `color2k`                          | `readableColor` for text on level colors                                   |
-| Vitest                             | Unit tests and browser-mode component tests                                |
-| `vitest-browser-svelte`            | Rendering components in Vitest browser mode                                |
-| Playwright, `@axe-core/playwright` | E2E on Chromium/WebKit/Firefox; WCAG 2.2 AA checks                         |
-| `@sentry/browser`                  | Scrubbed error reports (via the platform adapter)                          |
-| `lexical`, `@lexical/*`            | Notes editor (0.53.0, pinned exactly; lazy)                                |
-| `marked`                           | Notes Markdown lexer, raw HTML off (18.2.0; lazy)                          |
-| `@sjvair/map-sdk`                  | Map widget: core, plugins, `MapView` (0.1.0-beta.26, pinned exactly; lazy) |
+| Library                            | Purpose                                                            |
+| ---------------------------------- | ------------------------------------------------------------------ |
+| `sv-router`                        | Client-side routing                                                |
+| `@sjvair/sdk`                      | Air quality data API                                               |
+| `date-fns`                         | Date handling                                                      |
+| `@date-fns/tz`                     | Pacific-time date math (via the `format` module)                   |
+| Paraglide JS (inlang)              | UI message catalog (English-only today)                            |
+| `zod`                              | Validating every incoming document                                 |
+| `idb`                              | IndexedDB (inside the platform adapter only)                       |
+| `lz-string`                        | URL-fragment document sharing                                      |
+| shadcn-svelte / bits-ui            | Accessible UI primitives                                           |
+| `svelte-sonner`                    | Toasts (via shadcn-svelte's `sonner`)                              |
+| `@lucide/svelte`                   | Icons                                                              |
+| `@sveltejs/enhanced-img`           | Optimized images                                                   |
+| `color2k`                          | `readableColor` for text on level colors                           |
+| Vitest                             | Unit tests and browser-mode component tests                        |
+| `vitest-browser-svelte`            | Rendering components in Vitest browser mode                        |
+| Playwright, `@axe-core/playwright` | E2E on Chromium/WebKit/Firefox; WCAG 2.2 AA checks                 |
+| `@sentry/browser`                  | Scrubbed error reports (via the platform adapter)                  |
+| `lexical`, `@lexical/*`            | Notes editor (0.53.0, pinned exactly; lazy)                        |
+| `marked`                           | Notes Markdown lexer, raw HTML off (18.2.0; lazy)                  |
+| `@sjvair/map-sdk`                  | Map widget: core, plugins, `MapView` (1.0.0, pinned exactly; lazy) |
 
 Planned (decided, not yet installed — see `ARCHITECTURE.md` → "Tech stack"):
 
