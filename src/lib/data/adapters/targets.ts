@@ -180,6 +180,8 @@ export async function layerTarget(
 	if (types.length > 0) {
 		const regionKeys = await whereRegionKeys(layer, ctx, signal);
 		if (!Array.isArray(regionKeys)) return regionKeys;
+		// No areas is no place: never a bulk request with no region (every monitor of the types).
+		if (regionKeys.length === 0) return { unavailable: "place-unsupported" };
 		const found = await resolveRegionKeys(regionKeys, ctx.regions, signal);
 		if (found.some((r) => r === null)) return { unavailable: "region-unresolved" };
 		return { kind: "monitor-set", ids, types, regionKeys };

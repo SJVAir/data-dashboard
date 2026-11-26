@@ -297,7 +297,9 @@ export class DataWidget {
 			// place never stays on it.
 			const s = query.state;
 			const meta = this.meta;
-			const empty = this.picked.input === null;
+			// Only a widget that asks for nothing (`chartInput`'s `empty`), never one whose input waits
+			// (a figure being looked up).
+			const empty = !!this.picked.empty;
 			if ((!empty && s.status !== "ready") || !meta) return;
 			setGeneratedTitle(
 				widget().id,

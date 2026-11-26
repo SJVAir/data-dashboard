@@ -633,6 +633,16 @@ test("with no Where, smoke and a searched monitor draw; the ticked types say the
 	await expect.element(screen.getByText(m.widget_types_need_place())).toBeVisible();
 });
 
+test("with no Where, ticked types beside smoke (no searched monitors) say they need a place", async () => {
+	const widget = mapWidget({ monitorTypes: ["purpleair"] });
+	widget.data.layers.push({ dataset: "hms-smoke" }, { dataset: "hms-fire" });
+	const screen = await show(widget);
+	const map = await madeMap();
+	await expect.poll(() => pluginIds(map)).toContain("hms-smoke");
+	await expect.element(screen.getByText(m.widget_types_need_place())).toBeVisible();
+	expect(getMonitors).not.toHaveBeenCalled();
+});
+
 test("the toolbar's monitor types are only those the Map asked for", async () => {
 	vi.mocked(getMonitors).mockResolvedValue([
 		reading("p1"),
@@ -1016,6 +1026,17 @@ test("a pollutant Map of several searched monitors and no Where counts them", as
 	const widget = mapWidget({ monitors: ["a", "b", "c"], monitorTypes: [] });
 	await show(widget);
 	await expect.poll(() => generatedTitle(widget.id)).toBe("PM2.5 map · 3 places");
+});
+
+test("with no Where, idle ticks don't stop a lone searched monitor naming the Map", async () => {
+	const alone = mapWidget({ monitors: ["a"], monitorTypes: [] });
+	const first = await show(alone);
+	await expect.poll(() => generatedTitle(alone.id)).not.toBe("PM2.5 map");
+	const named = generatedTitle(alone.id);
+	await first.unmount();
+	const ticked = mapWidget({ monitors: ["a"], monitorTypes: ["purpleair"] });
+	await show(ticked);
+	await expect.poll(() => generatedTitle(ticked.id)).toBe(named);
 });
 
 test("a Map with a pollutant and no Where is titled by its pollutant alone", async () => {

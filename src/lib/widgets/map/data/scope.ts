@@ -5,7 +5,7 @@ import type { placeRegion } from "$lib/data";
 
 /**
  * Which monitors the Map draws: every monitor of `types` inside the regions `regionIds` (server
- * ids; `null` for everywhere) plus the searched monitors `ids` wherever they are, or (no ticked
+ * ids; ticked types need a Where) plus the searched monitors `ids` wherever they are, or (no ticked
  * types) exactly the searched monitors.
  */
 export type MonitorScope =

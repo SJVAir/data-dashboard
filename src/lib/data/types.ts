@@ -93,7 +93,7 @@ export type PlaceInfo = {
 
 export type QueryData = {
 	series: Series[];
-	/** One per requested place in request order; for the whole layer, one per monitor returned. */
+	/** One per requested place in request order; for a monitor set, one per monitor returned. */
 	places: PlaceInfo[];
 	resolution: Resolution;
 	fromRaw: boolean;

@@ -75,6 +75,15 @@ describe("layerTarget", () => {
 		});
 	});
 
+	it("types with an empty area list have no place either (never every monitor of them)", async () => {
+		const layer = {
+			...base,
+			selection: { kind: "regions", ids: [] },
+			monitorTypes: ["purpleair"]
+		} as unknown as QueryLayer;
+		expect(await layerTarget(layer, ctx)).toEqual({ unavailable: "place-unsupported" });
+	});
+
 	it("types with no Where have no place to count them in", async () => {
 		const layer: QueryLayer = { ...base, monitorTypes: ["purpleair", "airnow"] };
 		expect(await layerTarget(layer, ctx)).toEqual({ unavailable: "place-unsupported" });

@@ -44,7 +44,7 @@ export function toggle(picks: Picks, candidate: PickRef, mode: PickerMode): Pick
 
 /**
  * The Where for the picks: one → `place`, several → `selection` (regions), none → neither
- * (everywhere). Monitors are never a Where: a monitor pick is left out.
+ * (nothing from Where). Monitors are never a Where: a monitor pick is left out.
  */
 export function toWhere(picks: Picks): { place?: PlaceRef; selection?: SpatialSelection } {
 	const places = picks.filter(isPlaceRef);

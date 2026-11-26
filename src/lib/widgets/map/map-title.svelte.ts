@@ -5,7 +5,7 @@ import type { Layer, PlaceRef, WidgetDataConfig } from "$lib/data/schema";
 import { placeName } from "$lib/places/bar-name";
 import { formatList, formatNumber } from "$lib/format";
 import { m } from "$lib/paraglide/messages.js";
-import { drawnMonitors, nowInput, singleMonitor } from "../shared/input";
+import { drawnMonitors, nowInput } from "../shared/input";
 import type { PlaceViewer } from "../shared/viewer";
 import { placeLabel } from "../title";
 import { setGeneratedTitle } from "../titles.svelte";
@@ -42,7 +42,7 @@ type NamedKind = { kind: "region" } | { kind: "location" };
 /**
  * The generated title: what the Map shows (`entryLabel`) with the one place's label, or with no
  * Where the one searched monitor's, or how many places (or searched monitors); with no Where and
- * nothing to count, what it shows alone (everywhere). A Map with a pollutant names its place from
+ * nothing to count, what it shows alone. A Map with a pollutant names its place from
  * the "now" lookup of the Where alone (not its monitors). A Map with no pollutant names an area
  * or a school by looking its name up (`placeName`, no data fetched), and a point by the "now"
  * lookup (only it gives the viewer-aware region name); until or unless that name is known, it is
@@ -77,7 +77,10 @@ export function syncMapTitle(input: MapTitleInput, viewer: PlaceViewer): void {
 			const { monitors, monitorTypes, ...where } = layer;
 			return nowInput(data, where);
 		}
-		return count === 0 && input.monitorsShown && singleMonitor(data) ? nowInput(data, layer) : null;
+		// The one monitor the Map draws (ticked types draw nothing with no Where).
+		const drawn = drawnMonitors(data);
+		const lone = drawn.types.length === 0 && drawn.monitors.length === 1;
+		return count === 0 && input.monitorsShown && lone ? nowInput(data, layer) : null;
 	});
 	$effect(() => {
 		titleQuery.set(!input.idle && input.supported ? named : null);

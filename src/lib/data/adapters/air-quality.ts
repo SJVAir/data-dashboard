@@ -399,7 +399,7 @@ async function monitorNames(
 
 /**
  * A monitor set's data: one bulk request per period for every monitor of its types inside its
- * regions (everywhere with none), then each searched monitor the bulk didn't return fetched one by
+ * regions (always some), then each searched monitor the bulk didn't return fetched one by
  * one (`monitors`, today's path). One series per monitor, bulk ones first; names from the list.
  */
 async function fetchMonitorSet(
@@ -409,17 +409,16 @@ async function fetchMonitorSet(
 ): Promise<QueryData> {
 	const { target } = req;
 	if (target.kind !== "monitor-set") throw new Error("Not a monitor set");
-	let region: string[] | undefined;
-	if (target.regionKeys) {
-		const found = await resolveRegionKeys(target.regionKeys, ctx.regions, signal);
-		region = found.map((r, i) => {
-			if (r === null) throw new Error(`Region ${target.regionKeys![i]} can't be looked up`);
-			return r.id;
-		});
-	}
+	// Never a bulk request with no region: that would be every monitor of the types.
+	if (target.regionKeys.length === 0) throw new Error("A monitor set needs at least one region");
+	const found = await resolveRegionKeys(target.regionKeys, ctx.regions, signal);
+	const region = found.map((r, i) => {
+		if (r === null) throw new Error(`Region ${target.regionKeys[i]} can't be looked up`);
+		return r.id;
+	});
 	const bulkReq: AqRequest = { ...req, target: { kind: "bulk" } };
 	const bulk = await summarySeriesWithWorstHour(bulkReq, [], [], signal, {
-		...(region && { region }),
+		region,
 		type: target.types
 	});
 	const have = new Set(bulk.map((s) => s.place));

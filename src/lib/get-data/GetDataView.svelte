@@ -52,6 +52,7 @@
 		mainLayer,
 		wherePurpose,
 		widgetEffective,
+		drawnMonitors,
 		widgetMonitors,
 		widgetPlaceKind
 	} from "$lib/widgets/shared/input";
@@ -361,7 +362,7 @@
 				: typeBlock(t, rangeBlockData(t), known, now);
 			const level =
 				block === "resolution"
-					? (resolutionBlock(t, offersNow(t) ? plain.data : blockData) ?? undefined)
+					? (resolutionBlock(t, offersNow(t) ? plain.data : rangeBlockData(t)) ?? undefined)
 					: undefined;
 			return { type: t, block, ...(level ? { level } : {}) };
 		})
@@ -533,8 +534,8 @@
 	});
 	const data = new DataWidget(() => namesWidget);
 
-	/** The draft has ticked monitor types: its lines are a monitor set's monitors. */
-	const setLines = $derived(widgetMonitors(plain.data).types.length > 0);
+	/** The draft's ticked types draw (inside a Where): its lines are a monitor set's monitors. */
+	const setLines = $derived(drawnMonitors(plain.data).types.length > 0);
 	/**
 	 * What Where says with no places: "None" (nothing from Where), or that the searched monitors
 	 * show; a single-place widget takes one place or one monitor, so it asks for one, or says it

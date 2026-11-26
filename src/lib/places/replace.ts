@@ -19,7 +19,7 @@ function canShow(widget: WidgetInstance, to: ChosenPlace): boolean {
 /**
  * A widget's one place (its Where); `"mixed"` for a selection or a place-tied choice (a weather
  * layer's chosen `station`; the layer schema has no other place-tied field: pesticide `filters`
- * are not tied to a place); `null` when it has no place (a Note, or everywhere). The
+ * are not tied to a place); `null` when it has no place (a Note, or no Where). The
  * starter-only `default-place` counts as mixed, so it is never rewritten.
  */
 export function widgetPlace(widget: WidgetInstance): ChosenPlace | "mixed" | null {

@@ -170,7 +170,7 @@ export function monitorOpenDays(
 
 /**
  * Which monitors a bulk monitor request returns: those inside the regions `region` (sqids; none
- * for everywhere) of the types `type` (the monitors meta's keys; none for every public type).
+ * for every region, which only a request kept to searched ids uses) of the types `type` (the monitors meta's keys; none for every public type).
  */
 export type BulkMonitorScope = { region?: string[]; type?: string[] };
 

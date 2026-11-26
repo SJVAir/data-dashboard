@@ -1,3 +1,4 @@
+import { setGeneratedTitle } from "$lib/widgets/titles.svelte";
 import "../../app.css";
 import axe from "axe-core";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
@@ -41,7 +42,7 @@ import type { Dashboard, WidgetInstance } from "$lib/documents/schema";
 import { makeDoc } from "$lib/sync/test-support";
 import { defaultDraft, type Draft } from "./draft.svelte";
 import { editDraft, saveEdit } from "./edit";
-import GetDataView from "./GetDataView.svelte";
+import GetDataView, { PREVIEW_ID } from "./GetDataView.svelte";
 
 type Hit = { id: string; name: string; detail: string; placeholder?: boolean };
 type Station = { id: string; name: string; distance: number; inside: boolean; active: boolean };
@@ -546,6 +547,16 @@ test("Overlay for appears only when places are in different zones", async () => 
 	expect((await second.current()).options).toEqual({ overlayFor: { kind: "monitor", id: "m2" } });
 });
 
+test("idle ticks (no Where) don't make searched monitors in one zone a set: no Overlay for", async () => {
+	const draft = monitorsDraft(["m1", "m2"], {}, ["burn-status"]);
+	draft.data.layers[0].monitorTypes = ["airnow"];
+	const { host } = await show(draft);
+	await drawn(host);
+	await expect.poll(() => forecastRequests.length).toBeGreaterThan(0);
+	await animationsSettled(host);
+	expect(page.getByRole("combobox", { name: "Overlay for" }).elements()).toHaveLength(0);
+});
+
 test("Overlay for lists a monitor set's monitors; the overlay is fetched for the one chosen", async () => {
 	const draft = monitorsDraft([], {}, ["burn-status"]);
 	draft.data.layers[0] = { dataset: "air-quality", entryType: "pm25", monitorTypes: ["purpleair"] };
@@ -980,6 +991,29 @@ test("get data view: Clear goes back to None, focuses Change places, says so", a
 	const data = latest().data;
 	expect(data.place).toBeUndefined();
 	expect(data.selection).toBeUndefined();
+});
+
+test("get data view: the preview's title never drops its place while it loads", async () => {
+	// Titles are kept by widget id and every preview shares one: start this one from a blank.
+	setGeneratedTitle(PREVIEW_ID, "");
+	const seen: string[] = [];
+	// This test's preview is the last on the page (an earlier test's may still be there).
+	const latestTitle = () =>
+		[...document.querySelectorAll("[data-testid=get-data-preview] h3")].at(-1)?.textContent;
+	const before = document.querySelectorAll("[data-testid=get-data-preview]").length;
+	const observer = new MutationObserver(() => {
+		if (document.querySelectorAll("[data-testid=get-data-preview]").length <= before) return;
+		const t = latestTitle();
+		if (t) seen.push(t);
+	});
+	observer.observe(document.body, { subtree: true, childList: true, characterData: true });
+	try {
+		await show(areasDraft(["06019"]));
+		await expect.poll(latestTitle).toBe("PM2.5 · Area 06019 · Last 30 days");
+		expect(seen).not.toContain("PM2.5 · Last 30 days");
+	} finally {
+		observer.disconnect();
+	}
 });
 
 test("get data view: Clear drops the place from the preview's title", async () => {

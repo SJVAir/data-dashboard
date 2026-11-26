@@ -42,7 +42,6 @@
 		widgetEffective,
 		widgetPlaceKind
 	} from "../shared/input";
-	import { idleTypesNote } from "../shared/misfit-notes";
 	import { useTileOptions } from "../shared/tile-options.svelte";
 	import { PLACE_VIEWER_KEY, type PlaceViewer } from "../shared/viewer";
 	import WidgetSkeleton from "../shared/WidgetSkeleton.svelte";
@@ -1035,8 +1034,14 @@
 			});
 		}
 		// Ticked types or sites with no Where draw nothing: say what's missing.
-		const typesNote = idleTypesNote(widget.data, known, markable);
-		if (typesNote) notes.push({ message: typesNote, hook: "map-types-need-place" });
+		// The Map still draws its other layers (smoke, a searched monitor), so it says so whenever
+		// its ticks draw nothing, unlike a Chart or Table whose empty message covers it.
+		if (typesIdle.length > 0) {
+			notes.push({
+				message: markable ? m.widget_types_need_place() : m.widget_types_need_place_view(),
+				hook: "map-types-need-place"
+			});
+		}
 		if (sitesIdle && tickedGroups.length) {
 			const layers = formatList(tickedGroups.map((g) => g.label));
 			notes.push({
