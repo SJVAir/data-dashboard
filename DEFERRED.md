@@ -1480,6 +1480,10 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   exists, else `insertBefore`, and skip the no-op move on mount. **Why deferred:** the user, 2026-11-25
   ("defer the moveBefore fix for now"); no visible effect seen. **Revisit:** before
   `@sjvair/monitor-map` `5.0.0` final, or when the chart's expand is reported broken.
+  _Confirmed 2026-11-25 as the cause of the chart's ~60 s delay on iOS:_ the throw interrupts the
+  chart's first update, so its data request waits for the monitors poll to re-render the panel.
+  In Chromium against the stack (beta.6), an in-app panel open sends the request at 0.3 s and
+  draws at 0.6 s; with `moveBefore` deleted, nothing is requested within 75 s.
 - **iOS Safari: tap detection in `@sjvair/map-sdk` `0.1.0-beta.24` is unchecked on a real iPhone.**
   _Found 2026-11-25 (map-sdk #41, `map-sdk-20`)._ The tap flag reads the press, because iOS 18.2+
   reports a tap's click as a mouse click (WebKit bug 282988), and a mouse move within 4 px and 1 s
