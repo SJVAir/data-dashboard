@@ -1474,10 +1474,12 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   _Found 2026-11-25 (map-sdk #41, `map-sdk-20`)._ The tap flag reads the press, because iOS 18.2+
   reports a tap's click as a mouse click (WebKit bug 282988), and a mouse move within 4 px and 1 s
   of a tap counts as part of it (iOS's stray mouse events). Tested only in Chromium's touch
-  emulation and the Android emulator. **Why deferred:** needs a real device. **Revisit at** the
-  user's iOS test of mobile 5.0 (on `@sjvair/monitor-map` `5.0.0-beta.5`): tapping a monitor or an
-  EV station leaves no hover card, a tap elsewhere closes the station popup, and a desktop-style
-  click isn't mistaken for a tap. Also unverified: Safari's `pointerType` for `element.click()` and VoiceOver activation (map-sdk treats `""` as never a tap).
+  emulation, the Android emulator and the iOS simulator (the user's iOS test of mobile 5.0 on
+  `5.0.0-beta.6`, 2026-11-25, iPhone 17 Pro simulator, iOS 26.5; the simulator turns clicks into
+  touches, so it only partly covers a real finger). **Why deferred:** no real iPhone is available
+  (the user, 2026-11-25). **Revisit at** the private preview if a tester has an iPhone, or on any
+  iPhone report after launch: tapping a monitor or an EV station leaves no hover card, a tap
+  elsewhere closes the station popup, and a desktop-style click isn't mistaken for a tap. Also unverified: Safari's `pointerType` for `element.click()` and VoiceOver activation (map-sdk treats `""` as never a tap).
 - **map-sdk: "MapTiler Cloud API key is not set" console warning (found 2026-11-09).** Every map open logs it, because
   map-sdk deliberately puts the key on each request (`maptilerKeyTransform` in `src/lib/view/create-gl-map.ts`) rather
   than on `@maptiler/sdk`'s global `config.apiKey`, so two maps with different keys don't clash. Maps work. **Why
