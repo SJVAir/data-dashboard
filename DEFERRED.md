@@ -1478,7 +1478,8 @@ county`, then the other types the dashboard reads), each with `--dry-run` first.
   likely fails (mobile's `CLAUDE.md`: "The entries chart's fullscreen toggle doesn't work"). From
   6cdd890 (2026-05-21), so 4.3.0 in production has it too. Fix: use `moveBefore` where it
   exists, else `insertBefore`, and skip the no-op move on mount. **Why deferred:** the user, 2026-11-25
-  ("defer the moveBefore fix for now"); no visible effect seen. **Revisit:** before
+  ("defer the moveBefore fix for now"), before the delay was traced; **un-deferred the same day**
+  (the user's yes): fixed in `@sjvair/monitor-map` `5.0.0-beta.7` (`prompt-monitor-map-movebefore.txt`). **Revisit:** before
   `@sjvair/monitor-map` `5.0.0` final, or when the chart's expand is reported broken.
   _Confirmed 2026-11-25 as the cause of the chart's ~60 s delay on iOS:_ the throw interrupts the
   chart's first update, so its data request waits for the monitors poll to re-render the panel.
