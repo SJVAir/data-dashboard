@@ -261,8 +261,11 @@ Same seven widgets with the same data and options; only the rects change (16 row
 | Chart | x 0, y 9, w 6, h 7 |
 | Month calendar | x 6, y 9, w 6, h 7 |
 
-- Phones stack in reading order: Note, Map, Current conditions, Forecast strip, Outside, Chart,
-  Month calendar (the user accepted this; no phone-only order).
+- Phones stack in reading order (row, then column): Note, Map, Current conditions, Outside,
+  Forecast strip, Chart, Month calendar (the user accepted the reading order; no phone-only order.
+  The brainstorm listed Forecast before Outside: the layout engine sorts by row, then column).
+- Found in the build: the Forecast strip overflowed at its 3×4 minimum (content over its title bar);
+  the user chose to fix the widget (it scrolls, from the top, with nothing overlapping).
 - Check that Current conditions at 3×3 and the Forecast strip at 3×4 (their minimum sizes) read
   well; the starter's tests and any E2E relying on the starter's order or sizes; the Lighthouse/LCP
   notes from step 6 spec 1 (the Map's code now loads above the fold on wide screens).

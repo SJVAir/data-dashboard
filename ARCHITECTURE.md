@@ -122,11 +122,14 @@ Decided 2026-09-28. The dashboard a first-time visitor sees (not a blank page):
 - **Contents** (decided 2026-09-28; layout settled in the step 4 spec): Current conditions
   (PM2.5), Forecast strip, "Can we go outside?", a PM2.5 chart (last 30 days), a
   day-colored calendar (this month), and a short welcome Note. (The hour × weekday heatmap was
-  dropped on 2026-11-09, step 4 spec 5.) **Layout as built (step 4 spec 6 and step 6 spec 1, 12
-  columns):** the welcome Note full width on top; then Current conditions, "Can we go outside?"
-  and the Forecast strip in a row (7 rows high); then **the Map, a full-width row of the same
-  height** (`{x 0, y 9, w 12, h 7}`; on a phone it is one column, full width, 7 rows tall); then the
-  chart (8 wide) beside the month calendar (4 wide). The welcome Note is a message reference
+  dropped on 2026-11-09, step 4 spec 5.) **Layout (the user's, 2026-11-25; 12 columns, 16 rows):**
+  the welcome Note full width on top (`{0, 0, 12, 2}`); then **the Map** on the left
+  (`{0, 2, 6, 7}`), Current conditions (`{6, 2, 3, 3}`) over the Forecast strip (`{6, 5, 3, 4}`),
+  and "Can we go outside?" (`{9, 2, 3, 7}`); then the chart (`{0, 9, 6, 7}`) beside the month
+  calendar (`{6, 9, 6, 7}`). Phones stack them in reading order (row, then column): Note, Map,
+  Current conditions, "Can we go outside?", Forecast strip, chart, calendar. At half the grid the
+  Map's toolbar folds into "Open map options" (map-sdk's narrow toolbar), and its code loads at
+  once on every screen (it is no longer below the fold on a phone). The welcome Note is a message reference
   (`{ message }`); a copy keeps it until the person edits the Note.
 - **The starter's Map** (step 6 spec 1, decided 2026-11-23). Its place is the template's
   `default-place`, so "Change place" and "Duplicate for another place" move it like the other
@@ -176,7 +179,8 @@ now inside the dataset sections.
   Where, Data resolution and "More options" since step 5 spec 7a):** **When** (only for types
   with a range; the now-only types (Current conditions, "Can we go outside?", the Forecast) have
   none, so Where comes first. The Map keeps When, since Now is a choice inside it), **Where**
-  (always shown; empty reads "Everywhere"; "Change" opens the shared place picker in `multiple`
+  (always shown; empty reads "None", or "None: showing the monitors chosen in What" with searched
+  monitors (2026-11-25); "Change" opens the shared place picker in `multiple`
   mode up to the widget type's `maxPlaces`, only the Map and the single-place types set one),
   **What** (one list of sections for every widget type, in catalog order; what a type can't show
   is greyed out with its reason, never hidden; the Map's own settings, points of interest and the
@@ -405,7 +409,10 @@ Seasonal), stored once for the whole dataset as `WidgetDataConfig.resolution` (A
 nothing; see "Datasets line up"). A "?" toggletip beside it (a button on the bits-ui popover:
 opens on click, tap or Enter, also on hover, closes on Escape or a click outside, announced)
 explains it. A level a chosen dataset doesn't offer is greyed with the reason naming the dataset
-("Weather has no individual measurements"); one the point budget (places × periods) can't serve
+("Weather has no individual measurements"), or the place when it is why: air quality for an area
+or for ticked monitor types is the server's summaries ("Air quality for an area is summarized by
+the hour. Search for monitors in What to see every measurement.", 2026-11-25; also in the dataset
+reasons and the dashboard's misfit notes, `rawCause` in `dataset-rules.ts`); one the point budget (places × periods) can't serve
 for the current range is greyed with that reason. A chosen level never changes by itself: one
 that becomes blocked stays chosen, with its reason, and the action bar waits until it's changed.
 Automatic says when the datasets moved it ("Automatic data resolution is now Monthly: …"). No
@@ -1576,8 +1583,8 @@ It covers the dashboard only, not monitor-map or mobile.
   `src/lib/data/dataset-rules.ts`, spec 7a): like regions, they have **no raw**, because they come
   from the bulk monitor summaries, so an air-quality entry type that lists only `raw` offers
   nothing at them. Searched monitors alone still offer raw. Ticked types are fetched **in bulk by
-  region and `type`**: one bulk summaries request per period scoped by the Where's regions (one
-  valley-wide request with no Where), carrying the ticked type ids as the server's repeatable `type`
+  region and `type`**: one bulk summaries request per period scoped by the Where's regions (ticked
+  types draw only inside a Where: with none they fetch nothing, 2026-11-25), carrying the ticked type ids as the server's repeatable `type`
   filter (`@sjvair/sdk` 5.0.0-beta.16); the dashboard never filters by type itself. Raw for ticked
   types is in `DEFERRED.md`.
 - **Whole periods.** At Monthly or Yearly the range is whole months or years. The stored range
@@ -1629,7 +1636,7 @@ type QueryDescriptor = {
 	dateRange: DateRangeSpec; // set / rolling (to-date or trailing) / custom (see "Data Portal")
 	timeSubRange?: { start: string; end: string }; // e.g. calendar day-range selection
 	place?: PlaceRef; // Where: one area, school or point (never a monitor); or…
-	selection?: SpatialSelection; // …several areas (regions only). Never both; neither = everywhere
+	selection?: SpatialSelection; // …several areas (regions only). Never both; neither = nothing from Where
 	resolution: Resolution; // the dataset's (WidgetDataConfig.resolution, or Automatic's pick)
 };
 
@@ -1978,9 +1985,11 @@ default**, so sjvair.com's map and the mobile app are unaffected (see Open Quest
 
 **Widget data selection: What, Where and monitors (step 5 spec 7a, built 2026-11-21/22).** Spec:
 `docs/superpowers/specs/2026-11-21-step-5-spec-7-data-portal-design.md`. The user's rule (2026-11-21):
-**What is the data; When and Where are filters for it.** With no Where, a widget shows everything its
-What asks for, for every data set. This section replaces the earlier "a layer holds its places"
-shape.
+**What is the data; When and Where are filters for it.** **No Where means nothing from Where** (the
+user, 2026-11-25; it replaces spec 7a's "no Where means everywhere"; spec:
+`docs/superpowers/specs/2026-11-25-where-empty-design.md`): a widget with no Where shows only what
+doesn't come from Where (searched monitors, and the Map's place-less layers) and says what to add.
+This section replaces the earlier "a layer holds its places" shape.
 
 - **Where is the widget's**: `WidgetDataConfig.place` / `selection` (`src/lib/data/schema.ts`), beside
   `dateRange`. It holds areas, schools and points, and `default-place` in the starter; **never
@@ -1990,7 +1999,7 @@ shape.
   the areas it sits in (ZIP code, then city, then county).
 - **Monitors are What**: the air-quality layer's `monitors` (ids from the Monitors search, counted
   wherever they are) and `monitorTypes` (ticked monitor types, counted only inside Where's areas;
-  every monitor of the type with no Where). `monitors` may also sit on a single-place widget's one
+  none with no Where, 2026-11-25). `monitors` may also sit on a single-place widget's one
   layer (a Forecast strip's forecasts layer); `monitorTypes` is meaningful on the air-quality layer
   only. An unticked type means "not shown": no widget reads "nothing ticked" as "everything".
   With the pollutant on None the ticks and monitors stay saved, greyed out ("Choose a pollutant to
@@ -2005,7 +2014,7 @@ shape.
   the saved shape can change behind it. `widgetMonitors(data)` and `widgetPlaceKind(data)` read
   the same fields for the rest of the app.
 - **The target `monitor-set`** (`src/lib/data/types.ts`, built in `adapters/targets.ts`) is what a
-  layer with monitors asks for: ticked types, the Where's region keys (null with no Where) and the
+  layer with monitors asks for: ticked types, the Where's region keys (always some: ticked types need a Where) and the
   searched ids. It is fetched in bulk by region and type (see "Datasets line up"), and any
   searched monitor the bulk answer lacks is fetched one by one.
 - **What a widget draws.** _Chart and Table_: one line (column) per monitor, with Where's areas
@@ -2030,7 +2039,8 @@ shape.
   layer, as it skips the notices; "Show as" another type leaves it out with a note naming the
   ticked groups ("Schools: shown only on a map, so left out."). Where filters it like everything
   else: the sites inside Where's areas (a school or point: its fallback region, the first of ZIP,
-  city and county the server has), or the whole valley's with no Where. Unticking a group's last
+  city and county the server has); with no Where it loads none, and the Map says to add a place
+  (2026-11-25). Unticking a group's last
   type also takes the group off the Map's `hiddenLocationGroups` (below), so ticking it again
   shows it.
 - **Compatibility.** There is no compatibility code for documents saved before this shape (the user,
@@ -2526,7 +2536,9 @@ for the data that tile holds.
 
 - **Config, shared by every map** (`host/config.ts`): the MapTiler key, Mercator projection
   (no globe), `cooperativeGestures: true` (Ctrl/⌘-scroll or two fingers zoom, so scrolling the
-  page never zooms a map; also in fullscreen) and `telemetry: false`. MapTiler's usage report is
+  page never zooms a map) and `telemetry: false`. While the widget is fullscreen it turns them off
+  (`MapContext.setCooperativeGestures`, `@sjvair/map-sdk` `0.1.0-beta.26`; the user, 2026-11-25):
+  a plain wheel zooms and one finger pans, and leaving fullscreen turns them back on. MapTiler's usage report is
   off, because the dashboard allows no analytics; its session id and tile cache stay on (the
   user, 2026-11-11). With no `VITE_MAPTILER_KEY` the widget shows "Map unavailable". The key is
   never logged.
@@ -2672,9 +2684,8 @@ for the data that tile holds.
   is drawn with map-sdk's schools preset.
   - **Loading** (`locationsEntry`, `src/lib/widgets/map/data/locations.ts`). The sites come from
     `getPesticideLocations`, every type at once (ticking a type filters what is loaded, never
-    refetches): per region in Where (by sqid; a school or point uses its fallback region), or
-    valley-wide in one request with no Where (about 2,800 sites, 1.5 MB raw). Each region's list
-    and the valley's are fetched **once per session and shared by every Map**, kept in memory
+    refetches): per region in Where (by sqid; a school or point uses its fallback region); none
+    with no Where (2026-11-25). Each region's list is fetched **once per session and shared by every Map**, kept in memory
     with no expiry (sites change rarely and the server caches for 24 hours; see `DEFERRED.md`);
     each Map filters a list, never copies it. A failed fetch is forgotten, so the next load asks
     again, and one caller's abort never cancels the shared fetch. Sites have no time, so the
@@ -2771,8 +2782,8 @@ for the data that tile holds.
   from `getRegionsGeoJSON`, kept in a page-wide in-memory cache in `src/lib/widgets/map/regions.ts`
   (each region fetched once, one request per region type). `featureList={{ reveal: "focus" }}` is
   the keyboard path, and the legend sits in the widget's card under a "Legend" header that folds it at any width, as
-  monitor-map's does (the user, 2026-11-23); it starts open on a wide widget and folded on a narrow
-  one, until the person chooses. The choice isn't saved.
+  monitor-map's does (the user, 2026-11-23); it starts folded at every width (the user,
+  2026-11-25) until the person opens it. The choice isn't saved.
 - **CSP:** `connect-src` and `img-src` both include `https://api.maptiler.com` (styles, tiles,
   glyphs, sprites, and the logo; the user, 2026-11-11). sjvair.com holds the real list, so it
   gets the same host (sjvair.com #330, on `develop`). `cdn.maptiler.com`, MapTiler's default
@@ -2808,7 +2819,7 @@ Decided 2026-09-23 (IDEA.md Open Question #4).
   school machines mostly use mice); the taskbar is already a horizontal scroller;
   phones stack vertically; every familiar dashboard product scrolls down. To avoid
   wheel conflicts, map widgets use MapLibre's `cooperativeGestures` (ctrl/⌘+scroll
-  zooms the map; plain scroll scrolls the page). "Too crowded" is answered by
+  zooms the map; plain scroll scrolls the page), except while fullscreen. "Too crowded" is answered by
   **multiple saved dashboards**, not a bigger canvas.
 - **Responsive: two layouts** (decided 2026-10-28, step 2; this replaces "fewer columns on
   tablet"). The 12-column grid on anything roughly 768 px wide or wider, and on phones a
@@ -3914,9 +3925,15 @@ endpoint yet (since 2026-11-03 only `calenviroscreen`, `emissions`, `tempo`, and
   maps. The client keeps an adapter registry keyed by dataset id, and **catalog entries
   without an adapter are hidden**, so the server can list datasets before the dashboard
   supports them.
-- **No Where means everywhere** (spec 7a): a widget with no `place` or `selection` shows everything
-  its What asks for; a Chart or Table with no Where and no monitors has nothing to draw yet and
-  says what to add. A **point** given to a range
+- **No Where means nothing from Where** (the user, 2026-11-25, replacing spec 7a's "everywhere"):
+  a widget with no `place` or `selection` fetches nothing that has a place. Searched monitors are
+  What and still show; ticked monitor types draw only inside a Where (`drawnMonitors` /
+  `idleTypes`, `src/lib/widgets/shared/input.ts`), and a widget, the Map and the Data Portal's What
+  say so when ticks draw nothing ("Add a place to show ticked monitor types."); the Map's place-less
+  layers (smoke, fire, spray notices, pesticide use townships and sections, region fills) still
+  draw, and its schools and child care need a place. A Chart or Table with nothing to draw says
+  what to add; a Map with nothing to draw asks for a place when one would help. The data layer has
+  no "whole layer" target (`Target` has no `all`), so nothing valley-wide is fetched for a widget. A **point** given to a range
   widget (e.g. from the starter's "Change place" bar) is **kept as the point** (the widget's `place`) and resolved
   at render to its smallest containing region with data, labeled "(your location)", the
   same rule as "now" widgets. Staging freezes it to that region.
